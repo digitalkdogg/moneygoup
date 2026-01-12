@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { calculateTechnicalIndicators, TechnicalIndicators } from '@/utils/technicalIndicators'
 
 interface Ticker {
   name: string
@@ -50,10 +51,12 @@ export default function Search() {
   const [loading, setLoading] = useState(false)
   const [historicalData, setHistoricalData] = useState<HistoricalResponse | null>(null)
   const [metrics, setMetrics] = useState<Metrics | null>(null)
+  const [indicators, setIndicators] = useState<TechnicalIndicators | null>(null)
   const [historicalLoading, setHistoricalLoading] = useState(false)
   const [fullYearData, setFullYearData] = useState<HistoricalData[] | null>(null)
   const [currentPeriod, setCurrentPeriod] = useState('1M')
 
+  // Load ticker list on mount
   useEffect(() => {
     fetch('/company_tickers.json')
       .then(res => res.json())
@@ -67,6 +70,7 @@ export default function Search() {
       .catch(err => console.error('Failed to fetch tickers', err))
   }, [])
 
+  // Filter tickers as user types
   useEffect(() => {
     if (searchValue) {
       const filtered = tickers.filter(t =>
@@ -79,12 +83,14 @@ export default function Search() {
     }
   }, [searchValue, tickers])
 
+  // Fetch current stock data
   const fetchStockData = async (ticker: string) => {
     setLoading(true)
     setStockData(null)
     setFullYearData(null)
     setHistoricalData(null)
     setMetrics(null)
+    setIndicators(null)
     try {
       const res = await fetch(`/api/stock/${ticker}`)
       if (res.ok) {
@@ -99,41 +105,7 @@ export default function Search() {
     setLoading(false)
   }
 
-  const fetchHistoricalData = async (ticker: string, period: string) => {
-    setHistoricalLoading(true)
-    setCurrentPeriod(period)
-    setHistoricalData(null)
-    setMetrics(null)
-
-    try {
-      if (!fullYearData) {
-        console.log('Fetching full year data for', ticker)
-        const res = await fetch(`/api/stock/${ticker}/historical/1Y`)
-        if (res.ok) {
-          const data = await res.json()
-          if (Array.isArray(data) && data.length > 0) {
-            setFullYearData(data)
-            const filteredData = filterDataByPeriod(data, period)
-            setHistoricalData(filteredData)
-            updateMetrics(filteredData)
-          }
-        } else {
-          console.error('Historical API failed')
-          setHistoricalData({ error: 'Failed to fetch historical data' })
-        }
-      } else {
-        console.log('Using cached full year data, filtering to', period)
-        const filteredData = filterDataByPeriod(fullYearData, period)
-        setHistoricalData(filteredData)
-        updateMetrics(filteredData)
-      }
-    } catch (err) {
-      console.error('Historical fetch failed', err)
-      setHistoricalData({ error: 'Failed to fetch historical data' })
-    }
-    setHistoricalLoading(false)
-  }
-
+  // Calculate metrics from historical data
   const updateMetrics = (data: HistoricalData[]) => {
     if (Array.isArray(data) && data.length > 0) {
       const startPrice = data[0].close
@@ -146,20 +118,58 @@ export default function Search() {
     }
   }
 
+  // Filter data by period
   const filterDataByPeriod = (data: HistoricalData[], period: string): HistoricalData[] => {
     if (!Array.isArray(data) || data.length === 0) return data
-
     let daysBack = 30
     if (period === '6M') daysBack = 180
     if (period === '1Y') daysBack = 365
-
     const cutoffDate = new Date()
     cutoffDate.setDate(cutoffDate.getDate() - daysBack)
-
     return data.filter(d => {
       const dataDate = new Date(d.date || d.datetime || '')
       return dataDate >= cutoffDate
     })
+  }
+
+  // Fetch historical data
+  const fetchHistoricalData = async (ticker: string, period: string) => {
+    setHistoricalLoading(true)
+    setCurrentPeriod(period)
+    setHistoricalData(null)
+    setMetrics(null)
+    setIndicators(null)
+
+    try {
+      if (!fullYearData) {
+        const res = await fetch(`/api/stock/${ticker}/historical/1Y`)
+        if (res.ok) {
+          const data = await res.json()
+          if (Array.isArray(data) && data.length > 0) {
+            setFullYearData(data)
+            const filteredData = filterDataByPeriod(data, period)
+            setHistoricalData(filteredData)
+            updateMetrics(filteredData)
+            // Calculate indicators from FULL year data (not filtered)
+            const calcs = calculateTechnicalIndicators(data)
+            setIndicators(calcs)
+          }
+        } else {
+          setHistoricalData({ error: 'Failed to fetch historical data' })
+        }
+      } else {
+        const filteredData = filterDataByPeriod(fullYearData, period)
+        setHistoricalData(filteredData)
+        updateMetrics(filteredData)
+        // Calculate indicators from FULL year data (not filtered)
+        const calcs = calculateTechnicalIndicators(fullYearData)
+        setIndicators(calcs)
+      }
+    } catch (err) {
+      console.error('Historical fetch failed', err)
+      setHistoricalData({ error: 'Failed to fetch historical data' })
+    }
+    setHistoricalLoading(false)
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -184,6 +194,24 @@ export default function Search() {
     fetchHistoricalData(ticker.ticker, '1M')
   }
 
+  const getSignalColor = (signal: string): string => {
+    switch (signal) {
+      case 'BUY':
+        return 'bg-green-100 border-green-400 text-green-800'
+      case 'SELL':
+        return 'bg-red-100 border-red-400 text-red-800'
+      default:
+        return 'bg-yellow-100 border-yellow-400 text-yellow-800'
+    }
+  }
+
+  const getRSIColor = (rsi: number | null): string => {
+    if (rsi === null) return 'text-gray-600'
+    if (rsi > 70) return 'text-red-600 font-bold'
+    if (rsi < 30) return 'text-green-600 font-bold'
+    return 'text-gray-600'
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <div className="max-w-6xl mx-auto">
@@ -191,6 +219,8 @@ export default function Search() {
           <h2 className="text-4xl font-bold text-gray-800 mb-4">Stock Search</h2>
           <p className="text-lg text-gray-600">Track your favorite stocks in real-time</p>
         </header>
+
+        {/* Search Input */}
         <div className="mb-12 relative">
           <input
             type="text"
@@ -215,78 +245,229 @@ export default function Search() {
             </ul>
           )}
         </div>
+
+        {/* Loading State */}
         {loading && (
           <div className="text-center">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
             <p className="mt-4 text-lg text-gray-600">Loading stock data...</p>
           </div>
         )}
+
+        {/* Stock Data Card */}
         {stockData && !stockData.error && (
-          <div className="bg-white p-8 rounded-2xl shadow-2xl">
+          <div className="bg-white p-8 rounded-2xl shadow-2xl mb-8">
             <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">
               {stockData.symbol || stockData.name || selectedTicker}
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div className="bg-white p-6 rounded-xl text-black shadow-lg border-1 border-blue-600">
-                <div className="text-sm font-medium opacity-80">Last Price</div>
-                <div className="text-2xl font-bold">{stockData.last || stockData.close || stockData.tngoLast || 'Coming Soon'}</div>
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl shadow-md border-l-4 border-blue-600">
+                <div className="text-sm font-medium text-gray-700 opacity-80">Last Price</div>
+                <div className="text-3xl font-bold text-gray-900">${stockData.last || stockData.close || stockData.tngoLast || 'N/A'}</div>
               </div>
-              <div className="bg-white p-6 rounded-xl text-black shadow-lg border-1 border-blue-600">
-                <div className="text-sm font-medium opacity-80">Open</div>
-                <div className="text-2xl font-bold">{stockData.open || 'Coming Soon'}</div>
+              <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-xl shadow-md border-l-4 border-purple-600">
+                <div className="text-sm font-medium text-gray-700 opacity-80">Open</div>
+                <div className="text-3xl font-bold text-gray-900">${stockData.open || 'N/A'}</div>
               </div>
-              <div className="bg-white p-6 rounded-xl text-black shadow-lg border-1 border-blue-600">
-                <div className="text-sm font-medium opacity-80">High</div>
-                <div className="text-2xl font-bold">{stockData.high || 'Coming Soon'}</div>
+              <div className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl shadow-md border-l-4 border-green-600">
+                <div className="text-sm font-medium text-gray-700 opacity-80">High</div>
+                <div className="text-3xl font-bold text-gray-900">${stockData.high || 'N/A'}</div>
               </div>
-              <div className="bg-white p-6 rounded-xl text-black shadow-lg border-1 border-blue-600">
-                <div className="text-sm font-medium opacity-80">Low</div>
-                <div className="text-2xl font-bold">{stockData.low || 'Coming Soon'}</div>
+              <div className="bg-gradient-to-br from-red-50 to-red-100 p-6 rounded-xl shadow-md border-l-4 border-red-600">
+                <div className="text-sm font-medium text-gray-700 opacity-80">Low</div>
+                <div className="text-3xl font-bold text-gray-900">${stockData.low || 'N/A'}</div>
               </div>
-              <div className="bg-white p-6 rounded-xl text-black shadow-lg border-1 border-blue-600">
-                <div className="text-sm font-medium opacity-80">Volume</div>
-                <div className="text-2xl font-bold">{stockData.volume || 'Coming Soon'}</div>
+              <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 p-6 rounded-xl shadow-md border-l-4 border-indigo-600">
+                <div className="text-sm font-medium text-gray-700 opacity-80">Volume</div>
+                <div className="text-2xl font-bold text-gray-900">{(stockData.volume || 0).toLocaleString()}</div>
               </div>
-              <div className="bg-white p-6 rounded-xl text-black shadow-lg border-1 border-blue-600">
-                <div className="text-sm font-medium opacity-80">Previous Close</div>
-                <div className="text-2xl font-bold">{stockData.prevClose || 'Coming Soon'}</div>
+              <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-xl shadow-md border-l-4 border-orange-600">
+                <div className="text-sm font-medium text-gray-700 opacity-80">Previous Close</div>
+                <div className="text-3xl font-bold text-gray-900">${stockData.prevClose || 'N/A'}</div>
               </div>
             </div>
           </div>
         )}
+
+        {/* Historical Data & Technical Indicators */}
         {stockData && !stockData.error && (
-          <div className="bg-white p-8 rounded-2xl shadow-2xl mt-8">
-            <h3 className="text-3xl font-bold text-gray-800 mb-6 text-center">Historical Data</h3>
-            <div className="flex justify-center space-x-4 mb-6">
-              <button onClick={() => fetchHistoricalData(selectedTicker, '1M')} className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition duration-200 shadow-lg">1 Month</button>
-              <button onClick={() => fetchHistoricalData(selectedTicker, '6M')} className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition duration-200 shadow-lg">6 Months</button>
-              <button onClick={() => fetchHistoricalData(selectedTicker, '1Y')} className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition duration-200 shadow-lg">1 Year</button>
+          <div className="bg-white p-8 rounded-2xl shadow-2xl">
+            <h3 className="text-3xl font-bold text-gray-800 mb-6 text-center">📊 Historical Data & Technical Analysis</h3>
+            
+            {/* Period Buttons */}
+            <div className="flex justify-center space-x-4 mb-8 flex-wrap gap-4">
+              <button 
+                onClick={() => fetchHistoricalData(selectedTicker, '1M')}
+                className={`px-6 py-3 rounded-lg font-semibold transition duration-200 shadow-lg ${
+                  currentPeriod === '1M' 
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                }`}
+              >
+                1 Month
+              </button>
+              <button 
+                onClick={() => fetchHistoricalData(selectedTicker, '6M')}
+                className={`px-6 py-3 rounded-lg font-semibold transition duration-200 shadow-lg ${
+                  currentPeriod === '6M' 
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                }`}
+              >
+                6 Months
+              </button>
+              <button 
+                onClick={() => fetchHistoricalData(selectedTicker, '1Y')}
+                className={`px-6 py-3 rounded-lg font-semibold transition duration-200 shadow-lg ${
+                  currentPeriod === '1Y' 
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                }`}
+              >
+                1 Year
+              </button>
             </div>
+
+            {/* Loading */}
             {historicalLoading && (
               <div className="text-center">
                 <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                <p className="mt-2 text-gray-600">Loading historical data...</p>
+                <p className="mt-2 text-gray-600">Loading technical analysis...</p>
               </div>
             )}
-            {historicalData && (
+
+            {/* Historical Data & Indicators Display */}
+            {historicalData && !historicalLoading && (
               <div>
                 {'error' in historicalData ? (
-                  <p className="text-center text-red-500">{historicalData.error}</p>
+                  <p className="text-center text-red-500 font-semibold">{historicalData.error}</p>
                 ) : Array.isArray(historicalData) && historicalData.length > 0 && metrics ? (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="bg-white p-6 rounded-xl text-black shadow-lg text-center border-1 border-blue-600">
-                      <div className="text-sm font-medium opacity-80">Dollar Change</div>
-                      <div className="text-2xl font-bold">{metrics.dollarChange.toFixed(2)}</div>
+                  <>
+                    {/* Metrics */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                      <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl text-gray-900 shadow-md text-center border-l-4 border-blue-600">
+                        <div className="text-sm font-medium opacity-80">Dollar Change</div>
+                        <div className={`text-3xl font-bold ${
+                          metrics.dollarChange >= 0 ? 'text-green-600' : 'text-red-600'
+                        }`}>
+                          {metrics.dollarChange >= 0 ? '+' : ''}{metrics.dollarChange.toFixed(2)}
+                        </div>
+                      </div>
+                      <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-xl text-gray-900 shadow-md text-center border-l-4 border-purple-600">
+                        <div className="text-sm font-medium opacity-80">Percent Change</div>
+                        <div className={`text-3xl font-bold ${
+                          metrics.percentChange >= 0 ? 'text-green-600' : 'text-red-600'
+                        }`}>
+                          {metrics.percentChange >= 0 ? '+' : ''}{metrics.percentChange.toFixed(2)}%
+                        </div>
+                      </div>
+                      <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 p-6 rounded-xl text-gray-900 shadow-md text-center border-l-4 border-indigo-600">
+                        <div className="text-sm font-medium opacity-80">Avg Daily Change</div>
+                        <div className={`text-3xl font-bold ${
+                          metrics.avgDailyChange >= 0 ? 'text-green-600' : 'text-red-600'
+                        }`}>
+                          {metrics.avgDailyChange >= 0 ? '+' : ''}{metrics.avgDailyChange.toFixed(2)}
+                        </div>
+                      </div>
                     </div>
-                    <div className="bg-white p-6 rounded-xl text-black shadow-lg text-center border-1 border-blue-600">
-                      <div className="text-sm font-medium opacity-80">Percent Change</div>
-                      <div className="text-2xl font-bold">{metrics.percentChange.toFixed(2)}%</div>
-                    </div>
-                    <div className="bg-white p-6 rounded-xl text-black shadow-lg text-center border-1 border-blue-600">
-                      <div className="text-sm font-medium opacity-80">Avg Daily Change</div>
-                      <div className="text-2xl font-bold">{metrics.avgDailyChange.toFixed(2)}</div>
-                    </div>
-                  </div>
+
+                    {/* Technical Indicators */}
+                    {indicators && (
+                      <div className="bg-gradient-to-br from-slate-50 to-slate-100 p-8 rounded-2xl shadow-lg border-2 border-indigo-300">
+                        <h4 className="text-2xl font-bold text-gray-800 mb-6 text-center">🎯 Technical Indicators & Trading Signal</h4>
+                        
+                        {/* Main Signal Box */}
+                        <div className={`p-8 rounded-xl border-2 mb-8 text-center ${getSignalColor(indicators.signal)}`}>
+                          <div className="text-sm font-semibold opacity-80 mb-2">TRADING SIGNAL</div>
+                          <div className="text-5xl font-bold mb-3">{indicators.signal}</div>
+                          <div className="text-base font-semibold mb-2">Signal Strength: {indicators.signalStrength}%</div>
+                          <div className="text-sm leading-relaxed mt-4">{indicators.signalReason}</div>
+                        </div>
+
+                        {/* Indicators Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                          {/* SMA 20 */}
+                          <div className="bg-white p-5 rounded-lg shadow-md border-l-4 border-blue-500 hover:shadow-lg transition">
+                            <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">SMA 20</div>
+                            <div className="text-2xl font-bold text-gray-800">
+                              {indicators.sma20 !== null ? indicators.sma20.toFixed(2) : 'N/A'}
+                            </div>
+                            <div className="text-xs text-gray-600 mt-2">20-day Avg</div>
+                          </div>
+
+                          {/* SMA 50 */}
+                          <div className="bg-white p-5 rounded-lg shadow-md border-l-4 border-purple-500 hover:shadow-lg transition">
+                            <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">SMA 50</div>
+                            <div className="text-2xl font-bold text-gray-800">
+                              {indicators.sma50 !== null ? indicators.sma50.toFixed(2) : 'N/A'}
+                            </div>
+                            <div className="text-xs text-gray-600 mt-2">50-day Avg</div>
+                          </div>
+
+                          {/* RSI */}
+                          <div className="bg-white p-5 rounded-lg shadow-md border-l-4 border-orange-500 hover:shadow-lg transition">
+                            <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">RSI (14)</div>
+                            <div className={`text-2xl font-bold ${getRSIColor(indicators.rsi14)}`}>
+                              {indicators.rsi14 !== null ? indicators.rsi14.toFixed(2) : 'N/A'}
+                            </div>
+                            <div className="text-xs text-gray-600 mt-2">
+                              {indicators.rsi14 !== null
+                                ? indicators.rsi14 > 70
+                                  ? '⚠️ Overbought'
+                                  : indicators.rsi14 < 30
+                                  ? '✅ Oversold'
+                                  : '➡️ Neutral'
+                                : 'N/A'}
+                            </div>
+                          </div>
+
+                          {/* Momentum */}
+                          <div className="bg-white p-5 rounded-lg shadow-md border-l-4 border-green-500 hover:shadow-lg transition">
+                            <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Momentum</div>
+                            <div className={`text-2xl font-bold ${
+                              indicators.momentum !== null && indicators.momentum > 0
+                                ? 'text-green-600'
+                                : indicators.momentum !== null && indicators.momentum < 0
+                                ? 'text-red-600'
+                                : 'text-gray-800'
+                            }`}>
+                              {indicators.momentum !== null ? indicators.momentum.toFixed(2) : 'N/A'}
+                            </div>
+                            <div className="text-xs text-gray-600 mt-2">
+                              {indicators.momentum !== null
+                                ? indicators.momentum > 0
+                                  ? '📈 Bullish'
+                                  : '📉 Bearish'
+                                : 'N/A'}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Educational Info */}
+                        <div className="bg-white rounded-lg p-6 border border-gray-300">
+                          <h5 className="text-lg font-bold text-gray-800 mb-4">📚 Indicator Guide</h5>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-700">
+                            <div>
+                              <p className="font-semibold text-gray-800">SMA (Simple Moving Average)</p>
+                              <p className="mt-1">20 {'>'} 50 = Bullish trend. 20 {'<'} 50 = Bearish trend. Price above 50-SMA = Uptrend support.</p>
+                            </div>
+                            <div>
+                              <p className="font-semibold text-gray-800">RSI (Relative Strength Index)</p>
+                              <p className="mt-1">{'<'}30 = Oversold (buying opportunity). {'>'}70 = Overbought (selling pressure). 40-60 = Neutral.</p>
+                            </div>
+                            <div>
+                              <p className="font-semibold text-gray-800">Momentum</p>
+                              <p className="mt-1">Positive = Price rising faster (bullish). Negative = Price falling (bearish). Measures rate of change.</p>
+                            </div>
+                            <div>
+                              <p className="font-semibold text-gray-800">Trading Signal</p>
+                              <p className="mt-1">Composite signal combining all indicators. Base real decisions on multiple factors and do your own research!</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <p className="text-center text-gray-500">No historical data available for this period.</p>
                 )}
@@ -294,9 +475,11 @@ export default function Search() {
             )}
           </div>
         )}
+
+        {/* Error State */}
         {stockData && stockData.error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl text-center shadow-lg">
-            <strong className="font-bold">Error:</strong> <span className="block sm:inline">Failed to fetch data for {selectedTicker}. Please try again.</span>
+          <div className="bg-red-100 border-2 border-red-400 text-red-700 px-6 py-4 rounded-xl text-center shadow-lg font-semibold">
+            Error: Failed to fetch data for {selectedTicker}. Please try again.
           </div>
         )}
       </div>
