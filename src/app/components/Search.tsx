@@ -219,6 +219,8 @@ export default function Search() {
     return 'text-gray-600'
   }
 
+  const currentPrice = stockData ? (stockData.last || stockData.close || stockData.tngoLast) : null;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <div className="max-w-6xl mx-auto">
@@ -268,27 +270,27 @@ export default function Search() {
               {stockData.symbol || stockData.name || selectedTicker}
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl shadow-md border-l-4 border-blue-600">
+              <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
                 <div className="text-sm font-medium text-gray-700 opacity-80">Last Price</div>
                 <div className="text-3xl font-bold text-gray-900">${stockData.last || stockData.close || stockData.tngoLast || 'N/A'}</div>
               </div>
-              <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-xl shadow-md border-l-4 border-purple-600">
+              <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
                 <div className="text-sm font-medium text-gray-700 opacity-80">Open</div>
                 <div className="text-3xl font-bold text-gray-900">${stockData.open || 'N/A'}</div>
               </div>
-              <div className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl shadow-md border-l-4 border-green-600">
+              <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
                 <div className="text-sm font-medium text-gray-700 opacity-80">High</div>
                 <div className="text-3xl font-bold text-gray-900">${stockData.high || 'N/A'}</div>
               </div>
-              <div className="bg-gradient-to-br from-red-50 to-red-100 p-6 rounded-xl shadow-md border-l-4 border-red-600">
+              <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
                 <div className="text-sm font-medium text-gray-700 opacity-80">Low</div>
                 <div className="text-3xl font-bold text-gray-900">${stockData.low || 'N/A'}</div>
               </div>
-              <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 p-6 rounded-xl shadow-md border-l-4 border-indigo-600">
+              <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
                 <div className="text-sm font-medium text-gray-700 opacity-80">Volume</div>
                 <div className="text-2xl font-bold text-gray-900">{(stockData.volume || 0).toLocaleString()}</div>
               </div>
-              <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-xl shadow-md border-l-4 border-orange-600">
+              <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
                 <div className="text-sm font-medium text-gray-700 opacity-80">Previous Close</div>
                 <div className="text-3xl font-bold text-gray-900">${stockData.prevClose || 'N/A'}</div>
               </div>
@@ -352,7 +354,7 @@ export default function Search() {
                   <>
                     {/* Metrics */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                      <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl text-gray-900 shadow-md text-center border-l-4 border-blue-600">
+                      <div className="bg-white p-6 rounded-xl text-gray-900 shadow-md text-center border-1 border-slate-300">
                         <div className="text-sm font-medium opacity-80">Dollar Change</div>
                         <div className={`text-3xl font-bold ${
                           metrics.dollarChange >= 0 ? 'text-green-600' : 'text-red-600'
@@ -360,7 +362,7 @@ export default function Search() {
                           {metrics.dollarChange >= 0 ? '+' : ''}{metrics.dollarChange.toFixed(2)}
                         </div>
                       </div>
-                      <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-xl text-gray-900 shadow-md text-center border-l-4 border-purple-600">
+                      <div className="bg-white p-6 rounded-xl text-gray-900 shadow-md text-center border-1 border-slate-300">
                         <div className="text-sm font-medium opacity-80">Percent Change</div>
                         <div className={`text-3xl font-bold ${
                           metrics.percentChange >= 0 ? 'text-green-600' : 'text-red-600'
@@ -368,7 +370,7 @@ export default function Search() {
                           {metrics.percentChange >= 0 ? '+' : ''}{metrics.percentChange.toFixed(2)}%
                         </div>
                       </div>
-                      <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 p-6 rounded-xl text-gray-900 shadow-md text-center border-l-4 border-indigo-600">
+                      <div className="bg-white p-6 rounded-xl text-gray-900 shadow-md text-center border-1 border-slate-300">
                         <div className="text-sm font-medium opacity-80">Avg Daily Change</div>
                         <div className={`text-3xl font-bold ${
                           metrics.avgDailyChange >= 0 ? 'text-green-600' : 'text-red-600'
@@ -380,7 +382,7 @@ export default function Search() {
 
                     {/* Technical Indicators */}
                     {indicators && (
-                      <div className="bg-gradient-to-br from-slate-50 to-slate-100 p-8 rounded-2xl shadow-lg border-2 border-indigo-300">
+                      <div className="bg-gradient-to-br from-slate-50 to-slate-100 p-8 rounded-2xl shadow-lg border-1 border-slate-300">
                         <h4 className="text-2xl font-bold text-gray-800 mb-6 text-center">🎯 Technical Indicators & Trading Signal</h4>
                         
                         {/* Main Signal Box */}
@@ -483,25 +485,37 @@ export default function Search() {
                         {/* Indicators Grid */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                           {/* SMA 20 */}
-                          <div className="bg-white p-5 rounded-lg shadow-md border-l-4 border-blue-500 hover:shadow-lg transition">
+                          <div className="bg-white p-5 rounded-lg shadow-md border-1 border-slate-300 hover:shadow-lg transition">
                             <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">SMA 20</div>
-                            <div className="text-2xl font-bold text-gray-800">
+                            <div className={`text-2xl font-bold ${
+                              currentPrice && indicators.sma20 && currentPrice > indicators.sma20
+                                ? 'text-green-600'
+                                : currentPrice && indicators.sma20 && currentPrice < indicators.sma20
+                                ? 'text-red-600'
+                                : 'text-gray-800'
+                            }`}>
                               {indicators.sma20 !== null ? indicators.sma20.toFixed(2) : 'N/A'}
                             </div>
                             <div className="text-xs text-gray-600 mt-2">20-day Avg</div>
                           </div>
 
                           {/* SMA 50 */}
-                          <div className="bg-white p-5 rounded-lg shadow-md border-l-4 border-purple-500 hover:shadow-lg transition">
+                          <div className="bg-white p-5 rounded-lg shadow-md border-1 border-slate-300 hover:shadow-lg transition">
                             <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">SMA 50</div>
-                            <div className="text-2xl font-bold text-gray-800">
+                            <div className={`text-2xl font-bold ${
+                              currentPrice && indicators.sma50 && currentPrice > indicators.sma50
+                                ? 'text-green-600'
+                                : currentPrice && indicators.sma50 && currentPrice < indicators.sma50
+                                ? 'text-red-600'
+                                : 'text-gray-800'
+                            }`}>
                               {indicators.sma50 !== null ? indicators.sma50.toFixed(2) : 'N/A'}
                             </div>
                             <div className="text-xs text-gray-600 mt-2">50-day Avg</div>
                           </div>
 
                           {/* RSI */}
-                          <div className="bg-white p-5 rounded-lg shadow-md border-l-4 border-orange-500 hover:shadow-lg transition">
+                          <div className="bg-white p-5 rounded-lg shadow-md border-1 border-slate-300 hover:shadow-lg transition">
                             <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">RSI (14)</div>
                             <div className={`text-2xl font-bold ${getRSIColor(indicators.rsi14)}`}>
                               {indicators.rsi14 !== null ? indicators.rsi14.toFixed(2) : 'N/A'}
@@ -518,7 +532,7 @@ export default function Search() {
                           </div>
 
                           {/* Momentum */}
-                          <div className="bg-white p-5 rounded-lg shadow-md border-l-4 border-green-500 hover:shadow-lg transition">
+                          <div className="bg-white p-5 rounded-lg shadow-md border-1 border-slate-300 hover:shadow-lg transition">
                             <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Momentum</div>
                             <div className={`text-2xl font-bold ${
                               indicators.momentum !== null && indicators.momentum > 0
