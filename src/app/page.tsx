@@ -12,6 +12,7 @@ interface StockData {
   symbol?: string
   name?: string
   last?: number
+  tngoLast?: number
   open?: number
   high?: number
   low?: number
@@ -187,27 +188,27 @@ export default function Home() {
               {stockData.symbol || stockData.name || selectedTicker}
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div className="bg-gradient-to-r from-green-400 to-blue-500 p-6 rounded-xl text-white shadow-lg">
+              <div className="bg-white p-6 rounded-xl text-black shadow-lg border-1 border-blue-600">
                 <div className="text-sm font-medium opacity-80">Last Price</div>
-                <div className="text-2xl font-bold">{stockData.last || stockData.close || 'Coming Soon'}</div>
+                <div className="text-2xl font-bold">{stockData.last || stockData.close || stockData.tngoLast ||'Coming Soon'}</div>
               </div>
-              <div className="bg-gradient-to-r from-purple-400 to-pink-500 p-6 rounded-xl text-white shadow-lg">
+              <div className="bg-white p-6 rounded-xl text-black shadow-lg border-1 border-blue-600">
                 <div className="text-sm font-medium opacity-80">Open</div>
                 <div className="text-2xl font-bold">{stockData.open || 'Coming Soon'}</div>
               </div>
-              <div className="bg-gradient-to-r from-yellow-400 to-orange-500 p-6 rounded-xl text-white shadow-lg">
+              <div className="bg-white p-6 rounded-xl text-black shadow-lg border-1 border-blue-600">
                 <div className="text-sm font-medium opacity-80">High</div>
                 <div className="text-2xl font-bold">{stockData.high || 'Coming Soon'}</div>
               </div>
-              <div className="bg-gradient-to-r from-red-400 to-pink-500 p-6 rounded-xl text-white shadow-lg">
+              <div className="bg-white p-6 rounded-xl text-black shadow-lg border-1 border-blue-600">
                 <div className="text-sm font-medium opacity-80">Low</div>
                 <div className="text-2xl font-bold">{stockData.low || 'Coming Soon'}</div>
               </div>
-              <div className="bg-gradient-to-r from-indigo-400 to-purple-500 p-6 rounded-xl text-white shadow-lg">
+              <div className="bg-white p-6 rounded-xl text-black shadow-lg border-1 border-blue-600">
                 <div className="text-sm font-medium opacity-80">Volume</div>
                 <div className="text-2xl font-bold">{stockData.volume || 'Coming Soon'}</div>
               </div>
-              <div className="bg-gradient-to-r from-teal-400 to-blue-500 p-6 rounded-xl text-white shadow-lg">
+              <div className="bg-white p-6 rounded-xl text-black shadow-lg border-1 border-blue-600">
                 <div className="text-sm font-medium opacity-80">Previous Close</div>
                 <div className="text-2xl font-bold">{stockData.prevClose || 'Coming Soon'}</div>
               </div>
@@ -234,15 +235,15 @@ export default function Home() {
                   <p className="text-center text-red-500">{historicalData.error}</p>
                 ) : Array.isArray(historicalData) && historicalData.length > 0 && metrics ? (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="bg-gradient-to-r from-blue-400 to-blue-600 p-6 rounded-xl text-white shadow-lg text-center">
+                    <div className="bg-white p-6 rounded-xl text-black shadow-lg text-center border-1 border-blue-600">
                       <div className="text-sm font-medium opacity-80">Dollar Change</div>
                       <div className="text-2xl font-bold">{metrics.dollarChange.toFixed(2)}</div>
                     </div>
-                    <div className="bg-gradient-to-r from-green-400 to-green-600 p-6 rounded-xl text-white shadow-lg text-center">
+                    <div className="bg-white p-6 rounded-xl text-black shadow-lg text-center border-1 border-blue-600">
                       <div className="text-sm font-medium opacity-80">Percent Change</div>
                       <div className="text-2xl font-bold">{metrics.percentChange.toFixed(2)}%</div>
                     </div>
-                    <div className="bg-gradient-to-r from-purple-400 to-purple-600 p-6 rounded-xl text-white shadow-lg text-center">
+                    <div className="bg-white p-6 rounded-xl text-black shadow-lg text-center border-1 border-blue-600">
                       <div className="text-sm font-medium opacity-80">Avg Daily Change</div>
                       <div className="text-2xl font-bold">{metrics.avgDailyChange.toFixed(2)}</div>
                     </div>
