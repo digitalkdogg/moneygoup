@@ -8,6 +8,18 @@ export interface HistoricalData {
   volume: number
 }
 
+export interface ScoreBreakdown {
+  maScore: number
+  maReason: string
+  rsiScore: number
+  rsiReason: string
+  momentumScore: number
+  momentumReason: string
+  priceScore: number
+  priceReason: string
+  totalScore: number
+}
+
 export interface TechnicalIndicators {
   sma20: number | null
   sma50: number | null
@@ -16,6 +28,7 @@ export interface TechnicalIndicators {
   signal: 'BUY' | 'SELL' | 'HOLD'
   signalStrength: number
   signalReason: string
+  scoreBreakdown: ScoreBreakdown
 }
 
 export interface IndicatorSnapshot {
@@ -80,6 +93,7 @@ function calculateMomentum(prices: number[], period: number = 10): number | null
 /**
  * Generate trading signal based on multiple indicators
  * Uses a scoring system combining MA crossover, RSI, and momentum
+ * Returns detailed breakdown of how each metric contributes to the signal
  */
 function generateSignal(
   sma20: number | null,
@@ -87,83 +101,152 @@ function generateSignal(
   rsi: number | null,
   momentum: number | null,
   currentPrice: number
-): { signal: 'BUY' | 'SELL' | 'HOLD'; strength: number; reason: string } {
-  let score = 0
+): { signal: 'BUY' | 'SELL' | 'HOLD'; strength: number; reason: string; breakdown: ScoreBreakdown } {
+  let totalScore = 0
   const reasons: string[] = []
 
-  // MA Crossover Strategy (weight: 3)
+  // ============ MA Crossover Strategy (weight: 3) ============
+  let maScore = 0
+  let maReason = ''
   if (sma20 !== null && sma50 !== null) {
     if (sma20 > sma50) {
-      score += 3
+      maScore = 3
+      maReason = `Bullish (SMA20: ${sma20.toFixed(2)} > SMA50: ${sma50.toFixed(2)})`
       reasons.push('Bullish MA crossover')
     } else if (sma20 < sma50) {
-      score -= 3
+      maScore = -3
+      maReason = `Bearish (SMA20: ${sma20.toFixed(2)} < SMA50: ${sma50.toFixed(2)})`
       reasons.push('Bearish MA crossover')
+    } else {
+      maScore = 0
+      maReason = 'Neutral (SMA20 ≈ SMA50)'
     }
+  } else {
+    maScore = 0
+    maReason = 'Insufficient data'
   }
+  totalScore += maScore
 
-  // RSI Strategy (weight: 2)
+  // ============ RSI Strategy (weight: 2) ============
+  let rsiScore = 0
+  let rsiReason = ''
   if (rsi !== null) {
     if (rsi < 30) {
-      score += 2
+      rsiScore = 2
+      rsiReason = `Oversold (RSI: ${rsi.toFixed(2)} < 30) - Buying opportunity`
       reasons.push('RSI Oversold (<30)')
     } else if (rsi > 70) {
-      score -= 2
+      rsiScore = -2
+      rsiReason = `Overbought (RSI: ${rsi.toFixed(2)} > 70) - Selling pressure`
       reasons.push('RSI Overbought (>70)')
-    } else if (rsi > 40 && rsi < 60) {
-      reasons.push('RSI Neutral (40-60)')
+    } else {
+      rsiScore = 0
+      rsiReason = `Neutral (RSI: ${rsi.toFixed(2)} in 30-70 range)`
+      if (rsi > 40 && rsi < 60) {
+        reasons.push('RSI Neutral (40-60)')
+      }
     }
+  } else {
+    rsiScore = 0
+    rsiReason = 'Insufficient data'
   }
+  totalScore += rsiScore
 
-  // Momentum Strategy (weight: 2)
+  // ============ Momentum Strategy (weight: 2) ============
+  let momentumScore = 0
+  let momentumReason = ''
   if (momentum !== null) {
     if (momentum > 0) {
-      score += 2
+      momentumScore = 2
+      momentumReason = `Bullish (Momentum: ${momentum.toFixed(2)} > 0)`
       reasons.push('Positive momentum')
     } else if (momentum < 0) {
-      score -= 2
+      momentumScore = -2
+      momentumReason = `Bearish (Momentum: ${momentum.toFixed(2)} < 0)`
       reasons.push('Negative momentum')
+    } else {
+      momentumScore = 0
+      momentumReason = `Neutral (Momentum: ${momentum.toFixed(2)} ≈ 0)`
     }
+  } else {
+    momentumScore = 0
+    momentumReason = 'Insufficient data'
   }
+  totalScore += momentumScore
 
-  // Price vs MA Strategy (weight: 1)
+  // ============ Price vs MA Strategy (weight: 1) ============
+  let priceScore = 0
+  let priceReason = ''
   if (sma50 !== null) {
     if (currentPrice > sma50) {
-      score += 1
+      priceScore = 1
+      priceReason = `Above (Price: ${currentPrice.toFixed(2)} > SMA50: ${sma50.toFixed(2)})`
       reasons.push('Price above 50-day MA')
     } else if (currentPrice < sma50) {
-      score -= 1
+      priceScore = -1
+      priceReason = `Below (Price: ${currentPrice.toFixed(2)} < SMA50: ${sma50.toFixed(2)})`
       reasons.push('Price below 50-day MA')
+    } else {
+      priceScore = 0
+      priceReason = `At MA50 (Price ≈ SMA50)`
     }
+  } else {
+    priceScore = 0
+    priceReason = 'Insufficient data'
   }
+  totalScore += priceScore
 
-  // Determine signal based on score
+  // Determine signal based on total score
   let signal: 'BUY' | 'SELL' | 'HOLD'
-  if (score >= 4) {
+  if (totalScore >= 4) {
     signal = 'BUY'
-  } else if (score <= -4) {
+  } else if (totalScore <= -4) {
     signal = 'SELL'
   } else {
     signal = 'HOLD'
   }
 
   // Calculate signal strength (0-100)
-  const strength = Math.min(100, Math.abs(score) * 10)
+  const strength = Math.min(100, Math.abs(totalScore) * 10)
+
+  const breakdown: ScoreBreakdown = {
+    maScore,
+    maReason,
+    rsiScore,
+    rsiReason,
+    momentumScore,
+    momentumReason,
+    priceScore,
+    priceReason,
+    totalScore
+  }
 
   return {
     signal,
     strength,
-    reason: reasons.length > 0 ? reasons.join('; ') : 'Insufficient data for signals'
+    reason: reasons.length > 0 ? reasons.join('; ') : 'Insufficient data for signals',
+    breakdown
   }
 }
 
 /**
  * Main function to calculate all technical indicators
  * @param historicalData Array of historical OHLCV data
- * @returns TechnicalIndicators object with all calculated values and trading signal
+ * @returns TechnicalIndicators object with all calculated values, trading signal, and scoring breakdown
  */
 export function calculateTechnicalIndicators(historicalData: HistoricalData[]): TechnicalIndicators {
   if (!historicalData || historicalData.length === 0) {
+    const emptyBreakdown: ScoreBreakdown = {
+      maScore: 0,
+      maReason: 'Insufficient data',
+      rsiScore: 0,
+      rsiReason: 'Insufficient data',
+      momentumScore: 0,
+      momentumReason: 'Insufficient data',
+      priceScore: 0,
+      priceReason: 'Insufficient data',
+      totalScore: 0
+    }
     return {
       sma20: null,
       sma50: null,
@@ -171,7 +254,8 @@ export function calculateTechnicalIndicators(historicalData: HistoricalData[]): 
       momentum: null,
       signal: 'HOLD',
       signalStrength: 0,
-      signalReason: 'Insufficient historical data'
+      signalReason: 'Insufficient historical data',
+      scoreBreakdown: emptyBreakdown
     }
   }
 
@@ -184,8 +268,8 @@ export function calculateTechnicalIndicators(historicalData: HistoricalData[]): 
   const rsi14 = calculateRSI(prices, 14)
   const momentum = calculateMomentum(prices, 10)
 
-  // Generate trading signal
-  const { signal, strength, reason } = generateSignal(sma20, sma50, rsi14, momentum, currentPrice)
+  // Generate trading signal with detailed breakdown
+  const { signal, strength, reason, breakdown } = generateSignal(sma20, sma50, rsi14, momentum, currentPrice)
 
   return {
     sma20,
@@ -194,7 +278,8 @@ export function calculateTechnicalIndicators(historicalData: HistoricalData[]): 
     momentum,
     signal,
     signalStrength: Math.round(strength),
-    signalReason: reason
+    signalReason: reason,
+    scoreBreakdown: breakdown
   }
 }
 

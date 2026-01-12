@@ -1,7 +1,7 @@
 # TODO - Money Go Up Features & Improvements
 
 ## In Progress
-- [ ] Implement trading-signals npm module
+- [x] Implement trading-signals npm module
 
 ## Planned
 - [ ] Build out Dashboard page with database integration

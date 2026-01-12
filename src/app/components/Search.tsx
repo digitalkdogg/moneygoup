@@ -70,6 +70,13 @@ export default function Search() {
       .catch(err => console.error('Failed to fetch tickers', err))
   }, [])
 
+  // Auto-fetch historical data when a stock is selected
+  useEffect(() => {
+    if (selectedTicker && stockData && !stockData.error) {
+      fetchHistoricalData(selectedTicker, '1M')
+    }
+  }, [selectedTicker, stockData])
+
   // Filter tickers as user types
   useEffect(() => {
     if (searchValue) {
@@ -382,6 +389,95 @@ export default function Search() {
                           <div className="text-5xl font-bold mb-3">{indicators.signal}</div>
                           <div className="text-base font-semibold mb-2">Signal Strength: {indicators.signalStrength}%</div>
                           <div className="text-sm leading-relaxed mt-4">{indicators.signalReason}</div>
+                        </div>
+
+                        {/* Score Breakdown Table */}
+                        <div className="bg-white rounded-xl p-6 mb-8 shadow-md border border-gray-300 overflow-x-auto">
+                          <h5 className="text-lg font-bold text-gray-800 mb-4">📈 Signal Score Breakdown</h5>
+                          <div className="w-full">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="bg-gray-100 border-b-2 border-gray-300">
+                                  <th className="text-left py-3 px-4 font-bold text-gray-800">Metric</th>
+                                  <th className="text-center py-3 px-4 font-bold text-gray-800">Score</th>
+                                  <th className="text-left py-3 px-4 font-bold text-gray-800">Details</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {/* MA Crossover */}
+                                <tr className="border-b border-gray-200 hover:bg-gray-50">
+                                  <td className="py-3 px-4 font-semibold text-gray-800">MA Crossover (20/50)</td>
+                                  <td className={`text-center py-3 px-4 font-bold text-lg ${
+                                    indicators.scoreBreakdown.maScore > 0 ? 'text-green-600' : 
+                                    indicators.scoreBreakdown.maScore < 0 ? 'text-red-600' : 
+                                    'text-gray-600'
+                                  }`}>
+                                    {indicators.scoreBreakdown.maScore > 0 ? '+' : ''}{indicators.scoreBreakdown.maScore}
+                                  </td>
+                                  <td className="py-3 px-4 text-gray-700">{indicators.scoreBreakdown.maReason}</td>
+                                </tr>
+
+                                {/* RSI */}
+                                <tr className="border-b border-gray-200 hover:bg-gray-50">
+                                  <td className="py-3 px-4 font-semibold text-gray-800">RSI (14)</td>
+                                  <td className={`text-center py-3 px-4 font-bold text-lg ${
+                                    indicators.scoreBreakdown.rsiScore > 0 ? 'text-green-600' : 
+                                    indicators.scoreBreakdown.rsiScore < 0 ? 'text-red-600' : 
+                                    'text-gray-600'
+                                  }`}>
+                                    {indicators.scoreBreakdown.rsiScore > 0 ? '+' : ''}{indicators.scoreBreakdown.rsiScore}
+                                  </td>
+                                  <td className="py-3 px-4 text-gray-700">{indicators.scoreBreakdown.rsiReason}</td>
+                                </tr>
+
+                                {/* Momentum */}
+                                <tr className="border-b border-gray-200 hover:bg-gray-50">
+                                  <td className="py-3 px-4 font-semibold text-gray-800">Momentum (10d)</td>
+                                  <td className={`text-center py-3 px-4 font-bold text-lg ${
+                                    indicators.scoreBreakdown.momentumScore > 0 ? 'text-green-600' : 
+                                    indicators.scoreBreakdown.momentumScore < 0 ? 'text-red-600' : 
+                                    'text-gray-600'
+                                  }`}>
+                                    {indicators.scoreBreakdown.momentumScore > 0 ? '+' : ''}{indicators.scoreBreakdown.momentumScore}
+                                  </td>
+                                  <td className="py-3 px-4 text-gray-700">{indicators.scoreBreakdown.momentumReason}</td>
+                                </tr>
+
+                                {/* Price vs MA50 */}
+                                <tr className="border-b-2 border-gray-300 hover:bg-gray-50">
+                                  <td className="py-3 px-4 font-semibold text-gray-800">Price vs SMA(50)</td>
+                                  <td className={`text-center py-3 px-4 font-bold text-lg ${
+                                    indicators.scoreBreakdown.priceScore > 0 ? 'text-green-600' : 
+                                    indicators.scoreBreakdown.priceScore < 0 ? 'text-red-600' : 
+                                    'text-gray-600'
+                                  }`}>
+                                    {indicators.scoreBreakdown.priceScore > 0 ? '+' : ''}{indicators.scoreBreakdown.priceScore}
+                                  </td>
+                                  <td className="py-3 px-4 text-gray-700">{indicators.scoreBreakdown.priceReason}</td>
+                                </tr>
+
+                                {/* Total Score */}
+                                <tr className="bg-blue-50 font-bold">
+                                  <td className="py-4 px-4 text-gray-900">TOTAL SCORE</td>
+                                  <td className={`text-center py-4 px-4 text-2xl ${
+                                    indicators.scoreBreakdown.totalScore >= 4 ? 'text-green-600' : 
+                                    indicators.scoreBreakdown.totalScore <= -4 ? 'text-red-600' : 
+                                    'text-blue-600'
+                                  }`}>
+                                    {indicators.scoreBreakdown.totalScore > 0 ? '+' : ''}{indicators.scoreBreakdown.totalScore}
+                                  </td>
+                                  <td className="py-4 px-4 text-gray-700">
+                                    {indicators.scoreBreakdown.totalScore >= 4 ? '✅ BUY Signal' :
+                                     indicators.scoreBreakdown.totalScore <= -4 ? '⚠️ SELL Signal' :
+                                     '➡️ HOLD Signal'}
+                                  </td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+                          <div className="mt-4 p-3 bg-blue-50 rounded-lg border-l-4 border-blue-500 text-sm text-gray-700">
+                            <p><span className="font-semibold">Score Thresholds:</span> {'≥'}4 = BUY | {'≤'}-4 = SELL | -3 to 3 = HOLD</p>
+                          </div>
                         </div>
 
                         {/* Indicators Grid */}
