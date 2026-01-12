@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 
 interface Ticker {
-  cik: string
   name: string
   ticker: string
 }
@@ -57,9 +56,8 @@ export default function Home() {
     fetch('/company_tickers.json')
       .then(res => res.json())
       .then(data => {
-        const list: Ticker[] = Object.values(data).map((item: any) => ({
-          cik: item.cik_str,
-          name: item.title,
+        const list: Ticker[] = data.map((item: any) => ({
+          name: item.name,
           ticker: item.ticker
         }))
         setTickers(list)
