@@ -1,12 +1,9 @@
 import { NextRequest } from 'next/server'
 
+// Always fetch 1 year (365 days) of data from the API
+// Client-side filtering will handle period selection to save API calls
 const getDays = (period: string): number => {
-  switch (period) {
-    case '1M': return 30
-    case '6M': return 180
-    case '1Y': return 365
-    default: return 30
-  }
+  return 365 // Always fetch full year
 }
 
 export async function GET(request: NextRequest, { params }: { params: { ticker: string; period: string } }) {

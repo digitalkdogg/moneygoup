@@ -51,6 +51,8 @@ export default function Home() {
   const [historicalData, setHistoricalData] = useState<HistoricalResponse | null>(null)
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [historicalLoading, setHistoricalLoading] = useState(false)
+  const [fullYearData, setFullYearData] = useState<HistoricalData[] | null>(null) // Cache full year data
+  const [currentPeriod, setCurrentPeriod] = useState('1M')
 
   useEffect(() => {
     fetch('/company_tickers.json')
@@ -80,6 +82,9 @@ export default function Home() {
   const fetchStockData = async (ticker: string) => {
     setLoading(true)
     setStockData(null)
+    setFullYearData(null) // Clear cached historical data for new ticker
+    setHistoricalData(null)
+    setMetrics(null)
     try {
       const res = await fetch(`/api/stock/${ticker}`)
       if (res.ok) {
@@ -96,29 +101,68 @@ export default function Home() {
 
   const fetchHistoricalData = async (ticker: string, period: string) => {
     setHistoricalLoading(true)
+    setCurrentPeriod(period)
     setHistoricalData(null)
     setMetrics(null)
+
     try {
-      const res = await fetch(`/api/stock/${ticker}/historical/${period}`)
-      if (res.ok) {
-        const data = await res.json()
-        setHistoricalData(data)
-        if (Array.isArray(data) && data.length > 0) {
-          const startPrice = data[0].close
-          const endPrice = data[data.length - 1].close
-          const dollarChange = endPrice - startPrice
-          const percentChange = ((endPrice - startPrice) / startPrice) * 100
-          const dailyChanges = data.map(d => d.close - d.open)
-          const avgDailyChange = dailyChanges.reduce((a, b) => a + b, 0) / dailyChanges.length
-          setMetrics({ dollarChange, percentChange, avgDailyChange })
+      // If we don't have full year data cached, fetch it
+      if (!fullYearData) {
+        console.log('Fetching full year data for', ticker)
+        const res = await fetch(`/api/stock/${ticker}/historical/1Y`)
+        if (res.ok) {
+          const data = await res.json()
+          if (Array.isArray(data) && data.length > 0) {
+            setFullYearData(data)
+            // Now filter to the requested period
+            const filteredData = filterDataByPeriod(data, period)
+            setHistoricalData(filteredData)
+            updateMetrics(filteredData)
+          }
+        } else {
+          console.error('Historical API failed')
+          setHistoricalData({ error: 'Failed to fetch historical data' })
         }
       } else {
-        console.error('Historical API failed')
+        // Use cached data and filter by period
+        console.log('Using cached full year data, filtering to', period)
+        const filteredData = filterDataByPeriod(fullYearData, period)
+        setHistoricalData(filteredData)
+        updateMetrics(filteredData)
       }
     } catch (err) {
       console.error('Historical fetch failed', err)
+      setHistoricalData({ error: 'Failed to fetch historical data' })
     }
     setHistoricalLoading(false)
+  }
+
+  const updateMetrics = (data: HistoricalData[]) => {
+    if (Array.isArray(data) && data.length > 0) {
+      const startPrice = data[0].close
+      const endPrice = data[data.length - 1].close
+      const dollarChange = endPrice - startPrice
+      const percentChange = ((endPrice - startPrice) / startPrice) * 100
+      const dailyChanges = data.map(d => d.close - d.open)
+      const avgDailyChange = dailyChanges.reduce((a, b) => a + b, 0) / dailyChanges.length
+      setMetrics({ dollarChange, percentChange, avgDailyChange })
+    }
+  }
+
+  const filterDataByPeriod = (data: HistoricalData[], period: string): HistoricalData[] => {
+    if (!Array.isArray(data) || data.length === 0) return data
+
+    let daysBack = 30
+    if (period === '6M') daysBack = 180
+    if (period === '1Y') daysBack = 365
+
+    const cutoffDate = new Date()
+    cutoffDate.setDate(cutoffDate.getDate() - daysBack)
+
+    return data.filter(d => {
+      const dataDate = new Date(d.date || d.datetime || '')
+      return dataDate >= cutoffDate
+    })
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
