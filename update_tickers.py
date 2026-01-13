@@ -27,6 +27,6 @@ def update_company_tickers(url, output_path):
         print(f"Error writing to file {output_path}: {e}")
 
 if __name__ == "__main__":
-    SEC_TICKERS_URL = "https://dumbstockapi.com/stock?format=json"
+    SEC_TICKERS_URL = "https://dumbstockapi.com/stock?exchanges=NYSE,NASDAQ&format=json"
     OUTPUT_FILE_PATH = "/Users/kbollma/Projects/www/moneygoup/public/company_tickers.json"
     update_company_tickers(SEC_TICKERS_URL, OUTPUT_FILE_PATH)

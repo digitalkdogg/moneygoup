@@ -86,7 +86,7 @@ export default function Search() {
       const filtered = tickers.filter(t =>
         t.ticker.toLowerCase().includes(searchValue.toLowerCase()) ||
         t.name.toLowerCase().includes(searchValue.toLowerCase())
-      ).slice(0, 10)
+      ).slice(0, 200)
       setFilteredTickers(filtered)
     } else {
       setFilteredTickers([])
