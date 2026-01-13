@@ -35,9 +35,9 @@ export async function GET() {
 
     // -- DEBUGGING STEP --
     // Log the first raw row from the database to the server console.
-    if (rows && (rows as any[]).length > 0) {
+    if (Array.isArray(rows) && rows.length > 0) {
       console.log('--- DEBUG: First database row ---');
-      console.log(rows[0]);
+      console.log((rows as any[])[0]);
       console.log('---------------------------------');
     }
     // -- END DEBUGGING STEP --
