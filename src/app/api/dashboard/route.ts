@@ -18,15 +18,15 @@ export async function GET() {
             sdp.low,
             sdp.close,
             sdp.volume
-        FROM Stock s
+        FROM stocks s
         LEFT JOIN (
             SELECT
                 stock_id,
                 MAX(date) AS max_date
-            FROM StockDailyPrice
+            FROM stocksdailyprice
             GROUP BY stock_id
         ) latest ON s.id = latest.stock_id
-        LEFT JOIN StockDailyPrice sdp ON latest.stock_id = sdp.stock_id AND latest.max_date = sdp.date
+        LEFT JOIN stocksdailyprice sdp ON latest.stock_id = sdp.stock_id AND latest.max_date = sdp.date
         ORDER BY s.symbol;
     `;
 
