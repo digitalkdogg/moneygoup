@@ -6,9 +6,13 @@ const getDays = (period: string): number => {
   return 365 // Always fetch full year
 }
 
-export async function GET(request: NextRequest, { params }: { params: { ticker: string; period: string } }) {
-  const ticker = params.ticker.toUpperCase()
-  const period = params.period
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ ticker: string; period: string }> }
+) {
+  const resolvedParams = await params;
+  const ticker = resolvedParams.ticker.toUpperCase();
+  const period = resolvedParams.period;
   const days = getDays(period)
   const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
   const errors: string[] = []
