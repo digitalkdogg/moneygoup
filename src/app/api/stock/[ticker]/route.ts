@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server'
 
-export async function GET(request: NextRequest, { params }: { params: { ticker: string } }) {
-  const ticker = params.ticker.toUpperCase()
+export async function GET(request: NextRequest, { params }: { params: Promise<{ ticker: string }> }) {
+  const resolvedParams = await params;
+  const ticker = resolvedParams.ticker.toUpperCase()
   const errors: string[] = []
 
   // Try Tiingo first
