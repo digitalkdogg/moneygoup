@@ -1,10 +1,12 @@
 
 import Stock from "@/app/components/Stock";
+import { use } from "react";
 
-export default async function StockPage({ params }: { params: { ticker: string } }) {
+export default function StockPage({ params }: { params: Promise<{ ticker: string }> }) {
+  const resolvedParams = use(params);
   return (
     <div>
-        <Stock ticker={params.ticker} />
+        <Stock ticker={resolvedParams.ticker} />
     </div>
   );
 }
