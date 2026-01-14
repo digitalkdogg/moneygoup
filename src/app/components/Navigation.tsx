@@ -14,10 +14,10 @@ export default function Navigation() {
             <h1 className="text-2xl font-bold text-white">Money Go Up</h1>
           </div>
           <div className="flex space-x-8">
-            <Link href="/dashboard" legacyBehavior>
+            <Link href="/" legacyBehavior>
               <a
                 className={`px-4 py-2 rounded-lg font-semibold transition duration-200 ${
-                  pathname === '/dashboard'
+                  pathname === '/'
                     ? 'bg-white text-blue-600 shadow-lg'
                     : 'text-white hover:bg-blue-500'
                 }`}
@@ -25,10 +25,10 @@ export default function Navigation() {
                 Dashboard
               </a>
             </Link>
-            <Link href="/" legacyBehavior>
+            <Link href="/search" legacyBehavior>
               <a
                 className={`px-4 py-2 rounded-lg font-semibold transition duration-200 ${
-                  pathname === '/'
+                  pathname === '/search'
                     ? 'bg-white text-blue-600 shadow-lg'
                     : 'text-white hover:bg-blue-500'
                 }`}

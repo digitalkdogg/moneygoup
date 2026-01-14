@@ -1,12 +1,12 @@
 'use client'
 
-import Dashboard from './components/Dashboard'
+import Search from '../components/Search'
 
-export default function Home() {
+export default function SearchPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <main>
-        <Dashboard />
+        <Search />
       </main>
     </div>
   )
