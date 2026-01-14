@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface StockDashboardData {
   symbol: string;
@@ -18,6 +19,7 @@ export default function Dashboard() {
   const [data, setData] = useState<StockDashboardData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     async function fetchData() {
@@ -42,6 +44,10 @@ export default function Dashboard() {
 
     fetchData();
   }, []);
+
+  const handleRowClick = (symbol: string) => {
+    router.push(`/search/${symbol}`);
+  };
 
   if (loading) {
     return (
@@ -86,7 +92,7 @@ export default function Dashboard() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {data.map((stock) => (
-                  <tr key={stock.symbol} className="hover:bg-gray-50">
+                  <tr key={stock.symbol} onClick={() => handleRowClick(stock.symbol)} className="hover:bg-gray-50 cursor-pointer">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{stock.symbol}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stock.companyName || 'N/A'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stock.date || 'N/A'}</td>
