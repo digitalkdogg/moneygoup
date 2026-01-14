@@ -14,9 +14,9 @@ export default function Search() {
   const [filteredTickers, setFilteredTickers] = useState<Ticker[]>([])
   const router = useRouter()
 
-  // Load ticker list on mount
+  // Load ticker list on mount from API (fetches from SEC)
   useEffect(() => {
-    fetch('/company_tickers.json')
+    fetch('/api/tickers')
       .then(res => res.json())
       .then(data => {
         const list: Ticker[] = data.map((item: any) => ({
