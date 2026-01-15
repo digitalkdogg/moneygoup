@@ -38,7 +38,7 @@ def fetch_stocks(connection):
     """Fetches all stocks (id, symbol) from the Stock table."""
     cursor = connection.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT id, symbol FROM Stock")
+        cursor.execute("SELECT id, symbol FROM stocks")
         stocks = cursor.fetchall()
         print(f"Found {len(stocks)} stocks to process.")
         return stocks
@@ -51,6 +51,8 @@ def fetch_stocks(connection):
 def fetch_historical_data(symbol):
     """Fetches 1 year of historical data for a given stock symbol from the local API."""
     api_url = f"http://localhost:3000/api/stock/{symbol}/historical/1Y"
+    #may need to adjust endpoint to get real time /api/stock/{symbol} 
+    
     try:
         print(f"Fetching data for {symbol} from {api_url}")
         response = requests.get(api_url)
@@ -60,14 +62,28 @@ def fetch_historical_data(symbol):
         print(f"Error fetching historical data for {symbol}: {e}")
         return None
 
+def update_stock_price(connection, stock_id, price):
+    """Updates the price of a stock in the stocks table."""
+    cursor = connection.cursor()
+    try:
+        cursor.execute("UPDATE stocks SET price = %s WHERE id = %s", (str(price), stock_id))
+        connection.commit()
+        print(f"Successfully updated price for stock_id {stock_id} to {price}.")
+    except Error as e:
+        print(f"Error updating stock price for stock_id {stock_id}: {e}")
+        connection.rollback()
+    finally:
+        cursor.close()
+
+
 def upsert_daily_prices(connection, stock_id, daily_data):
     """
-    Upserts a list of daily price records into the StockDailyPrice table.
+    Upserts a list of daily price records into the stocksdailyprice table.
     It will insert a new record or update an existing one if the stock_id and date match.
     """
     cursor = connection.cursor()
     upsert_query = """
-        INSERT INTO StockDailyPrice (
+        INSERT INTO stocksdailyprice (
             stock_id, `date`, `open`, `high`, `low`, `close`, `volume`,
             `adj_open`, `adj_high`, `adj_low`, `adj_close`, `adj_volume`
         )
@@ -139,8 +155,15 @@ def main():
         symbol = stock['symbol']
 
         historical_data = fetch_historical_data(symbol)
-        if historical_data and isinstance(historical_data, list):
+        if historical_data and isinstance(historical_data, list) and len(historical_data) > 0:
             upsert_daily_prices(db_connection, stock_id, historical_data)
+            
+            # Update the stock price with the most recent open price
+            most_recent_record = historical_data[-1]
+            open_price = most_recent_record.get('open')
+            if open_price is not None:
+                update_stock_price(db_connection, stock_id, open_price)
+
         elif historical_data and 'error' in historical_data:
             print(f"API returned an error for {symbol}: {historical_data['error']}")
         else:
