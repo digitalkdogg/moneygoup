@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { calculateTechnicalIndicators, TechnicalIndicators } from '@/utils/technicalIndicators'
+import { calculateAnnualizedVolatility, getVolatilityRating } from '@/utils/volatility'
 import ApiErrorDisplay, { ApiError } from './ApiErrorDisplay'
 import TechnicalIndicatorsDisplay from './TechnicalIndicatorsDisplay'
 
@@ -49,6 +50,8 @@ export default function Stock({ ticker, source }: { ticker: string; source?: str
   const [fullYearData, setFullYearData] = useState<HistoricalData[] | null>(null)
   const [currentPeriod, setCurrentPeriod] = useState('1M')
   const [apiError, setApiError] = useState<ApiError | null>(null)
+  const [volatilityRating, setVolatilityRating] = useState<"Low" | "Medium" | "High" | "N/A" | null>(null);
+
 
   // Fetch current stock data
   const fetchStockData = async (ticker: string) => {
@@ -59,6 +62,7 @@ export default function Stock({ ticker, source }: { ticker: string; source?: str
     setMetrics(null)
     setIndicators(null)
     setApiError(null)
+    setVolatilityRating(null)
     try {
       const url = source === 'dashboard' ? `/api/stock/${ticker}?source=dashboard` : `/api/stock/${ticker}`
       const res = await fetch(url)
@@ -125,6 +129,7 @@ export default function Stock({ ticker, source }: { ticker: string; source?: str
     setMetrics(null)
     setIndicators(null)
     setApiError(null)
+    setVolatilityRating(null)
 
     try {
       if (!fullYearData) {
@@ -137,9 +142,16 @@ export default function Stock({ ticker, source }: { ticker: string; source?: str
             const filteredData = filterDataByPeriod(data, period)
             setHistoricalData(filteredData)
             updateMetrics(filteredData)
+            
             // Calculate indicators from FULL year data (not filtered)
             const calcs = calculateTechnicalIndicators(data)
             setIndicators(calcs)
+            
+            // Calculate volatility from FULL year data
+            const annualizedVolatility = calculateAnnualizedVolatility(data);
+            const rating = getVolatilityRating(annualizedVolatility);
+            setVolatilityRating(rating);
+
           }
         } else {
           const errorData = await res.json()
@@ -156,9 +168,15 @@ export default function Stock({ ticker, source }: { ticker: string; source?: str
         const filteredData = filterDataByPeriod(fullYearData, period)
         setHistoricalData(filteredData)
         updateMetrics(filteredData)
+        
         // Calculate indicators from FULL year data (not filtered)
         const calcs = calculateTechnicalIndicators(fullYearData)
         setIndicators(calcs)
+
+        // Calculate volatility from FULL year data
+        const annualizedVolatility = calculateAnnualizedVolatility(fullYearData);
+        const rating = getVolatilityRating(annualizedVolatility);
+        setVolatilityRating(rating);
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Network connection failed'
@@ -187,6 +205,20 @@ export default function Stock({ ticker, source }: { ticker: string; source?: str
     }
   }, [ticker, stockData])
 
+
+  const getVolatilityClass = (volatility: string | null) => {
+    if (!volatility) return "bg-gray-100 text-gray-800";
+    switch (volatility) {
+      case "Low":
+        return "bg-green-100 text-green-800";
+      case "Medium":
+        return "bg-yellow-100 text-yellow-800";
+      case "High":
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
 
   const currentPrice = stockData ? (stockData.last || stockData.close || stockData.tngoLast) : null;
 
@@ -291,7 +323,7 @@ export default function Stock({ ticker, source }: { ticker: string; source?: str
                 ) : Array.isArray(historicalData) && historicalData.length > 0 && metrics ? (
                   <>
                     {/* Metrics */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-3 gap-6 mb-8">
                       <div className="bg-white p-6 rounded-xl text-gray-900 shadow-md text-center border-1 border-slate-300">
                         <div className="text-sm font-medium opacity-80">Dollar Change</div>
                         <div className={`text-3xl font-bold ${
@@ -317,6 +349,16 @@ export default function Stock({ ticker, source }: { ticker: string; source?: str
                         </div>
                       </div>
                     </div>
+
+                    {/* Volatility Rating Display */}
+                    {volatilityRating && volatilityRating !== "N/A" && (
+                        <div className="bg-white p-6 rounded-2xl shadow-2xl mb-8 flex items-center justify-center">
+                            <p className="text-xl font-semibold text-gray-700 mr-4">Annualized Volatility:</p>
+                            <span className={`px-4 py-2 inline-flex text-xl leading-5 font-semibold rounded-full ${getVolatilityClass(volatilityRating)}`}>
+                                {volatilityRating}
+                            </span>
+                        </div>
+                    )}
 
                     {/* Technical Indicators */}
                     {indicators && (

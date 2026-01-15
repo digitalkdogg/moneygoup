@@ -1,44 +1,71 @@
 // src/app/api/dashboard/route.ts
 import { NextResponse } from 'next/server';
 import { getDbConnection } from '@/utils/db';
+import { calculateAnnualizedVolatility, getVolatilityRating, HistoricalPrice } from '@/utils/volatility';
+
+interface DailyPriceRow {
+  stock_id: number;
+  date: string;
+  close: string;
+  volume: string;
+}
 
 export async function GET() {
   let connection;
   try {
     connection = await getDbConnection();
 
-    // This query fetches the symbol, company name, price, and latest volume for each stock.
-    const query = `
-        SELECT
-            s.symbol,
-            s.company_name,
-            s.price,
-            (
-                SELECT sdp.volume
-                FROM stocksdailyprice sdp
-                WHERE sdp.stock_id = s.id
-                ORDER BY sdp.date DESC
-                LIMIT 1
-            ) AS volume
-        FROM stocks s
-        ORDER BY s.symbol;
-    `;
+    // 1. Fetch all stocks
+    const [stocks] = await connection.execute(`
+        SELECT id, symbol, company_name, price
+        FROM stocks
+        ORDER BY symbol;
+    `);
 
-    const [rows] = await connection.execute(query);
+    // 2. Fetch all historical prices, ordered by date for each stock
+    const [pricesResult] = await connection.execute(`
+        SELECT stock_id, date, \`close\`, volume
+        FROM stocksdailyprice
+        ORDER BY stock_id, date ASC;
+    `);
+    const dailyPrices = pricesResult as DailyPriceRow[];
+
     await connection.end();
 
-    const data = (rows as any[]).map(row => ({
-      symbol: row.symbol,
-      companyName: row.company_name,
-      price: row.price ? parseFloat(row.price) : null,
-      volume: row.volume ? parseInt(row.volume, 10) : null,
-    }));
+    // 3. Group prices by stock_id
+    const pricesByStockId = dailyPrices.reduce((acc, row) => {
+      const { stock_id, date, close, volume } = row;
+      if (!acc[stock_id]) {
+        acc[stock_id] = [];
+      }
+      acc[stock_id].push({ date, close: parseFloat(close), volume: parseInt(volume, 10) });
+      return acc;
+    }, {} as Record<string, (HistoricalPrice & { volume: number })[]>);
+
+    // 4. Combine data and perform calculations
+    const data = (stocks as any[]).map(stock => {
+      const stockPrices = pricesByStockId[stock.id] || [];
+      
+      // Calculate volatility
+      const annualizedVolatility = calculateAnnualizedVolatility(stockPrices);
+      const volatilityRating = getVolatilityRating(annualizedVolatility);
+      
+      // Get the latest volume from the last entry
+      const latestVolume = stockPrices.length > 0 ? stockPrices[stockPrices.length - 1].volume : null;
+
+      return {
+        symbol: stock.symbol,
+        companyName: stock.company_name,
+        price: stock.price ? parseFloat(stock.price) : null,
+        volume: latestVolume,
+        volatility: volatilityRating,
+      };
+    });
 
     return NextResponse.json(data);
 
   } catch (error) {
     console.error("Failed to fetch dashboard data:", error);
-    // End the connection in case of an error
     if (connection) {
       await connection.end();
     }

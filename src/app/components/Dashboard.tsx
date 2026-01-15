@@ -9,6 +9,7 @@ interface StockDashboardData {
   companyName: string;
   price: number | null;
   volume: number | null;
+  volatility: "Low" | "Medium" | "High" | "N/A";
 }
 
 export default function Dashboard() {
@@ -37,7 +38,20 @@ export default function Dashboard() {
   }, []);
 
   const handleRowClick = (symbol: string) => {
-    router.push(`/search/${symbol}?source=dashboard`);
+    router.push(`/search/${symbol}`);
+  };
+
+  const getVolatilityClass = (volatility: string) => {
+    switch (volatility) {
+      case "Low":
+        return "bg-green-100 text-green-800";
+      case "Medium":
+        return "bg-yellow-100 text-yellow-800";
+      case "High":
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
   };
 
   if (loading) {
@@ -53,7 +67,7 @@ export default function Dashboard() {
     return (
       <div className="bg-red-100 border-2 border-red-400 text-red-700 px-6 py-4 rounded-xl text-center shadow-lg font-semibold m-4">
         Error: {error}.<br/>
-        Please ensure the database is running and accessible. Also, make sure you have installed the required 'mysql2' package after resolving any network issues.
+        Please ensure the database is running and accessible.
       </div>
     );
   }
@@ -75,6 +89,7 @@ export default function Dashboard() {
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company Name</th>
                   <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
                   <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Volume</th>
+                  <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Volatility</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -84,6 +99,11 @@ export default function Dashboard() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stock.companyName || 'N/A'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">{stock.price ? `$${stock.price.toFixed(2)}` : 'N/A'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">{stock.volume ? stock.volume.toLocaleString() : 'N/A'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getVolatilityClass(stock.volatility)}`}>
+                        {stock.volatility}
+                      </span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
