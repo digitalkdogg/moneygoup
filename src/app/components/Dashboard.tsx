@@ -37,7 +37,7 @@ export default function Dashboard() {
   }, []);
 
   const handleRowClick = (symbol: string) => {
-    router.push(`/search/${symbol}`);
+    router.push(`/search/${symbol}?source=dashboard`);
   };
 
   if (loading) {

@@ -39,7 +39,7 @@ interface Metrics {
 
 type HistoricalResponse = HistoricalData[] | { error: string }
 
-export default function Stock({ ticker }: { ticker: string}) {
+export default function Stock({ ticker, source }: { ticker: string; source?: string }) {
   const [stockData, setStockData] = useState<StockData | null>(null)
   const [loading, setLoading] = useState(false)
   const [historicalData, setHistoricalData] = useState<HistoricalResponse | null>(null)
@@ -60,7 +60,8 @@ export default function Stock({ ticker }: { ticker: string}) {
     setIndicators(null)
     setApiError(null)
     try {
-      const res = await fetch(`/api/stock/${ticker}`)
+      const url = source === 'dashboard' ? `/api/stock/${ticker}?source=dashboard` : `/api/stock/${ticker}`
+      const res = await fetch(url)
       if (res.ok) {
         const data = await res.json()
         setStockData(data)
@@ -127,7 +128,8 @@ export default function Stock({ ticker }: { ticker: string}) {
 
     try {
       if (!fullYearData) {
-        const res = await fetch(`/api/stock/${ticker}/historical/1Y`)
+        const url = source === 'dashboard' ? `/api/stock/${ticker}/historical/1Y?source=dashboard` : `/api/stock/${ticker}/historical/1Y`
+        const res = await fetch(url)
         if (res.ok) {
           const data = await res.json()
           if (Array.isArray(data) && data.length > 0) {
@@ -208,19 +210,19 @@ export default function Stock({ ticker }: { ticker: string}) {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
                 <div className="text-sm font-medium text-gray-700 opacity-80">Last Price</div>
-                <div className="text-3xl font-bold text-gray-900">${stockData.last || stockData.close || stockData.tngoLast || 'N/A'}</div>
+                <div className="text-3xl font-bold text-gray-900">${(stockData.last || stockData.close || stockData.tngoLast) ? (stockData.last || stockData.close || stockData.tngoLast).toFixed(2) : 'N/A'}</div>
               </div>
               <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
                 <div className="text-sm font-medium text-gray-700 opacity-80">Open</div>
-                <div className="text-3xl font-bold text-gray-900">${stockData.open || 'N/A'}</div>
+                <div className="text-3xl font-bold text-gray-900">${stockData.open ? stockData.open.toFixed(2) : 'N/A'}</div>
               </div>
               <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
                 <div className="text-sm font-medium text-gray-700 opacity-80">High</div>
-                <div className="text-3xl font-bold text-gray-900">${stockData.high || 'N/A'}</div>
+                <div className="text-3xl font-bold text-gray-900">${stockData.high ? stockData.high.toFixed(2) : 'N/A'}</div>
               </div>
               <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
                 <div className="text-sm font-medium text-gray-700 opacity-80">Low</div>
-                <div className="text-3xl font-bold text-gray-900">${stockData.low || 'N/A'}</div>
+                <div className="text-3xl font-bold text-gray-900">${stockData.low ? stockData.low.toFixed(2) : 'N/A'}</div>
               </div>
               <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
                 <div className="text-sm font-medium text-gray-700 opacity-80">Volume</div>
@@ -228,7 +230,7 @@ export default function Stock({ ticker }: { ticker: string}) {
               </div>
               <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
                 <div className="text-sm font-medium text-gray-700 opacity-80">Previous Close</div>
-                <div className="text-3xl font-bold text-gray-900">${stockData.prevClose || 'N/A'}</div>
+                <div className="text-3xl font-bold text-gray-900">${stockData.prevClose ? stockData.prevClose.toFixed(2) : 'N/A'}</div>
               </div>
             </div>
           </div>
@@ -295,7 +297,7 @@ export default function Stock({ ticker }: { ticker: string}) {
                         <div className={`text-3xl font-bold ${
                           metrics.dollarChange >= 0 ? 'text-green-600' : 'text-red-600'
                         }`}>
-                          {metrics.dollarChange >= 0 ? '+' : ''}{metrics.dollarChange.toFixed(2)}
+                          ${Math.abs(metrics.dollarChange).toFixed(2)} {metrics.dollarChange >= 0 ? '↑' : '↓'}
                         </div>
                       </div>
                       <div className="bg-white p-6 rounded-xl text-gray-900 shadow-md text-center border-1 border-slate-300">
@@ -311,7 +313,7 @@ export default function Stock({ ticker }: { ticker: string}) {
                         <div className={`text-3xl font-bold ${
                           metrics.avgDailyChange >= 0 ? 'text-green-600' : 'text-red-600'
                         }`}>
-                          {metrics.avgDailyChange >= 0 ? '+' : ''}{metrics.avgDailyChange.toFixed(2)}
+                          ${Math.abs(metrics.avgDailyChange).toFixed(2)} {metrics.avgDailyChange >= 0 ? '↑' : '↓'}
                         </div>
                       </div>
                     </div>
