@@ -15,12 +15,21 @@ export async function GET() {
   try {
     connection = await getDbConnection();
 
-    // 1. Fetch all stocks
+    // For now, we'll hardcode the user_id to 1 as there is no auth system
+    const userId = 1;
+
+    // 1. Fetch all stocks with an is_owned flag
     const [stocks] = await connection.execute(`
-        SELECT id, symbol, company_name, price
-        FROM stocks
-        ORDER BY symbol;
-    `);
+        SELECT
+            s.id,
+            s.symbol,
+            s.company_name,
+            s.price,
+            CASE WHEN us.stock_id IS NOT NULL THEN TRUE ELSE FALSE END AS is_owned
+        FROM stocks s
+        LEFT JOIN user_stocks us ON s.id = us.stock_id AND us.user_id = ?
+        ORDER BY s.symbol;
+    `, [userId]);
 
     // 2. Fetch all historical prices, ordered by date for each stock
     const [pricesResult] = await connection.execute(`
@@ -54,11 +63,13 @@ export async function GET() {
       const latestVolume = stockPrices.length > 0 ? stockPrices[stockPrices.length - 1].volume : null;
 
       return {
+        stock_id: stock.id,
         symbol: stock.symbol,
         companyName: stock.company_name,
         price: stock.price ? parseFloat(stock.price) : null,
         volume: latestVolume,
         volatility: volatilityRating,
+        isOwned: stock.is_owned === 1, // Convert TINYINT(1) to boolean
       };
     });
 

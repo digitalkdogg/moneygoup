@@ -5,11 +5,13 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface StockDashboardData {
+  stock_id: number;
   symbol: string;
   companyName: string;
   price: number | null;
   volume: number | null;
   volatility: "Low" | "Medium" | "High" | "N/A";
+  isOwned: boolean; // Added to indicate if the user owns the stock
 }
 
 export default function Dashboard() {
@@ -18,28 +20,155 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const res = await fetch('/api/dashboard');
-        if (!res.ok) {
-          throw new Error('Failed to fetch data');
-        }
-        const jsonData = await res.json();
-        setData(jsonData);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'An unknown error occurred');
-      } finally {
-        setLoading(false);
-      }
-    }
+  // State for the purchase modal
+  const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false);
+  const [selectedStockForPurchase, setSelectedStockForPurchase] = useState<StockDashboardData | null>(null);
+  const [purchasePrice, setPurchasePrice] = useState('');
+  const [shares, setShares] = useState('');
+  const [isSubmittingPurchase, setIsSubmittingPurchase] = useState(false);
+  const [purchaseError, setPurchaseError] = useState<string | null>(null);
+  const [purchaseSuccess, setPurchaseSuccess] = useState<string | null>(null);
 
+  // State for the sell modal
+  const [isSellModalOpen, setIsSellModalOpen] = useState(false);
+  const [selectedStockForSell, setSelectedStockForSell] = useState<StockDashboardData | null>(null);
+  const [isSubmittingSell, setIsSubmittingSell] = useState(false);
+  const [sellError, setSellError] = useState<string | null>(null);
+  const [sellSuccess, setSellSuccess] = useState<string | null>(null);
+
+
+  const fetchData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/dashboard');
+      if (!res.ok) {
+        throw new Error('Failed to fetch data');
+      }
+      const jsonData = await res.json();
+      setData(jsonData);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchData();
   }, []);
 
   const handleRowClick = (symbol: string) => {
     router.push(`/search/${symbol}`);
   };
+
+  const handlePurchaseClick = (e: React.MouseEvent, stock: StockDashboardData) => {
+    e.stopPropagation(); // Prevent row click from firing
+    setSelectedStockForPurchase(stock);
+    setIsPurchaseModalOpen(true);
+    setPurchaseError(null);
+    setPurchaseSuccess(null);
+    setPurchasePrice(stock.price ? stock.price.toFixed(2) : ''); // Pre-fill with current price
+    setShares('');
+  };
+
+  const handleClosePurchaseModal = () => {
+    setIsPurchaseModalOpen(false);
+    setSelectedStockForPurchase(null);
+    setPurchasePrice('');
+    setShares('');
+    setPurchaseError(null);
+    setPurchaseSuccess(null);
+  };
+
+  const handlePurchaseSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedStockForPurchase) return;
+
+    setIsSubmittingPurchase(true);
+    setPurchaseError(null);
+    setPurchaseSuccess(null);
+
+    try {
+      const response = await fetch('/api/user/stocks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          stock_id: selectedStockForPurchase.stock_id,
+          shares: parseFloat(shares),
+          purchase_price: parseFloat(purchasePrice),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to complete purchase.');
+      }
+
+      setPurchaseSuccess(`Successfully purchased ${shares} shares of ${selectedStockForPurchase.symbol}.`);
+      fetchData(); // Refresh dashboard data
+      setTimeout(() => {
+        handleClosePurchaseModal();
+      }, 2000);
+
+    } catch (err) {
+      setPurchaseError(err instanceof Error ? err.message : 'An unknown error occurred.');
+    } finally {
+      setIsSubmittingPurchase(false);
+    }
+  };
+
+
+  const handleSellClick = (e: React.MouseEvent, stock: StockDashboardData) => {
+    e.stopPropagation(); // Prevent row click from firing
+    setSelectedStockForSell(stock);
+    setIsSellModalOpen(true);
+    setSellError(null);
+    setSellSuccess(null);
+  };
+
+  const handleCloseSellModal = () => {
+    setIsSellModalOpen(false);
+    setSelectedStockForSell(null);
+    setSellError(null);
+    setSellSuccess(null);
+  };
+
+  const handleConfirmSell = async () => {
+    if (!selectedStockForSell) return;
+
+    setIsSubmittingSell(true);
+    setSellError(null);
+    setSellSuccess(null);
+
+    try {
+      const response = await fetch(`/api/user/stocks/${selectedStockForSell.stock_id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to sell stock.');
+      }
+
+      setSellSuccess(`Successfully sold all shares of ${selectedStockForSell.symbol}.`);
+      fetchData(); // Refresh dashboard data
+      setTimeout(() => {
+        handleCloseSellModal();
+      }, 2000);
+
+    } catch (err) {
+      setSellError(err instanceof Error ? err.message : 'An unknown error occurred.');
+    } finally {
+      setIsSubmittingSell(false);
+    }
+  };
+
 
   const getVolatilityClass = (volatility: string) => {
     switch (volatility) {
@@ -73,44 +202,159 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <div className="max-w-7xl mx-auto">
-        <header className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-800 mb-4">Stock Dashboard</h1>
-          <p className="text-lg text-gray-600">Tracked stocks and their latest data.</p>
-        </header>
+    <>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <div className="max-w-7xl mx-auto">
+          <header className="text-center mb-12">
+            <h1 className="text-4xl font-bold text-gray-800 mb-4">Stock Dashboard</h1>
+            <p className="text-lg text-gray-600">Tracked stocks and their latest data.</p>
+          </header>
 
-        <div className="bg-white p-8 rounded-2xl shadow-2xl">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Symbol</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company Name</th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Volume</th>
-                  <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Volatility</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {data.map((stock) => (
-                  <tr key={stock.symbol} onClick={() => handleRowClick(stock.symbol)} className="hover:bg-gray-50 cursor-pointer">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{stock.symbol}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stock.companyName || 'N/A'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">{stock.price ? `$${stock.price.toFixed(2)}` : 'N/A'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">{stock.volume ? stock.volume.toLocaleString() : 'N/A'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getVolatilityClass(stock.volatility)}`}>
-                        {stock.volatility}
-                      </span>
-                    </td>
+          <div className="bg-white p-8 rounded-2xl shadow-2xl">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Symbol</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company Name</th>
+                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Volume</th>
+                    <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Volatility</th>
+                    <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {data.map((stock) => (
+                    <tr key={stock.symbol} onClick={() => handleRowClick(stock.symbol)} className="hover:bg-gray-50 cursor-pointer">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{stock.symbol}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stock.companyName || 'N/A'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">{stock.price ? `$${stock.price.toFixed(2)}` : 'N/A'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">{stock.volume ? stock.volume.toLocaleString() : 'N/A'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getVolatilityClass(stock.volatility)}`}>
+                          {stock.volatility}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                        {stock.isOwned ? (
+                          <button
+                            onClick={(e) => handleSellClick(e, stock)}
+                            className="px-4 py-2 font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200"
+                          >
+                            Sell
+                          </button>
+                        ) : (
+                          <button
+                            onClick={(e) => handlePurchaseClick(e, stock)}
+                            className="px-4 py-2 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                          >
+                            Purchase
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+      {/* Purchase Modal */}
+      {isPurchaseModalOpen && selectedStockForPurchase && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md m-4">
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">Purchase {selectedStockForPurchase.symbol}</h2>
+            <p className="text-gray-600 mb-6">{selectedStockForPurchase.companyName}</p>
+            
+            <form onSubmit={handlePurchaseSubmit}>
+              <div className="mb-4">
+                <label htmlFor="shares" className="block text-sm font-medium text-gray-700 mb-1">Number of Shares</label>
+                <input
+                  type="number"
+                  id="shares"
+                  value={shares}
+                  onChange={(e) => setShares(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="e.g., 10"
+                  required
+                  step="any"
+                />
+              </div>
+
+              <div className="mb-6">
+                <label htmlFor="purchasePrice" className="block text-sm font-medium text-gray-700 mb-1">Purchase Price per Share</label>
+                <input
+                  type="number"
+                  id="purchasePrice"
+                  value={purchasePrice}
+                  onChange={(e) => setPurchasePrice(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                  placeholder={`Current price: $${selectedStockForPurchase.price?.toFixed(2)}`}
+                  required
+                  step="any"
+                />
+              </div>
+              
+              {purchaseError && <p className="text-red-500 text-sm mb-4">{purchaseError}</p>}
+              {purchaseSuccess && <p className="text-green-500 text-sm mb-4">{purchaseSuccess}</p>}
+
+              <div className="flex justify-end space-x-4">
+                <button
+                  type="button"
+                  onClick={handleClosePurchaseModal}
+                  className="px-6 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+                  disabled={isSubmittingPurchase}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400 transition-colors"
+                  disabled={isSubmittingPurchase || !shares || !purchasePrice}
+                >
+                  {isSubmittingPurchase ? 'Purchasing...' : 'Confirm Purchase'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Sell Confirmation Modal */}
+      {isSellModalOpen && selectedStockForSell && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md m-4">
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">Confirm Sell</h2>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to sell all shares of <span className="font-semibold">{selectedStockForSell.symbol}</span> ({selectedStockForSell.companyName})?
+            </p>
+            
+            {sellError && <p className="text-red-500 text-sm mb-4">{sellError}</p>}
+            {sellSuccess && <p className="text-green-500 text-sm mb-4">{sellSuccess}</p>}
+
+            <div className="flex justify-end space-x-4">
+              <button
+                type="button"
+                onClick={handleCloseSellModal}
+                className="px-6 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+                disabled={isSubmittingSell}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSell}
+                className="px-6 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:bg-gray-400 transition-colors"
+                disabled={isSubmittingSell}
+              >
+                {isSubmittingSell ? 'Selling...' : 'Confirm Sell'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
