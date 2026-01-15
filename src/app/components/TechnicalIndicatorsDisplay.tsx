@@ -102,7 +102,7 @@ export default function TechnicalIndicatorsDisplay({
               </tr>
 
               {/* Price vs MA50 */}
-              <tr className="border-b-2 border-gray-300 hover:bg-gray-50">
+              <tr className="border-b border-gray-200 hover:bg-gray-50">
                 <td className="py-3 px-4 font-semibold text-gray-800">Price vs SMA(50)</td>
                 <td className={`text-center py-3 px-4 font-bold text-lg ${
                   indicators.scoreBreakdown.priceScore > 0 ? 'text-green-600' : 
@@ -112,6 +112,19 @@ export default function TechnicalIndicatorsDisplay({
                   {indicators.scoreBreakdown.priceScore > 0 ? '+' : ''}{indicators.scoreBreakdown.priceScore}
                 </td>
                 <td className="py-3 px-4 text-gray-700">{indicators.scoreBreakdown.priceReason}</td>
+              </tr>
+              
+              {/* Volatility */}
+              <tr className="border-b-2 border-gray-300 hover:bg-gray-50">
+                <td className="py-3 px-4 font-semibold text-gray-800">Volatility</td>
+                <td className={`text-center py-3 px-4 font-bold text-lg ${
+                  indicators.scoreBreakdown.volatilityScore > 0 ? 'text-green-600' : 
+                  indicators.scoreBreakdown.volatilityScore < 0 ? 'text-red-600' : 
+                  'text-gray-600'
+                }`}>
+                  {indicators.scoreBreakdown.volatilityScore > 0 ? '+' : ''}{indicators.scoreBreakdown.volatilityScore}
+                </td>
+                <td className="py-3 px-4 text-gray-700">{indicators.scoreBreakdown.volatilityReason}</td>
               </tr>
 
               {/* Total Score */}

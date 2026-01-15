@@ -1,3 +1,5 @@
+import { calculateAnnualizedVolatility, getVolatilityRating } from './volatility';
+
 export interface HistoricalData {
   date?: string
   datetime?: string
@@ -17,6 +19,8 @@ export interface ScoreBreakdown {
   momentumReason: string
   priceScore: number
   priceReason: string
+  volatilityScore: number;
+  volatilityReason: string;
   totalScore: number
 }
 
@@ -29,6 +33,7 @@ export interface TechnicalIndicators {
   signalStrength: number
   signalReason: string
   scoreBreakdown: ScoreBreakdown
+  volatility: "Low" | "Medium" | "High" | "N/A" | null;
 }
 
 export interface IndicatorSnapshot {
@@ -100,7 +105,8 @@ function generateSignal(
   sma50: number | null,
   rsi: number | null,
   momentum: number | null,
-  currentPrice: number
+  currentPrice: number,
+  volatilityRating: "Low" | "Medium" | "High" | "N/A" | null
 ): { signal: 'BUY' | 'SELL' | 'HOLD'; strength: number; reason: string; breakdown: ScoreBreakdown } {
   let totalScore = 0
   const reasons: string[] = []
@@ -195,6 +201,26 @@ function generateSignal(
     priceReason = 'Insufficient data'
   }
   totalScore += priceScore
+  
+  // ============ Volatility Strategy (weight: 1) ============
+  let volatilityScore = 0;
+  let volatilityReason = '';
+  if (volatilityRating) {
+      if (volatilityRating === 'High') {
+          volatilityScore = -1;
+          volatilityReason = 'High Volatility (Increased Risk)';
+          reasons.push('High Volatility');
+      } else if (volatilityRating === 'Low') {
+          volatilityScore = 1;
+          volatilityReason = 'Low Volatility (Increased Stability)';
+          reasons.push('Low Volatility');
+      } else {
+          volatilityReason = 'Medium Volatility (Neutral Risk)';
+      }
+  } else {
+      volatilityReason = 'Insufficient data';
+  }
+  totalScore += volatilityScore;
 
   // Determine signal based on total score
   let signal: 'BUY' | 'SELL' | 'HOLD'
@@ -218,6 +244,8 @@ function generateSignal(
     momentumReason,
     priceScore,
     priceReason,
+    volatilityScore,
+    volatilityReason,
     totalScore
   }
 
@@ -245,6 +273,8 @@ export function calculateTechnicalIndicators(historicalData: HistoricalData[]): 
       momentumReason: 'Insufficient data',
       priceScore: 0,
       priceReason: 'Insufficient data',
+      volatilityScore: 0,
+      volatilityReason: 'Insufficient data',
       totalScore: 0
     }
     return {
@@ -255,7 +285,8 @@ export function calculateTechnicalIndicators(historicalData: HistoricalData[]): 
       signal: 'HOLD',
       signalStrength: 0,
       signalReason: 'Insufficient historical data',
-      scoreBreakdown: emptyBreakdown
+      scoreBreakdown: emptyBreakdown,
+      volatility: null
     }
   }
 
@@ -268,8 +299,12 @@ export function calculateTechnicalIndicators(historicalData: HistoricalData[]): 
   const rsi14 = calculateRSI(prices, 14)
   const momentum = calculateMomentum(prices, 10)
 
+  // Calculate volatility
+  const annualizedVolatility = calculateAnnualizedVolatility(historicalData.map(d => ({ date: d.date || d.datetime || '', close: d.close })));
+  const volatilityRating = getVolatilityRating(annualizedVolatility);
+
   // Generate trading signal with detailed breakdown
-  const { signal, strength, reason, breakdown } = generateSignal(sma20, sma50, rsi14, momentum, currentPrice)
+  const { signal, strength, reason, breakdown } = generateSignal(sma20, sma50, rsi14, momentum, currentPrice, volatilityRating)
 
   return {
     sma20,
@@ -279,7 +314,8 @@ export function calculateTechnicalIndicators(historicalData: HistoricalData[]): 
     signal,
     signalStrength: Math.round(strength),
     signalReason: reason,
-    scoreBreakdown: breakdown
+    scoreBreakdown: breakdown,
+    volatility: volatilityRating
   }
 }
 
