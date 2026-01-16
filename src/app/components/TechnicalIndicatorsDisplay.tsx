@@ -10,14 +10,10 @@ interface Metrics {
 
 interface TechnicalIndicatorsDisplayProps {
   indicators: TechnicalIndicators
-  metrics: Metrics
-  historicalData: HistoricalData[]
 }
 
 export default function TechnicalIndicatorsDisplay({
-  indicators,
-  metrics,
-  historicalData
+  indicators
 }: TechnicalIndicatorsDisplayProps) {
   const getRSIColor = (rsi: number | null): string => {
     if (rsi === null) return 'text-gray-600'

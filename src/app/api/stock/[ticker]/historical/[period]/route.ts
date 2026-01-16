@@ -1,10 +1,19 @@
 import { NextRequest } from 'next/server'
 import { getDbConnection } from '@/utils/db'
 
-// Always fetch 1 year (365 days) of data from the API
-// Client-side filtering will handle period selection to save API calls
 const getDays = (period: string): number => {
-  return 365 // Always fetch full year
+  switch (period) {
+    case '1w':
+      return 7;
+    case '1m':
+      return 30;
+    case '6m':
+      return 180;
+    case '1y':
+      return 365;
+    default:
+      return 365;
+  }
 }
 
 async function fetchFromDatabase(ticker: string, startDate: string) {

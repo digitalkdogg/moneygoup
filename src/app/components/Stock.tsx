@@ -5,6 +5,7 @@ import { calculateTechnicalIndicators, TechnicalIndicators } from '@/utils/techn
 import { calculateAnnualizedVolatility, getVolatilityRating } from '@/utils/volatility'
 import ApiErrorDisplay, { ApiError } from './ApiErrorDisplay'
 import TechnicalIndicatorsDisplay from './TechnicalIndicatorsDisplay'
+import StockChart from './StockChart'
 
 interface StockData {
   symbol?: string
@@ -43,12 +44,7 @@ type HistoricalResponse = HistoricalData[] | { error: string }
 export default function Stock({ ticker, source }: { ticker: string; source?: string }) {
   const [stockData, setStockData] = useState<StockData | null>(null)
   const [loading, setLoading] = useState(false)
-  const [historicalData, setHistoricalData] = useState<HistoricalResponse | null>(null)
-  const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [indicators, setIndicators] = useState<TechnicalIndicators | null>(null)
-  const [historicalLoading, setHistoricalLoading] = useState(false)
-  const [fullYearData, setFullYearData] = useState<HistoricalData[] | null>(null)
-  const [currentPeriod, setCurrentPeriod] = useState('1M')
   const [apiError, setApiError] = useState<ApiError | null>(null)
   const [volatilityRating, setVolatilityRating] = useState<"Low" | "Medium" | "High" | "N/A" | null>(null);
 
@@ -57,9 +53,6 @@ export default function Stock({ ticker, source }: { ticker: string; source?: str
   const fetchStockData = async (ticker: string) => {
     setLoading(true)
     setStockData(null)
-    setFullYearData(null)
-    setHistoricalData(null)
-    setMetrics(null)
     setIndicators(null)
     setApiError(null)
     setVolatilityRating(null)
@@ -80,6 +73,33 @@ export default function Stock({ ticker, source }: { ticker: string; source?: str
         })
         setStockData({ error: errorData.error })
       }
+
+      const hist_url = source === 'dashboard' ? `/api/stock/${ticker}/historical/1Y?source=dashboard` : `/api/stock/${ticker}/historical/1Y`
+      const hist_res = await fetch(hist_url)
+      if (hist_res.ok) {
+        const data = await hist_res.json()
+        if (Array.isArray(data) && data.length > 0) {
+          const calcs = calculateTechnicalIndicators(data)
+          setIndicators(calcs)
+          
+          // Calculate volatility from FULL year data
+          const annualizedVolatility = calculateAnnualizedVolatility(data);
+          const rating = getVolatilityRating(annualizedVolatility);
+          setVolatilityRating(rating);
+
+        }
+      } else {
+        const errorData = await hist_res.json()
+        setApiError({
+          type: 'historical',
+          ticker: ticker,
+          message: errorData.error || 'Failed to fetch historical data',
+          details: errorData.details,
+          failedServices: errorData.failedServices
+        })
+      }
+
+
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Network connection failed'
       setApiError({
@@ -94,117 +114,13 @@ export default function Stock({ ticker, source }: { ticker: string; source?: str
     setLoading(false)
   }
 
-  // Calculate metrics from historical data
-  const updateMetrics = (data: HistoricalData[]) => {
-    if (Array.isArray(data) && data.length > 0) {
-      const startPrice = data[0].close
-      const endPrice = data[data.length - 1].close
-      const dollarChange = endPrice - startPrice
-      const percentChange = ((endPrice - startPrice) / startPrice) * 100
-      const dailyChanges = data.map(d => d.close - d.open)
-      const avgDailyChange = dailyChanges.reduce((a, b) => a + b, 0) / dailyChanges.length
-      setMetrics({ dollarChange, percentChange, avgDailyChange })
-    }
-  }
 
-  // Filter data by period
-  const filterDataByPeriod = (data: HistoricalData[], period: string): HistoricalData[] => {
-    if (!Array.isArray(data) || data.length === 0) return data
-    let daysBack = 30
-    if (period === '6M') daysBack = 180
-    if (period === '1Y') daysBack = 365
-    const cutoffDate = new Date()
-    cutoffDate.setDate(cutoffDate.getDate() - daysBack)
-    return data.filter(d => {
-      const dataDate = new Date(d.date || d.datetime || '')
-      return dataDate >= cutoffDate
-    })
-  }
-
-  // Fetch historical data
-  const fetchHistoricalData = async (ticker: string, period: string) => {
-    setHistoricalLoading(true)
-    setCurrentPeriod(period)
-    setHistoricalData(null)
-    setMetrics(null)
-    setIndicators(null)
-    setApiError(null)
-    setVolatilityRating(null)
-
-    try {
-      if (!fullYearData) {
-        const url = source === 'dashboard' ? `/api/stock/${ticker}/historical/1Y?source=dashboard` : `/api/stock/${ticker}/historical/1Y`
-        const res = await fetch(url)
-        if (res.ok) {
-          const data = await res.json()
-          if (Array.isArray(data) && data.length > 0) {
-            setFullYearData(data)
-            const filteredData = filterDataByPeriod(data, period)
-            setHistoricalData(filteredData)
-            updateMetrics(filteredData)
-            
-            // Calculate indicators from FULL year data (not filtered)
-            const calcs = calculateTechnicalIndicators(data)
-            setIndicators(calcs)
-            
-            // Calculate volatility from FULL year data
-            const annualizedVolatility = calculateAnnualizedVolatility(data);
-            const rating = getVolatilityRating(annualizedVolatility);
-            setVolatilityRating(rating);
-
-          }
-        } else {
-          const errorData = await res.json()
-          setApiError({
-            type: 'historical',
-            ticker: ticker,
-            message: errorData.error || 'Failed to fetch historical data',
-            details: errorData.details,
-            failedServices: errorData.failedServices
-          })
-          setHistoricalData({ error: errorData.error })
-        }
-      } else {
-        const filteredData = filterDataByPeriod(fullYearData, period)
-        setHistoricalData(filteredData)
-        updateMetrics(filteredData)
-        
-        // Calculate indicators from FULL year data (not filtered)
-        const calcs = calculateTechnicalIndicators(fullYearData)
-        setIndicators(calcs)
-
-        // Calculate volatility from FULL year data
-        const annualizedVolatility = calculateAnnualizedVolatility(fullYearData);
-        const rating = getVolatilityRating(annualizedVolatility);
-        setVolatilityRating(rating);
-      }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Network connection failed'
-      setApiError({
-        type: 'historical',
-        ticker: ticker,
-        message: 'Network error while fetching historical data',
-        details: errorMessage,
-        failedServices: ['Tiingo', '12Data']
-      })
-      setHistoricalData({ error: 'Network error. Please check your connection.' })
-    }
-    setHistoricalLoading(false)
-  }
 
   useEffect(() => {
     if (ticker) {
       fetchStockData(ticker)
     }
   }, [ticker])
-
-  // Auto-fetch historical data when a stock is selected
-  useEffect(() => {
-    if (ticker && stockData && !stockData.error) {
-      fetchHistoricalData(ticker, '1M')
-    }
-  }, [ticker, stockData])
-
 
   const getVolatilityClass = (volatility: string | null) => {
     if (!volatility) return "bg-gray-100 text-gray-800";
@@ -270,111 +186,36 @@ export default function Stock({ ticker, source }: { ticker: string; source?: str
 
         {/* Historical Data & Technical Indicators */}
         {stockData && !stockData.error && (
-          <div className="bg-white p-8 rounded-2xl shadow-2xl">
-            <h3 className="text-3xl font-bold text-gray-800 mb-6 text-center">📊 Historical Data & Technical Analysis</h3>
-            
-            {/* Period Buttons */}
-            <div className="flex justify-center space-x-4 mb-8 flex-wrap gap-4">
-              <button 
-                onClick={() => fetchHistoricalData(ticker, '1M')}
-                className={`px-6 py-3 rounded-lg font-semibold transition duration-200 shadow-lg ${
-                  currentPeriod === '1M' 
-                    ? 'bg-blue-600 text-white' 
-                    : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-                }`}
-              >
-                1 Month
-              </button>
-              <button 
-                onClick={() => fetchHistoricalData(ticker, '6M')}
-                className={`px-6 py-3 rounded-lg font-semibold transition duration-200 shadow-lg ${
-                  currentPeriod === '6M' 
-                    ? 'bg-blue-600 text-white' 
-                    : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-                }`}
-              >
-                6 Months
-              </button>
-              <button 
-                onClick={() => fetchHistoricalData(ticker, '1Y')}
-                className={`px-6 py-3 rounded-lg font-semibold transition duration-200 shadow-lg ${
-                  currentPeriod === '1Y' 
-                    ? 'bg-blue-600 text-white' 
-                    : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-                }`}
-              >
-                1 Year
-              </button>
+          <>
+            <div className="bg-white p-4 md:p-6 rounded-2xl shadow-2xl mb-8">
+              <StockChart ticker={ticker} />
             </div>
+            <div className="bg-white p-8 rounded-2xl shadow-2xl">
+              <h3 className="text-3xl font-bold text-gray-800 mb-6 text-center">📊 Technical Analysis</h3>
+              
+              {/* Volatility Rating Display */}
+              {volatilityRating && volatilityRating !== "N/A" && (
+                  <div className="bg-white p-6 rounded-2xl shadow-2xl mb-8 flex items-center justify-center">
+                      <p className="text-xl font-semibold text-gray-700 mr-4">Annualized Volatility:</p>
+                      <span className={`px-4 py-2 inline-flex text-xl leading-5 font-semibold rounded-full ${getVolatilityClass(volatilityRating)}`}>
+                          {volatilityRating}
+                      </span>
+                  </div>
+              )}
 
-            {/* Loading */}
-            {historicalLoading && (
-              <div className="text-center">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                <p className="mt-2 text-gray-600">Loading technical analysis...</p>
-              </div>
-            )}
-
-            {/* Historical Data & Indicators Display */}
-            {historicalData && !historicalLoading && (
-              <div>
-                {'error' in historicalData ? (
-                  <p className="text-center text-red-500 font-semibold">{historicalData.error}</p>
-                ) : Array.isArray(historicalData) && historicalData.length > 0 && metrics ? (
-                  <>
-                    {/* Metrics */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-3 gap-6 mb-8">
-                      <div className="bg-white p-6 rounded-xl text-gray-900 shadow-md text-center border-1 border-slate-300">
-                        <div className="text-sm font-medium opacity-80">Dollar Change</div>
-                        <div className={`text-3xl font-bold ${
-                          metrics.dollarChange >= 0 ? 'text-green-600' : 'text-red-600'
-                        }`}>
-                          ${Math.abs(metrics.dollarChange).toFixed(2)} {metrics.dollarChange >= 0 ? '↑' : '↓'}
-                        </div>
-                      </div>
-                      <div className="bg-white p-6 rounded-xl text-gray-900 shadow-md text-center border-1 border-slate-300">
-                        <div className="text-sm font-medium opacity-80">Percent Change</div>
-                        <div className={`text-3xl font-bold ${
-                          metrics.percentChange >= 0 ? 'text-green-600' : 'text-red-600'
-                        }`}>
-                          {metrics.percentChange >= 0 ? '+' : ''}{metrics.percentChange.toFixed(2)}%
-                        </div>
-                      </div>
-                      <div className="bg-white p-6 rounded-xl text-gray-900 shadow-md text-center border-1 border-slate-300">
-                        <div className="text-sm font-medium opacity-80">Avg Daily Change</div>
-                        <div className={`text-3xl font-bold ${
-                          metrics.avgDailyChange >= 0 ? 'text-green-600' : 'text-red-600'
-                        }`}>
-                          ${Math.abs(metrics.avgDailyChange).toFixed(2)} {metrics.avgDailyChange >= 0 ? '↑' : '↓'}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Volatility Rating Display */}
-                    {volatilityRating && volatilityRating !== "N/A" && (
-                        <div className="bg-white p-6 rounded-2xl shadow-2xl mb-8 flex items-center justify-center">
-                            <p className="text-xl font-semibold text-gray-700 mr-4">Annualized Volatility:</p>
-                            <span className={`px-4 py-2 inline-flex text-xl leading-5 font-semibold rounded-full ${getVolatilityClass(volatilityRating)}`}>
-                                {volatilityRating}
-                            </span>
-                        </div>
-                    )}
-
-                    {/* Technical Indicators */}
-                    {indicators && (
-                      <TechnicalIndicatorsDisplay
-                        indicators={indicators}
-                        metrics={metrics}
-                        historicalData={historicalData as HistoricalData[]}
-                      />
-                    )}
-                  </>
-                ) : (
-                  <p className="text-center text-gray-500">No historical data available for this period.</p>
-                )}
-              </div>
-            )}
-          </div>
+              {/* Technical Indicators */}
+              {indicators ? (
+                <TechnicalIndicatorsDisplay
+                  indicators={indicators}
+                />
+              ) : (
+                <div className="text-center">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <p className="mt-2 text-gray-600">Loading technical analysis...</p>
+                </div>
+              )}
+            </div>
+          </>
         )}
 
         {/* API Error Display */}
@@ -387,10 +228,6 @@ export default function Stock({ ticker, source }: { ticker: string; source?: str
               if (ticker) {
                 fetchStockData(ticker)
               }
-            }}
-            onRetryHistorical={() => {
-              setApiError(null)
-              fetchHistoricalData(ticker, currentPeriod)
             }}
           />
         )}
