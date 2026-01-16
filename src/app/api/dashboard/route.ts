@@ -72,12 +72,12 @@ export async function GET() {
         stock_id: stock.id,
         symbol: stock.symbol,
         companyName: stock.company_name,
-        price: stock.price ? parseFloat(stock.price) : null,
+        price: parseFloat(stock.price || '0'),
         recommendation: indicators.signal,
         volatility: indicators.volatility,
         isOwned: stock.is_owned === 1, // Convert TINYINT(1) to boolean
         shares: parseFloat(stock.shares),
-        purchase_price: stock.purchase_price ? parseFloat(stock.purchase_price) : null,
+        purchase_price: parseFloat(stock.purchase_price || '0'),
       };
     });
 

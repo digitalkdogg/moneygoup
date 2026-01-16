@@ -21,6 +21,8 @@ export interface ScoreBreakdown {
   priceReason: string
   volatilityScore: number;
   volatilityReason: string;
+  newsScore: number;
+  newsReason: string;
   totalScore: number
 }
 
@@ -106,7 +108,8 @@ function generateSignal(
   rsi: number | null,
   momentum: number | null,
   currentPrice: number,
-  volatilityRating: "Low" | "Medium" | "High" | "N/A" | null
+  volatilityRating: "Low" | "Medium" | "High" | "N/A" | null,
+  newsSentiment: number | null
 ): { signal: 'BUY' | 'SELL' | 'HOLD'; strength: number; reason: string; breakdown: ScoreBreakdown } {
   let totalScore = 0
   const reasons: string[] = []
@@ -222,6 +225,29 @@ function generateSignal(
   }
   totalScore += volatilityScore;
 
+  // ============ News Sentiment Strategy (weight: 2) ============
+  let newsScore = 0;
+  let newsReason = '';
+  if (newsSentiment !== null) {
+    if (newsSentiment > 1) {
+      newsScore = 2;
+      newsReason = `Positive News Sentiment (Score: ${newsSentiment.toFixed(2)})`;
+      reasons.push('Positive News');
+    } else if (newsSentiment < -1) {
+      newsScore = -2;
+      newsReason = `Negative News Sentiment (Score: ${newsSentiment.toFixed(2)})`;
+      reasons.push('Negative News');
+    } else {
+      newsScore = 0;
+      newsReason = `Neutral News Sentiment (Score: ${newsSentiment.toFixed(2)})`;
+    }
+  } else {
+    newsScore = 0;
+    newsReason = 'No news data';
+  }
+  totalScore += newsScore;
+
+
   // Determine signal based on total score
   let signal: 'BUY' | 'SELL' | 'HOLD'
   if (totalScore >= 4) {
@@ -246,6 +272,8 @@ function generateSignal(
     priceReason,
     volatilityScore,
     volatilityReason,
+    newsScore,
+    newsReason,
     totalScore
   }
 
@@ -262,7 +290,7 @@ function generateSignal(
  * @param historicalData Array of historical OHLCV data
  * @returns TechnicalIndicators object with all calculated values, trading signal, and scoring breakdown
  */
-export function calculateTechnicalIndicators(historicalData: HistoricalData[]): TechnicalIndicators {
+export function calculateTechnicalIndicators(historicalData: HistoricalData[], news?: any[]): TechnicalIndicators {
   if (!historicalData || historicalData.length === 0) {
     const emptyBreakdown: ScoreBreakdown = {
       maScore: 0,
@@ -275,6 +303,8 @@ export function calculateTechnicalIndicators(historicalData: HistoricalData[]): 
       priceReason: 'Insufficient data',
       volatilityScore: 0,
       volatilityReason: 'Insufficient data',
+      newsScore: 0,
+      newsReason: 'Insufficient data',
       totalScore: 0
     }
     return {
@@ -303,8 +333,13 @@ export function calculateTechnicalIndicators(historicalData: HistoricalData[]): 
   const annualizedVolatility = calculateAnnualizedVolatility(historicalData.map(d => ({ date: d.date || d.datetime || '', close: d.close })));
   const volatilityRating = getVolatilityRating(annualizedVolatility);
 
+  // Calculate news sentiment
+  const avgNewsSentiment = news && news.length > 0
+    ? news.reduce((acc, article) => acc + article.sentiment, 0) / news.length
+    : null;
+
   // Generate trading signal with detailed breakdown
-  const { signal, strength, reason, breakdown } = generateSignal(sma20, sma50, rsi14, momentum, currentPrice, volatilityRating)
+  const { signal, strength, reason, breakdown } = generateSignal(sma20, sma50, rsi14, momentum, currentPrice, volatilityRating, avgNewsSentiment)
 
   return {
     sma20,

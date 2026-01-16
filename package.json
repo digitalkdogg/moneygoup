@@ -10,10 +10,14 @@
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.18",
+    "@types/recharts": "^1.8.29",
+    "fast-xml-parser": "^5.3.3",
     "mysql2": "^3.16.0",
     "next": "14.2.5",
     "react": "^18",
-    "react-dom": "^18"
+    "react-dom": "^18",
+    "recharts": "^3.6.0",
+    "sentiment": "^5.0.2"
   },
   "devDependencies": {
     "@types/node": "^20",

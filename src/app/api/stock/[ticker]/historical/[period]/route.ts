@@ -29,7 +29,12 @@ async function fetchFromDatabase(ticker: string, startDate: string) {
         sdp.high,
         sdp.low,
         sdp.close,
-        sdp.volume
+        sdp.volume,
+        sdp.adj_open,
+        sdp.adj_high,
+        sdp.adj_low,
+        sdp.adj_close,
+        sdp.adj_volume
       FROM stocks s
       INNER JOIN stocksdailyprice sdp ON s.id = sdp.stock_id
       WHERE s.symbol = ? AND sdp.date >= ?
@@ -48,7 +53,12 @@ async function fetchFromDatabase(ticker: string, startDate: string) {
         high: parseFloat(row.high),
         low: parseFloat(row.low),
         close: parseFloat(row.close),
-        volume: parseInt(row.volume, 10)
+        volume: parseInt(row.volume, 10),
+        adjOpen: parseFloat(row.adj_open),
+        adjHigh: parseFloat(row.adj_high),
+        adjLow: parseFloat(row.adj_low),
+        adjClose: parseFloat(row.adj_close),
+        adjVolume: parseInt(row.adj_volume, 10)
       }))
       
       return historicalData
@@ -65,13 +75,52 @@ async function fetchFromDatabase(ticker: string, startDate: string) {
 
 async function fetchFromExternalAPIs(ticker: string, startDate: string) {
   const errors: string[] = []
+  const currentDate = new Date().toISOString().slice(0, 10); // Today's date in YYYY-MM-DD format
+
+  // Helper to normalize Tiingo data
+  const normalizeTiingoData = (data: any[]) => {
+    return data.map(item => ({
+      date: item.date.split('T')[0], // Keep date part only
+      datetime: item.date,
+      open: item.open,
+      high: item.high,
+      low: item.low,
+      close: item.close,
+      volume: item.volume,
+      adjOpen: item.adjOpen,
+      adjHigh: item.adjHigh,
+      adjLow: item.adjLow,
+      adjClose: item.adjClose,
+      adjVolume: item.adjVolume
+    }));
+  };
+
+  // Helper to normalize 12Data
+  const normalizeTwelveData = (data: any[]) => {
+    return data.map(item => ({
+      date: item.datetime.split(' ')[0], // Keep date part only
+      datetime: item.datetime,
+      open: parseFloat(item.open),
+      high: parseFloat(item.high),
+      low: parseFloat(item.low),
+      close: parseFloat(item.close),
+      volume: parseInt(item.volume, 10),
+      adjOpen: parseFloat(item.open), // Assuming 12Data's primary fields are already adjusted
+      adjHigh: parseFloat(item.high),
+      adjLow: parseFloat(item.low),
+      adjClose: parseFloat(item.close),
+      adjVolume: parseInt(item.volume, 10) // Assuming 12Data's primary fields are already adjusted
+    }));
+  };
 
   // Try Tiingo first
   try {
-    const res = await fetch(`https://api.tiingo.com/tiingo/daily/${ticker}/prices?startDate=${startDate}&token=${process.env.TIINGO_API_KEY}`)
+    const res = await fetch(`https://api.tiingo.com/tiingo/daily/${ticker}/prices?startDate=${startDate}&endDate=${currentDate}&token=${process.env.TIINGO_API_KEY}`)
     if (res.ok) {
       const data = await res.json()
-      return data
+      if (Array.isArray(data)) {
+        return normalizeTiingoData(data);
+      }
     } else {
       const statusText = res.statusText || `HTTP ${res.status}`
       errors.push(`Tiingo API: ${statusText}`)
@@ -82,11 +131,12 @@ async function fetchFromExternalAPIs(ticker: string, startDate: string) {
 
   // Try 12Data if Tiingo fails
   try {
-    const res = await fetch(`https://api.twelvedata.com/time_series?symbol=${ticker}&interval=1day&start_date=${startDate}&apikey=${process.env.TWELVE_DATA_API_KEY}`)
+    const res = await fetch(`https://api.twelvedata.com/time_series?symbol=${ticker}&interval=1day&start_date=${startDate}&end_date=${currentDate}&apikey=${process.env.TWELVE_DATA_API_KEY}`)
     if (res.ok) {
       const data = await res.json()
-      // 12 Data returns { meta, values }, values is array of { datetime, open, high, low, close, volume }
-      return data.values || []
+      if (data && Array.isArray(data.values)) {
+        return normalizeTwelveData(data.values);
+      }
     } else {
       const statusText = res.statusText || `HTTP ${res.status}`
       errors.push(`12Data API: ${statusText}`)

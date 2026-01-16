@@ -6,6 +6,7 @@ import { calculateAnnualizedVolatility, getVolatilityRating } from '@/utils/vola
 import ApiErrorDisplay, { ApiError } from './ApiErrorDisplay'
 import TechnicalIndicatorsDisplay from './TechnicalIndicatorsDisplay'
 import StockChart from './StockChart'
+import StockNews from './StockNews'
 
 interface StockData {
   symbol?: string
@@ -47,6 +48,7 @@ export default function Stock({ ticker, source }: { ticker: string; source?: str
   const [indicators, setIndicators] = useState<TechnicalIndicators | null>(null)
   const [apiError, setApiError] = useState<ApiError | null>(null)
   const [volatilityRating, setVolatilityRating] = useState<"Low" | "Medium" | "High" | "N/A" | null>(null);
+  const [news, setNews] = useState<any[]>([]);
 
 
   // Fetch current stock data
@@ -56,6 +58,7 @@ export default function Stock({ ticker, source }: { ticker: string; source?: str
     setIndicators(null)
     setApiError(null)
     setVolatilityRating(null)
+    setNews([]);
     try {
       const url = source === 'dashboard' ? `/api/stock/${ticker}?source=dashboard` : `/api/stock/${ticker}`
       const res = await fetch(url)
@@ -74,12 +77,19 @@ export default function Stock({ ticker, source }: { ticker: string; source?: str
         setStockData({ error: errorData.error })
       }
 
+      const news_res = await fetch(`/api/stock/${ticker}/news`);
+      let news_data: any[] = [];
+      if (news_res.ok) {
+        news_data = await news_res.json();
+        setNews(news_data);
+      }
+
       const hist_url = source === 'dashboard' ? `/api/stock/${ticker}/historical/1Y?source=dashboard` : `/api/stock/${ticker}/historical/1Y`
       const hist_res = await fetch(hist_url)
       if (hist_res.ok) {
         const data = await hist_res.json()
         if (Array.isArray(data) && data.length > 0) {
-          const calcs = calculateTechnicalIndicators(data)
+          const calcs = calculateTechnicalIndicators(data, news_data)
           setIndicators(calcs)
           
           // Calculate volatility from FULL year data
@@ -189,6 +199,9 @@ export default function Stock({ ticker, source }: { ticker: string; source?: str
           <>
             <div className="bg-white p-4 md:p-6 rounded-2xl shadow-2xl mb-8">
               <StockChart ticker={ticker} />
+            </div>
+            <div className="mb-8">
+              <StockNews articles={news} />
             </div>
             <div className="bg-white p-8 rounded-2xl shadow-2xl">
               <h3 className="text-3xl font-bold text-gray-800 mb-6 text-center">📊 Technical Analysis</h3>

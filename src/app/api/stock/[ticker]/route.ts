@@ -94,12 +94,50 @@ async function fetchFromDatabase(ticker: string) {
 async function fetchFromExternalAPIs(ticker: string) {
   const errors: string[] = []
 
+  // Helper to normalize Tiingo data
+  const normalizeTiingoData = (data: any) => {
+    if (!data) return {};
+    return {
+      symbol: data.ticker,
+      name: null, // Tiingo IEX doesn't provide name
+      last: data.last,
+      close: data.last, // Use last for close
+      open: data.open,
+      high: data.high,
+      low: data.low,
+      volume: data.volume,
+      prevClose: data.prevClose,
+      timestamp: data.timestamp,
+      exchange: 'IEX'
+    };
+  };
+
+  // Helper to normalize 12Data
+  const normalizeTwelveData = (data: any) => {
+    if (!data || !data.symbol) return {};
+    return {
+      symbol: data.symbol,
+      name: data.name,
+      last: parseFloat(data.close),
+      close: parseFloat(data.close),
+      open: parseFloat(data.open),
+      high: parseFloat(data.high),
+      low: parseFloat(data.low),
+      volume: parseInt(data.volume, 10),
+      prevClose: parseFloat(data.previous_close),
+      timestamp: data.datetime, // or data.timestamp
+      exchange: data.exchange
+    };
+  };
+
   // Try Tiingo first
   try {
     const res = await fetch(`https://api.tiingo.com/iex/${ticker}?token=${process.env.TIINGO_API_KEY}`)
     if (res.ok) {
       const data = await res.json()
-      return data[0] || {}
+      if (data && data.length > 0) {
+        return normalizeTiingoData(data[0]);
+      }
     } else {
       const statusText = res.statusText || `HTTP ${res.status}`
       errors.push(`Tiingo API: ${statusText}`)
@@ -113,7 +151,9 @@ async function fetchFromExternalAPIs(ticker: string) {
     const res = await fetch(`https://api.twelvedata.com/quote?symbol=${ticker}&apikey=${process.env.TWELVE_DATA_API_KEY}`)
     if (res.ok) {
       const data = await res.json()
-      return data
+      if (data && data.symbol) {
+        return normalizeTwelveData(data);
+      }
     } else {
       const statusText = res.statusText || `HTTP ${res.status}`
       errors.push(`12Data API: ${statusText}`)

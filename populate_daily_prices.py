@@ -48,18 +48,17 @@ def fetch_stocks(connection):
     finally:
         cursor.close()
 
-def fetch_historical_data(symbol):
-    """Fetches 1 year of historical data for a given stock symbol from the local API."""
-    api_url = f"http://localhost:3000/api/stock/{symbol}/historical/1Y"
-    #may need to adjust endpoint to get real time /api/stock/{symbol} 
+def fetch_current_stock_data(symbol):
+    """Fetches current stock data for a given stock symbol from the local API."""
+    api_url = f"http://localhost:3000/api/stock/{symbol}"
     
     try:
-        print(f"Fetching data for {symbol} from {api_url}")
+        print(f"Fetching current data for {symbol} from {api_url}")
         response = requests.get(api_url)
         response.raise_for_status()  # Raise an exception for HTTP errors
-        return response.json()
+        return api_response
     except requests.exceptions.RequestException as e:
-        print(f"Error fetching historical data for {symbol}: {e}")
+        print(f"Error fetching current stock data for {symbol}: {e}")
         return None
 
 def update_stock_price(connection, stock_id, price):
@@ -102,13 +101,13 @@ def upsert_daily_prices(connection, stock_id, daily_data):
     """
     records_to_insert = []
     for record in daily_data:
-        # The API might return 'date' or 'datetime'. We need to handle both.
-        date_str = record.get('date') or record.get('datetime')
+        # The API might return 'timestamp', 'date', or 'datetime'. We need to handle all.
+        date_str = record.get('timestamp') or record.get('date') or record.get('datetime')
         if not date_str:
             continue
 
-        # The date might have a 'T' and time part, so we split it.
-        formatted_date = date_str.split('T')[0]
+        # The date might have a 'T' or a space and time part, so we split it.
+        formatted_date = date_str.split('T')[0].split(' ')[0]
 
         records_to_insert.append((
             stock_id,
@@ -118,11 +117,11 @@ def upsert_daily_prices(connection, stock_id, daily_data):
             record.get('low'),
             record.get('close'),
             record.get('volume'),
-            record.get('adjOpen'),
-            record.get('adjHigh'),
-            record.get('adjLow'),
-            record.get('adjClose'),
-            record.get('adjVolume')
+            record.get('adjOpen') or record.get('open'), # Fallback to open if adjOpen is not present
+            record.get('adjHigh') or record.get('high'), # Fallback to high if adjHigh is not present
+            record.get('adjLow') or record.get('low'),   # Fallback to low if adjLow is not present
+            record.get('adjClose') or record.get('close'),# Fallback to close if adjClose is not present
+            record.get('adjVolume') or record.get('volume') # Fallback to volume if adjVolume is not present
         ))
 
     if not records_to_insert:
@@ -154,15 +153,15 @@ def main():
         stock_id = stock['id']
         symbol = stock['symbol']
 
-        historical_data = fetch_historical_data(symbol)
-        if historical_data and isinstance(historical_data, list) and len(historical_data) > 0:
-            upsert_daily_prices(db_connection, stock_id, historical_data)
+        current_stock_data = fetch_current_stock_data(symbol)
+        if current_stock_data is not None:
+            # upsert_daily_prices expects a list of daily data, so wrap the single record
+            upsert_daily_prices(db_connection, stock_id, [current_stock_data])
             
-            # Update the stock price with the most recent open price
-            most_recent_record = historical_data[-1]
-            open_price = most_recent_record.get('open')
-            if open_price is not None:
-                update_stock_price(db_connection, stock_id, open_price)
+            # Update the stock price with the most recent last, close, or open price
+            latest_price = current_stock_data.get('last') or current_stock_data.get('close') or current_stock_data.get('open')
+            if latest_price is not None:
+                update_stock_price(db_connection, stock_id, latest_price)
 
         elif historical_data and 'error' in historical_data:
             print(f"API returned an error for {symbol}: {historical_data['error']}")
