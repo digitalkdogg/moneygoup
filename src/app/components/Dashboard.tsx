@@ -9,9 +9,11 @@ interface StockDashboardData {
   symbol: string;
   companyName: string;
   price: number | null;
-  volume: number | null;
-  volatility: "Low" | "Medium" | "High" | "N/A";
-  isOwned: boolean; // Added to indicate if the user owns the stock
+  isOwned: boolean;
+  shares?: number;
+  purchase_price?: number;
+  recommendation?: 'BUY' | 'SELL' | 'HOLD';
+  volatility: "Low" | "Medium" | "High" | "N/A" | null;
 }
 
 export default function Dashboard() {
@@ -170,6 +172,17 @@ export default function Dashboard() {
   };
 
 
+  const getRecommendationClass = (recommendation: string) => {
+    switch (recommendation) {
+      case "BUY":
+        return "bg-green-100 text-green-800";
+      case "SELL":
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
+
   const getVolatilityClass = (volatility: string) => {
     switch (volatility) {
       case "Low":
@@ -218,42 +231,61 @@ export default function Dashboard() {
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Symbol</th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company Name</th>
                     <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Volume</th>
+                    <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Recommendation</th>
                     <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Volatility</th>
-                    <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Shares</th>
+                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Est. Earnings</th>
+                    <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {data.map((stock) => (
-                    <tr key={stock.symbol} onClick={() => handleRowClick(stock.symbol)} className="hover:bg-gray-50 cursor-pointer">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{stock.symbol}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stock.companyName || 'N/A'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">{stock.price ? `$${stock.price.toFixed(2)}` : 'N/A'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">{stock.volume ? stock.volume.toLocaleString() : 'N/A'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getVolatilityClass(stock.volatility)}`}>
-                          {stock.volatility}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
-                        {stock.isOwned ? (
-                          <button
-                            onClick={(e) => handleSellClick(e, stock)}
-                            className="px-4 py-2 font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200"
-                          >
-                            Sell
-                          </button>
-                        ) : (
-                          <button
-                            onClick={(e) => handlePurchaseClick(e, stock)}
-                            className="px-4 py-2 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
-                          >
-                            Purchase
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {data.map((stock) => {
+                    const earnings = stock.isOwned && stock.price && stock.purchase_price && stock.shares
+                      ? (stock.price - stock.purchase_price) * stock.shares
+                      : null;
+                    const earningsClass = earnings
+                      ? earnings > 0 ? 'text-green-600' : 'text-red-600'
+                      : 'text-gray-500';
+
+                    return (
+                      <tr key={stock.symbol} onClick={() => handleRowClick(stock.symbol)} className="hover:bg-gray-50 cursor-pointer">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{stock.symbol}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stock.companyName || 'N/A'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">{stock.price ? `$${stock.price.toFixed(2)}` : 'N/A'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getRecommendationClass(stock.recommendation || '')}`}>
+                            {stock.recommendation || 'N/A'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getVolatilityClass(stock.volatility || '')}`}>
+                            {stock.volatility || 'N/A'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">{stock.isOwned && typeof stock.shares === 'number' ? stock.shares.toFixed(2) : 'N/A'}</td>
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-medium ${earningsClass}`}>
+                          {earnings !== null ? `${earnings > 0 ? '+' : ''}$${earnings.toFixed(2)}` : 'N/A'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                          {stock.isOwned ? (
+                            <button
+                              onClick={(e) => handleSellClick(e, stock)}
+                              className="px-4 py-2 font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200"
+                            >
+                              Sell
+                            </button>
+                          ) : (
+                            <button
+                              onClick={(e) => handlePurchaseClick(e, stock)}
+                              className="px-4 py-2 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                            >
+                              Purchase
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
