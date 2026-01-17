@@ -38,12 +38,19 @@ export default function Dashboard() {
   const [sellError, setSellError] = useState<string | null>(null);
   const [sellSuccess, setSellSuccess] = useState<string | null>(null);
 
+  // State for the remove modal
+  const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
+  const [selectedStockForRemove, setSelectedStockForRemove] = useState<StockDashboardData | null>(null);
+  const [isSubmittingRemove, setIsSubmittingRemove] = useState(false);
+  const [removeError, setRemoveError] = useState<string | null>(null);
+  const [removeSuccess, setRemoveSuccess] = useState<string | null>(null);
+
 
   const fetchData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/dashboard');
+      const res = await fetch(`/api/dashboard?_=${new Date().getTime()}`);
       if (!res.ok) {
         throw new Error('Failed to fetch data');
       }
@@ -171,6 +178,54 @@ export default function Dashboard() {
     }
   };
 
+  const handleCloseRemoveModal = () => {
+    setIsRemoveModalOpen(false);
+    setSelectedStockForRemove(null);
+    setRemoveError(null);
+    setRemoveSuccess(null);
+  };
+
+  const handleConfirmRemove = async () => {
+    if (!selectedStockForRemove) return;
+
+    setIsSubmittingRemove(true);
+    setRemoveError(null);
+    setRemoveSuccess(null);
+
+    try {
+      const response = await fetch(`/api/stock/${selectedStockForRemove.stock_id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to remove stock.');
+      }
+
+      setRemoveSuccess(`Successfully removed ${selectedStockForRemove.symbol}.`);
+      fetchData(); // Refresh dashboard data
+      setTimeout(() => {
+        handleCloseRemoveModal();
+      }, 2000);
+
+    } catch (err) {
+      setRemoveError(err instanceof Error ? err.message : 'An unknown error occurred.');
+    } finally {
+      setIsSubmittingRemove(false);
+    }
+  };
+
+  const handleRemoveStock = (e: React.MouseEvent, stock: StockDashboardData) => {
+    e.stopPropagation(); // Prevent row click from firing
+    setSelectedStockForRemove(stock);
+    setIsRemoveModalOpen(true);
+    setRemoveError(null);
+    setRemoveSuccess(null);
+  };
+
 
   const getRecommendationClass = (recommendation: string) => {
     switch (recommendation) {
@@ -236,6 +291,7 @@ export default function Dashboard() {
                     <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Shares</th>
                     <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Est. Earnings</th>
                     <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                    <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"></th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -248,7 +304,7 @@ export default function Dashboard() {
                       : 'text-gray-500';
 
                     return (
-                      <tr key={stock.symbol} onClick={() => handleRowClick(stock.symbol)} className="hover:bg-gray-50 cursor-pointer">
+                      <tr key={stock.symbol} onClick={() => handleRowClick(stock.symbol)} className="hover:bg-gray-50 cursor-pointer group">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{stock.symbol}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stock.companyName || 'N/A'}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">{stock.price ? `$${stock.price.toFixed(2)}` : 'N/A'}</td>
@@ -267,19 +323,30 @@ export default function Dashboard() {
                           {earnings !== null ? `${earnings > 0 ? '+' : ''}$${earnings.toFixed(2)}` : 'N/A'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
-                          {stock.isOwned ? (
+                              {stock.isOwned ? (
+                                <button
+                                  onClick={(e) => handleSellClick(e, stock)}
+                                  className="px-4 py-2 font-semibold text-white bg-gray-400 rounded-lg hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-300 transition-colors duration-200"
+                                >
+                                  Sell
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={(e) => handlePurchaseClick(e, stock)}
+                                  className="px-4 py-2 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                                >
+                                  Purchase
+                                </button>
+                              )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                          {!stock.isOwned && (
                             <button
-                              onClick={(e) => handleSellClick(e, stock)}
-                              className="px-4 py-2 font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200"
+                              onClick={(e) => handleRemoveStock(e, stock)}
+                              className="text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-1"
+                              aria-label="Remove stock"
                             >
-                              Sell
-                            </button>
-                          ) : (
-                            <button
-                              onClick={(e) => handlePurchaseClick(e, stock)}
-                              className="px-4 py-2 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
-                            >
-                              Purchase
+                              &#x2715; {/* Unicode 'X' character */}
                             </button>
                           )}
                         </td>
@@ -382,6 +449,41 @@ export default function Dashboard() {
                 disabled={isSubmittingSell}
               >
                 {isSubmittingSell ? 'Selling...' : 'Confirm Sell'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Remove Confirmation Modal */}
+      {isRemoveModalOpen && selectedStockForRemove && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md m-4">
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">Confirm Removal</h2>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to remove <span className="font-semibold">{selectedStockForRemove.symbol}</span> ({selectedStockForRemove.companyName}) from your tracked stocks?
+              This will also delete all associated historical data.
+            </p>
+            
+            {removeError && <p className="text-red-500 text-sm mb-4">{removeError}</p>}
+            {removeSuccess && <p className="text-green-500 text-sm mb-4">{removeSuccess}</p>}
+
+            <div className="flex justify-end space-x-4">
+              <button
+                type="button"
+                onClick={handleCloseRemoveModal}
+                className="px-6 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+                disabled={isSubmittingRemove}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmRemove}
+                className="px-6 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:bg-gray-400 transition-colors"
+                disabled={isSubmittingRemove}
+              >
+                {isSubmittingRemove ? 'Removing...' : 'Confirm Remove'}
               </button>
             </div>
           </div>

@@ -17,6 +17,9 @@ from mysql.connector import Error
 from dotenv import load_dotenv
 from datetime import datetime
 
+# Disable SSL certificate verification for local development
+os.environ['NODE_TLS_REJECT_UNAUTHORIZED'] = '0'
+
 def create_db_connection():
     """Creates and returns a database connection."""
     load_dotenv('.env.local')
@@ -48,17 +51,17 @@ def fetch_stocks(connection):
     finally:
         cursor.close()
 
-def fetch_current_stock_data(symbol):
-    """Fetches current stock data for a given stock symbol from the local API."""
-    api_url = f"http://localhost:3000/api/stock/{symbol}"
+def fetch_historical_data(symbol):
+    """Fetches historical stock data for a given stock symbol from the local API."""
+    api_url = f"http://localhost:3001/api/stock/{symbol}/historical/max"
     
     try:
-        print(f"Fetching current data for {symbol} from {api_url}")
+        print(f"Fetching historical data for {symbol} from {api_url}")
         response = requests.get(api_url)
         response.raise_for_status()  # Raise an exception for HTTP errors
-        return api_response
+        return response.json()
     except requests.exceptions.RequestException as e:
-        print(f"Error fetching current stock data for {symbol}: {e}")
+        print(f"Error fetching historical stock data for {symbol}: {e}")
         return None
 
 def update_stock_price(connection, stock_id, price):
@@ -153,20 +156,18 @@ def main():
         stock_id = stock['id']
         symbol = stock['symbol']
 
-        current_stock_data = fetch_current_stock_data(symbol)
-        if current_stock_data is not None:
-            # upsert_daily_prices expects a list of daily data, so wrap the single record
-            upsert_daily_prices(db_connection, stock_id, [current_stock_data])
+        historical_data = fetch_historical_data(symbol)
+        if historical_data is not None and len(historical_data) > 0:
+            upsert_daily_prices(db_connection, stock_id, historical_data)
             
-            # Update the stock price with the most recent last, close, or open price
-            latest_price = current_stock_data.get('last') or current_stock_data.get('close') or current_stock_data.get('open')
+            # Update the stock price with the most recent close price from historical data
+            latest_price = historical_data[-1].get('close')
             if latest_price is not None:
                 update_stock_price(db_connection, stock_id, latest_price)
-
         elif historical_data and 'error' in historical_data:
             print(f"API returned an error for {symbol}: {historical_data['error']}")
         else:
-            print(f"No data returned for {symbol}.")
+            print(f"No historical data returned for {symbol}.")
         print("-" * 30)
 
     db_connection.close()

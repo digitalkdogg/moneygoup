@@ -234,3 +234,40 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     )
   }
 }
+
+export async function DELETE(request: NextRequest, { params }: { params: { ticker: string } }) {
+  const stockId = params.ticker; // The `ticker` param is actually `stock_id` in this context
+
+  if (!stockId || isNaN(Number(stockId))) {
+    return Response.json({ error: 'Invalid stock ID' }, { status: 400 });
+  }
+
+  let connection;
+  try {
+    connection = await getDbConnection();
+
+    // Start a transaction
+    await connection.beginTransaction();
+
+    // 1. Delete from stocksdailyprice table
+    await connection.execute('DELETE FROM stocksdailyprice WHERE stock_id = ?', [stockId]);
+
+    // 2. Delete from stocks table
+    await connection.execute('DELETE FROM stocks WHERE id = ?', [stockId]);
+
+    // Commit the transaction
+    await connection.commit();
+
+    await connection.end();
+    return Response.json({ message: `Stock with ID ${stockId} and its daily prices removed successfully.` });
+
+  } catch (error) {
+    if (connection) {
+      await connection.rollback(); // Rollback on error
+      await connection.end();
+    }
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`Error removing stock with ID ${stockId}:`, errorMessage);
+    return Response.json({ error: 'Failed to remove stock', details: errorMessage }, { status: 500 });
+  }
+}
