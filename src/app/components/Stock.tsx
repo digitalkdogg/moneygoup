@@ -53,6 +53,7 @@ export default function Stock({ ticker, source, companyName }: { ticker: string;
   const [addingToWatchlist, setAddingToWatchlist] = useState(false);
   const [watchlistSuccess, setWatchlistSuccess] = useState<string | null>(null);
   const [watchlistError, setWatchlistError] = useState<string | null>(null);
+  const [isStockOnWatchlist, setIsStockOnWatchlist] = useState(false);
 
   const router = useRouter();
 
@@ -68,24 +69,34 @@ export default function Stock({ ticker, source, companyName }: { ticker: string;
     setWatchlistError(null);
     try {
       const url = source === 'dashboard' ? `/api/stock/${ticker}?source=dashboard` : `/api/stock/${ticker}`
-      const res = await fetch(url)
-      if (res.ok) {
-        const data = await res.json()
-        setStockData(data)
-      } else {
-        const errorData = await res.json()
-        setApiError({
-          type: 'stock',
-          ticker: ticker,
-          message: errorData.error || 'Failed to fetch stock data',
-          details: errorData.details,
-          failedServices: errorData.failedServices
-        })
-        setStockData({ error: errorData.error })
-      }
-
-      const news_res = await fetch(`/api/stock/${ticker}/news`);
-      let news_data: any[] = [];
+              const res = await fetch(url)
+            if (res.ok) {
+              const data = await res.json()
+              setStockData(data)
+            } else {
+              const errorData = await res.json()
+              setApiError({
+                type: 'stock',
+                ticker: ticker,
+                message: errorData.error || 'Failed to fetch stock data',
+                details: errorData.details,
+                failedServices: errorData.failedServices
+              })
+              setStockData({ error: errorData.error })
+            }
+      
+            // Check if stock is on watchlist (owned)
+            const watchlistRes = await fetch('/api/dashboard');
+            if (watchlistRes.ok) {
+              const watchlistData = await watchlistRes.json();
+              const found = watchlistData.some((item: any) => item.symbol === ticker && item.isOwned);
+              setIsStockOnWatchlist(found);
+            } else {
+              console.error('Failed to fetch watchlist for stock check.');
+              setIsStockOnWatchlist(false); // Assume not on watchlist if check fails
+            }
+      
+            const news_res = await fetch(`/api/stock/${ticker}/news`);      let news_data: any[] = [];
       if (news_res.ok) {
         news_data = await news_res.json();
         setNews(news_data);
@@ -202,19 +213,24 @@ export default function Stock({ ticker, source, companyName }: { ticker: string;
               {companyName ? `${ticker} - ${companyName}` : stockData.symbol || stockData.name || ticker}
             </h2>
             <div className="text-center text-gray-600 mb-8">
-              <button
-                onClick={addToWatchlist}
-                disabled={addingToWatchlist || !!watchlistSuccess}
-                className={`font-bold py-2 px-4 rounded-lg mb-4 ${
-                  addingToWatchlist
-                    ? 'bg-blue-400 cursor-not-allowed'
-                    : watchlistSuccess
-                    ? 'bg-green-500 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-700'
-                } text-white`}
-              >
-                {addingToWatchlist ? 'Adding...' : watchlistSuccess || 'Add to Watchlist'}
-              </button>
+              {!isStockOnWatchlist && (
+                <button
+                  onClick={addToWatchlist}
+                  disabled={addingToWatchlist || !!watchlistSuccess}
+                  className={`font-bold py-2 px-4 rounded-lg mb-4 ${
+                    addingToWatchlist
+                      ? 'bg-blue-400 cursor-not-allowed'
+                      : watchlistSuccess
+                      ? 'bg-green-500 cursor-not-allowed'
+                      : 'bg-blue-600 hover:bg-blue-700'
+                  } text-white`}
+                >
+                  {addingToWatchlist ? 'Adding...' : watchlistSuccess || 'Add to Watchlist'}
+                </button>
+              )}
+              {isStockOnWatchlist && (
+                <p className="text-green-600 font-semibold mb-4">On Watchlist</p>
+              )}
               {watchlistError && (
                 <p className="text-red-500 text-sm mt-2">{watchlistError}</p>
               )}

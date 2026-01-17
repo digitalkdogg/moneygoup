@@ -343,7 +343,7 @@ export default function Dashboard() {
                           {!stock.isOwned && (
                             <button
                               onClick={(e) => handleRemoveStock(e, stock)}
-                              className="text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-1"
+                              className="text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-1 text-2xl cursor-pointer"
                               aria-label="Remove stock"
                             >
                               &#x2715; {/* Unicode 'X' character */}
