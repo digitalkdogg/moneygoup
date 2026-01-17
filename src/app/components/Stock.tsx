@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation' // Import useRouter
 import { calculateTechnicalIndicators, TechnicalIndicators } from '@/utils/technicalIndicators'
 import { calculateAnnualizedVolatility, getVolatilityRating } from '@/utils/volatility'
 import ApiErrorDisplay, { ApiError } from './ApiErrorDisplay'
@@ -42,14 +43,18 @@ interface Metrics {
 
 type HistoricalResponse = HistoricalData[] | { error: string }
 
-export default function Stock({ ticker, source }: { ticker: string; source?: string }) {
+export default function Stock({ ticker, source, companyName }: { ticker: string; source?: string; companyName?: string }) {
   const [stockData, setStockData] = useState<StockData | null>(null)
   const [loading, setLoading] = useState(false)
   const [indicators, setIndicators] = useState<TechnicalIndicators | null>(null)
   const [apiError, setApiError] = useState<ApiError | null>(null)
   const [volatilityRating, setVolatilityRating] = useState<"Low" | "Medium" | "High" | "N/A" | null>(null);
   const [news, setNews] = useState<any[]>([]);
+  const [addingToWatchlist, setAddingToWatchlist] = useState(false);
+  const [watchlistSuccess, setWatchlistSuccess] = useState<string | null>(null);
+  const [watchlistError, setWatchlistError] = useState<string | null>(null);
 
+  const router = useRouter();
 
   // Fetch current stock data
   const fetchStockData = async (ticker: string) => {
@@ -59,6 +64,8 @@ export default function Stock({ ticker, source }: { ticker: string; source?: str
     setApiError(null)
     setVolatilityRating(null)
     setNews([]);
+    setWatchlistSuccess(null);
+    setWatchlistError(null);
     try {
       const url = source === 'dashboard' ? `/api/stock/${ticker}?source=dashboard` : `/api/stock/${ticker}`
       const res = await fetch(url)
@@ -124,7 +131,36 @@ export default function Stock({ ticker, source }: { ticker: string; source?: str
     setLoading(false)
   }
 
+  const addToWatchlist = async () => {
+    setAddingToWatchlist(true);
+    setWatchlistSuccess(null);
+    setWatchlistError(null);
+    try {
+      const response = await fetch('/api/stock/add', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ticker: ticker,
+          name: stockData?.name || stockData?.symbol || ticker,
+        }),
+      });
 
+      if (response.ok) {
+        setWatchlistSuccess('Added to watchlist!');
+        // Optionally refresh the page or redirect after successful addition
+        router.refresh(); 
+      } else {
+        const errorData = await response.json();
+        setWatchlistError(errorData.error || 'Failed to add to watchlist.');
+      }
+    } catch (error) {
+      setWatchlistError('Network error. Failed to add to watchlist.');
+    } finally {
+      setAddingToWatchlist(false);
+    }
+  };
 
   useEffect(() => {
     if (ticker) {
@@ -163,8 +199,26 @@ export default function Stock({ ticker, source }: { ticker: string; source?: str
         {stockData && !stockData.error && (
           <div className="bg-white p-8 rounded-2xl shadow-2xl mb-8">
             <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">
-              {stockData.symbol || stockData.name || ticker}
+              {companyName ? `${ticker} - ${companyName}` : stockData.symbol || stockData.name || ticker}
             </h2>
+            <div className="text-center text-gray-600 mb-8">
+              <button
+                onClick={addToWatchlist}
+                disabled={addingToWatchlist || !!watchlistSuccess}
+                className={`font-bold py-2 px-4 rounded-lg mb-4 ${
+                  addingToWatchlist
+                    ? 'bg-blue-400 cursor-not-allowed'
+                    : watchlistSuccess
+                    ? 'bg-green-500 cursor-not-allowed'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                } text-white`}
+              >
+                {addingToWatchlist ? 'Adding...' : watchlistSuccess || 'Add to Watchlist'}
+              </button>
+              {watchlistError && (
+                <p className="text-red-500 text-sm mt-2">{watchlistError}</p>
+              )}
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
                 <div className="text-sm font-medium text-gray-700 opacity-80">Last Price</div>
