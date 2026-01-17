@@ -61,7 +61,10 @@ async function fetchFromDatabase(ticker: string, startDate: string) {
         adjVolume: parseInt(row.adj_volume, 10)
       }))
       
-      return historicalData
+      return {
+        historicalData: historicalData,
+        source: ['DATABASE']
+      }
     } else {
       throw new Error(`No historical data found in database for ticker ${ticker}`)
     }
@@ -76,6 +79,7 @@ async function fetchFromDatabase(ticker: string, startDate: string) {
 async function fetchFromExternalAPIs(ticker: string, startDate: string) {
   const errors: string[] = []
   const currentDate = new Date().toISOString().slice(0, 10); // Today's date in YYYY-MM-DD format
+  const sources: string[] = [];
 
   // Helper to normalize Tiingo data
   const normalizeTiingoData = (data: any[]) => {
@@ -118,9 +122,9 @@ async function fetchFromExternalAPIs(ticker: string, startDate: string) {
     const res = await fetch(`https://api.tiingo.com/tiingo/daily/${ticker}/prices?startDate=${startDate}&endDate=${currentDate}&token=${process.env.TIINGO_API_KEY}`)
     if (res.ok) {
       const data = await res.json()
-      if (Array.isArray(data)) {
-        return normalizeTiingoData(data);
-      }
+            if (data && Array.isArray(data)) {
+              sources.push('Tiingo');
+              return { historicalData: normalizeTiingoData(data), source: sources };      }
     } else {
       const statusText = res.statusText || `HTTP ${res.status}`
       errors.push(`Tiingo API: ${statusText}`)
@@ -135,7 +139,8 @@ async function fetchFromExternalAPIs(ticker: string, startDate: string) {
     if (res.ok) {
       const data = await res.json()
       if (data && Array.isArray(data.values)) {
-        return normalizeTwelveData(data.values);
+        sources.push('12Data');
+        return { historicalData: normalizeTwelveData(data.values), source: sources };
       }
     } else {
       const statusText = res.statusText || `HTTP ${res.status}`
@@ -163,12 +168,12 @@ export async function GET(
   try {
     if (source === 'dashboard') {
       // Use database for dashboard requests
-      const data = await fetchFromDatabase(ticker, startDate)
-      return Response.json(data)
+      const { historicalData, source: dataSource } = await fetchFromDatabase(ticker, startDate)
+      return Response.json({ historicalData, source: dataSource })
     } else {
       // Use external APIs for direct search requests
-      const data = await fetchFromExternalAPIs(ticker, startDate)
-      return Response.json(data)
+      const { historicalData, source: dataSource } = await fetchFromExternalAPIs(ticker, startDate)
+      return Response.json({ historicalData, source: dataSource })
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'

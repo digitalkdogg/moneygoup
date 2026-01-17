@@ -15,7 +15,8 @@ import requests
 import mysql.connector
 from mysql.connector import Error
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timedelta
+from textblob import TextBlob # For sentiment analysis
 
 # Disable SSL certificate verification for local development
 os.environ['NODE_TLS_REJECT_UNAUTHORIZED'] = '0'
@@ -38,15 +39,29 @@ def create_db_connection():
     return None
 
 def fetch_stocks(connection):
-    """Fetches all stocks (id, symbol) from the Stock table."""
+    """Fetches all stocks (id, symbol, company_name) from the Stock table."""
     cursor = connection.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT id, symbol FROM stocks")
+        cursor.execute("SELECT id, symbol, company_name FROM stocks")
         stocks = cursor.fetchall()
         print(f"Found {len(stocks)} stocks to process.")
         return stocks
     except Error as e:
         print(f"Error fetching stocks: {e}")
+        return []
+    finally:
+        cursor.close()
+
+def fetch_user_stocks(connection):
+    """Fetches all user_stock entries (user_id, stock_id) from the user_stocks table."""
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT user_id, stock_id FROM user_stocks")
+        user_stocks = cursor.fetchall()
+        print(f"Found {len(user_stocks)} user_stock entries.")
+        return user_stocks
+    except Error as e:
+        print(f"Error fetching user_stocks: {e}")
         return []
     finally:
         cursor.close()
@@ -59,7 +74,11 @@ def fetch_historical_data(symbol):
         print(f"Fetching historical data for {symbol} from {api_url}")
         response = requests.get(api_url)
         response.raise_for_status()  # Raise an exception for HTTP errors
-        return response.json()
+        json_response = response.json()
+        if isinstance(json_response, dict) and 'historicalData' in json_response:
+            return json_response['historicalData']
+        print(f"Unexpected API response format for {symbol}: {json_response}")
+        return None
     except requests.exceptions.RequestException as e:
         print(f"Error fetching historical stock data for {symbol}: {e}")
         return None
@@ -141,6 +160,107 @@ def upsert_daily_prices(connection, stock_id, daily_data):
     finally:
         cursor.close()
 
+def mock_fetch_news(stock_symbol, company_name):
+    """Mocks fetching news for a given stock symbol and company name."""
+    mock_articles = []
+    today = datetime.now()
+
+    # Generate some positive, negative, and neutral headlines
+    headlines = [
+        f"{company_name} (S: {stock_symbol}) reports strong earnings, stock soars!", # Positive
+        f"Analysts downgrade {company_name} (S: {stock_symbol}) amid market uncertainty.", # Negative
+        f"{company_name} (S: {stock_symbol}) unveils new product line.", # Neutral
+        f"Major partnership announced for {company_name} (S: {stock_symbol}).", # Positive
+        f"{company_name} (S: {stock_symbol}) faces regulatory challenges.", # Negative
+        f"Stock split for {company_name} (S: {stock_symbol}) expected next quarter.", # Neutral
+    ]
+
+    for i, headline in enumerate(headlines):
+        mock_articles.append({
+            'title': headline,
+            'link': f"http://example.com/news/{stock_symbol}/{i}",
+            'pub_date': today - timedelta(days=i), # Simulate recent news
+            'source': "MockNewsProvider",
+        })
+    return mock_articles
+
+def calculate_sentiment(text):
+    """Calculates sentiment score using TextBlob."""
+    analysis = TextBlob(text)
+    return analysis.sentiment.polarity # Polarity ranges from -1.0 (negative) to 1.0 (positive)
+
+def upsert_news(connection, news_items):
+    """Upserts news items into the 'news' table."""
+    cursor = connection.cursor()
+    upsert_query = """
+        INSERT INTO news (title, link, pub_date, source, sentiment_score, created_at)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        ON DUPLICATE KEY UPDATE
+            title = VALUES(title),
+            pub_date = VALUES(pub_date),
+            source = VALUES(source),
+            sentiment_score = VALUES(sentiment_score),
+            created_at = VALUES(created_at)
+    """
+    records_to_insert = []
+    for item in news_items:
+        records_to_insert.append((
+            item['title'],
+            item['link'],
+            item['pub_date'],
+            item['source'],
+            item['sentiment_score'],
+            datetime.now()
+        ))
+    
+    if not records_to_insert:
+        print("No news records to insert.")
+        return []
+
+    try:
+        cursor.executemany(upsert_query, records_to_insert)
+        connection.commit()
+        print(f"Successfully upserted {cursor.rowcount} news records.")
+        
+        # Fetch IDs for newly inserted/updated news items (assuming link is unique)
+        inserted_news_ids = []
+        for item in news_items:
+            cursor.execute("SELECT id FROM news WHERE link = %s", (item['link'],))
+            result = cursor.fetchone()
+            if result:
+                inserted_news_ids.append(result[0])
+        return inserted_news_ids
+    except Error as e:
+        print(f"Error during news upsert: {e}")
+        connection.rollback()
+        return []
+    finally:
+        cursor.close()
+
+def link_news_to_user_stocks(connection, user_id, stock_id, news_ids):
+    """Links news items to a specific user_stock entry in 'user_stock_news' table."""
+    cursor = connection.cursor()
+    insert_query = """
+        INSERT IGNORE INTO user_stock_news (user_id, stock_id, news_id)
+        VALUES (%s, %s, %s)
+    """
+    records_to_insert = []
+    for news_id in news_ids:
+        records_to_insert.append((user_id, stock_id, news_id))
+    
+    if not records_to_insert:
+        return
+
+    try:
+        cursor.executemany(insert_query, records_to_insert)
+        connection.commit()
+        print(f"Successfully linked {cursor.rowcount} news items to user_stock ({user_id}, {stock_id}).")
+    except Error as e:
+        print(f"Error linking news to user_stock ({user_id}, {stock_id}): {e}")
+        connection.rollback()
+    finally:
+        cursor.close()
+
 def main():
     """Main function to orchestrate the data population process."""
     db_connection = create_db_connection()
@@ -151,11 +271,17 @@ def main():
     if not stocks:
         db_connection.close()
         return
+    
+    user_stocks = fetch_user_stocks(db_connection)
 
     for stock in stocks:
         stock_id = stock['id']
         symbol = stock['symbol']
+        company_name = stock.get('company_name', symbol) # Use symbol as fallback if company_name not present
 
+        print(f"\nProcessing data for {symbol} ({company_name})...")
+
+        # --- Process Historical Prices ---
         historical_data = fetch_historical_data(symbol)
         if historical_data is not None and len(historical_data) > 0:
             upsert_daily_prices(db_connection, stock_id, historical_data)
@@ -168,6 +294,26 @@ def main():
             print(f"API returned an error for {symbol}: {historical_data['error']}")
         else:
             print(f"No historical data returned for {symbol}.")
+        
+        # --- Process News ---
+        print(f"Processing news for {symbol} ({company_name})...")
+        mock_news_items = mock_fetch_news(symbol, company_name)
+        
+        # Calculate sentiment for each mock news item
+        for item in mock_news_items:
+            item['sentiment_score'] = calculate_sentiment(item['title'])
+        
+        # Upsert news into the 'news' table and get their IDs
+        news_ids = upsert_news(db_connection, mock_news_items)
+
+        if news_ids:
+            # Link news to all relevant user_stocks entries
+            for us in user_stocks:
+                if us['stock_id'] == stock_id:
+                    link_news_to_user_stocks(db_connection, us['user_id'], us['stock_id'], news_ids)
+        else:
+            print(f"No news IDs returned for {symbol}, skipping linking.")
+
         print("-" * 30)
 
     db_connection.close()

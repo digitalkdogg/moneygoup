@@ -290,7 +290,7 @@ function generateSignal(
  * @param historicalData Array of historical OHLCV data
  * @returns TechnicalIndicators object with all calculated values, trading signal, and scoring breakdown
  */
-export function calculateTechnicalIndicators(historicalData: HistoricalData[], news?: any[]): TechnicalIndicators {
+export function calculateTechnicalIndicators(historicalData: HistoricalData[], newsData: { sentiment_score: number; pub_date: string }[]): TechnicalIndicators {
   if (!historicalData || historicalData.length === 0) {
     const emptyBreakdown: ScoreBreakdown = {
       maScore: 0,
@@ -334,8 +334,8 @@ export function calculateTechnicalIndicators(historicalData: HistoricalData[], n
   const volatilityRating = getVolatilityRating(annualizedVolatility);
 
   // Calculate news sentiment
-  const avgNewsSentiment = news && news.length > 0
-    ? news.reduce((acc, article) => acc + article.sentiment, 0) / news.length
+  const avgNewsSentiment = newsData && newsData.length > 0
+    ? newsData.reduce((acc, article) => acc + article.sentiment_score, 0) / newsData.length
     : null;
 
   // Generate trading signal with detailed breakdown

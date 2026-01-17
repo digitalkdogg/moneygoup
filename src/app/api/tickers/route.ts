@@ -23,11 +23,14 @@ export async function GET() {
     }));
 
     // Cache for 24 hours
-    return NextResponse.json(tickers, {
-      headers: {
-        'Cache-Control': 'public, max-age=86400',
-      },
-    });
+    return NextResponse.json(
+      { tickers, source: ['SEC'] },
+      {
+        headers: {
+          'Cache-Control': 'public, max-age=86400',
+        },
+      }
+    );
   } catch (error) {
     console.error('Failed to fetch tickers from SEC:', error);
     
@@ -38,7 +41,7 @@ export async function GET() {
       });
       if (response.ok) {
         const data = await response.json();
-        return NextResponse.json(data);
+        return NextResponse.json({ tickers: data, source: ['LOCAL_FILE'] });
       }
     } catch (fallbackError) {
       console.error('Fallback to local tickers also failed:', fallbackError);

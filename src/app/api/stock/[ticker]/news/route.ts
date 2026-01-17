@@ -40,7 +40,7 @@ export async function GET(
       }
     });
 
-    return NextResponse.json(articles);
+    return NextResponse.json({ articles, source: ['Yahoo Finance'] });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(

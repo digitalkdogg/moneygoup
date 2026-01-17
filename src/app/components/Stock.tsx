@@ -26,13 +26,18 @@ interface StockData {
 }
 
 interface HistoricalData {
-  date?: string
-  datetime?: string
-  open: number
-  high: number
-  low: number
-  close: number
-  volume: number
+  date: string;
+  datetime: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  adjOpen: number;
+  adjHigh: number;
+  adjLow: number;
+  adjClose: number;
+  adjVolume: number;
 }
 
 interface Metrics {
@@ -49,11 +54,12 @@ export default function Stock({ ticker, source, companyName }: { ticker: string;
   const [indicators, setIndicators] = useState<TechnicalIndicators | null>(null)
   const [apiError, setApiError] = useState<ApiError | null>(null)
   const [volatilityRating, setVolatilityRating] = useState<"Low" | "Medium" | "High" | "N/A" | null>(null);
-  const [news, setNews] = useState<any[]>([]);
+  const [news, setNews] = useState<any>([]);
   const [addingToWatchlist, setAddingToWatchlist] = useState(false);
   const [watchlistSuccess, setWatchlistSuccess] = useState<string | null>(null);
   const [watchlistError, setWatchlistError] = useState<string | null>(null);
   const [isStockOnWatchlist, setIsStockOnWatchlist] = useState(false);
+  const [fullHistoricalData, setFullHistoricalData] = useState<HistoricalData[] | null>(null);
 
   const router = useRouter();
 
@@ -65,56 +71,68 @@ export default function Stock({ ticker, source, companyName }: { ticker: string;
     setApiError(null)
     setVolatilityRating(null)
     setNews([]);
+    setFullHistoricalData(null); // Reset historical data
     setWatchlistSuccess(null);
     setWatchlistError(null);
     try {
-      const url = source === 'dashboard' ? `/api/stock/${ticker}?source=dashboard` : `/api/stock/${ticker}`
-              const res = await fetch(url)
-            if (res.ok) {
-              const data = await res.json()
-              setStockData(data)
-            } else {
-              const errorData = await res.json()
-              setApiError({
-                type: 'stock',
-                ticker: ticker,
-                message: errorData.error || 'Failed to fetch stock data',
-                details: errorData.details,
-                failedServices: errorData.failedServices
-              })
-              setStockData({ error: errorData.error })
-            }
-      
-            // Check if stock is on watchlist (owned)
-            const watchlistRes = await fetch('/api/dashboard');
-            if (watchlistRes.ok) {
-              const watchlistData = await watchlistRes.json();
-              const found = watchlistData.some((item: any) => item.symbol === ticker && item.isOwned);
-              setIsStockOnWatchlist(found);
-            } else {
-              console.error('Failed to fetch watchlist for stock check.');
-              setIsStockOnWatchlist(false); // Assume not on watchlist if check fails
-            }
-      
-            const news_res = await fetch(`/api/stock/${ticker}/news`);      let news_data: any[] = [];
-      if (news_res.ok) {
-        news_data = await news_res.json();
-        setNews(news_data);
+      // Check if stock is on watchlist (owned) and set source accordingly
+      let finalSource = source;
+      const watchlistRes = await fetch('/api/dashboard');
+      if (watchlistRes.ok) {
+        const watchlistData = await watchlistRes.json();
+        const found = watchlistData.some((item: any) => item.symbol === ticker && item.isOwned);
+        setIsStockOnWatchlist(found);
+        if (found) {
+          finalSource = 'dashboard';
+        }
+      } else {
+        console.error('Failed to fetch watchlist for stock check.');
+        setIsStockOnWatchlist(false); // Assume not on watchlist if check fails
       }
 
-      const hist_url = source === 'dashboard' ? `/api/stock/${ticker}/historical/1Y?source=dashboard` : `/api/stock/${ticker}/historical/1Y`
+      const url = finalSource === 'dashboard' ? `/api/stock/${ticker}?source=dashboard` : `/api/stock/${ticker}`
+      const res = await fetch(url)
+      if (res.ok) {
+        const data = await res.json()
+        setStockData(data)
+      } else {
+        const errorData = await res.json()
+        setApiError({
+          type: 'stock',
+          ticker: ticker,
+          message: errorData.error || 'Failed to fetch stock data',
+          details: errorData.details,
+          failedServices: errorData.failedServices
+        })
+        setStockData({ error: errorData.error })
+      }
+
+      const news_res = await fetch(`/api/stock/${ticker}/news`);
+      let news_data: any = {};
+      if (news_res.ok) {
+        news_data = await news_res.json();
+        if (news_data && Array.isArray(news_data.articles)) {
+          setNews(news_data.articles);
+        } else {
+          setNews([]);
+        }
+      }
+
+      const hist_url = finalSource === 'dashboard' ? `/api/stock/${ticker}/historical/1Y?source=dashboard` : `/api/stock/${ticker}/historical/1Y`
       const hist_res = await fetch(hist_url)
       if (hist_res.ok) {
         const data = await hist_res.json()
-        if (Array.isArray(data) && data.length > 0) {
-          const calcs = calculateTechnicalIndicators(data, news_data)
+        if (data && data.historicalData && Array.isArray(data.historicalData) && data.historicalData.length > 0) {
+          setFullHistoricalData(data.historicalData);
+          const calcs = calculateTechnicalIndicators(data.historicalData, news_data)
           setIndicators(calcs)
           
           // Calculate volatility from FULL year data
-          const annualizedVolatility = calculateAnnualizedVolatility(data);
+          const annualizedVolatility = calculateAnnualizedVolatility(data.historicalData);
           const rating = getVolatilityRating(annualizedVolatility);
           setVolatilityRating(rating);
-
+        } else {
+          setFullHistoricalData([]);
         }
       } else {
         const errorData = await hist_res.json()
@@ -268,7 +286,7 @@ export default function Stock({ ticker, source, companyName }: { ticker: string;
         {stockData && !stockData.error && (
           <>
             <div className="bg-white p-4 md:p-6 rounded-2xl shadow-2xl mb-8">
-              <StockChart ticker={ticker} />
+              <StockChart ticker={ticker} historicalData={fullHistoricalData} />
             </div>
             <div className="mb-8">
               <StockNews articles={news} />

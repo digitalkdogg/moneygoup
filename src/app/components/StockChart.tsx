@@ -7,52 +7,63 @@ import ApiErrorDisplay, { ApiError } from './ApiErrorDisplay';
 
 interface HistoricalData {
   date: string;
+  datetime: string;
+  open: number;
+  high: number;
+  low: number;
   close: number;
+  volume: number;
+  adjOpen: number;
+  adjHigh: number;
+  adjLow: number;
+  adjClose: number;
+  adjVolume: number;
 }
 
 interface StockChartProps {
   ticker: string;
+  historicalData: HistoricalData[] | null;
 }
 
 type Period = '1w' | '1m' | '6m' | '1y';
 
-export default function StockChart({ ticker }: StockChartProps) {
-  const [data, setData] = useState<HistoricalData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<ApiError | null>(null);
+export default function StockChart({ ticker, historicalData }: StockChartProps) {
+  const [filteredData, setFilteredData] = useState<HistoricalData[]>([]);
   const [period, setPeriod] = useState<Period>('1m');
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch(`/api/stock/${ticker}/historical/${period}`);
-        if (!res.ok) {
-          const errorData = await res.json();
-          throw new Error(errorData.error || `Failed to fetch ${period} historical data`);
-        }
-        const jsonData: HistoricalData[] = await res.json();
-        
-        // Sort data just in case the API doesn't guarantee order
-        const sortedData = jsonData.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-        
-        setData(sortedData);
-      } catch (err) {
-        setError({
-          type: 'historical',
-          ticker: ticker,
-          message: err instanceof Error ? err.message : 'An unknown error occurred'
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (ticker) {
-      fetchData();
+    if (!historicalData || historicalData.length === 0) {
+      setFilteredData([]);
+      return;
     }
-  }, [ticker, period]);
+
+    const today = new Date();
+    let startDate: Date;
+
+    switch (period) {
+      case '1w':
+        startDate = new Date(today.setDate(today.getDate() - 7));
+        break;
+      case '1m':
+        startDate = new Date(today.setMonth(today.getMonth() - 1));
+        break;
+      case '6m':
+        startDate = new Date(today.setMonth(today.getMonth() - 6));
+        break;
+      case '1y':
+        startDate = new Date(today.setFullYear(today.getFullYear() - 1));
+        break;
+      default:
+        startDate = new Date(today.setFullYear(today.getFullYear() - 1)); // Default to 1 year
+    }
+
+    // Filter and sort the data
+    const newFilteredData = historicalData
+      .filter(item => new Date(item.date) >= startDate)
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    setFilteredData(newFilteredData);
+  }, [historicalData, period]);
 
   const handlePeriodChange = (newPeriod: Period) => {
     setPeriod(newPeriod);
@@ -91,24 +102,17 @@ export default function StockChart({ ticker }: StockChartProps) {
         </div>
       </div>
 
-      {loading && (
-        <div className="flex items-center justify-center h-80">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          <p className="ml-4 text-lg text-gray-500">Loading Chart Data...</p>
+      {(!filteredData || filteredData.length === 0) && (
+        <div className="h-80 flex items-center justify-center">
+          <p className="text-lg text-gray-500">No historical data available for this period.</p>
         </div>
       )}
 
-      {error && (
-         <div className="h-80 flex items-center justify-center">
-            <ApiErrorDisplay error={error} />
-         </div>
-      )}
-
-      {!loading && !error && data.length > 0 && (
+      {filteredData && filteredData.length > 0 && (
         <div className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
             <LineChart
-                data={data}
+                data={filteredData}
                 margin={{
                 top: 5, right: 30, left: 20, bottom: 5,
                 }}
@@ -156,7 +160,7 @@ export default function StockChart({ ticker }: StockChartProps) {
         </div>
       )}
 
-      {!loading && !error && data.length === 0 && (
+      {filteredData && filteredData.length === 0 && (
         <div className="h-80 flex items-center justify-center">
           <p className="text-lg text-gray-500">No historical data available for this period.</p>
         </div>

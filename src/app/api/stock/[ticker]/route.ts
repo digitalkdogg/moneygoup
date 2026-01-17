@@ -96,7 +96,8 @@ async function fetchFromDatabase(ticker: string) {
           volume: parseInt(row.volume, 10),
           prevClose: prevClose,
           timestamp: row.date,
-          exchange: 'DATABASE'
+          exchange: 'DATABASE',
+          source: ['DATABASE']
         }
       } catch (error) {
         // Return without prevClose if lookup fails
@@ -110,7 +111,8 @@ async function fetchFromDatabase(ticker: string) {
           low: parseFloat(row.low),
           volume: parseInt(row.volume, 10),
           timestamp: row.date,
-          exchange: 'DATABASE'
+          exchange: 'DATABASE',
+          source: ['DATABASE']
         }
       }
     } else {
@@ -127,16 +129,21 @@ async function fetchFromDatabase(ticker: string) {
 async function fetchFromExternalAPIs(ticker: string) {
   const errors: string[] = []
   let secCompanyName: string | null = null;
+  const sources: string[] = [];
 
   try {
     secCompanyName = await fetchCompanyNameFromSec(ticker);
+    if (secCompanyName) {
+      sources.push('SEC');
+    }
   } catch (secError) {
     console.warn(`Could not fetch company name from SEC for ${ticker}:`, secError);
   }
 
   // Helper to normalize Tiingo data
-  const normalizeTiingoData = (data: any) => {
+  const normalizeTiingoData = (data: any, currentSources: string[]) => {
     if (!data) return {};
+    const newSources = [...currentSources, 'Tiingo'];
     return {
       symbol: data.ticker,
       name: secCompanyName, // Use SEC name, as Tiingo IEX doesn't provide it
@@ -148,13 +155,15 @@ async function fetchFromExternalAPIs(ticker: string) {
       volume: data.volume,
       prevClose: data.prevClose,
       timestamp: data.timestamp,
-      exchange: 'IEX'
+      exchange: 'IEX',
+      source: newSources
     };
   };
 
   // Helper to normalize 12Data
-  const normalizeTwelveData = (data: any) => {
+  const normalizeTwelveData = (data: any, currentSources: string[]) => {
     if (!data || !data.symbol) return {};
+    const newSources = [...currentSources, '12Data'];
     return {
       symbol: data.symbol,
       name: data.name || secCompanyName, // Use 12Data name, fallback to SEC name
@@ -166,7 +175,8 @@ async function fetchFromExternalAPIs(ticker: string) {
       volume: parseInt(data.volume, 10),
       prevClose: parseFloat(data.previous_close),
       timestamp: data.datetime, // or data.timestamp
-      exchange: data.exchange
+      exchange: data.exchange,
+      source: newSources
     };
   };
 
@@ -176,7 +186,7 @@ async function fetchFromExternalAPIs(ticker: string) {
     if (res.ok) {
       const data = await res.json()
       if (data && data.length > 0) {
-        return normalizeTiingoData(data[0]);
+        return normalizeTiingoData(data[0], sources);
       }
     } else {
       const statusText = res.statusText || `HTTP ${res.status}`
@@ -192,7 +202,7 @@ async function fetchFromExternalAPIs(ticker: string) {
     if (res.ok) {
       const data = await res.json()
       if (data && data.symbol) {
-        return normalizeTwelveData(data);
+        return normalizeTwelveData(data, sources);
       }
     } else {
       const statusText = res.statusText || `HTTP ${res.status}`

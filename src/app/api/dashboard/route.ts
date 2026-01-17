@@ -44,6 +44,20 @@ export async function GET() {
     `);
     const dailyPrices = pricesResult as DailyPriceRow[];
 
+    // 3. Fetch news data for the user's stocks
+    const [newsResult] = await connection.execute(`
+        SELECT
+            usn.stock_id,
+            n.sentiment_score,
+            n.pub_date
+        FROM user_stock_news usn
+        JOIN news n ON usn.news_id = n.id
+        JOIN user_stocks us ON usn.user_id = us.user_id AND usn.stock_id = us.stock_id
+        WHERE usn.user_id = ?
+        ORDER BY n.pub_date DESC;
+    `, [userId]);
+    const newsData = newsResult as any[]; // Type as any for now
+
     await connection.end();
 
     // 3. Group prices by stock_id
@@ -63,10 +77,21 @@ export async function GET() {
       return acc;
     }, {} as Record<string, HistoricalData[]>);
 
-    // 4. Combine data and perform calculations
+    // 4. Group news by stock_id
+    const newsByStockId = newsData.reduce((acc, row) => {
+      const { stock_id, sentiment_score, pub_date } = row;
+      if (!acc[stock_id]) {
+        acc[stock_id] = [];
+      }
+      acc[stock_id].push({ sentiment_score: parseFloat(sentiment_score), pub_date: pub_date });
+      return acc;
+    }, {} as Record<string, { sentiment_score: number; pub_date: string }[]>);
+
+    // 5. Combine data and perform calculations
     const data = (stocks as any[]).map(stock => {
       const stockPrices = pricesByStockId[stock.id] || [];
-      const indicators = calculateTechnicalIndicators(stockPrices);
+      const stockNews = newsByStockId[stock.id] || []; // Get news for the current stock
+      const indicators = calculateTechnicalIndicators(stockPrices, stockNews);
 
       return {
         stock_id: stock.id,
@@ -78,6 +103,7 @@ export async function GET() {
         isOwned: stock.is_owned === 1, // Convert TINYINT(1) to boolean
         shares: parseFloat(stock.shares),
         purchase_price: parseFloat(stock.purchase_price || '0'),
+        source: ['DATABASE'],
       };
     });
 
