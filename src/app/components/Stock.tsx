@@ -168,7 +168,7 @@ export default function Stock({ ticker, source }: { ticker: string; source?: str
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
                 <div className="text-sm font-medium text-gray-700 opacity-80">Last Price</div>
-                <div className="text-3xl font-bold text-gray-900">${(stockData.last || stockData.close || stockData.tngoLast) ? (stockData.last || stockData.close || stockData.tngoLast).toFixed(2) : 'N/A'}</div>
+                <div className="text-3xl font-bold text-gray-900">${typeof currentPrice === 'number' ? currentPrice.toFixed(2) : 'N/A'}</div>
               </div>
               <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
                 <div className="text-sm font-medium text-gray-700 opacity-80">Open</div>

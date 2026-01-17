@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import ApiErrorDisplay from './ApiErrorDisplay';
+import ApiErrorDisplay, { ApiError } from './ApiErrorDisplay';
 
 interface HistoricalData {
   date: string;
@@ -19,7 +19,7 @@ type Period = '1w' | '1m' | '6m' | '1y';
 export default function StockChart({ ticker }: StockChartProps) {
   const [data, setData] = useState<HistoricalData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ApiError | null>(null);
   const [period, setPeriod] = useState<Period>('1m');
 
   useEffect(() => {
@@ -39,7 +39,11 @@ export default function StockChart({ ticker }: StockChartProps) {
         
         setData(sortedData);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'An unknown error occurred');
+        setError({
+          type: 'historical',
+          ticker: ticker,
+          message: err instanceof Error ? err.message : 'An unknown error occurred'
+        });
       } finally {
         setLoading(false);
       }
@@ -134,7 +138,7 @@ export default function StockChart({ ticker }: StockChartProps) {
                         boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                     }}
                     labelStyle={{ fontWeight: 'bold', color: '#374151' }}
-                    formatter={(value: number) => [`$${value.toFixed(2)}`, 'Price']}
+                    formatter={(value: number | undefined) => [typeof value === 'number' ? `$${value.toFixed(2)}` : 'N/A', 'Price']}
                     labelFormatter={(label: string) => new Date(label).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
                 />
                 <Legend iconType="circle" iconSize={8} />

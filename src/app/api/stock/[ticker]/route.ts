@@ -1,6 +1,39 @@
 import { NextRequest } from 'next/server'
 import { getDbConnection } from '@/utils/db'
 
+let secCompanyDataCache: { [key: string]: { cik_str: number; ticker: string; title: string } } | null = null;
+
+async function fetchCompanyNameFromSec(ticker: string): Promise<string | null> {
+  if (!secCompanyDataCache) {
+    try {
+      const res = await fetch('https://www.sec.gov/files/company_tickers.json');
+      if (!res.ok) {
+        console.error('Failed to fetch company_tickers.json from SEC:', res.status, res.statusText);
+        return null;
+      }
+      const data = await res.json();
+      secCompanyDataCache = data;
+    } catch (error) {
+      console.error('Error fetching or parsing company_tickers.json from SEC:', error);
+      return null;
+    }
+  }
+
+  if (secCompanyDataCache) {
+    // The SEC JSON is an object with keys "0", "1", "2", ...
+    // Each value is an object { cik_str, ticker, title }
+    for (const key in secCompanyDataCache) {
+      if (secCompanyDataCache.hasOwnProperty(key)) {
+        const company = secCompanyDataCache[key];
+        if (company.ticker === ticker) {
+          return company.title;
+        }
+      }
+    }
+  }
+  return null;
+}
+
 async function fetchFromDatabase(ticker: string) {
   let connection;
   try {
@@ -93,13 +126,20 @@ async function fetchFromDatabase(ticker: string) {
 
 async function fetchFromExternalAPIs(ticker: string) {
   const errors: string[] = []
+  let secCompanyName: string | null = null;
+
+  try {
+    secCompanyName = await fetchCompanyNameFromSec(ticker);
+  } catch (secError) {
+    console.warn(`Could not fetch company name from SEC for ${ticker}:`, secError);
+  }
 
   // Helper to normalize Tiingo data
   const normalizeTiingoData = (data: any) => {
     if (!data) return {};
     return {
       symbol: data.ticker,
-      name: null, // Tiingo IEX doesn't provide name
+      name: secCompanyName, // Use SEC name, as Tiingo IEX doesn't provide it
       last: data.last,
       close: data.last, // Use last for close
       open: data.open,
@@ -117,7 +157,7 @@ async function fetchFromExternalAPIs(ticker: string) {
     if (!data || !data.symbol) return {};
     return {
       symbol: data.symbol,
-      name: data.name,
+      name: data.name || secCompanyName, // Use 12Data name, fallback to SEC name
       last: parseFloat(data.close),
       close: parseFloat(data.close),
       open: parseFloat(data.open),
