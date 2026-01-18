@@ -30,9 +30,19 @@ export async function GET() {
             s.price,
             COALESCE(us.shares, 0) AS shares,
             COALESCE(us.purchase_price, 0) AS purchase_price,
-            CASE WHEN us.stock_id IS NOT NULL THEN TRUE ELSE FALSE END AS is_owned
+            CASE WHEN us.is_purchased = TRUE THEN TRUE ELSE FALSE END AS is_owned,
+            spd.close AS prev_close_price
         FROM stocks s
         LEFT JOIN user_stocks us ON s.id = us.stock_id AND us.user_id = ?
+        LEFT JOIN (
+            SELECT
+                stock_id,
+                MAX(date) AS max_date
+            FROM stocksdailyprice
+            WHERE date <= CURDATE()
+            GROUP BY stock_id
+        ) latest_price_date ON s.id = latest_price_date.stock_id
+        LEFT JOIN stocksdailyprice spd ON latest_price_date.stock_id = spd.stock_id AND latest_price_date.max_date = spd.date
         ORDER BY s.symbol;
     `, [userId]);
 
@@ -93,16 +103,26 @@ export async function GET() {
       const stockNews = newsByStockId[stock.id] || []; // Get news for the current stock
       const indicators = calculateTechnicalIndicators(stockPrices, stockNews);
 
+      const currentPrice = parseFloat(stock.price || '0');
+      const shares = parseFloat(stock.shares);
+      const prevClosePrice = parseFloat(stock.prev_close_price || '0');
+      
+      let estimatedDailyEarnings = 0;
+      if (stock.is_owned === 1 && currentPrice && prevClosePrice && shares > 0) {
+        estimatedDailyEarnings = (currentPrice - prevClosePrice) * shares;
+      }
+
       return {
         stock_id: stock.id,
         symbol: stock.symbol,
         companyName: stock.company_name,
-        price: parseFloat(stock.price || '0'),
+        price: currentPrice,
         recommendation: indicators.signal,
         volatility: indicators.volatility,
         isOwned: stock.is_owned === 1, // Convert TINYINT(1) to boolean
-        shares: parseFloat(stock.shares),
+        shares: shares,
         purchase_price: parseFloat(stock.purchase_price || '0'),
+        estimatedDailyEarnings: estimatedDailyEarnings,
         source: ['DATABASE'],
       };
     });

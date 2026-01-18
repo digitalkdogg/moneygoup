@@ -14,6 +14,7 @@ interface StockDashboardData {
   purchase_price?: number;
   recommendation?: 'BUY' | 'SELL' | 'HOLD';
   volatility: "Low" | "Medium" | "High" | "N/A" | null;
+  estimatedDailyEarnings?: number;
 }
 
 export default function Dashboard() {
@@ -290,6 +291,7 @@ export default function Dashboard() {
                     <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Volatility</th>
                     <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Shares</th>
                     <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Est. Earnings</th>
+                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Est. Daily Earnings</th>
                     <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
                     <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"></th>
                   </tr>
@@ -321,6 +323,15 @@ export default function Dashboard() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">{stock.isOwned && typeof stock.shares === 'number' ? stock.shares.toFixed(2) : 'N/A'}</td>
                         <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-medium ${earningsClass}`}>
                           {earnings !== null ? `${earnings > 0 ? '+' : ''}$${earnings.toFixed(2)}` : 'N/A'}
+                        </td>
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-medium ${
+                          stock.estimatedDailyEarnings !== undefined && stock.estimatedDailyEarnings !== null
+                            ? stock.estimatedDailyEarnings > 0 ? 'text-green-600' : 'text-red-600'
+                            : 'text-gray-500'
+                        }`}>
+                          {stock.estimatedDailyEarnings !== undefined && stock.estimatedDailyEarnings !== null
+                            ? `${stock.estimatedDailyEarnings > 0 ? '+' : ''}$${stock.estimatedDailyEarnings.toFixed(2)}`
+                            : 'N/A'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
                               {stock.isOwned ? (
