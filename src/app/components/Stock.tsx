@@ -20,6 +20,7 @@ interface StockData {
   close?: number
   volume?: number
   prevClose?: number
+  marketCap?: number
   timestamp?: string
   exchange?: string
   error?: string
@@ -153,7 +154,7 @@ export default function Stock({ ticker, source, companyName }: { ticker: string;
         ticker: ticker,
         message: 'Network error while fetching stock data',
         details: errorMessage,
-        failedServices: ['Tiingo', '12Data']
+        failedServices: ['FMP']
       })
       setStockData({ error: 'Network error. Please check your connection.' })
     }
@@ -211,6 +212,19 @@ export default function Stock({ ticker, source, companyName }: { ticker: string;
     }
   };
 
+  const formatMarketCap = (marketCap: number) => {
+    if (marketCap > 1_000_000_000_000) {
+      return `${(marketCap / 1_000_000_000_000).toFixed(2)}T`;
+    }
+    if (marketCap > 1_000_000_000) {
+      return `${(marketCap / 1_000_000_000).toFixed(2)}B`;
+    }
+    if (marketCap > 1_000_000) {
+      return `${(marketCap / 1_000_000).toFixed(2)}M`;
+    }
+    return marketCap.toLocaleString();
+  };
+
   const currentPrice = stockData ? (stockData.last || stockData.close || stockData.tngoLast) : null;
 
   return (
@@ -228,7 +242,7 @@ export default function Stock({ ticker, source, companyName }: { ticker: string;
         {stockData && !stockData.error && (
           <div className="bg-white p-8 rounded-2xl shadow-2xl mb-8">
             <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">
-              {companyName ? `${ticker} - ${companyName}` : stockData.symbol || stockData.name || ticker}
+              {stockData.symbol || ticker}{stockData.name ? ` - ${stockData.name}` : ''}
             </h2>
             <div className="text-center text-gray-600 mb-8">
               {!isStockOnWatchlist && (
@@ -253,7 +267,7 @@ export default function Stock({ ticker, source, companyName }: { ticker: string;
                 <p className="text-red-500 text-sm mt-2">{watchlistError}</p>
               )}
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
                 <div className="text-sm font-medium text-gray-700 opacity-80">Last Price</div>
                 <div className="text-3xl font-bold text-gray-900">${typeof currentPrice === 'number' ? currentPrice.toFixed(2) : 'N/A'}</div>
@@ -263,20 +277,12 @@ export default function Stock({ ticker, source, companyName }: { ticker: string;
                 <div className="text-3xl font-bold text-gray-900">${stockData.open ? stockData.open.toFixed(2) : 'N/A'}</div>
               </div>
               <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
-                <div className="text-sm font-medium text-gray-700 opacity-80">High</div>
-                <div className="text-3xl font-bold text-gray-900">${stockData.high ? stockData.high.toFixed(2) : 'N/A'}</div>
-              </div>
-              <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
-                <div className="text-sm font-medium text-gray-700 opacity-80">Low</div>
-                <div className="text-3xl font-bold text-gray-900">${stockData.low ? stockData.low.toFixed(2) : 'N/A'}</div>
-              </div>
-              <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
                 <div className="text-sm font-medium text-gray-700 opacity-80">Volume</div>
                 <div className="text-2xl font-bold text-gray-900">{(stockData.volume || 0).toLocaleString()}</div>
               </div>
               <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
-                <div className="text-sm font-medium text-gray-700 opacity-80">Previous Close</div>
-                <div className="text-3xl font-bold text-gray-900">${stockData.prevClose ? stockData.prevClose.toFixed(2) : 'N/A'}</div>
+                <div className="text-sm font-medium text-gray-700 opacity-80">Market Cap</div>
+                <div className="text-2xl font-bold text-gray-900">{stockData.marketCap ? formatMarketCap(stockData.marketCap) : 'N/A'}</div>
               </div>
             </div>
           </div>
