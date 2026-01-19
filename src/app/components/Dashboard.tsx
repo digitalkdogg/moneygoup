@@ -15,10 +15,56 @@ interface StockDashboardData {
   recommendation?: 'BUY' | 'SELL' | 'HOLD';
   volatility: "Low" | "Medium" | "High" | "N/A" | null;
   estimatedDailyEarnings?: number;
+  lifetimeEarnings?: number;
 }
 
+interface SummaryData {
+  totalDailyEarnings: number;
+  totalLifetimeEarnings: number;
+  avgDailyEarnings: number;
+  avgLifetimeEarnings: number;
+}
+
+const EarningsSummary = ({ summary }: { summary: SummaryData | null }) => {
+  if (!summary) {
+    return null;
+  }
+
+  const formatCurrency = (value: number) => {
+    const sign = value > 0 ? '+' : '';
+    const colorClass = value > 0 ? 'text-green-600' : value < 0 ? 'text-red-600' : 'text-gray-600';
+    return <span className={colorClass}>{sign}${value.toFixed(2)}</span>;
+  };
+
+  return (
+    <div className="bg-white p-6 rounded-2xl shadow-lg mb-8">
+      <h2 className="text-2xl font-bold text-gray-800 mb-4">Earnings Summary</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-center">
+        <div className="p-4 bg-gray-50 rounded-lg">
+          <p className="text-sm font-medium text-gray-500">Total Daily</p>
+          <p className="text-2xl font-semibold">{formatCurrency(summary.totalDailyEarnings)}</p>
+        </div>
+        <div className="p-4 bg-gray-50 rounded-lg">
+          <p className="text-sm font-medium text-gray-500">Total Lifetime</p>
+          <p className="text-2xl font-semibold">{formatCurrency(summary.totalLifetimeEarnings)}</p>
+        </div>
+        <div className="p-4 bg-gray-50 rounded-lg">
+          <p className="text-sm font-medium text-gray-500">Avg. Daily</p>
+          <p className="text-2xl font-semibold">{formatCurrency(summary.avgDailyEarnings)}</p>
+        </div>
+        <div className="p-4 bg-gray-50 rounded-lg">
+          <p className="text-sm font-medium text-gray-500">Avg. Lifetime</p>
+          <p className="text-2xl font-semibold">{formatCurrency(summary.avgLifetimeEarnings)}</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
 export default function Dashboard() {
-  const [data, setData] = useState<StockDashboardData[]>([]);
+  const [stocks, setStocks] = useState<StockDashboardData[]>([]);
+  const [summary, setSummary] = useState<SummaryData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -55,8 +101,9 @@ export default function Dashboard() {
       if (!res.ok) {
         throw new Error('Failed to fetch data');
       }
-      const jsonData = await res.json();
-      setData(jsonData);
+      const { stocks, summary } = await res.json();
+      setStocks(stocks);
+      setSummary(summary);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unknown error occurred');
     } finally {
@@ -279,6 +326,8 @@ export default function Dashboard() {
             <p className="text-lg text-gray-600">Tracked stocks and their latest data.</p>
           </header>
 
+          <EarningsSummary summary={summary} />
+
           <div className="bg-white p-8 rounded-2xl shadow-2xl">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
@@ -290,17 +339,15 @@ export default function Dashboard() {
                     <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Recommendation</th>
                     <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Volatility</th>
                     <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Shares</th>
-                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Est. Earnings</th>
+                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Lifetime Earnings</th>
                     <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Est. Daily Earnings</th>
                     <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
                     <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"></th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {data.map((stock) => {
-                    const earnings = stock.isOwned && stock.price && stock.purchase_price && stock.shares
-                      ? (stock.price - stock.purchase_price) * stock.shares
-                      : null;
+                  {stocks.map((stock) => {
+                    const earnings = stock.lifetimeEarnings;
                     const earningsClass = earnings
                       ? earnings > 0 ? 'text-green-600' : 'text-red-600'
                       : 'text-gray-500';

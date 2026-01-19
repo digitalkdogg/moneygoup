@@ -98,6 +98,10 @@ export async function GET() {
     }, {} as Record<string, { sentiment_score: number; pub_date: string }[]>);
 
     // 5. Combine data and perform calculations
+    let totalDailyEarnings = 0;
+    let totalLifetimeEarnings = 0;
+    let ownedStocksCount = 0;
+
     const data = (stocks as any[]).map(stock => {
       const stockPrices = pricesByStockId[stock.id] || [];
       const stockNews = newsByStockId[stock.id] || []; // Get news for the current stock
@@ -105,11 +109,21 @@ export async function GET() {
 
       const currentPrice = parseFloat(stock.price || '0');
       const shares = parseFloat(stock.shares);
+      const purchasePrice = parseFloat(stock.purchase_price || '0');
       const prevClosePrice = parseFloat(stock.prev_close_price || '0');
       
       let estimatedDailyEarnings = 0;
-      if (stock.is_owned === 1 && currentPrice && prevClosePrice && shares > 0) {
-        estimatedDailyEarnings = (currentPrice - prevClosePrice) * shares;
+      let lifetimeEarnings = 0;
+      if (stock.is_owned === 1 && currentPrice && shares > 0) {
+        if(prevClosePrice) {
+          estimatedDailyEarnings = (currentPrice - prevClosePrice) * shares;
+        }
+        if(purchasePrice) {
+          lifetimeEarnings = (currentPrice - purchasePrice) * shares;
+        }
+        totalDailyEarnings += estimatedDailyEarnings;
+        totalLifetimeEarnings += lifetimeEarnings;
+        ownedStocksCount++;
       }
 
       return {
@@ -121,13 +135,21 @@ export async function GET() {
         volatility: indicators.volatility,
         isOwned: stock.is_owned === 1, // Convert TINYINT(1) to boolean
         shares: shares,
-        purchase_price: parseFloat(stock.purchase_price || '0'),
+        purchase_price: purchasePrice,
         estimatedDailyEarnings: estimatedDailyEarnings,
+        lifetimeEarnings: lifetimeEarnings,
         source: ['DATABASE'],
       };
     });
 
-    return NextResponse.json(data);
+    const summary = {
+      totalDailyEarnings,
+      totalLifetimeEarnings,
+      avgDailyEarnings: ownedStocksCount > 0 ? totalDailyEarnings / ownedStocksCount : 0,
+      avgLifetimeEarnings: ownedStocksCount > 0 ? totalLifetimeEarnings / ownedStocksCount : 0,
+    };
+
+    return NextResponse.json({ stocks: data, summary });
 
   } catch (error) {
     console.error("Failed to fetch dashboard data:", error);
