@@ -9,11 +9,11 @@ interface StockDashboardData {
   symbol: string;
   companyName: string;
   price: number | null;
+  daily_change: number | null;
   isOwned: boolean;
   shares?: number;
   purchase_price?: number;
   recommendation?: 'BUY' | 'SELL' | 'HOLD';
-  volatility: "Low" | "Medium" | "High" | "N/A" | null;
   estimatedDailyEarnings?: number;
   lifetimeEarnings?: number;
 }
@@ -21,8 +21,7 @@ interface StockDashboardData {
 interface SummaryData {
   totalDailyEarnings: number;
   totalLifetimeEarnings: number;
-  avgDailyEarnings: number;
-  avgLifetimeEarnings: number;
+  totalDailyChange: number;
 }
 
 const EarningsSummary = ({ summary }: { summary: SummaryData | null }) => {
@@ -39,22 +38,18 @@ const EarningsSummary = ({ summary }: { summary: SummaryData | null }) => {
   return (
     <div className="bg-white p-6 rounded-2xl shadow-lg mb-8">
       <h2 className="text-2xl font-bold text-gray-800 mb-4">Earnings Summary</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-center">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-center">
         <div className="p-4 bg-gray-50 rounded-lg">
-          <p className="text-sm font-medium text-gray-500">Total Daily</p>
+          <p className="text-sm font-medium text-gray-500">Total Daily Change</p>
+          <p className="text-2xl font-semibold">{formatCurrency(summary.totalDailyChange)}</p>
+        </div>
+        <div className="p-4 bg-gray-50 rounded-lg">
+          <p className="text-sm font-medium text-gray-500">Total Daily Earnings</p>
           <p className="text-2xl font-semibold">{formatCurrency(summary.totalDailyEarnings)}</p>
         </div>
         <div className="p-4 bg-gray-50 rounded-lg">
           <p className="text-sm font-medium text-gray-500">Total Lifetime</p>
           <p className="text-2xl font-semibold">{formatCurrency(summary.totalLifetimeEarnings)}</p>
-        </div>
-        <div className="p-4 bg-gray-50 rounded-lg">
-          <p className="text-sm font-medium text-gray-500">Avg. Daily</p>
-          <p className="text-2xl font-semibold">{formatCurrency(summary.avgDailyEarnings)}</p>
-        </div>
-        <div className="p-4 bg-gray-50 rounded-lg">
-          <p className="text-sm font-medium text-gray-500">Avg. Lifetime</p>
-          <p className="text-2xl font-semibold">{formatCurrency(summary.avgLifetimeEarnings)}</p>
         </div>
       </div>
     </div>
@@ -286,18 +281,7 @@ export default function Dashboard() {
     }
   };
 
-  const getVolatilityClass = (volatility: string) => {
-    switch (volatility) {
-      case "Low":
-        return "bg-green-100 text-green-800";
-      case "Medium":
-        return "bg-yellow-100 text-yellow-800";
-      case "High":
-        return "bg-red-100 text-red-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
+
 
   if (loading) {
     return (
@@ -337,8 +321,8 @@ export default function Dashboard() {
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company Name</th>
                     <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
                     <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Recommendation</th>
-                    <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Volatility</th>
                     <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Shares</th>
+                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Daily Change</th>
                     <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Lifetime Earnings</th>
                     <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Est. Daily Earnings</th>
                     <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
@@ -362,12 +346,14 @@ export default function Dashboard() {
                             {stock.recommendation || 'N/A'}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getVolatilityClass(stock.volatility || '')}`}>
-                            {stock.volatility || 'N/A'}
-                          </span>
-                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">{stock.isOwned && typeof stock.shares === 'number' ? stock.shares.toFixed(2) : 'N/A'}</td>
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-medium ${
+                          stock.daily_change
+                            ? stock.daily_change > 0 ? 'text-green-600' : 'text-red-600'
+                            : 'text-gray-500'
+                        }`}>
+                          {stock.daily_change !== null ? `${stock.daily_change > 0 ? '+' : ''}$${stock.daily_change.toFixed(2)}` : 'N/A'}
+                        </td>
                         <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-medium ${earningsClass}`}>
                           {earnings !== null ? `${earnings > 0 ? '+' : ''}$${earnings.toFixed(2)}` : 'N/A'}
                         </td>

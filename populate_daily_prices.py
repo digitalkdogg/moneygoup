@@ -106,9 +106,9 @@ def upsert_daily_prices(connection, stock_id, daily_data):
     upsert_query = """
         INSERT INTO stocksdailyprice (
             stock_id, `date`, `open`, `high`, `low`, `close`, `volume`,
-            `adj_open`, `adj_high`, `adj_low`, `adj_close`, `adj_volume`
+            `adj_open`, `adj_high`, `adj_low`, `adj_close`, `adj_volume`, `daily_change`
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON DUPLICATE KEY UPDATE
             `open` = VALUES(`open`),
             `high` = VALUES(`high`),
@@ -119,10 +119,15 @@ def upsert_daily_prices(connection, stock_id, daily_data):
             `adj_high` = VALUES(`adj_high`),
             `adj_low` = VALUES(`adj_low`),
             `adj_close` = VALUES(`adj_close`),
-            `adj_volume` = VALUES(`adj_volume`)
+            `adj_volume` = VALUES(`adj_volume`),
+            `daily_change` = VALUES(`daily_change`)
     """
+    
+    # Sort data by date to ensure correct daily_change calculation
+    daily_data.sort(key=lambda x: x.get('date') or x.get('datetime') or x.get('timestamp'))
+
     records_to_insert = []
-    for record in daily_data:
+    for i, record in enumerate(daily_data):
         # The API might return 'timestamp', 'date', or 'datetime'. We need to handle all.
         date_str = record.get('timestamp') or record.get('date') or record.get('datetime')
         if not date_str:
@@ -131,19 +136,28 @@ def upsert_daily_prices(connection, stock_id, daily_data):
         # The date might have a 'T' or a space and time part, so we split it.
         formatted_date = date_str.split('T')[0].split(' ')[0]
 
+        current_close = record.get('close')
+        daily_change = 0.0
+
+        if i > 0:
+            prev_close = daily_data[i-1].get('close')
+            if current_close is not None and prev_close is not None:
+                daily_change = current_close - prev_close
+
         records_to_insert.append((
             stock_id,
             formatted_date,
             record.get('open'),
             record.get('high'),
             record.get('low'),
-            record.get('close'),
+            current_close,
             record.get('volume'),
             record.get('adjOpen') or record.get('open'), # Fallback to open if adjOpen is not present
             record.get('adjHigh') or record.get('high'), # Fallback to high if adjHigh is not present
             record.get('adjLow') or record.get('low'),   # Fallback to low if adjLow is not present
             record.get('adjClose') or record.get('close'),# Fallback to close if adjClose is not present
-            record.get('adjVolume') or record.get('volume') # Fallback to volume if adjVolume is not present
+            record.get('adjVolume') or record.get('volume'), # Fallback to volume if adjVolume is not present
+            daily_change
         ))
 
     if not records_to_insert:

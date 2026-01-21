@@ -31,7 +31,8 @@ export async function GET() {
             COALESCE(us.shares, 0) AS shares,
             COALESCE(us.purchase_price, 0) AS purchase_price,
             CASE WHEN us.is_purchased = TRUE THEN TRUE ELSE FALSE END AS is_owned,
-            spd.close AS prev_close_price
+            spd.close AS prev_close_price,
+            spd.daily_change
         FROM stocks s
         LEFT JOIN user_stocks us ON s.id = us.stock_id AND us.user_id = ?
         LEFT JOIN (
@@ -101,6 +102,7 @@ export async function GET() {
     let totalDailyEarnings = 0;
     let totalLifetimeEarnings = 0;
     let ownedStocksCount = 0;
+    let totalDailyChange = 0;
 
     const data = (stocks as any[]).map(stock => {
       const stockPrices = pricesByStockId[stock.id] || [];
@@ -110,15 +112,19 @@ export async function GET() {
       const currentPrice = parseFloat(stock.price || '0');
       const shares = parseFloat(stock.shares);
       const purchasePrice = parseFloat(stock.purchase_price || '0');
-      const prevClosePrice = parseFloat(stock.prev_close_price || '0');
+      const daily_change = stock.daily_change ? parseFloat(stock.daily_change) : null;
       
+      if (daily_change) {
+        totalDailyChange += daily_change;
+      }
+
       let estimatedDailyEarnings = 0;
       let lifetimeEarnings = 0;
-      if (stock.is_owned === 1 && currentPrice && shares > 0) {
-        if(prevClosePrice) {
-          estimatedDailyEarnings = (currentPrice - prevClosePrice) * shares;
+      if (stock.is_owned === 1 && shares > 0) {
+        if (daily_change !== null) {
+          estimatedDailyEarnings = daily_change * shares;
         }
-        if(purchasePrice) {
+        if (purchasePrice && currentPrice) {
           lifetimeEarnings = (currentPrice - purchasePrice) * shares;
         }
         totalDailyEarnings += estimatedDailyEarnings;
@@ -131,8 +137,8 @@ export async function GET() {
         symbol: stock.symbol,
         companyName: stock.company_name,
         price: currentPrice,
+        daily_change: daily_change,
         recommendation: indicators.signal,
-        volatility: indicators.volatility,
         isOwned: stock.is_owned === 1, // Convert TINYINT(1) to boolean
         shares: shares,
         purchase_price: purchasePrice,
@@ -145,8 +151,7 @@ export async function GET() {
     const summary = {
       totalDailyEarnings,
       totalLifetimeEarnings,
-      avgDailyEarnings: ownedStocksCount > 0 ? totalDailyEarnings / ownedStocksCount : 0,
-      avgLifetimeEarnings: ownedStocksCount > 0 ? totalLifetimeEarnings / ownedStocksCount : 0,
+      totalDailyChange,
     };
 
     return NextResponse.json({ stocks: data, summary });
