@@ -91,24 +91,92 @@ export default function Stock({ ticker, source, companyName }: { ticker: string;
         setIsStockOnWatchlist(false); // Assume not on watchlist if check fails
       }
 
-      const url = finalSource === 'dashboard' ? `/api/stock/${ticker}?source=dashboard` : `/api/stock/${ticker}`
-      const res = await fetch(url)
-      if (res.ok) {
-        const data = await res.json()
-        setStockData(data)
-      } else {
-        const errorData = await res.json()
-        setApiError({
+      // Determine the initial URL to fetch, prioritizing FMP
+      let currentStockData: StockData | null = null;
+      let currentApiError: ApiError | null = null;
+
+      const fmpUrl = `/api/stock/fmp/${ticker}`;
+      const genericUrl = `/api/stock/${ticker}`; // This endpoint uses Tiingo as primary
+
+      // --- Try FMP first ---
+      try {
+        const fmpRes = await fetch(fmpUrl);
+        if (fmpRes.ok) {
+          const fmpData = await fmpRes.json();
+          if (fmpData.error) {
+            console.warn(`FMP API for ${ticker} returned an error, attempting fallback:`, fmpData.details);
+            currentApiError = {
+              type: 'stock',
+              ticker: ticker,
+              message: `FMP Failed: ${fmpData.error}`,
+              details: fmpData.details,
+              failedServices: fmpData.failedServices
+            };
+          } else {
+            currentStockData = fmpData;
+          }
+        } else {
+          const fmpErrorData = await fmpRes.json();
+          console.warn(`FMP API call failed for ${ticker} (HTTP ${fmpRes.status}), attempting fallback:`, fmpErrorData.details);
+          currentApiError = {
+            type: 'stock',
+            ticker: ticker,
+            message: `FMP Failed (HTTP ${fmpRes.status}): ${fmpErrorData.error}`,
+            details: fmpErrorData.details,
+            failedServices: fmpErrorData.failedServices
+          };
+        }
+      } catch (fmpErr) {
+        console.warn(`FMP API network error for ${ticker}, attempting fallback:`, fmpErr);
+        currentApiError = {
           type: 'stock',
           ticker: ticker,
-          message: errorData.error || 'Failed to fetch stock data',
-          details: errorData.details,
-          failedServices: errorData.failedServices
-        })
-        setStockData({ error: errorData.error })
+          message: 'FMP Network Error',
+          details: fmpErr instanceof Error ? fmpErr.message : 'Unknown network error',
+          failedServices: ['FMP']
+        };
       }
 
-      const news_res = await fetch(`/api/stock/${ticker}/news`);
+      // --- Fallback to Generic API if FMP failed or returned an error ---
+      if (!currentStockData) {
+        try {
+          const genericRes = await fetch(genericUrl);
+          if (genericRes.ok) {
+            const genericData = await genericRes.json();
+            currentStockData = genericData;
+            currentApiError = null; // Clear FMP specific error if fallback succeeds
+          } else {
+            const genericErrorData = await genericRes.json();
+            currentApiError = {
+              type: 'stock',
+              ticker: ticker,
+              message: genericErrorData.error || 'Failed to fetch stock data from generic API',
+              details: genericErrorData.details,
+              failedServices: genericErrorData.failedServices
+            };
+          }
+        } catch (genericErr) {
+          console.error(`Generic API network error for ${ticker}:`, genericErr);
+          currentApiError = {
+            type: 'stock',
+            ticker: ticker,
+            message: 'Network error while fetching stock data',
+            details: genericErr instanceof Error ? genericErr.message : 'Unknown network error',
+            failedServices: currentApiError?.failedServices || ['Tiingo', '12Data'] // Keep FMP error if present, otherwise default
+          };
+        }
+      }
+
+      setStockData(currentStockData);
+      setApiError(currentApiError);
+      
+      // Update the URL for news and historical data based on which stock data fetch succeeded
+      // If currentStockData is available, then the `url` for news and historical can be assumed to be `/api/stock/${ticker}`
+      // as our FMP endpoint returns the same shape of data
+      const news_url = `/api/stock/${ticker}/news`;
+      const hist_base_url = `/api/stock/${ticker}/historical/1Y`;
+
+      const news_res = await fetch(news_url);
       let news_data: any = {};
       if (news_res.ok) {
         news_data = await news_res.json();
@@ -119,8 +187,8 @@ export default function Stock({ ticker, source, companyName }: { ticker: string;
         }
       }
 
-      const hist_url = finalSource === 'dashboard' ? `/api/stock/${ticker}/historical/1Y?source=dashboard` : `/api/stock/${ticker}/historical/1Y`
-      const hist_res = await fetch(hist_url)
+      const hist_url = finalSource === 'dashboard' ? `${hist_base_url}?source=dashboard` : hist_base_url;
+      const hist_res = await fetch(hist_url);
       if (hist_res.ok) {
         const data = await hist_res.json()
         if (data && data.historicalData && Array.isArray(data.historicalData) && data.historicalData.length > 0) {
@@ -269,19 +337,27 @@ export default function Stock({ ticker, source, companyName }: { ticker: string;
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
-                <div className="text-sm font-medium text-gray-700 opacity-80">Last Price</div>
+                <div className="text-sm font-medium text-gray-700 opacity-80">
+                  Last Price
+                </div>
                 <div className="text-3xl font-bold text-gray-900">${typeof currentPrice === 'number' ? currentPrice.toFixed(2) : 'N/A'}</div>
               </div>
               <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
-                <div className="text-sm font-medium text-gray-700 opacity-80">Open</div>
+                <div className="text-sm font-medium text-gray-700 opacity-80">
+                  Open
+                </div>
                 <div className="text-3xl font-bold text-gray-900">${stockData.open ? stockData.open.toFixed(2) : 'N/A'}</div>
               </div>
               <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
-                <div className="text-sm font-medium text-gray-700 opacity-80">Volume</div>
+                <div className="text-sm font-medium text-gray-700 opacity-80">
+                  Volume
+                </div>
                 <div className="text-2xl font-bold text-gray-900">{(stockData.volume || 0).toLocaleString()}</div>
               </div>
               <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
-                <div className="text-sm font-medium text-gray-700 opacity-80">Market Cap</div>
+                <div className="text-sm font-medium text-gray-700 opacity-80">
+                  Market Cap
+                </div>
                 <div className="text-2xl font-bold text-gray-900">{stockData.marketCap ? formatMarketCap(stockData.marketCap) : 'N/A'}</div>
               </div>
             </div>
