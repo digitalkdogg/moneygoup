@@ -81,7 +81,7 @@ export default function Stock({ ticker, source, companyName }: { ticker: string;
       const watchlistRes = await fetch('/api/dashboard');
       if (watchlistRes.ok) {
         const watchlistData = await watchlistRes.json();
-        const found = watchlistData.some((item: any) => item.symbol === ticker);
+        const found = watchlistData.stocks.some((item: any) => item.symbol === ticker);
         setIsStockOnWatchlist(found);
         if (found) {
           finalSource = 'dashboard';

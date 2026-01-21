@@ -19,7 +19,7 @@ export default function Search() {
     fetch('/api/tickers')
       .then(res => res.json())
       .then(data => {
-        const list: Ticker[] = data.map((item: any) => ({
+        const list: Ticker[] = data.tickers.map((item: any) => ({
           name: item.name,
           ticker: item.ticker
         }))

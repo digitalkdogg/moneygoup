@@ -140,26 +140,7 @@ async function fetchFromExternalAPIs(ticker: string) {
     console.warn(`Could not fetch company name from SEC for ${ticker}:`, secError);
   }
 
-  // Helper to normalize FMP data
-  const normalizeFmpData = (data: any, currentSources: string[]) => {
-    if (!data) return {};
-    const newSources = [...currentSources, 'FMP'];
-    return {
-      symbol: data.symbol,
-      name: data.name || secCompanyName,
-      last: data.price,
-      close: data.price,
-      open: data.open,
-      high: data.dayHigh,
-      low: data.dayLow,
-      volume: data.volume,
-      marketCap: data.marketCap,
-      prevClose: data.previousClose,
-      timestamp: new Date(data.timestamp * 1000).toISOString(),
-      exchange: data.exchange,
-      source: newSources
-    };
-  };
+
 
   // Helper to normalize Tiingo data
   const normalizeTiingoData = (data: any, currentSources: string[]) => {
@@ -202,37 +183,7 @@ async function fetchFromExternalAPIs(ticker: string) {
     };
   };
 
-  // Try FMP first
-  try {
-    const apiKey = process.env.FMP_API_KEY;
-    if (apiKey) {
-      const res = await fetch(`https://financialmodelingprep.com/stable/quote?symbol=${ticker}&apikey=${apiKey}`)
-      if (res.ok) {
-        const data = await res.json()
-        // FMP returns an empty array for unknown tickers, or an object with an error message for subscription issues.
-        if (data && data.length > 0 && !data[0]['Error Message']) {
-            const fmpData = data[0];
-            if (!fmpData["Error Message"] || !fmpData["Error Message"].includes("not available under your current subscription")) {
-                 return normalizeFmpData(fmpData, sources);
-            }
-        }
-      } else {
-        const statusText = res.statusText || `HTTP ${res.status}`
-        if (res.status === 403) {
-            errors.push(`FMP API: Forbidden. Your API key is likely invalid.`)
-        } else if (res.status === 402) {
-            errors.push(`FMP API: Payment Required. Your FMP account does not have access to this data. Please check your subscription plan.`)
-        } else {
-            errors.push(`FMP API: ${statusText}`)
-        }
-      }
-    }
-  } catch (error) {
-    console.error(error);
-    errors.push(`FMP API: ${error instanceof Error ? error.message : 'Network error'}`)
-  }
-
-  // Try Tiingo as fallback
+  // Try Tiingo first
   try {
     const res = await fetch(`https://api.tiingo.com/iex/${ticker}?token=${process.env.TIINGO_API_KEY}`)
     if (res.ok) {
@@ -291,7 +242,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         error: source === 'dashboard' ? 'Failed to fetch stock data from database' : 'Failed to fetch stock data from external APIs',
         details: errorMessage,
         ticker: ticker,
-        failedServices: source === 'dashboard' ? [] : ['FMP', 'Tiingo', '12Data']
+        failedServices: source === 'dashboard' ? [] : ['Tiingo', '12Data']
       },
       { status: 500 }
     )
