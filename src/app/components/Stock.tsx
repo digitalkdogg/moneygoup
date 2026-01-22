@@ -20,7 +20,6 @@ interface StockData {
   close?: number
   volume?: number
   prevClose?: number
-  marketCap?: number
   timestamp?: string
   exchange?: string
   error?: string
@@ -280,19 +279,6 @@ export default function Stock({ ticker, source, companyName }: { ticker: string;
     }
   };
 
-  const formatMarketCap = (marketCap: number) => {
-    if (marketCap > 1_000_000_000_000) {
-      return `${(marketCap / 1_000_000_000_000).toFixed(2)}T`;
-    }
-    if (marketCap > 1_000_000_000) {
-      return `${(marketCap / 1_000_000_000).toFixed(2)}B`;
-    }
-    if (marketCap > 1_000_000) {
-      return `${(marketCap / 1_000_000).toFixed(2)}M`;
-    }
-    return marketCap.toLocaleString();
-  };
-
   const currentPrice = stockData ? (stockData.last || stockData.close || stockData.tngoLast) : null;
 
   return (
@@ -335,7 +321,7 @@ export default function Stock({ ticker, source, companyName }: { ticker: string;
                 <p className="text-red-500 text-sm mt-2">{watchlistError}</p>
               )}
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
                 <div className="text-sm font-medium text-gray-700 opacity-80">
                   Last Price
@@ -353,12 +339,6 @@ export default function Stock({ ticker, source, companyName }: { ticker: string;
                   Volume
                 </div>
                 <div className="text-2xl font-bold text-gray-900">{(stockData.volume || 0).toLocaleString()}</div>
-              </div>
-              <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
-                <div className="text-sm font-medium text-gray-700 opacity-80">
-                  Market Cap
-                </div>
-                <div className="text-2xl font-bold text-gray-900">{stockData.marketCap ? formatMarketCap(stockData.marketCap) : 'N/A'}</div>
               </div>
             </div>
           </div>

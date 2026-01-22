@@ -1,0 +1,235 @@
+🧑‍💻 Story 1.1 — Create and manage a watchlist
+
+As a user
+I want to add and remove stocks from my watchlist
+So that only selected symbols receive ongoing data updates.
+
+Acceptance criteria
+
+I can add a stock by symbol
+
+I can remove a stock
+
+Only watchlist stocks are scheduled for updates
+
+🧑‍💻 Story 1.2 — Daily price ingestion for watchlist stocks
+
+As a system
+I want to fetch daily OHLCV data for watchlist stocks
+So that I have consistent time-series data for modeling.
+
+Acceptance criteria
+
+Prices are fetched once per trading day
+
+Only missing dates are retrieved
+
+Data is stored in stocksdailyprice
+
+No duplicate rows are created
+
+🧑‍💻 Story 1.3 — Bi-daily price refresh (optional)
+
+As a system
+I want to optionally refresh prices pre-market
+So that my dataset reflects the most recent close.
+
+Acceptance criteria
+
+Pre-market refresh does not duplicate daily data
+
+Refresh can be enabled/disabled via config
+
+🧑‍💻 Story 1.4 — Derived feature computation
+
+As a system
+I want to compute derived metrics from price data
+So that the AI model does not rely on external APIs.
+
+Examples
+
+daily % change
+
+moving averages
+
+volatility
+
+RSI
+
+Acceptance criteria
+
+Derived metrics are computed locally
+
+Computation runs after data ingestion
+
+No API calls are made during feature generation
+
+🧑‍💻 Story 1.5 — Fundamentals ingestion (slow-moving)
+
+As a system
+I want to periodically fetch company fundamentals
+So that the model can use contextual features like market cap.
+
+Acceptance criteria
+
+Fundamentals are fetched weekly or monthly
+
+Missing data is allowed
+
+Source is recorded (Tiingo / FMP)
+
+Fundamentals are never fetched during AI runs
+
+🧑‍💻 Story 1.6 — AI-ready data access
+
+As a user
+I want a clean, consistent dataset for modeling
+So that buy/sell recommendations are reproducible.
+
+Acceptance criteria
+
+AI reads from DB only
+
+Dataset is ordered and gap-checked
+
+No API calls occur during modeling
+
+🧑‍💻 Story 1.7 — API usage safety
+
+As a system
+I want to log API calls
+So that I can audit and control usage.
+
+Acceptance criteria
+
+Each call logs source, symbol, purpose, timestamp
+
+Watchlist updates never exceed configured limits
+
+🔍 EPIC 2: Stock Search & Evaluation (Bucket 2)
+Goal
+
+Allow quick, low-cost evaluation of stocks before adding them to the watchlist.
+
+🧑‍💻 Story 2.1 — Search for stocks
+
+As a user
+I want to search for stocks by name or symbol
+So that I can explore potential candidates.
+
+Acceptance criteria
+
+Search returns symbol, name, exchange
+
+Results are fast (< 2s)
+
+Search works even if fundamentals are missing
+
+🧑‍💻 Story 2.2 — View evaluation snapshot
+
+As a user
+I want to see a snapshot of key stock information
+So that I can decide whether to track it.
+
+Example fields
+
+current price
+
+market cap (if available)
+
+sector / industry
+
+52-week range (optional)
+
+Acceptance criteria
+
+Snapshot data is best-effort
+
+Missing fields are clearly indicated
+
+Data is not persisted long-term
+
+🧑‍💻 Story 2.3 — Cache search results
+
+As a system
+I want to cache search responses
+So that repeated searches do not waste API calls.
+
+Acceptance criteria
+
+Cached results are reused within TTL
+
+Cache expires automatically
+
+Cache does not trigger background jobs
+
+🧑‍💻 Story 2.4 — Add stock to watchlist
+
+As a user
+I want to add a searched stock to my watchlist
+So that it begins receiving regular updates.
+
+Acceptance criteria
+
+Stock moves from SEARCH → WATCHLIST state
+
+Historical price backfill is triggered
+
+Fundamentals ingestion is queued
+
+Search cache entry may be discarded
+
+🧑‍💻 Story 2.5 — Prevent accidental data pollution
+
+As a system
+I want to ensure search actions do not affect watchlist data
+So that API usage stays controlled.
+
+Acceptance criteria
+
+Search never triggers historical fetch
+
+Search never writes to stocksdailyprice
+
+AI model never sees search-only stocks
+
+🧠 EPIC 3: System Integrity & Observability
+🧑‍💻 Story 3.1 — Track data freshness
+
+As a user
+I want to see when data was last updated
+So that I trust the recommendations.
+
+Acceptance criteria
+
+Each stock shows last price update time
+
+Stale data is clearly indicated
+
+🧑‍💻 Story 3.2 — Handle partial data gracefully
+
+As a user
+I want the app to work even if some data is missing
+So that free-tier limitations don’t block usage.
+
+Acceptance criteria
+
+UI renders with partial data
+
+No retry loops for missing fundamentals
+
+Data source is visible
+
+🧑‍💻 Story 3.3 — Manual refresh controls
+
+As a user
+I want to manually refresh data for a stock
+So that I can override scheduled updates if needed.
+
+Acceptance criteria
+
+Manual refresh is explicit
+
+Refresh respects API limits
+
+Refresh does not affect other stocks
