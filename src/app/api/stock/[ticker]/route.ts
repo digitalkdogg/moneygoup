@@ -1,5 +1,8 @@
 import { NextRequest } from 'next/server'
 import { getDbConnection } from '@/utils/db'
+import YahooFinance from 'yahoo-finance2';
+
+const yahooFinance = new YahooFinance();
 
 let secCompanyDataCache: { [key: string]: { cik_str: number; ticker: string; title: string } } | null = null;
 
@@ -140,79 +143,34 @@ async function fetchFromExternalAPIs(ticker: string) {
     console.warn(`Could not fetch company name from SEC for ${ticker}:`, secError);
   }
 
-
-
-  // Helper to normalize Tiingo data
-  const normalizeTiingoData = (data: any, currentSources: string[]) => {
+  // Helper to normalize Yahoo Finance data
+  const normalizeYahooData = (data: any, currentSources: string[]) => {
     if (!data) return {};
-    const newSources = [...currentSources, 'Tiingo'];
-    return {
-      symbol: data.ticker,
-      name: secCompanyName, // Use SEC name, as Tiingo IEX doesn't provide it
-      last: data.last,
-      tngoLast: data.tngoLast,
-      close: data.last, // Use last for close
-      open: data.open,
-      high: data.high,
-      low: data.low,
-      volume: data.volume,
-      prevClose: data.prevClose,
-      timestamp: data.timestamp,
-      exchange: 'IEX',
-      source: newSources
-    };
-  };
-
-  // Helper to normalize 12Data
-  const normalizeTwelveData = (data: any, currentSources: string[]) => {
-    if (!data || !data.symbol) return {};
-    const newSources = [...currentSources, '12Data'];
+    const newSources = [...currentSources, 'Yahoo'];
     return {
       symbol: data.symbol,
-      name: data.name || secCompanyName, // Use 12Data name, fallback to SEC name
-      last: parseFloat(data.close),
-      close: parseFloat(data.close),
-      open: parseFloat(data.open),
-      high: parseFloat(data.high),
-      low: parseFloat(data.low),
-      volume: parseInt(data.volume, 10),
-      prevClose: parseFloat(data.previous_close),
-      timestamp: data.datetime, // or data.timestamp
-      exchange: data.exchange,
+      name: data.longName || secCompanyName,
+      last: data.regularMarketPrice,
+      close: data.regularMarketPrice,
+      open: data.regularMarketOpen,
+      high: data.regularMarketDayHigh,
+      low: data.regularMarketDayLow,
+      volume: data.regularMarketVolume,
+      prevClose: data.regularMarketPreviousClose,
+      timestamp: new Date(data.regularMarketTime * 1000).toISOString(),
+      exchange: data.fullExchangeName,
       source: newSources
     };
   };
 
-  // Try Tiingo first
+  // Try Yahoo Finance
   try {
-    const res = await fetch(`https://api.tiingo.com/iex/${ticker}?token=${process.env.TIINGO_API_KEY}`)
-    if (res.ok) {
-      const data = await res.json()
-      if (data && data.length > 0) {
-        return normalizeTiingoData(data[0], sources);
-      }
-    } else {
-      const statusText = res.statusText || `HTTP ${res.status}`
-      errors.push(`Tiingo API: ${statusText}`)
+    const data = await yahooFinance.quote(ticker);
+    if (data) {
+      return normalizeYahooData(data, sources);
     }
   } catch (error) {
-    errors.push(`Tiingo API: ${error instanceof Error ? error.message : 'Network error'}`)
-  }
-
-  // Try 12 Data as second fallback
-  try {
-    const res = await fetch(`https://api.twelvedata.com/quote?symbol=${ticker}&apikey=${process.env.TWELVE_DATA_API_KEY}`)
-    if (res.ok) {
-      const data = await res.json()
-      if (data && data.symbol) {
-        return normalizeTwelveData(data, sources);
-      }
-    } else {
-      const statusText = res.statusText || `HTTP ${res.status}`
-      errors.push(`12Data API: ${statusText}`)
-    }
-  } catch (error) {
-    errors.push(`12Data API: ${error instanceof Error ? error.message : 'Network error'}`)
+    errors.push(`Yahoo Finance API: ${error instanceof Error ? error.message : 'Network error'}`)
   }
 
   // All failed - throw error
@@ -242,7 +200,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         error: source === 'dashboard' ? 'Failed to fetch stock data from database' : 'Failed to fetch stock data from external APIs',
         details: errorMessage,
         ticker: ticker,
-        failedServices: source === 'dashboard' ? [] : ['Tiingo', '12Data']
+        failedServices: source === 'dashboard' ? [] : ['Yahoo']
       },
       { status: 500 }
     )
