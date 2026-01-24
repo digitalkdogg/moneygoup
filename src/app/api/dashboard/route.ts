@@ -1,6 +1,6 @@
 // src/app/api/dashboard/route.ts
 import { NextResponse } from 'next/server';
-import { getDbConnection } from '@/utils/db';
+import { executeRawQuery } from '@/utils/databaseHelper';
 import { calculateTechnicalIndicators, HistoricalData } from '@/utils/technicalIndicators';
 
 interface DailyPriceRow {
@@ -14,41 +14,56 @@ interface DailyPriceRow {
 }
 
 export async function GET() {
-  let connection;
   try {
-    connection = await getDbConnection();
-
     // For now, we'll hardcode the user_id to 1 as there is no auth system
     const userId = 1;
 
     // 1. Fetch all stocks with an is_owned flag
-    const [stocks] = await connection.execute(`
+    const [stocksResult] = await executeRawQuery(`
         SELECT
             s.id,
             s.symbol,
             s.company_name,
-            s.price,
+            latest_price.close AS current_price,
             COALESCE(us.shares, 0) AS shares,
             COALESCE(us.purchase_price, 0) AS purchase_price,
             CASE WHEN us.is_purchased = TRUE THEN TRUE ELSE FALSE END AS is_owned,
-            spd.close AS prev_close_price,
-            spd.daily_change
+            prev_price.close AS prev_close_price,
+            (latest_price.close - prev_price.close) AS daily_change
         FROM stocks s
         LEFT JOIN user_stocks us ON s.id = us.stock_id AND us.user_id = ?
-        LEFT JOIN (
-            SELECT
-                stock_id,
-                MAX(date) AS max_date
-            FROM stocksdailyprice
-            WHERE date <= CURDATE()
-            GROUP BY stock_id
-        ) latest_price_date ON s.id = latest_price_date.stock_id
-        LEFT JOIN stocksdailyprice spd ON latest_price_date.stock_id = spd.stock_id AND latest_price_date.max_date = spd.date
+        LEFT JOIN stocksdailyprice latest_price ON latest_price.stock_id = s.id
+            AND latest_price.date = (
+                SELECT MAX(date)
+                FROM stocksdailyprice
+                WHERE stock_id = s.id AND date <= CURDATE()
+            )
+        LEFT JOIN stocksdailyprice prev_price ON prev_price.stock_id = s.id
+            AND prev_price.date = (
+                SELECT MAX(date)
+                FROM stocksdailyprice
+                WHERE stock_id = s.id AND date < (
+                    SELECT MAX(date)
+                    FROM stocksdailyprice
+                    WHERE stock_id = s.id AND date <= CURDATE()
+                )
+            )
         ORDER BY s.symbol;
     `, [userId]);
+    let stocks = stocksResult as any[];
+
+    // Explicitly de-duplicate stocks based on ID, in case the query or data leads to duplicates
+    const uniqueStockIds = new Set<number>();
+    stocks = stocks.filter(stock => {
+      if (uniqueStockIds.has(stock.id)) {
+        return false;
+      }
+      uniqueStockIds.add(stock.id);
+      return true;
+    });
 
     // 2. Fetch all historical prices, ordered by date for each stock
-    const [pricesResult] = await connection.execute(`
+    const [pricesResult] = await executeRawQuery(`
         SELECT stock_id, date, \`close\`, volume, \`open\`, \`high\`, \`low\`
         FROM stocksdailyprice
         ORDER BY stock_id, date ASC;
@@ -56,7 +71,7 @@ export async function GET() {
     const dailyPrices = pricesResult as DailyPriceRow[];
 
     // 3. Fetch news data for the user's stocks
-    const [newsResult] = await connection.execute(`
+    const [newsResult] = await executeRawQuery(`
         SELECT
             usn.stock_id,
             n.sentiment_score,
@@ -68,8 +83,6 @@ export async function GET() {
         ORDER BY n.pub_date DESC;
     `, [userId]);
     const newsData = newsResult as any[]; // Type as any for now
-
-    await connection.release();
 
     // 3. Group prices by stock_id
     const pricesByStockId = dailyPrices.reduce((acc, row) => {
@@ -109,7 +122,7 @@ export async function GET() {
       const stockNews = newsByStockId[stock.id] || []; // Get news for the current stock
       const indicators = calculateTechnicalIndicators(stockPrices, stockNews);
 
-      const currentPrice = parseFloat(stock.price || '0');
+      const currentPrice = parseFloat(stock.current_price || '0');
       const shares = parseFloat(stock.shares);
       const purchasePrice = parseFloat(stock.purchase_price || '0');
       const daily_change = stock.daily_change ? parseFloat(stock.daily_change) : null;
@@ -158,9 +171,6 @@ export async function GET() {
 
   } catch (error) {
     console.error("Failed to fetch dashboard data:", error);
-    if (connection) {
-      await connection.release();
-    }
     return NextResponse.json({ error: 'Failed to fetch dashboard data' }, { status: 500 });
   }
 }

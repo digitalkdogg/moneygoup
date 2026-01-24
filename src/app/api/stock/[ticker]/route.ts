@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { getDbConnection } from '@/utils/db'
+import { executeRawQuery, transaction } from '@/utils/databaseHelper'
 import YahooFinance from 'yahoo-finance2';
 
 const yahooFinance = new YahooFinance();
@@ -38,10 +38,7 @@ async function fetchCompanyNameFromSec(ticker: string): Promise<string | null> {
 }
 
 async function fetchFromDatabase(ticker: string) {
-  let connection;
   try {
-    connection = await getDbConnection()
-
     // Get the most recent daily price data for this ticker
     const query = `
       SELECT
@@ -67,24 +64,20 @@ async function fetchFromDatabase(ticker: string) {
       WHERE s.symbol = ?
     `
 
-    const [rows] = await connection.execute(query, [ticker, ticker])
-    await connection.release()
+    const [rows] = await executeRawQuery(query, [ticker, ticker])
 
     if (Array.isArray(rows) && rows.length > 0) {
       const row = (rows as any[])[0]
       
       // Get previous close (previous trading day)
-      let connection2;
       try {
-        connection2 = await getDbConnection()
         const prevCloseQuery = `
           SELECT close FROM stocksdailyprice
           WHERE stock_id = ? AND date < ?
           ORDER BY date DESC
           LIMIT 1
         `
-        const [prevRows] = await connection2.execute(prevCloseQuery, [row.id, row.date || new Date().toISOString().slice(0, 10)])
-        await connection2.end()
+        const [prevRows] = await executeRawQuery(prevCloseQuery, [row.id, row.date || new Date().toISOString().slice(0, 10)])
         
         const prevClose = prevRows && (prevRows as any[])[0] ? parseFloat((prevRows as any[])[0].close) : null
 
@@ -122,9 +115,6 @@ async function fetchFromDatabase(ticker: string) {
       throw new Error(`No data found in database for ticker ${ticker}`)
     }
   } catch (error) {
-    if (connection) {
-      await connection.release()
-    }
     throw error
   }
 }
@@ -218,30 +208,18 @@ export async function DELETE(request: NextRequest, { params }: { params: { ticke
     return Response.json({ error: 'Invalid stock ID' }, { status: 400 });
   }
 
-  let connection;
   try {
-    connection = await getDbConnection();
+    await transaction(async (connection) => {
+      // 1. Delete from stocksdailyprice table
+      await connection.execute('DELETE FROM stocksdailyprice WHERE stock_id = ?', [parsedId]);
 
-    // Start a transaction
-    await connection.beginTransaction();
+      // 2. Delete from stocks table
+      await connection.execute('DELETE FROM stocks WHERE id = ?', [parsedId]);
+    });
 
-    // 1. Delete from stocksdailyprice table
-    await connection.execute('DELETE FROM stocksdailyprice WHERE stock_id = ?', [parsedId]);
-
-    // 2. Delete from stocks table
-    await connection.execute('DELETE FROM stocks WHERE id = ?', [parsedId]);
-
-    // Commit the transaction
-    await connection.commit();
-
-    await connection.release();
     return Response.json({ message: `Stock with ID ${parsedId} and its daily prices removed successfully.` });
 
   } catch (error) {
-    if (connection) {
-      await connection.rollback(); // Rollback on error
-      await connection.release();
-    }
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error(`Error removing stock with ID ${parsedId}:`, errorMessage);
     // Don't expose database-specific error details to client

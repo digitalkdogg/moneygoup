@@ -1,12 +1,11 @@
 // src/app/api/user/stocks/[stock_id]/route.ts
 import { NextResponse } from 'next/server';
-import { getDbConnection } from '@/utils/db';
+import { remove } from '@/utils/databaseHelper';
 
 export async function DELETE(
   request: Request,
   { params }: { params: { stock_id: string } }
 ) {
-  let connection;
   try {
     const stockId = params.stock_id;
 
@@ -18,19 +17,10 @@ export async function DELETE(
 
     // For now, we'll hardcode the user_id to 1 as there is no auth system
     const userId = 1;
-
-    connection = await getDbConnection();
     
-    // Delete all entries for this user and stock
-    const query = `
-      DELETE FROM user_stocks
-      WHERE user_id = ? AND stock_id = ?;
-    `;
+    const affectedRows = await remove('user_stocks', { user_id: userId, stock_id: parsedId });
 
-    const [result] = await connection.execute(query, [userId, parsedId]);
-    await connection.release();
-
-    if ((result as any).affectedRows === 0) {
+    if (affectedRows === 0) {
       return NextResponse.json(
         { error: 'Stock not found or not owned by user' },
         { status: 404 }
@@ -41,9 +31,6 @@ export async function DELETE(
 
   } catch (error) {
     console.error("Failed to sell stock:", error);
-    if (connection) {
-      await connection.release();
-    }
     // Don't expose database error details to client
     return NextResponse.json({ error: 'Failed to sell stock' }, { status: 500 });
   }

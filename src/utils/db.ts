@@ -1,14 +1,14 @@
 // src/utils/db.ts
-import mysql from 'mysql2/promise';
+import { createPool, Pool, PoolConnection } from 'mysql2/promise';
 
-let pool: mysql.Pool | null = null;
+let pool: Pool | null = null;
 
 // This function creates and returns a new database connection from the pool.
 // It reads the connection details from environment variables.
-export async function getDbConnection() {
+export async function getDbConnection(): Promise<PoolConnection> {
   if (!pool) {
     try {
-      pool = mysql.createPool({
+      pool = createPool({
         host: process.env.DB_HOST,
         user: process.env.DB_USER,
         password: process.env.DB_PASSWORD,

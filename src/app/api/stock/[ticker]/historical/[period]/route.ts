@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { getDbConnection } from '@/utils/db'
+import { executeRawQuery } from '@/utils/databaseHelper'
 import YahooFinance from 'yahoo-finance2';
 
 const yahooFinance = new YahooFinance();
@@ -20,10 +20,7 @@ const getDays = (period: string): number => {
 }
 
 async function fetchFromDatabase(ticker: string, startDate: string) {
-  let connection;
   try {
-    connection = await getDbConnection()
-
     // Fetch historical data from the database
     const query = `
       SELECT
@@ -44,8 +41,7 @@ async function fetchFromDatabase(ticker: string, startDate: string) {
       ORDER BY sdp.date ASC
     `
 
-    const [rows] = await connection.execute(query, [ticker, startDate])
-    await connection.release()
+    const [rows] = await executeRawQuery(query, [ticker, startDate])
 
     if (Array.isArray(rows) && rows.length > 0) {
       // Transform database format to match expected response format
@@ -72,9 +68,6 @@ async function fetchFromDatabase(ticker: string, startDate: string) {
       throw new Error(`No historical data found in database for ticker ${ticker}`)
     }
   } catch (error) {
-    if (connection) {
-      await connection.release()
-    }
     throw error
   }
 }

@@ -1,22 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDbConnection } from '@/utils/db';
 import { validate } from '@/utils/validation';
 import { addStockSchema, AddStockInput } from './schema';
+import { insert } from '@/utils/databaseHelper';
 
 export const POST = validate(addStockSchema)(
   async (request: NextRequest, response: NextResponse, data: AddStockInput) => {
     const { ticker, name } = data;
 
-    let connection;
     try {
-      connection = await getDbConnection();
-      const [result] = await connection.execute(
-        'INSERT INTO stocks (symbol, company_name) VALUES (?, ?)',
-        [ticker.toUpperCase(), name]
-      );
-
-      // result.insertId is typically available for MySQL inserts
-      const insertId = (result as any).insertId;
+      const insertId = await insert('stocks', {
+        symbol: ticker.toUpperCase(),
+        company_name: name,
+      });
 
       return NextResponse.json(
         {
@@ -32,10 +27,6 @@ export const POST = validate(addStockSchema)(
         { status: 'error', message: 'Failed to add stock to database' },
         { status: 500 }
       );
-    } finally {
-      if (connection) {
-        await connection.release();
-      }
     }
   }
 );
