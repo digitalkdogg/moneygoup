@@ -24,6 +24,9 @@ export async function GET() {
             s.id,
             s.symbol,
             s.company_name,
+            s.pe_ratio,
+            s.pb_ratio,
+            s.market_cap,
             latest_price.close AS current_price,
             COALESCE(us.shares, 0) AS shares,
             COALESCE(us.purchase_price, 0) AS purchase_price,
@@ -120,7 +123,19 @@ export async function GET() {
     const data = (stocks as any[]).map(stock => {
       const stockPrices = pricesByStockId[stock.id] || [];
       const stockNews = newsByStockId[stock.id] || []; // Get news for the current stock
-      const indicators = calculateTechnicalIndicators(stockPrices, stockNews);
+
+      // Explicitly parse pe_ratio, pb_ratio, market_cap from potentially string/null values
+      const peRatio = stock.pe_ratio !== null && stock.pe_ratio !== undefined ? parseFloat(stock.pe_ratio) : undefined;
+      const pbRatio = stock.pb_ratio !== null && stock.pb_ratio !== undefined ? parseFloat(stock.pb_ratio) : undefined;
+      const marketCap = stock.market_cap !== null && stock.market_cap !== undefined ? parseInt(stock.market_cap, 10) : undefined; // Market Cap is often integer
+
+      const indicators = calculateTechnicalIndicators(
+        stockPrices,
+        stockNews,
+        peRatio, // Pass parsed values
+        pbRatio, // Pass parsed values
+        marketCap  // Pass parsed values
+      );
 
       const currentPrice = parseFloat(stock.current_price || '0');
       const shares = parseFloat(stock.shares);
@@ -169,8 +184,9 @@ export async function GET() {
 
     return NextResponse.json({ stocks: data, summary });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Failed to fetch dashboard data:", error);
-    return NextResponse.json({ error: 'Failed to fetch dashboard data' }, { status: 500 });
+    console.error("Error stack:", error.stack);
+    return NextResponse.json({ error: 'Failed to fetch dashboard data', details: error.message }, { status: 500 });
   }
 }

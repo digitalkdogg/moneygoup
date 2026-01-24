@@ -118,9 +118,9 @@ function generateSignal(
   currentPrice: number,
   volatilityRating: "Low" | "Medium" | "High" | "N/A" | null,
   newsSentiment: number | null,
-  peRatio: number | undefined,
-  pbRatio: number | undefined,
-  marketCap: number | undefined
+  peRatio: number | null | undefined,
+  pbRatio: number | null | undefined,
+  marketCap: number | null | undefined
 ): { signal: 'BUY' | 'SELL' | 'HOLD'; strength: number; reason: string; breakdown: ScoreBreakdown } {
   const reasons: string[] = []
 
@@ -254,7 +254,7 @@ function generateSignal(
   // ============ PE Ratio Strategy (weight: 1) ============
   let peRatioScore = 0;
   let peRatioReason = '';
-  if (peRatio !== undefined && peRatio > 0) {
+  if (peRatio !== null && peRatio !== undefined && peRatio > 0) {
     if (peRatio < 15) { // Arbitrary: Low PE is often good
       peRatioScore = 1;
       peRatioReason = `Attractive PE Ratio (${peRatio.toFixed(2)})`;
@@ -271,7 +271,7 @@ function generateSignal(
   // ============ PB Ratio Strategy (weight: 1) ============
   let pbRatioScore = 0;
   let pbRatioReason = '';
-  if (pbRatio !== undefined && pbRatio > 0) {
+  if (pbRatio !== null && pbRatio !== undefined && pbRatio > 0) {
     if (pbRatio < 2) { // Arbitrary: Low PB is often good
       pbRatioScore = 1;
       pbRatioReason = `Attractive PB Ratio (${pbRatio.toFixed(2)})`;
@@ -288,7 +288,7 @@ function generateSignal(
   // ============ Market Cap Strategy (weight: 1) ============
   let marketCapScore = 0;
   let marketCapReason = '';
-  if (marketCap !== undefined && marketCap > 0) {
+  if (marketCap !== null && marketCap !== undefined && marketCap > 0) {
     if (marketCap > 200_000_000_000) { // Large Cap (>$200B) - stability
       marketCapScore = 1;
       marketCapReason = `Large Market Cap ($${(marketCap / 1_000_000_000).toFixed(2)}B)`;
