@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { executeRawQuery } from '@/utils/databaseHelper';
 import { calculateTechnicalIndicators, HistoricalData } from '@/utils/technicalIndicators';
+import { createErrorResponse } from '@/utils/errorResponse';
 
 interface DailyPriceRow {
   stock_id: number;
@@ -186,7 +187,6 @@ export async function GET() {
 
   } catch (error: any) {
     console.error("Failed to fetch dashboard data:", error);
-    console.error("Error stack:", error.stack);
-    return NextResponse.json({ error: 'Failed to fetch dashboard data', details: error.message }, { status: 500 });
+    return createErrorResponse(error, 500);
   }
 }

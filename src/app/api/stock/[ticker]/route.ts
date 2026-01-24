@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { executeRawQuery, transaction } from '@/utils/databaseHelper'
 import YahooFinance from 'yahoo-finance2';
+import { createErrorResponse } from '@/utils/errorResponse';
 
 const yahooFinance = new YahooFinance();
 
@@ -185,17 +186,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       const data = await fetchFromExternalAPIs(ticker)
       return Response.json(data)
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error(error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    return Response.json(
-      {
-        error: source === 'dashboard' ? 'Failed to fetch stock data from database' : 'Failed to fetch stock data from external APIs',
-        ticker: ticker,
-        failedServices: source === 'dashboard' ? [] : ['Yahoo']
-      },
-      { status: 500 }
-    )
+    const isDashboardSource = source === 'dashboard';
+    const message = isDashboardSource ? 'Failed to fetch stock data from database' : 'Failed to fetch stock data from external APIs';
+    const status = isDashboardSource && (error instanceof Error && error.message.includes('No data found')) ? 404 : 500;
+    
+    return createErrorResponse(error, status);
   }
 }
 
@@ -219,10 +216,8 @@ export async function DELETE(request: NextRequest, { params }: { params: { ticke
 
     return Response.json({ message: `Stock with ID ${parsedId} and its daily prices removed successfully.` });
 
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error(`Error removing stock with ID ${parsedId}:`, errorMessage);
-    // Don't expose database-specific error details to client
-    return Response.json({ error: 'Failed to remove stock' }, { status: 500 });
+  } catch (error: any) {
+    console.error(`Error removing stock with ID ${parsedId}:`, error);
+    return createErrorResponse(error, 500);
   }
 }

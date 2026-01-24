@@ -1,6 +1,7 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { executeRawQuery } from '@/utils/databaseHelper'
 import YahooFinance from 'yahoo-finance2';
+import { createErrorResponse } from '@/utils/errorResponse';
 
 const yahooFinance = new YahooFinance();
 
@@ -190,30 +191,18 @@ export async function GET(
 
     }
 
-  } catch (error) {
+    } catch (error: any) {
 
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const isDashboardSource = source === 'dashboard';
 
-    return Response.json(
+      const message = isDashboardSource ? 'Failed to fetch historical data from database' : 'Failed to fetch historical data from external APIs';
 
-      {
+      const status = isDashboardSource && (error instanceof Error && error.message.includes('No historical data found')) ? 404 : 500;
 
-        error: source === 'dashboard' ? 'Failed to fetch historical data from database' : 'Failed to fetch historical data from external APIs',
+      
 
-        details: errorMessage,
+      return createErrorResponse(error, status);
 
-        ticker: ticker,
-
-        period: period,
-
-        failedServices: source === 'dashboard' ? [] : ['Yahoo']
-
-      },
-
-      { status: 500 }
-
-    )
-
-  }
+    }
 
 }

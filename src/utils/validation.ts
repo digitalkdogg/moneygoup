@@ -1,19 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ZodSchema, z } from 'zod';
 
-type Middleware<T> = (
+type Handler<T> = (
   req: NextRequest,
-  res: NextResponse,
-  next: (data: T) => Promise<NextResponse> | NextResponse
+  data: T,
+  ctx?: { params?: any }
 ) => Promise<NextResponse> | NextResponse;
 
 export const validate =
-  <T extends ZodSchema>(schema: T): Middleware<z.infer<T>> =>
-  async (req, res, next) => {
+  <T extends ZodSchema>(schema: T) =>
+  (handler: Handler<z.infer<T>>) =>
+  async (req: NextRequest, ctx?: { params?: any }) => {
     try {
       const body = await req.json();
       const validatedData = schema.parse(body);
-      return next(validatedData);
+      return handler(req, validatedData, ctx);
     } catch (error: any) {
       if (error instanceof z.ZodError) {
         return NextResponse.json(

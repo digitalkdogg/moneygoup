@@ -1,6 +1,7 @@
 // src/app/api/user/stocks/route.ts
 import { NextResponse } from 'next/server';
 import { executeRawQuery } from '@/utils/databaseHelper';
+import { createErrorResponse } from '@/utils/errorResponse';
 
 export async function POST(request: Request) {
   try {
@@ -8,9 +9,9 @@ export async function POST(request: Request) {
 
     // Basic validation
     if (!stock_id || !shares || !purchase_price) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+      return createErrorResponse('Missing required fields', 400);
     }
-
+    
     // For now, we'll hardcode the user_id to 1 as there is no auth system
     const userId = 1;
     const isPurchased = 1;
@@ -27,9 +28,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ message: 'Stock purchased successfully' }, { status: 201 });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Failed to purchase stock:", error);
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    return NextResponse.json({ error: 'Failed to purchase stock', details: errorMessage }, { status: 500 });
+    return createErrorResponse(error, 500);
   }
 }

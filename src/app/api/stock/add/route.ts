@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { validate } from '@/utils/validation';
 import { addStockSchema, AddStockInput } from './schema';
 import { insert } from '@/utils/databaseHelper';
+import { createErrorResponse } from '@/utils/errorResponse';
 
 export const POST = validate(addStockSchema)(
-  async (request: NextRequest, response: NextResponse, data: AddStockInput) => {
+  async (request: NextRequest, data: AddStockInput) => {
     const { ticker, name } = data;
 
     try {
@@ -23,10 +24,7 @@ export const POST = validate(addStockSchema)(
       );
     } catch (dbError: any) {
       console.error('Database error:', dbError);
-      return NextResponse.json(
-        { status: 'error', message: 'Failed to add stock to database' },
-        { status: 500 }
-      );
+      return createErrorResponse(dbError, 500);
     }
   }
 );
