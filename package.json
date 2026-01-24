@@ -18,7 +18,8 @@
     "react-dom": "^18",
     "recharts": "^3.6.0",
     "sentiment": "^5.0.2",
-    "yahoo-finance2": "^3.12.0"
+    "yahoo-finance2": "^3.12.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^20",

@@ -1,16 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDbConnection } from '@/utils/db';
+import { validate } from '@/utils/validation';
+import { addStockSchema, AddStockInput } from './schema';
 
-export async function POST(request: NextRequest) {
-  try {
-    const { ticker, name } = await request.json();
-
-    if (!ticker || !name) {
-      return NextResponse.json(
-        { status: 'error', message: 'stock_symbol and company_name are required' },
-        { status: 400 }
-      );
-    }
+export const POST = validate(addStockSchema)(
+  async (request: NextRequest, response: NextResponse, data: AddStockInput) => {
+    const { ticker, name } = data;
 
     let connection;
     try {
@@ -42,11 +37,5 @@ export async function POST(request: NextRequest) {
         await connection.end();
       }
     }
-  } catch (error: any) {
-    console.error('Request parsing error:', error);
-    return NextResponse.json(
-      { status: 'error', message: 'Invalid request body' },
-      { status: 400 }
-    );
   }
-}
+);
