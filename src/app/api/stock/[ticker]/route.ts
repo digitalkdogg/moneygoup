@@ -68,7 +68,7 @@ async function fetchFromDatabase(ticker: string) {
     `
 
     const [rows] = await connection.execute(query, [ticker, ticker])
-    await connection.end()
+    await connection.release()
 
     if (Array.isArray(rows) && rows.length > 0) {
       const row = (rows as any[])[0]
@@ -123,7 +123,7 @@ async function fetchFromDatabase(ticker: string) {
     }
   } catch (error) {
     if (connection) {
-      await connection.end()
+      await connection.release()
     }
     throw error
   }
@@ -234,13 +234,13 @@ export async function DELETE(request: NextRequest, { params }: { params: { ticke
     // Commit the transaction
     await connection.commit();
 
-    await connection.end();
+    await connection.release();
     return Response.json({ message: `Stock with ID ${parsedId} and its daily prices removed successfully.` });
 
   } catch (error) {
     if (connection) {
       await connection.rollback(); // Rollback on error
-      await connection.end();
+      await connection.release();
     }
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error(`Error removing stock with ID ${parsedId}:`, errorMessage);

@@ -69,7 +69,7 @@ export async function GET() {
     `, [userId]);
     const newsData = newsResult as any[]; // Type as any for now
 
-    await connection.end();
+    await connection.release();
 
     // 3. Group prices by stock_id
     const pricesByStockId = dailyPrices.reduce((acc, row) => {
@@ -159,7 +159,7 @@ export async function GET() {
   } catch (error) {
     console.error("Failed to fetch dashboard data:", error);
     if (connection) {
-      await connection.end();
+      await connection.release();
     }
     return NextResponse.json({ error: 'Failed to fetch dashboard data' }, { status: 500 });
   }

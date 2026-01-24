@@ -27,14 +27,14 @@ export async function POST(request: Request) {
     `;
 
     await connection.execute(query, [userId, stock_id, shares, purchase_price, isPurchased]);
-    await connection.end();
+    await connection.release();
 
     return NextResponse.json({ message: 'Stock purchased successfully' }, { status: 201 });
 
   } catch (error) {
     console.error("Failed to purchase stock:", error);
     if (connection) {
-      await connection.end();
+      await connection.release();
     }
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     return NextResponse.json({ error: 'Failed to purchase stock', details: errorMessage }, { status: 500 });

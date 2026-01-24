@@ -28,7 +28,7 @@ export async function DELETE(
     `;
 
     const [result] = await connection.execute(query, [userId, parsedId]);
-    await connection.end();
+    await connection.release();
 
     if ((result as any).affectedRows === 0) {
       return NextResponse.json(
@@ -42,7 +42,7 @@ export async function DELETE(
   } catch (error) {
     console.error("Failed to sell stock:", error);
     if (connection) {
-      await connection.end();
+      await connection.release();
     }
     // Don't expose database error details to client
     return NextResponse.json({ error: 'Failed to sell stock' }, { status: 500 });

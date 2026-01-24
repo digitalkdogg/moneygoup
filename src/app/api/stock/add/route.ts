@@ -34,7 +34,7 @@ export const POST = validate(addStockSchema)(
       );
     } finally {
       if (connection) {
-        await connection.end();
+        await connection.release();
       }
     }
   }

@@ -45,7 +45,7 @@ async function fetchFromDatabase(ticker: string, startDate: string) {
     `
 
     const [rows] = await connection.execute(query, [ticker, startDate])
-    await connection.end()
+    await connection.release()
 
     if (Array.isArray(rows) && rows.length > 0) {
       // Transform database format to match expected response format
@@ -73,7 +73,7 @@ async function fetchFromDatabase(ticker: string, startDate: string) {
     }
   } catch (error) {
     if (connection) {
-      await connection.end()
+      await connection.release()
     }
     throw error
   }
