@@ -10,6 +10,12 @@ export async function DELETE(
   try {
     const stockId = params.stock_id;
 
+    // Validate stock_id is a positive integer
+    const parsedId = parseInt(stockId, 10);
+    if (!stockId || isNaN(parsedId) || parsedId <= 0 || !Number.isInteger(parsedId)) {
+      return NextResponse.json({ error: 'Invalid stock ID' }, { status: 400 });
+    }
+
     // For now, we'll hardcode the user_id to 1 as there is no auth system
     const userId = 1;
 
@@ -21,7 +27,7 @@ export async function DELETE(
       WHERE user_id = ? AND stock_id = ?;
     `;
 
-    const [result] = await connection.execute(query, [userId, stockId]);
+    const [result] = await connection.execute(query, [userId, parsedId]);
     await connection.end();
 
     if ((result as any).affectedRows === 0) {
@@ -38,7 +44,7 @@ export async function DELETE(
     if (connection) {
       await connection.end();
     }
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    return NextResponse.json({ error: 'Failed to sell stock', details: errorMessage }, { status: 500 });
+    // Don't expose database error details to client
+    return NextResponse.json({ error: 'Failed to sell stock' }, { status: 500 });
   }
 }

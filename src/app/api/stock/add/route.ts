@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     } catch (dbError: any) {
       console.error('Database error:', dbError);
       return NextResponse.json(
-        { status: 'error', message: 'Failed to add stock to database', details: dbError.message },
+        { status: 'error', message: 'Failed to add stock to database' },
         { status: 500 }
       );
     } finally {
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Request parsing error:', error);
     return NextResponse.json(
-      { status: 'error', message: 'Invalid request body', details: error.message },
+      { status: 'error', message: 'Invalid request body' },
       { status: 400 }
     );
   }

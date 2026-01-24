@@ -201,7 +201,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return Response.json(
       {
         error: source === 'dashboard' ? 'Failed to fetch stock data from database' : 'Failed to fetch stock data from external APIs',
-        details: errorMessage,
         ticker: ticker,
         failedServices: source === 'dashboard' ? [] : ['Yahoo']
       },
@@ -213,7 +212,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function DELETE(request: NextRequest, { params }: { params: { ticker: string } }) {
   const stockId = params.ticker; // The `ticker` param is actually `stock_id` in this context
 
-  if (!stockId || isNaN(Number(stockId))) {
+  // Validate stock_id is a positive integer
+  const parsedId = parseInt(stockId, 10);
+  if (!stockId || isNaN(parsedId) || parsedId <= 0 || !Number.isInteger(parsedId)) {
     return Response.json({ error: 'Invalid stock ID' }, { status: 400 });
   }
 
@@ -225,16 +226,16 @@ export async function DELETE(request: NextRequest, { params }: { params: { ticke
     await connection.beginTransaction();
 
     // 1. Delete from stocksdailyprice table
-    await connection.execute('DELETE FROM stocksdailyprice WHERE stock_id = ?', [stockId]);
+    await connection.execute('DELETE FROM stocksdailyprice WHERE stock_id = ?', [parsedId]);
 
     // 2. Delete from stocks table
-    await connection.execute('DELETE FROM stocks WHERE id = ?', [stockId]);
+    await connection.execute('DELETE FROM stocks WHERE id = ?', [parsedId]);
 
     // Commit the transaction
     await connection.commit();
 
     await connection.end();
-    return Response.json({ message: `Stock with ID ${stockId} and its daily prices removed successfully.` });
+    return Response.json({ message: `Stock with ID ${parsedId} and its daily prices removed successfully.` });
 
   } catch (error) {
     if (connection) {
@@ -242,7 +243,8 @@ export async function DELETE(request: NextRequest, { params }: { params: { ticke
       await connection.end();
     }
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error(`Error removing stock with ID ${stockId}:`, errorMessage);
-    return Response.json({ error: 'Failed to remove stock', details: errorMessage }, { status: 500 });
+    console.error(`Error removing stock with ID ${parsedId}:`, errorMessage);
+    // Don't expose database-specific error details to client
+    return Response.json({ error: 'Failed to remove stock' }, { status: 500 });
   }
 }
