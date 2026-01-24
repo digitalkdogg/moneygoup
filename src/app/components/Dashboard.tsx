@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link'; // Import Link
 
 interface StockDashboardData {
   stock_id: number;
@@ -22,6 +23,25 @@ interface SummaryData {
   totalDailyEarnings: number;
   totalLifetimeEarnings: number;
   totalDailyChange: number;
+}
+
+
+
+interface TopTechStock {
+  symbol: string;
+  name: string;
+  regularMarketPrice: number;
+  marketCap: number;
+  trailingPE?: number; // Make optional as per example console.log
+}
+
+interface UndervaluedLargeCap {
+  symbol: string;
+  name: string;
+  regularMarketPrice: number;
+  marketCap: number;
+  trailingPE?: number;
+  priceToBook?: number;
 }
 
 const EarningsSummary = ({ summary }: { summary: SummaryData | null }) => {
@@ -62,6 +82,11 @@ export default function Dashboard() {
   const [summary, setSummary] = useState<SummaryData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [topTech, setTopTech] = useState<TopTechStock[]>([]); // New state for top tech stocks
+  const [topTechError, setTopTechError] = useState<string | null>(null);
+  const [undervaluedLargeCaps, setUndervaluedLargeCaps] = useState<UndervaluedLargeCap[]>([]); // New state for undervalued large caps
+  const [undervaluedLargeCapsError, setUndervaluedLargeCapsError] = useState<string | null>(null);
   const router = useRouter();
 
   // State for the purchase modal
@@ -106,8 +131,40 @@ export default function Dashboard() {
     }
   };
 
+
+
+  const fetchTopTech = async () => {
+    setTopTechError(null);
+    try {
+      const res = await fetch('/api/top-tech');
+      if (!res.ok) {
+        throw new Error('Failed to fetch top technology stocks');
+      }
+      const data = await res.json();
+      setTopTech(data);
+    } catch (err) {
+      setTopTechError(err instanceof Error ? err.message : 'An unknown error occurred while fetching top technology stocks');
+    }
+  };
+
+  const fetchUndervaluedLargeCaps = async () => {
+    setUndervaluedLargeCapsError(null);
+    try {
+      const res = await fetch('/api/undervalued-large-caps');
+      if (!res.ok) {
+        throw new Error('Failed to fetch undervalued large caps');
+      }
+      const data = await res.json();
+      setUndervaluedLargeCaps(data);
+    } catch (err) {
+      setUndervaluedLargeCapsError(err instanceof Error ? err.message : 'An unknown error occurred while fetching undervalued large caps');
+    }
+  };
+
   useEffect(() => {
     fetchData();
+    fetchTopTech(); // Fetch top technology stocks when component mounts
+    fetchUndervaluedLargeCaps(); // Fetch undervalued large caps when component mounts
   }, []);
 
   const handleRowClick = (symbol: string) => {
@@ -304,7 +361,7 @@ export default function Dashboard() {
   return (
     <>
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-screen-2xl mx-auto">
           <header className="text-center mb-12">
             <h1 className="text-4xl font-bold text-gray-800 mb-4">Stock Dashboard</h1>
             <p className="text-lg text-gray-600">Tracked stocks and their latest data.</p>
@@ -312,7 +369,7 @@ export default function Dashboard() {
 
           <EarningsSummary summary={summary} />
 
-          <div className="bg-white p-8 rounded-2xl shadow-2xl">
+          <div className="bg-white p-8 rounded-2xl shadow-lg mb-8">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
@@ -401,6 +458,55 @@ export default function Dashboard() {
               </table>
             </div>
           </div>
+
+
+
+          {/* Top Technology Stocks Section */}
+          <section className="bg-white p-6 rounded-2xl shadow-lg mb-8">
+            <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">🚀 Top Technology Stocks</h2>
+            {topTechError && <p className="text-red-500 text-sm mb-4 text-center">{topTechError}</p>}
+            {topTech.length > 0 ? (
+              <div className="grid grid-cols-1 gap-4">
+                {topTech.map((stock) => (
+                  <Link key={stock.symbol} href={`/search/${stock.symbol}`} className="block">
+                    <div className="bg-gray-50 p-4 rounded-lg hover:bg-gray-100 transition-colors duration-200 grid grid-cols-5 gap-2 items-center">
+                      <p className="text-lg font-semibold text-gray-800">{stock.symbol}</p>
+                      <p className="text-sm text-gray-600">{stock.name}</p>
+                      <p className="text-md text-gray-600">${stock.regularMarketPrice.toFixed(2)}</p>
+                      <p className="text-sm text-gray-600">Market Cap: ${(stock.marketCap / 1e9).toFixed(2)}B</p>
+                      <p className="text-sm text-gray-600">PE Ratio: {stock.trailingPE?.toFixed(2) || 'N/A'}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              !topTechError && !loading && <p className="text-gray-600 text-center">No top technology stocks data available.</p>
+            )}
+          </section>
+
+          {/* Undervalued Large Caps Section */}
+          <section className="bg-white p-6 rounded-2xl shadow-lg mb-8">
+            <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">💰 Undervalued Large Caps</h2>
+            {undervaluedLargeCapsError && <p className="text-red-500 text-sm mb-4 text-center">{undervaluedLargeCapsError}</p>}
+            {undervaluedLargeCaps.length > 0 ? (
+              <div className="grid grid-cols-1 gap-4">
+                {undervaluedLargeCaps.map((stock) => (
+                  <Link key={stock.symbol} href={`/search/${stock.symbol}`} className="block">
+                    <div className="bg-gray-50 p-4 rounded-lg hover:bg-gray-100 transition-colors duration-200 grid grid-cols-6 gap-2 items-center">
+                      <p className="text-lg font-semibold text-gray-800">{stock.symbol}</p>
+                      <p className="text-sm text-gray-600">{stock.name}</p>
+                      <p className="text-md text-gray-600">${stock.regularMarketPrice.toFixed(2)}</p>
+                      <p className="text-sm text-gray-600">Market Cap: ${(stock.marketCap / 1e9).toFixed(2)}B</p>
+                      <p className="text-sm text-gray-600">P/E: {stock.trailingPE?.toFixed(2) || 'N/A'}</p>
+                      <p className="text-sm text-gray-600">P/B: {stock.priceToBook?.toFixed(2) || 'N/A'}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              !undervaluedLargeCapsError && !loading && <p className="text-gray-600 text-center">No undervalued large caps data available.</p>
+            )}
+          </section>
         </div>
       </div>
 
@@ -536,3 +642,4 @@ export default function Dashboard() {
     </>
   );
 }
+
