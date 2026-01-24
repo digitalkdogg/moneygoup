@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     const growthTech = await yahooFinance.screener("growth_technology_stocks");
 
     const topTechStocks = growthTech.quotes
-      .filter(q => q.symbol && q.longName && q.regularMarketPrice !== undefined && q.marketCap !== undefined)
+      .filter(q => q.symbol && q.longName && q.regularMarketPrice !== undefined && q.marketCap !== undefined && q.priceToBook !== undefined)
       .slice(0, 10) // Limit to top 10
       .map(q => ({
         symbol: q.symbol,
@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
         regularMarketPrice: q.regularMarketPrice,
         marketCap: q.marketCap,
         trailingPE: q.trailingPE,
+        priceToBook: q.priceToBook,
       }));
 
     return NextResponse.json(topTechStocks);

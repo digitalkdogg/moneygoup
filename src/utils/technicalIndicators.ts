@@ -23,6 +23,14 @@ export interface ScoreBreakdown {
   volatilityReason: string;
   newsScore: number;
   newsReason: string;
+  peRatioScore: number;
+  peRatioReason: string;
+  pbRatioScore: number;
+  pbRatioReason: string;
+  marketCapScore: number;
+  marketCapReason: string;
+  coreMetricsScore: number;
+  coreMetricsReason: string;
   totalScore: number
 }
 
@@ -109,9 +117,11 @@ function generateSignal(
   momentum: number | null,
   currentPrice: number,
   volatilityRating: "Low" | "Medium" | "High" | "N/A" | null,
-  newsSentiment: number | null
+  newsSentiment: number | null,
+  peRatio: number | undefined,
+  pbRatio: number | undefined,
+  marketCap: number | undefined
 ): { signal: 'BUY' | 'SELL' | 'HOLD'; strength: number; reason: string; breakdown: ScoreBreakdown } {
-  let totalScore = 0
   const reasons: string[] = []
 
   // ============ MA Crossover Strategy (weight: 3) ============
@@ -134,7 +144,6 @@ function generateSignal(
     maScore = 0
     maReason = 'Insufficient data'
   }
-  totalScore += maScore
 
   // ============ RSI Strategy (weight: 2) ============
   let rsiScore = 0
@@ -159,7 +168,6 @@ function generateSignal(
     rsiScore = 0
     rsiReason = 'Insufficient data'
   }
-  totalScore += rsiScore
 
   // ============ Momentum Strategy (weight: 2) ============
   let momentumScore = 0
@@ -181,7 +189,6 @@ function generateSignal(
     momentumScore = 0
     momentumReason = 'Insufficient data'
   }
-  totalScore += momentumScore
 
   // ============ Price vs MA Strategy (weight: 1) ============
   let priceScore = 0
@@ -203,7 +210,6 @@ function generateSignal(
     priceScore = 0
     priceReason = 'Insufficient data'
   }
-  totalScore += priceScore
   
   // ============ Volatility Strategy (weight: 1) ============
   let volatilityScore = 0;
@@ -223,17 +229,16 @@ function generateSignal(
   } else {
       volatilityReason = 'Insufficient data';
   }
-  totalScore += volatilityScore;
 
   // ============ News Sentiment Strategy (weight: 2) ============
   let newsScore = 0;
   let newsReason = '';
   if (newsSentiment !== null) {
-    if (newsSentiment > 1) {
+    if (newsSentiment > 0) { // Adjusted from > 1
       newsScore = 2;
       newsReason = `Positive News Sentiment (Score: ${newsSentiment.toFixed(2)})`;
       reasons.push('Positive News');
-    } else if (newsSentiment < -1) {
+    } else if (newsSentiment < 0) { // Adjusted from < -1
       newsScore = -2;
       newsReason = `Negative News Sentiment (Score: ${newsSentiment.toFixed(2)})`;
       reasons.push('Negative News');
@@ -245,21 +250,178 @@ function generateSignal(
     newsScore = 0;
     newsReason = 'No news data';
   }
-  totalScore += newsScore;
 
+  // ============ PE Ratio Strategy (weight: 1) ============
+  let peRatioScore = 0;
+  let peRatioReason = '';
+  if (peRatio !== undefined && peRatio > 0) {
+    if (peRatio < 15) { // Arbitrary: Low PE is often good
+      peRatioScore = 1;
+      peRatioReason = `Attractive PE Ratio (${peRatio.toFixed(2)})`;
+    } else if (peRatio > 25) { // Arbitrary: High PE might indicate overvaluation
+      peRatioScore = -1;
+      peRatioReason = `High PE Ratio (${peRatio.toFixed(2)})`;
+    } else {
+      peRatioReason = `Neutral PE Ratio (${peRatio.toFixed(2)})`;
+    }
+  } else {
+    peRatioReason = 'No PE Ratio data';
+  }
 
-  // Determine signal based on total score
+  // ============ PB Ratio Strategy (weight: 1) ============
+  let pbRatioScore = 0;
+  let pbRatioReason = '';
+  if (pbRatio !== undefined && pbRatio > 0) {
+    if (pbRatio < 2) { // Arbitrary: Low PB is often good
+      pbRatioScore = 1;
+      pbRatioReason = `Attractive PB Ratio (${pbRatio.toFixed(2)})`;
+    } else if (pbRatio > 5) { // Arbitrary: High PB might indicate overvaluation
+      pbRatioScore = -1;
+      pbRatioReason = `High PB Ratio (${pbRatio.toFixed(2)})`;
+    } else {
+      pbRatioReason = `Neutral PB Ratio (${pbRatio.toFixed(2)})`;
+    }
+  } else {
+    pbRatioReason = 'No PB Ratio data';
+  }
+
+  // ============ Market Cap Strategy (weight: 1) ============
+  let marketCapScore = 0;
+  let marketCapReason = '';
+  if (marketCap !== undefined && marketCap > 0) {
+    if (marketCap > 200_000_000_000) { // Large Cap (>$200B) - stability
+      marketCapScore = 1;
+      marketCapReason = `Large Market Cap ($${(marketCap / 1_000_000_000).toFixed(2)}B)`;
+    } else if (marketCap < 2_000_000_000) { // Small Cap (<$2B) - higher risk/growth
+      marketCapScore = -1; // Can be seen as higher risk
+      marketCapReason = `Small Market Cap ($${(marketCap / 1_000_000_000).toFixed(2)}B)`;
+    } else {
+      marketCapReason = `Mid Market Cap ($${(marketCap / 1_000_000_000).toFixed(2)}B)`;
+    }
+  } else {
+    marketCapReason = 'No Market Cap data';
+  }
+
+  // Consolidate Core Metrics Score and Reason
+  const coreMetricsScore = peRatioScore + pbRatioScore + marketCapScore;
+  let coreMetricsReasonText = 'No core metrics data'; // Initialize with a default
+
+  // Determine the preliminary signal to use in coreMetricsReason
+  // This is a simplified version of the final signal determination but useful for context
+  const tempSumForPreliminarySignal = maScore + rsiScore + momentumScore + priceScore + volatilityScore + newsScore;
+
+  let preliminarySignal = 'HOLD';
+  if (tempSumForPreliminarySignal + coreMetricsScore >= 4) {
+    preliminarySignal = 'BUY';
+  } else if (tempSumForPreliminarySignal + coreMetricsScore <= -4) {
+    preliminarySignal = 'SELL';
+  }
+
+  // Construct the coreMetricsReason based on preliminary signal and PE Ratio
+  if (peRatio !== undefined && peRatio > 0) {
+    if (preliminarySignal === 'BUY') {
+      if (peRatio < 20) { // Reasonable P/E threshold for a BUY signal
+        coreMetricsReasonText = `Bullish trend + reasonable P/E (${peRatio.toFixed(2)}) → BUY`;
+      } else { // High P/E for a BUY signal
+        coreMetricsReasonText = `Bullish trend + very high P/E (${peRatio.toFixed(2)}) → BUY (lower confidence)`;
+      }
+    } else if (preliminarySignal === 'SELL') {
+      if (peRatio > 20) { // High P/E for a SELL signal
+        coreMetricsReasonText = `Bearish trend + high P/E (${peRatio.toFixed(2)}) → SELL / AVOID`;
+      } else { // Low P/E for a SELL signal
+        coreMetricsReasonText = `Bearish trend + low P/E (${peRatio.toFixed(2)}) → HOLD / WATCH`;
+      }
+    } else { // HOLD signal or neutral overall trend
+      if (peRatio < 15) { // Low P/E for a HOLD signal
+        coreMetricsReasonText = `Neutral trend + low P/E (${peRatio.toFixed(2)}) → HOLD / WATCH`;
+      } else if (peRatio > 25) { // High P/E for a HOLD signal
+        coreMetricsReasonText = `Neutral trend + high P/E (${peRatio.toFixed(2)}) → HOLD / CAUTION`;
+      } else {
+        coreMetricsReasonText = `Neutral trend + neutral P/E (${peRatio.toFixed(2)})`;
+      }
+    }
+  } else {
+    coreMetricsReasonText = `Overall trend: ${preliminarySignal} (No P/E data available)`;
+  }
+  
+  // Determine the final signal based on the calculated totalScore
+  const calculatedTotalScore = maScore + rsiScore + momentumScore + priceScore + volatilityScore + newsScore + coreMetricsScore;
+
   let signal: 'BUY' | 'SELL' | 'HOLD'
-  if (totalScore >= 4) {
+  if (calculatedTotalScore >= 5) {
     signal = 'BUY'
-  } else if (totalScore <= -4) {
+  } else if (calculatedTotalScore <= -5) {
     signal = 'SELL'
   } else {
     signal = 'HOLD'
   }
 
+  // Construct the "AI Summary" signalReason
+  const summaryParts: string[] = [];
+
+  // Start with overall sentiment based on the signal itself
+  if (signal === 'BUY') {
+    summaryParts.push('The overall sentiment is bullish, driven by several positive indicators.');
+  } else if (signal === 'SELL') {
+    summaryParts.push('The overall sentiment is bearish, primarily due to various negative factors.');
+  } else {
+    summaryParts.push('The market shows a neutral outlook, with mixed signals from key indicators.');
+  }
+
+  // Group and summarize reasons
+  const positiveFactors: string[] = [];
+  const negativeFactors: string[] = [];
+  const neutralFactors: string[] = [];
+
+  if (maScore > 0) positiveFactors.push('MA crossover');
+  else if (maScore < 0) negativeFactors.push('MA crossover');
+  else if (maReason.includes('neutral')) neutralFactors.push('MA crossover');
+
+  if (rsiScore > 0) positiveFactors.push('RSI');
+  else if (rsiScore < 0) negativeFactors.push('RSI');
+  else if (rsiReason.includes('neutral')) neutralFactors.push('RSI');
+
+  if (momentumScore > 0) positiveFactors.push('momentum');
+  else if (momentumScore < 0) negativeFactors.push('momentum');
+  else if (momentumReason.includes('neutral')) neutralFactors.push('momentum');
+
+  if (priceScore > 0) positiveFactors.push('price vs SMA(50)');
+  else if (priceScore < 0) negativeFactors.push('price vs SMA(50)');
+  else if (priceReason.includes('at the')) neutralFactors.push('price vs SMA(50)');
+
+  if (volatilityScore > 0) positiveFactors.push('low volatility');
+  else if (volatilityScore < 0) negativeFactors.push('high volatility');
+  else if (volatilityReason.includes('Medium')) neutralFactors.push('medium volatility');
+
+  if (newsScore > 0) positiveFactors.push('positive news sentiment');
+  else if (newsScore < 0) negativeFactors.push('negative news sentiment');
+  else if (newsReason.includes('neutral')) neutralFactors.push('neutral news sentiment');
+
+  if (coreMetricsScore > 0) positiveFactors.push('favorable core metrics');
+  else if (coreMetricsScore < 0) negativeFactors.push('unfavorable core metrics');
+  else if (coreMetricsReasonText.includes('Neutral')) neutralFactors.push('neutral core metrics');
+
+
+  if (positiveFactors.length > 0) {
+    summaryParts.push(`Key positive factors include ${positiveFactors.join(', ')}.`);
+  }
+  if (negativeFactors.length > 0) {
+    summaryParts.push(`Conversely, concerns arise from ${negativeFactors.join(', ')}.`);
+  }
+  if (neutralFactors.length > 0 && positiveFactors.length === 0 && negativeFactors.length === 0) {
+    summaryParts.push(`Several indicators, such as ${neutralFactors.join(', ')}, remain neutral.`);
+  }
+
+  // Add a concluding statement about the core metrics reason
+  if (coreMetricsReasonText !== 'No core metrics data' && coreMetricsReasonText !== preliminarySignal + " (No P/E data available)") {
+    summaryParts.push(`Valuation insights: ${coreMetricsReasonText.replace('→', 'indicating a').replace('BUY (lower confidence)', 'a potential buy with lower confidence').replace('HOLD / WATCH', 'a hold or watch strategy').replace('SELL / AVOID', 'a sell or avoid strategy').replace('HOLD / CAUTION', 'a hold or caution strategy')}`);
+  }
+
+  const finalSignalReason = summaryParts.join(' ');
+
+
   // Calculate signal strength (0-100)
-  const strength = Math.min(100, Math.abs(totalScore) * 10)
+  const strength = Math.min(100, Math.abs(calculatedTotalScore) * 10)
 
   const breakdown: ScoreBreakdown = {
     maScore,
@@ -274,13 +436,21 @@ function generateSignal(
     volatilityReason,
     newsScore,
     newsReason,
-    totalScore
+    peRatioScore,
+    peRatioReason,
+    pbRatioScore,
+    pbRatioReason,
+    marketCapScore,
+    marketCapReason,
+    coreMetricsScore,
+    coreMetricsReason: coreMetricsReasonText,
+    totalScore: calculatedTotalScore
   }
 
   return {
     signal,
     strength,
-    reason: reasons.length > 0 ? reasons.join('; ') : 'Insufficient data for signals',
+    reason: finalSignalReason, // Use the generated summary reason
     breakdown
   }
 }
@@ -290,7 +460,13 @@ function generateSignal(
  * @param historicalData Array of historical OHLCV data
  * @returns TechnicalIndicators object with all calculated values, trading signal, and scoring breakdown
  */
-export function calculateTechnicalIndicators(historicalData: HistoricalData[], newsData: { sentiment_score: number; pub_date: string }[]): TechnicalIndicators {
+export function calculateTechnicalIndicators(
+  historicalData: HistoricalData[],
+  newsData: { sentiment_score: number; pub_date: string }[],
+  peRatio: number | undefined,
+  pbRatio: number | undefined,
+  marketCap: number | undefined
+): TechnicalIndicators {
   if (!historicalData || historicalData.length === 0) {
     const emptyBreakdown: ScoreBreakdown = {
       maScore: 0,
@@ -305,6 +481,14 @@ export function calculateTechnicalIndicators(historicalData: HistoricalData[], n
       volatilityReason: 'Insufficient data',
       newsScore: 0,
       newsReason: 'Insufficient data',
+      peRatioScore: 0,
+      peRatioReason: 'Insufficient data',
+      pbRatioScore: 0,
+      pbRatioReason: 'Insufficient data',
+      marketCapScore: 0,
+      marketCapReason: 'Insufficient data',
+      coreMetricsScore: 0,
+      coreMetricsReason: 'Insufficient data',
       totalScore: 0
     }
     return {
@@ -339,7 +523,18 @@ export function calculateTechnicalIndicators(historicalData: HistoricalData[], n
     : null;
 
   // Generate trading signal with detailed breakdown
-  const { signal, strength, reason, breakdown } = generateSignal(sma20, sma50, rsi14, momentum, currentPrice, volatilityRating, avgNewsSentiment)
+  const { signal, strength, reason, breakdown } = generateSignal(
+    sma20,
+    sma50,
+    rsi14,
+    momentum,
+    currentPrice,
+    volatilityRating,
+    avgNewsSentiment,
+    peRatio,
+    pbRatio,
+    marketCap
+  )
 
   return {
     sma20,

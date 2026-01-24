@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     const undervalued = await yahooFinance.screener("undervalued_large_caps");
 
     const undervaluedLargeCapsStocks = undervalued.quotes
-      .filter(q => q.symbol && q.longName && q.regularMarketPrice !== undefined && q.marketCap !== undefined)
+      .filter(q => q.symbol && q.longName && q.regularMarketPrice !== undefined && q.marketCap !== undefined && q.region === 'US')
       .slice(0, 10) // Limit to top 10
       .map(q => ({
         symbol: q.symbol,

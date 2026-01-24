@@ -36,7 +36,7 @@ export async function GET(
         link: item.link,
         pubDate: item.pubDate,
         source: item.source,
-        sentiment: sentimentResult.score, // score is a number, comparative is a number
+        sentiment_score: sentimentResult.score, // score is a number, comparative is a number
       }
     });
 

@@ -159,6 +159,9 @@ async function fetchFromExternalAPIs(ticker: string) {
       prevClose: data.regularMarketPreviousClose,
       timestamp: new Date(data.regularMarketTime * 1000).toISOString(),
       exchange: data.fullExchangeName,
+      peRatio: data.trailingPE, // Assuming Yahoo Finance returns this
+      pbRatio: data.priceToBook, // Assuming Yahoo Finance returns this
+      marketCap: data.marketCap, // Assuming Yahoo Finance returns this
       source: newSources
     };
   };

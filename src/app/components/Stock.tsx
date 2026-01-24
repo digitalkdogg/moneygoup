@@ -23,6 +23,9 @@ interface StockData {
   timestamp?: string
   exchange?: string
   error?: string
+  peRatio?: number
+  pbRatio?: number
+  marketCap?: number
 }
 
 interface HistoricalData {
@@ -146,7 +149,13 @@ export default function Stock({ ticker, source, companyName }: { ticker: string;
         const data = await hist_res.json()
         if (data && data.historicalData && Array.isArray(data.historicalData) && data.historicalData.length > 0) {
           setFullHistoricalData(data.historicalData);
-          const calcs = calculateTechnicalIndicators(data.historicalData, news_data)
+          const calcs = calculateTechnicalIndicators(
+            data.historicalData,
+            news_data.articles || [],
+            currentStockData?.peRatio,
+            currentStockData?.pbRatio,
+            currentStockData?.marketCap
+          )
           setIndicators(calcs)
           
           // Calculate volatility from FULL year data
@@ -293,6 +302,24 @@ export default function Stock({ ticker, source, companyName }: { ticker: string;
                   Volume
                 </div>
                 <div className="text-2xl font-bold text-gray-900">{(stockData.volume || 0).toLocaleString()}</div>
+              </div>
+              <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
+                <div className="text-sm font-medium text-gray-700 opacity-80">
+                  PE Ratio
+                </div>
+                <div className="text-2xl font-bold text-gray-900">{stockData.peRatio ? stockData.peRatio.toFixed(2) : 'N/A'}</div>
+              </div>
+              <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
+                <div className="text-sm font-medium text-gray-700 opacity-80">
+                  PB Ratio
+                </div>
+                <div className="text-2xl font-bold text-gray-900">{stockData.pbRatio ? stockData.pbRatio.toFixed(2) : 'N/A'}</div>
+              </div>
+              <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
+                <div className="text-sm font-medium text-gray-700 opacity-80">
+                  Market Cap
+                </div>
+                <div className="text-2xl font-bold text-gray-900">{stockData.marketCap ? `$${(stockData.marketCap / 1_000_000_000).toFixed(2)}B` : 'N/A'}</div>
               </div>
             </div>
           </div>

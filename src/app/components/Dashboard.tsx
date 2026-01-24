@@ -33,6 +33,7 @@ interface TopTechStock {
   regularMarketPrice: number;
   marketCap: number;
   trailingPE?: number; // Make optional as per example console.log
+  priceToBook?: number;
 }
 
 interface UndervaluedLargeCap {
@@ -370,6 +371,7 @@ export default function Dashboard() {
           <EarningsSummary summary={summary} />
 
           <div className="bg-white p-8 rounded-2xl shadow-lg mb-8">
+            <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center"> &#128083; My Watchlist</h2>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
@@ -388,7 +390,7 @@ export default function Dashboard() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {stocks.map((stock) => {
-                    const earnings = stock.lifetimeEarnings;
+                    const earnings = stock.lifetimeEarnings? stock.lifetimeEarnings : 0;
                     const earningsClass = earnings
                       ? earnings > 0 ? 'text-green-600' : 'text-red-600'
                       : 'text-gray-500';
@@ -463,21 +465,34 @@ export default function Dashboard() {
 
           {/* Top Technology Stocks Section */}
           <section className="bg-white p-6 rounded-2xl shadow-lg mb-8">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">🚀 Top Technology Stocks</h2>
+            <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">🔝 Top Technology Stocks</h2>
             {topTechError && <p className="text-red-500 text-sm mb-4 text-center">{topTechError}</p>}
             {topTech.length > 0 ? (
-              <div className="grid grid-cols-1 gap-4">
-                {topTech.map((stock) => (
-                  <Link key={stock.symbol} href={`/search/${stock.symbol}`} className="block">
-                    <div className="bg-gray-50 p-4 rounded-lg hover:bg-gray-100 transition-colors duration-200 grid grid-cols-5 gap-2 items-center">
-                      <p className="text-lg font-semibold text-gray-800">{stock.symbol}</p>
-                      <p className="text-sm text-gray-600">{stock.name}</p>
-                      <p className="text-md text-gray-600">${stock.regularMarketPrice.toFixed(2)}</p>
-                      <p className="text-sm text-gray-600">Market Cap: ${(stock.marketCap / 1e9).toFixed(2)}B</p>
-                      <p className="text-sm text-gray-600">PE Ratio: {stock.trailingPE?.toFixed(2) || 'N/A'}</p>
-                    </div>
-                  </Link>
-                ))}
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Symbol</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company Name</th>
+                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Market Cap</th>
+                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">P/E</th>
+                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">P/B</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {topTech.map((stock) => (
+                      <tr key={stock.symbol} onClick={() => handleRowClick(stock.symbol)} className="hover:bg-gray-50 cursor-pointer group">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{stock.symbol}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stock.name}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">${stock.regularMarketPrice.toFixed(2)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">${(stock.marketCap / 1e9).toFixed(2)}B</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">{stock.trailingPE?.toFixed(2) || 'N/A'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">{stock.priceToBook?.toFixed(2) || 'N/A'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             ) : (
               !topTechError && !loading && <p className="text-gray-600 text-center">No top technology stocks data available.</p>
@@ -489,19 +504,31 @@ export default function Dashboard() {
             <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">💰 Undervalued Large Caps</h2>
             {undervaluedLargeCapsError && <p className="text-red-500 text-sm mb-4 text-center">{undervaluedLargeCapsError}</p>}
             {undervaluedLargeCaps.length > 0 ? (
-              <div className="grid grid-cols-1 gap-4">
-                {undervaluedLargeCaps.map((stock) => (
-                  <Link key={stock.symbol} href={`/search/${stock.symbol}`} className="block">
-                    <div className="bg-gray-50 p-4 rounded-lg hover:bg-gray-100 transition-colors duration-200 grid grid-cols-6 gap-2 items-center">
-                      <p className="text-lg font-semibold text-gray-800">{stock.symbol}</p>
-                      <p className="text-sm text-gray-600">{stock.name}</p>
-                      <p className="text-md text-gray-600">${stock.regularMarketPrice.toFixed(2)}</p>
-                      <p className="text-sm text-gray-600">Market Cap: ${(stock.marketCap / 1e9).toFixed(2)}B</p>
-                      <p className="text-sm text-gray-600">P/E: {stock.trailingPE?.toFixed(2) || 'N/A'}</p>
-                      <p className="text-sm text-gray-600">P/B: {stock.priceToBook?.toFixed(2) || 'N/A'}</p>
-                    </div>
-                  </Link>
-                ))}
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Symbol</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company Name</th>
+                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Market Cap</th>
+                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">P/E</th>
+                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">P/B</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {undervaluedLargeCaps.map((stock) => (
+                      <tr key={stock.symbol} onClick={() => handleRowClick(stock.symbol)} className="hover:bg-gray-50 cursor-pointer group">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{stock.symbol}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stock.name}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">${stock.regularMarketPrice.toFixed(2)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">${(stock.marketCap / 1e9).toFixed(2)}B</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">{stock.trailingPE?.toFixed(2) || 'N/A'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">{stock.priceToBook?.toFixed(2) || 'N/A'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             ) : (
               !undervaluedLargeCapsError && !loading && <p className="text-gray-600 text-center">No undervalued large caps data available.</p>
