@@ -2,33 +2,42 @@ import { NextRequest } from 'next/server'
 import { executeRawQuery, transaction } from '@/utils/databaseHelper'
 import YahooFinance from 'yahoo-finance2';
 import { createErrorResponse } from '@/utils/errorResponse';
+import { secCompanyCache } from '@/utils/cache';
 
 const yahooFinance = new YahooFinance();
 
-let secCompanyDataCache: { [key: string]: { cik_str: number; ticker: string; title: string } } | null = null;
-
 async function fetchCompanyNameFromSec(ticker: string): Promise<string | null> {
-  if (!secCompanyDataCache) {
+  // Check cache first
+  const cachedData = secCompanyCache.get('sec_tickers');
+
+  let secCompanyData = cachedData;
+
+  if (!secCompanyData) {
     try {
       const res = await fetch('https://www.sec.gov/files/company_tickers.json');
       if (!res.ok) {
         console.error('Failed to fetch company_tickers.json from SEC:', res.status, res.statusText);
         return null;
       }
-      const data = await res.json();
-      secCompanyDataCache = data;
+      secCompanyData = await res.json();
+      if (!secCompanyData) {
+        console.error('SEC company_tickers.json is empty or invalid');
+        return null;
+      }
+      // Cache for 24 hours (default for secCompanyCache)
+      secCompanyCache.set('sec_tickers', secCompanyData);
     } catch (error) {
       console.error('Error fetching or parsing company_tickers.json from SEC:', error);
       return null;
     }
   }
 
-  if (secCompanyDataCache) {
+  if (secCompanyData) {
     // The SEC JSON is an object with keys "0", "1", "2", ...
     // Each value is an object { cik_str, ticker, title }
-    for (const key in secCompanyDataCache) {
-      if (secCompanyDataCache.hasOwnProperty(key)) {
-        const company = secCompanyDataCache[key];
+    for (const key in secCompanyData) {
+      if (Object.prototype.hasOwnProperty.call(secCompanyData, key)) {
+        const company = secCompanyData[key];
         if (company.ticker === ticker) {
           return company.title;
         }
