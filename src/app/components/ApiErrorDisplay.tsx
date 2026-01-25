@@ -50,9 +50,9 @@ export default function ApiErrorDisplay({
           </div>
         )}
 
-        <div className="bg-blue-50 border-l-4 border-blue-500 rounded px-4 py-3">
-          <p className="text-sm font-semibold text-blue-900 mb-2">💡 What to do:</p>
-          <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
+        <div className="bg-green-50 border-l-4 border-green-500 rounded px-4 py-3">
+          <p className="text-sm font-semibold text-green-900 mb-2">💡 What to do:</p>
+          <ul className="text-sm text-green-800 space-y-1 list-disc list-inside">
             <li>Check your internet connection</li>
             <li>Verify that your network allows access to Tiingo and 12Data APIs</li>
             <li>If behind a corporate firewall, contact your network administrator</li>
@@ -73,7 +73,7 @@ export default function ApiErrorDisplay({
           {selectedTicker && onRetryHistorical && (
             <button
               onClick={onRetryHistorical}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
+              className="flex-1 bg-green-700 hover:bg-green-800 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
             >
               📊 Retry Historical Data
             </button>

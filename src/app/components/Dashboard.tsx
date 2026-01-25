@@ -429,14 +429,14 @@ export default function Dashboard() {
                               {stock.isOwned ? (
                                 <button
                                   onClick={(e) => handleSellClick(e, stock)}
-                                  className="px-4 py-2 font-semibold text-white bg-gray-400 rounded-lg hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-300 transition-colors duration-200"
+                                  className="px-4 py-2 font-semibold text-white bg-gray-400 rounded-lg hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-300 transition-colors duration-200 cursor-pointer"
                                 >
                                   Sell
                                 </button>
                               ) : (
                                 <button
                                   onClick={(e) => handlePurchaseClick(e, stock)}
-                                  className="px-4 py-2 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                                  className="px-4 py-2 font-semibold text-white bg-green-700 rounded-lg hover:bg-green-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600 transition-colors duration-200 cursor-pointer"
                                 >
                                   Purchase
                                 </button>
@@ -552,7 +552,7 @@ export default function Dashboard() {
                   id="shares"
                   value={shares}
                   onChange={(e) => setShares(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-green-600 focus:border-green-600"
                   placeholder="e.g., 10"
                   required
                   step="any"
@@ -566,7 +566,7 @@ export default function Dashboard() {
                   id="purchasePrice"
                   value={purchasePrice}
                   onChange={(e) => setPurchasePrice(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-green-600 focus:border-green-600"
                   placeholder={`Current price: $${selectedStockForPurchase.price?.toFixed(2)}`}
                   required
                   step="any"
@@ -580,14 +580,14 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={handleClosePurchaseModal}
-                  className="px-6 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+                  className="px-6 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors cursor-pointer"
                   disabled={isSubmittingPurchase}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400 transition-colors"
+                  className="px-6 py-2 text-white bg-green-700 rounded-lg hover:bg-green-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600 disabled:bg-gray-400 transition-colors cursor-pointer"
                   disabled={isSubmittingPurchase || !shares || !purchasePrice}
                 >
                   {isSubmittingPurchase ? 'Purchasing...' : 'Confirm Purchase'}
@@ -611,18 +611,17 @@ export default function Dashboard() {
             {sellSuccess && <p className="text-green-500 text-sm mb-4">{sellSuccess}</p>}
 
             <div className="flex justify-end space-x-4">
-              <button
-                type="button"
-                onClick={handleCloseSellModal}
-                className="px-6 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
-                disabled={isSubmittingSell}
-              >
-                Cancel
-              </button>
-              <button
+                              <button
+                                type="button"
+                                onClick={handleCloseSellModal}
+                                className="px-6 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors cursor-pointer"
+                                disabled={isSubmittingSell}
+                              >
+                                Cancel
+                              </button>              <button
                 type="button"
                 onClick={handleConfirmSell}
-                className="px-6 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:bg-gray-400 transition-colors"
+                className="px-6 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:bg-gray-400 transition-colors cursor-pointer"
                 disabled={isSubmittingSell}
               >
                 {isSubmittingSell ? 'Selling...' : 'Confirm Sell'}
@@ -646,22 +645,21 @@ export default function Dashboard() {
             {removeSuccess && <p className="text-green-500 text-sm mb-4">{removeSuccess}</p>}
 
             <div className="flex justify-end space-x-4">
-              <button
-                type="button"
-                onClick={handleCloseRemoveModal}
-                className="px-6 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
-                disabled={isSubmittingRemove}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmRemove}
-                className="px-6 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:bg-gray-400 transition-colors"
-                disabled={isSubmittingRemove}
-              >
-                {isSubmittingRemove ? 'Removing...' : 'Confirm Remove'}
-              </button>
+                              <button
+                                type="button"
+                                onClick={handleCloseRemoveModal}
+                                className="px-6 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors cursor-pointer"
+                                disabled={isSubmittingRemove}
+                              >
+                                Cancel
+                              </button>                <button
+                  type="button"
+                  onClick={handleConfirmRemove}
+                  className="px-6 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:bg-gray-400 transition-colors cursor-pointer"
+                  disabled={isSubmittingRemove}
+                >
+                  {isSubmittingRemove ? 'Removing...' : 'Confirm Remove'}
+                </button>
             </div>
           </div>
         </div>

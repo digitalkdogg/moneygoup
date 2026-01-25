@@ -1,8 +1,9 @@
-// src/app/api/user/stocks/[stock_id]/route.ts
 import { NextResponse } from 'next/server';
 import { remove } from '@/utils/databaseHelper';
 import { createErrorResponse } from '@/utils/errorResponse';
 import { createLogger } from '@/utils/logger';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '../../../auth/[...nextauth]/route'; // Adjust path for nested folder
 
 const logger = createLogger('api/user/stocks/[stock_id]');
 
@@ -10,6 +11,12 @@ export async function DELETE(
   request: Request,
   { params }: { params: { stock_id: string } }
 ) {
+  const session = await getServerSession(authOptions);
+
+  if (!session) {
+    return new NextResponse(JSON.stringify({ message: 'Unauthorized' }), { status: 401 });
+  }
+
   try {
     const stockId = params.stock_id;
 
@@ -19,8 +26,7 @@ export async function DELETE(
       return createErrorResponse('Invalid stock ID', 400);
     }
 
-    // For now, we'll hardcode the user_id to 1 as there is no auth system
-    const userId = 1;
+    const userId = session.user.id;
     
     const affectedRows = await remove('user_stocks', { user_id: userId, stock_id: parsedId });
 

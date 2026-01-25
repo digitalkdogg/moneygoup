@@ -269,12 +269,12 @@ export default function Stock({ ticker, source, companyName }: { ticker: string;
                 <button
                   onClick={addToWatchlist}
                   disabled={addingToWatchlist || !!watchlistSuccess}
-                  className={`font-bold py-2 px-4 rounded-lg mb-4 ${
+                  className={`font-bold py-2 px-4 rounded-lg mb-4 cursor-pointer ${
                     addingToWatchlist
-                      ? 'bg-blue-400 cursor-not-allowed'
+                      ? 'bg-blue-400 cursor-not-allowed' // This is for `addingToWatchlist` state, keep as is
                       : watchlistSuccess
-                      ? 'bg-green-500 cursor-not-allowed'
-                      : 'bg-blue-600 hover:bg-blue-700'
+                      ? 'bg-green-500 cursor-not-allowed' // This is for `watchlistSuccess` state, keep as is
+                      : 'bg-green-700 hover:bg-green-800'
                   } text-white`}
                 >
                   {addingToWatchlist ? 'Adding...' : watchlistSuccess || 'Add to Watchlist'}

@@ -1,12 +1,19 @@
-// src/app/api/user/stocks/route.ts
 import { NextResponse } from 'next/server';
 import { executeRawQuery } from '@/utils/databaseHelper';
 import { createErrorResponse } from '@/utils/errorResponse';
 import { createLogger } from '@/utils/logger';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '../../auth/[...nextauth]/route';
 
 const logger = createLogger('api/user/stocks');
 
 export async function POST(request: Request) {
+  const session = await getServerSession(authOptions);
+
+  if (!session) {
+    return new NextResponse(JSON.stringify({ message: 'Unauthorized' }), { status: 401 });
+  }
+
   try {
     const { stock_id, shares, purchase_price } = await request.json();
 
@@ -15,8 +22,7 @@ export async function POST(request: Request) {
       return createErrorResponse('Missing required fields', 400);
     }
     
-    // For now, we'll hardcode the user_id to 1 as there is no auth system
-    const userId = 1;
+    const userId = session.user.id;
     const isPurchased = 1;
     
     const query = `

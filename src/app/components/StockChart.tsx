@@ -90,9 +90,9 @@ export default function StockChart({ ticker, historicalData }: StockChartProps) 
             <button
               key={p}
               onClick={() => handlePeriodChange(p)}
-              className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors duration-200 ${
+              className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors duration-200 cursor-pointer ${
                 period === p
-                  ? 'bg-blue-600 text-white shadow'
+                  ? 'bg-green-700 text-white shadow'
                   : 'text-gray-600 hover:bg-gray-200'
               }`}
             >
@@ -149,7 +149,7 @@ export default function StockChart({ ticker, historicalData }: StockChartProps) 
                 <Line 
                     type="monotone" 
                     dataKey="close" 
-                    stroke="#3b82f6" 
+                    stroke="#16a34a" 
                     strokeWidth={2}
                     dot={false}
                     activeDot={{ r: 6, strokeWidth: 2, fill: '#fff' }}

@@ -8,5 +8,13 @@ module.exports = {
   theme: {
     extend: {},
   },
-  plugins: [],
+  plugins: [
+    function ({ addBase }) {
+      addBase({
+        "button": {
+          "cursor": "pointer",
+        },
+      });
+    },
+  ],
 }

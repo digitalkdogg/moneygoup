@@ -1,4 +1,5 @@
-// src/app/api/dashboard/route.ts
+import { getServerSession } from 'next-auth';
+import { authOptions } from '../auth/[...nextauth]/route';
 import { createLogger } from '@/utils/logger';
 import { NextResponse } from 'next/server';
 import { executeRawQuery } from '@/utils/databaseHelper';
@@ -17,9 +18,14 @@ interface DailyPriceRow {
 const logger = createLogger('api/dashboard');
 
 export async function GET() {
+  const session = await getServerSession(authOptions);
+
+  if (!session) {
+    return new NextResponse(JSON.stringify({ message: 'Unauthorized' }), { status: 401 });
+  }
+  
   try {
-    // For now, we'll hardcode the user_id to 1 as there is no auth system
-    const userId = 1;
+    const userId = session.user.id; // Use authenticated user's ID
 
     // 1. Fetch all stocks with an is_owned flag
     const [stocksResult] = await executeRawQuery(`
