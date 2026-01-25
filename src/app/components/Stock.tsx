@@ -8,6 +8,9 @@ import ApiErrorDisplay, { ApiError } from './ApiErrorDisplay'
 import TechnicalIndicatorsDisplay from './TechnicalIndicatorsDisplay'
 import StockChart from './StockChart'
 import StockNews from './StockNews'
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('components/Stock');
 
 interface StockData {
   symbol?: string
@@ -89,7 +92,7 @@ export default function Stock({ ticker, source, companyName }: { ticker: string;
           finalSource = 'dashboard';
         }
       } else {
-        console.error('Failed to fetch watchlist for stock check.');
+        logger.error('Failed to fetch watchlist for stock check.');
         setIsStockOnWatchlist(false); // Assume not on watchlist if check fails
       }
 
@@ -116,7 +119,7 @@ export default function Stock({ ticker, source, companyName }: { ticker: string;
           };
         }
       } catch (genericErr) {
-        console.error(`Generic API network error for ${ticker}:`, genericErr);
+        logger.error(`Generic API network error for ${ticker}:`, genericErr);
         currentApiError = {
           type: 'stock',
           ticker: ticker,

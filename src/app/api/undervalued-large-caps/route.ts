@@ -1,8 +1,9 @@
+import { createLogger } from '@/utils/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import YahooFinance from 'yahoo-finance2';
 
+const logger = createLogger('api/undervalued-large-caps');
 const yahooFinance = new YahooFinance();
-
 export async function GET(request: NextRequest) {
   try {
     const undervalued = await yahooFinance.screener("undervalued_large_caps");
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(undervaluedLargeCapsStocks);
   } catch (error) {
-    console.error('Error fetching undervalued large caps:', error);
+    logger.error('Error fetching undervalued large caps:', error instanceof Error ? error : String(error));
     return NextResponse.json(
       { error: 'Failed to fetch undervalued large caps', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

@@ -2,6 +2,9 @@
 import { NextResponse } from 'next/server';
 import { remove } from '@/utils/databaseHelper';
 import { createErrorResponse } from '@/utils/errorResponse';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('api/user/stocks/[stock_id]');
 
 export async function DELETE(
   request: Request,
@@ -28,7 +31,7 @@ export async function DELETE(
     return NextResponse.json({ message: 'Stock sold successfully' }, { status: 200 });
 
   } catch (error: any) {
-    console.error("Failed to sell stock:", error);
+    logger.error("Failed to sell stock:", error);
     return createErrorResponse('Failed to sell stock', 500);
   }
 }

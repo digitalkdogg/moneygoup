@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import YahooFinance from 'yahoo-finance2';
+import { createLogger } from '@/utils/logger';
 
 const yahooFinance = new YahooFinance();
+const logger = createLogger('api/top-tech');
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,7 +23,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(topTechStocks);
   } catch (error) {
-    console.error('Error fetching growth technology stocks:', error);
+    logger.error('Error fetching growth technology stocks:', error);
     return NextResponse.json(
       { error: 'Failed to fetch top technology stocks', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

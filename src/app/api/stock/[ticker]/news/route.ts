@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { XMLParser } from 'fast-xml-parser';
 import Sentiment from 'sentiment';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('api/stock/[ticker]/news');
 
 export async function GET(
   request: NextRequest,
@@ -43,7 +46,7 @@ export async function GET(
     return NextResponse.json({ articles, source: ['Yahoo Finance'] });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Error fetching news:', errorMessage);
+    logger.error('Error fetching news:', error instanceof Error ? error : String(error));
     return NextResponse.json(
       {
         error: 'Failed to fetch or parse news feed'

@@ -1,4 +1,5 @@
 // src/app/api/dashboard/route.ts
+import { createLogger } from '@/utils/logger';
 import { NextResponse } from 'next/server';
 import { executeRawQuery } from '@/utils/databaseHelper';
 import { calculateTechnicalIndicators, HistoricalData } from '@/utils/technicalIndicators';
@@ -13,6 +14,7 @@ interface DailyPriceRow {
   high: string;
   low: string;
 }
+const logger = createLogger('api/dashboard');
 
 export async function GET() {
   try {
@@ -186,7 +188,7 @@ export async function GET() {
     return NextResponse.json({ stocks: data, summary });
 
   } catch (error: any) {
-    console.error("Failed to fetch dashboard data:", error);
+    logger.error("Failed to fetch dashboard data.", error);
     return createErrorResponse(error, 500);
   }
 }

@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('components/Search');
 
 interface Ticker {
   name: string
@@ -25,7 +28,7 @@ export default function Search() {
         }))
         setTickers(list)
       })
-      .catch(err => console.error('Failed to fetch tickers', err))
+      .catch(err => logger.error('Failed to fetch tickers', err))
   }, [])
 
   // Filter tickers as user types

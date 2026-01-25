@@ -3,6 +3,9 @@ import { validate } from '@/utils/validation';
 import { addStockSchema, AddStockInput } from './schema';
 import { insert } from '@/utils/databaseHelper';
 import { createErrorResponse } from '@/utils/errorResponse';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('api/stock/add');
 
 export const POST = validate(addStockSchema)(
   async (request: NextRequest, data: AddStockInput) => {
@@ -23,7 +26,7 @@ export const POST = validate(addStockSchema)(
         { status: 201 }
       );
     } catch (dbError: any) {
-      console.error('Database error:', dbError);
+      logger.error('Database error:', dbError);
       return createErrorResponse(dbError, 500);
     }
   }

@@ -2,6 +2,9 @@
 import { NextResponse } from 'next/server';
 import { executeRawQuery } from '@/utils/databaseHelper';
 import { createErrorResponse } from '@/utils/errorResponse';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('api/user/stocks');
 
 export async function POST(request: Request) {
   try {
@@ -29,7 +32,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'Stock purchased successfully' }, { status: 201 });
 
   } catch (error: any) {
-    console.error("Failed to purchase stock:", error);
+    logger.error("Failed to purchase stock:", error);
     return createErrorResponse(error, 500);
   }
 }
