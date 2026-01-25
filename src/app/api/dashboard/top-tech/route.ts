@@ -3,7 +3,7 @@ import YahooFinance from 'yahoo-finance2';
 import { createLogger } from '@/utils/logger';
 
 const yahooFinance = new YahooFinance();
-const logger = createLogger('api/top-tech');
+const logger = createLogger('api/dashboard/top-tech');
 
 export async function GET(request: NextRequest) {
   try {

@@ -137,7 +137,7 @@ export default function Dashboard() {
   const fetchTopTech = async () => {
     setTopTechError(null);
     try {
-      const res = await fetch('/api/top-tech');
+      const res = await fetch('/api/dashboard/top-tech');
       if (!res.ok) {
         throw new Error('Failed to fetch top technology stocks');
       }
@@ -151,7 +151,7 @@ export default function Dashboard() {
   const fetchUndervaluedLargeCaps = async () => {
     setUndervaluedLargeCapsError(null);
     try {
-      const res = await fetch('/api/undervalued-large-caps');
+      const res = await fetch('/api/dashboard/undervalued-large-caps');
       if (!res.ok) {
         throw new Error('Failed to fetch undervalued large caps');
       }

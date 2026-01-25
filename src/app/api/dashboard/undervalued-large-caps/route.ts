@@ -2,7 +2,7 @@ import { createLogger } from '@/utils/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import YahooFinance from 'yahoo-finance2';
 
-const logger = createLogger('api/undervalued-large-caps');
+const logger = createLogger('api/dashboard/undervalued-large-caps');
 const yahooFinance = new YahooFinance();
 export async function GET(request: NextRequest) {
   try {
