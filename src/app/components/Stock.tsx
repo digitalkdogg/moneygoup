@@ -199,7 +199,7 @@ export default function Stock({ ticker, source, companyName }: { ticker: string;
     setWatchlistSuccess(null);
     setWatchlistError(null);
     try {
-      const response = await fetch('/api/stock/add', {
+      const response = await fetch('/api/user/watchlist', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validate } from '@/utils/validation';
-import { addStockSchema, AddStockInput } from './schema';
+import { addStockSchema, AddStockInput } from '@/app/api/user/watchlist/schema';
 import { insert } from '@/utils/databaseHelper';
 import { createErrorResponse } from '@/utils/errorResponse';
 import { createLogger } from '@/utils/logger';
 
-const logger = createLogger('api/stock/add');
+const logger = createLogger('api/user/watchlist');
 
 export const POST = validate(addStockSchema)(
   async (request: NextRequest, data: AddStockInput) => {
