@@ -83,7 +83,7 @@ export default function StockChart({ ticker, historicalData }: StockChartProps) 
     <div className="bg-white p-4 md:p-6 rounded-2xl shadow-lg hover:shadow-2xl transition-shadow duration-300 ease-in-out">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl md:text-2xl font-bold text-gray-800">
-          Price History ({period.replace('w', ' Week').replace('m', ' Month').replace('y', ' Year')})
+          📈 Price History ({period.replace('w', ' Week').replace('m', ' Month').replace('y', ' Year')})
         </h2>
         <div className="flex space-x-1 md:space-x-2 rounded-lg bg-gray-100 p-1">
           {(['1w', '1m', '6m', '1y'] as Period[]).map((p) => (
