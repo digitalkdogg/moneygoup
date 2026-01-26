@@ -42,13 +42,13 @@ export async function GET() {
             s.pb_ratio,
             s.market_cap,
             latest_price.close AS current_price,
-            COALESCE(us.shares, 0) AS shares,
-            COALESCE(us.purchase_price, 0) AS purchase_price,
-            CASE WHEN us.is_purchased = TRUE THEN TRUE ELSE FALSE END AS is_owned,
+            us.shares,
+            us.purchase_price,
+            us.is_purchased AS is_owned,
             prev_price.close AS prev_close_price,
             (latest_price.close - prev_price.close) AS daily_change
-        FROM stocks s
-        INNER JOIN user_stocks us ON s.id = us.stock_id AND us.user_id = ?
+        FROM user_stocks us
+        JOIN stocks s ON us.stock_id = s.id
         LEFT JOIN stocksdailyprice latest_price ON latest_price.stock_id = s.id
             AND latest_price.date = (
                 SELECT MAX(date)
@@ -65,6 +65,7 @@ export async function GET() {
                     WHERE stock_id = s.id AND date <= CURDATE()
                 )
             )
+        WHERE us.user_id = ?
         ORDER BY s.symbol;
     `, [userId]);
     let stocks = stocksResult as any[];
@@ -83,8 +84,9 @@ export async function GET() {
     const [pricesResult] = await executeRawQuery(`
         SELECT stock_id, date, \`close\`, volume, \`open\`, \`high\`, \`low\`
         FROM stocksdailyprice
+        WHERE stock_id IN (SELECT stock_id FROM user_stocks WHERE user_id = ?)
         ORDER BY stock_id, date ASC;
-    `);
+    `, [userId]);
     const dailyPrices = pricesResult as DailyPriceRow[];
 
     // 3. Fetch news data for the user's stocks
