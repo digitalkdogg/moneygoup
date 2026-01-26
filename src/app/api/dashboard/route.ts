@@ -41,20 +41,14 @@ export async function GET() {
             s.pe_ratio,
             s.pb_ratio,
             s.market_cap,
-            latest_price.close AS current_price,
+            s.price AS current_price,
             us.shares,
             us.purchase_price,
             us.is_purchased AS is_owned,
             prev_price.close AS prev_close_price,
-            (latest_price.close - prev_price.close) AS daily_change
+            (s.price - prev_price.close) AS daily_change
         FROM user_stocks us
         JOIN stocks s ON us.stock_id = s.id
-        LEFT JOIN stocksdailyprice latest_price ON latest_price.stock_id = s.id
-            AND latest_price.date = (
-                SELECT MAX(date)
-                FROM stocksdailyprice
-                WHERE stock_id = s.id AND date <= CURDATE()
-            )
         LEFT JOIN stocksdailyprice prev_price ON prev_price.stock_id = s.id
             AND prev_price.date = (
                 SELECT MAX(date)

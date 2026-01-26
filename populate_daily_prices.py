@@ -297,19 +297,29 @@ def main():
 
         print(f"\nProcessing data for {symbol} ({company_name})...")
 
+        # --- Process Real-time Price from Next.js API ---
+        try:
+            nextjs_api_url = f"http://localhost:3001/api/stock/quote/{symbol}"
+            print(f"Fetching real-time price from Next.js API: {nextjs_api_url}")
+            response = requests.get(nextjs_api_url)
+            response.raise_for_status() # Raise an exception for HTTP errors
+            quote_data = response.json()
+            realtime_price = quote_data.get('price')
+
+            if realtime_price is not None:
+                update_stock_price(db_connection, stock_id, realtime_price)
+            else:
+                print(f"No real-time price found in Next.js API response for {symbol}.")
+
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching real-time price from Next.js API for {symbol}: {e}")
+        except Exception as e:
+            print(f"An unexpected error occurred while processing real-time price for {symbol}: {e}")
+
         # --- Process Historical Prices ---
         historical_data = fetch_historical_data(symbol)
         if historical_data is not None and len(historical_data) > 0:
             upsert_daily_prices(db_connection, stock_id, historical_data)
-            
-            # Update the stock price with the most recent close price from historical data
-            latest_price = historical_data[-1].get('close')
-            if latest_price is not None:
-                update_stock_price(db_connection, stock_id, latest_price)
-        elif historical_data and 'error' in historical_data:
-            print(f"API returned an error for {symbol}: {historical_data['error']}")
-        else:
-            print(f"No historical data returned for {symbol}.")
         
         # --- Process News ---
         print(f"Processing news for {symbol} ({company_name})...")
