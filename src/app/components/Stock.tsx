@@ -73,41 +73,39 @@ export default function Stock({
   const router = useRouter()
 
   const fetchStockData = async (ticker: string) => {
-    setLoading(true)
-    setStockData(null)
-    setIndicators(null)
-    setApiError(null)
-    setVolatilityRating(null)
-    setNews([])
-    setFullHistoricalData(null)
-    setWatchlistSuccess(null)
-    setWatchlistError(null)
+    setLoading(true);
+    setStockData(null);
+    setIndicators(null);
+    setApiError(null);
+    setVolatilityRating(null);
+    setNews([]);
+    setFullHistoricalData(null);
+    setWatchlistSuccess(null);
+    setWatchlistError(null);
 
     try {
-      let finalSource = source
-
-      const watchlistRes = await fetch('/api/dashboard')
-      if (watchlistRes.ok) {
-        const watchlistData = await watchlistRes.json()
-        const found = watchlistData.stocks.some(
+      // 1. Check if stock is on user's watchlist
+      const watchlistCheckRes = await fetch('/api/user/watchlist');
+      if (watchlistCheckRes.ok) {
+        const watchlistData = await watchlistCheckRes.json();
+        const found = watchlistData.watchlist.some(
           (item: any) => item.symbol === ticker
-        )
-        setIsStockOnWatchlist(found)
-        if (found) finalSource = 'dashboard'
+        );
+        setIsStockOnWatchlist(found);
       } else {
-        logger.error('Failed to fetch watchlist for stock check.')
-        setIsStockOnWatchlist(false)
+        logger.error('Failed to fetch user watchlist for stock check.');
+        setIsStockOnWatchlist(false);
       }
 
-      let currentStockData: StockData | null = null
-      let currentApiError: ApiError | null = null
+      let currentStockData: StockData | null = null;
+      let currentApiError: ApiError | null = null;
 
       try {
-        const genericRes = await fetch(`/api/stock/${ticker}`)
+        const genericRes = await fetch(`/api/stock/${ticker}`);
         if (genericRes.ok) {
-          currentStockData = await genericRes.json()
+          currentStockData = await genericRes.json();
         } else {
-          const genericErrorData = await genericRes.json()
+          const genericErrorData = await genericRes.json();
           currentApiError = {
             type: 'stock',
             ticker,
@@ -115,43 +113,40 @@ export default function Stock({
               genericErrorData.error ||
               'Failed to fetch stock data from generic API',
             details: genericErrorData.details,
-            failedServices: genericErrorData.failedServices
-          }
+            failedServices: genericErrorData.failedServices,
+          };
         }
       } catch (genericErr: unknown) {
         const err =
           genericErr instanceof Error
             ? genericErr
-            : new Error(String(genericErr))
+            : new Error(String(genericErr));
 
-        logger.error(`Generic API network error for ${ticker}:`, err)
+        logger.error(`Generic API network error for ${ticker}:`, err);
 
         currentApiError = {
           type: 'stock',
           ticker,
           message: 'Network error while fetching stock data',
           details: err.message,
-          failedServices: ['Yahoo']
-        }
+          failedServices: ['Yahoo'],
+        };
       }
 
-      setStockData(currentStockData)
-      setApiError(currentApiError)
+      setStockData(currentStockData);
+      setApiError(currentApiError);
 
-      const newsRes = await fetch(`/api/stock/${ticker}/news`)
-      const newsData = newsRes.ok ? await newsRes.json() : {}
-      setNews(Array.isArray(newsData.articles) ? newsData.articles : [])
+      const newsRes = await fetch(`/api/stock/${ticker}/news`);
+      const newsData = newsRes.ok ? await newsRes.json() : {};
+      setNews(Array.isArray(newsData.articles) ? newsData.articles : []);
 
-      const histUrl =
-        finalSource === 'dashboard'
-          ? `/api/stock/${ticker}/historical/1Y?source=dashboard`
-          : `/api/stock/${ticker}/historical/1Y`
+      const histUrl = `/api/stock/${ticker}/historical/1Y`; // Watchlist status no longer dictates historical data source
 
-      const histRes = await fetch(histUrl)
+      const histRes = await fetch(histUrl);
       if (histRes.ok) {
-        const data = await histRes.json()
+        const data = await histRes.json();
         if (Array.isArray(data.historicalData) && data.historicalData.length) {
-          setFullHistoricalData(data.historicalData)
+          setFullHistoricalData(data.historicalData);
 
           setIndicators(
             calculateTechnicalIndicators(
@@ -161,31 +156,31 @@ export default function Stock({
               currentStockData?.pbRatio,
               currentStockData?.marketCap
             )
-          )
+          );
 
-          const vol = calculateAnnualizedVolatility(data.historicalData)
-          setVolatilityRating(getVolatilityRating(vol))
+          const vol = calculateAnnualizedVolatility(data.historicalData);
+          setVolatilityRating(getVolatilityRating(vol));
         }
       }
     } catch (err: unknown) {
       const error =
-        err instanceof Error ? err : new Error('Network connection failed')
+        err instanceof Error ? err : new Error('Network connection failed');
 
-      logger.error('Stock fetch failed:', error)
+      logger.error('Stock fetch failed:', error);
 
       setApiError({
         type: 'stock',
         ticker,
         message: 'Network error while fetching stock data',
         details: error.message,
-        failedServices: ['Yahoo']
-      })
+        failedServices: ['Yahoo'],
+      });
 
-      setStockData({ error: 'Network error. Please check your connection.' })
+      setStockData({ error: 'Network error. Please check your connection.' });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   useEffect(() => {
     if (ticker) fetchStockData(ticker)
@@ -202,20 +197,25 @@ export default function Stock({
     setWatchlistError(null);
 
     try {
-      const url = isStockOnWatchlist ? `/api/user/watchlist?stockId=${stockData?.symbol}` : '/api/user/watchlist';
-      const method = isStockOnWatchlist ? 'DELETE' : 'POST';
-
-      const res = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: isStockOnWatchlist ? undefined : JSON.stringify({
-          symbol: ticker,
-          companyName: companyName || stockData?.name || ticker,
-          // You might want to pass other relevant stock data here if needed for watchlist entry
-        }),
-      });
+      let res;
+      if (isStockOnWatchlist) {
+        // Remove from watchlist
+        res = await fetch(`/api/user/watchlist?stockId=${ticker}`, {
+          method: 'DELETE',
+        });
+      } else {
+        // Add to watchlist
+        res = await fetch('/api/user/watchlist', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ticker: ticker,
+            name: companyName || stockData?.name || ticker, // Use companyName if available, otherwise stockData.name or ticker
+          }),
+        });
+      }
 
       const data = await res.json();
 

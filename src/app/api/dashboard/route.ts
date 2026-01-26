@@ -48,7 +48,7 @@ export async function GET() {
             prev_price.close AS prev_close_price,
             (latest_price.close - prev_price.close) AS daily_change
         FROM stocks s
-        LEFT JOIN user_stocks us ON s.id = us.stock_id AND us.user_id = ?
+        INNER JOIN user_stocks us ON s.id = us.stock_id AND us.user_id = ?
         LEFT JOIN stocksdailyprice latest_price ON latest_price.stock_id = s.id
             AND latest_price.date = (
                 SELECT MAX(date)
