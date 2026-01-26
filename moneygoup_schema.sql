@@ -32,7 +32,7 @@ CREATE TABLE `news` (
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `link` (`link`)
-) ENGINE=InnoDB AUTO_INCREMENT=434 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=494 DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -41,7 +41,7 @@ CREATE TABLE `news` (
 
 LOCK TABLES `news` WRITE;
 /*!40000 ALTER TABLE `news` DISABLE KEYS */;
-INSERT INTO `news` VALUES (170,'Walmart Inc. (S: WMT) reports strong earnings, stock soars!','http://example.com/news/WMT/0','2026-01-24 20:03:45','MockNewsProvider',0.54,'2026-01-25 02:03:45'),(171,'Analysts downgrade Walmart Inc. (S: WMT) amid market uncertainty.','http://example.com/news/WMT/1','2026-01-23 20:03:45','MockNewsProvider',0.00,'2026-01-25 02:03:45'),(172,'Walmart Inc. (S: WMT) unveils new product line.','http://example.com/news/WMT/2','2026-01-22 20:03:45','MockNewsProvider',0.14,'2026-01-25 02:03:45'),(173,'Major partnership announced for Walmart Inc. (S: WMT).','http://example.com/news/WMT/3','2026-01-21 20:03:45','MockNewsProvider',0.06,'2026-01-25 02:03:45'),(174,'Walmart Inc. (S: WMT) faces regulatory challenges.','http://example.com/news/WMT/4','2026-01-20 20:03:45','MockNewsProvider',0.00,'2026-01-25 02:03:45'),(175,'Stock split for Walmart Inc. (S: WMT) expected next quarter.','http://example.com/news/WMT/5','2026-01-19 20:03:45','MockNewsProvider',-0.05,'2026-01-25 02:03:45'),(176,'CIENA CORP (S: CIEN) reports strong earnings, stock soars!','http://example.com/news/CIEN/0','2026-01-24 20:03:45','MockNewsProvider',0.54,'2026-01-25 02:03:45'),(177,'Analysts downgrade CIENA CORP (S: CIEN) amid market uncertainty.','http://example.com/news/CIEN/1','2026-01-23 20:03:45','MockNewsProvider',0.00,'2026-01-25 02:03:45'),(178,'CIENA CORP (S: CIEN) unveils new product line.','http://example.com/news/CIEN/2','2026-01-22 20:03:45','MockNewsProvider',0.14,'2026-01-25 02:03:45'),(179,'Major partnership announced for CIENA CORP (S: CIEN).','http://example.com/news/CIEN/3','2026-01-21 20:03:45','MockNewsProvider',0.06,'2026-01-25 02:03:45'),(180,'CIENA CORP (S: CIEN) faces regulatory challenges.','http://example.com/news/CIEN/4','2026-01-20 20:03:45','MockNewsProvider',0.00,'2026-01-25 02:03:45'),(181,'Stock split for CIENA CORP (S: CIEN) expected next quarter.','http://example.com/news/CIEN/5','2026-01-19 20:03:45','MockNewsProvider',-0.05,'2026-01-25 02:03:45'),(182,'Vale S.A. (S: VALE) reports strong earnings, stock soars!','http://example.com/news/VALE/0','2026-01-24 20:03:45','MockNewsProvider',0.54,'2026-01-25 02:03:45'),(183,'Analysts downgrade Vale S.A. (S: VALE) amid market uncertainty.','http://example.com/news/VALE/1','2026-01-23 20:03:45','MockNewsProvider',0.00,'2026-01-25 02:03:45'),(184,'Vale S.A. (S: VALE) unveils new product line.','http://example.com/news/VALE/2','2026-01-22 20:03:45','MockNewsProvider',0.14,'2026-01-25 02:03:45'),(185,'Major partnership announced for Vale S.A. (S: VALE).','http://example.com/news/VALE/3','2026-01-21 20:03:45','MockNewsProvider',0.06,'2026-01-25 02:03:45'),(186,'Vale S.A. (S: VALE) faces regulatory challenges.','http://example.com/news/VALE/4','2026-01-20 20:03:45','MockNewsProvider',0.00,'2026-01-25 02:03:45'),(187,'Stock split for Vale S.A. (S: VALE) expected next quarter.','http://example.com/news/VALE/5','2026-01-19 20:03:45','MockNewsProvider',-0.05,'2026-01-25 02:03:45'),(188,'AST SpaceMobile, Inc. (S: ASTS) reports strong earnings, stock soars!','http://example.com/news/ASTS/0','2026-01-24 20:03:45','MockNewsProvider',0.54,'2026-01-25 02:03:45'),(189,'Analysts downgrade AST SpaceMobile, Inc. (S: ASTS) amid market uncertainty.','http://example.com/news/ASTS/1','2026-01-23 20:03:45','MockNewsProvider',0.00,'2026-01-25 02:03:45'),(190,'AST SpaceMobile, Inc. (S: ASTS) unveils new product line.','http://example.com/news/ASTS/2','2026-01-22 20:03:45','MockNewsProvider',0.14,'2026-01-25 02:03:45'),(191,'Major partnership announced for AST SpaceMobile, Inc. (S: ASTS).','http://example.com/news/ASTS/3','2026-01-21 20:03:45','MockNewsProvider',0.06,'2026-01-25 02:03:45'),(192,'AST SpaceMobile, Inc. (S: ASTS) faces regulatory challenges.','http://example.com/news/ASTS/4','2026-01-20 20:03:45','MockNewsProvider',0.00,'2026-01-25 02:03:45'),(193,'Stock split for AST SpaceMobile, Inc. (S: ASTS) expected next quarter.','http://example.com/news/ASTS/5','2026-01-19 20:03:45','MockNewsProvider',-0.05,'2026-01-25 02:03:45'),(218,'iShares Silver Trust (S: SLV) reports strong earnings, stock soars!','http://example.com/news/SLV/0','2026-01-24 20:03:45','MockNewsProvider',0.54,'2026-01-25 02:03:45'),(219,'Analysts downgrade iShares Silver Trust (S: SLV) amid market uncertainty.','http://example.com/news/SLV/1','2026-01-23 20:03:45','MockNewsProvider',0.00,'2026-01-25 02:03:45'),(220,'iShares Silver Trust (S: SLV) unveils new product line.','http://example.com/news/SLV/2','2026-01-22 20:03:45','MockNewsProvider',0.14,'2026-01-25 02:03:45'),(221,'Major partnership announced for iShares Silver Trust (S: SLV).','http://example.com/news/SLV/3','2026-01-21 20:03:45','MockNewsProvider',0.06,'2026-01-25 02:03:45'),(222,'iShares Silver Trust (S: SLV) faces regulatory challenges.','http://example.com/news/SLV/4','2026-01-20 20:03:45','MockNewsProvider',0.00,'2026-01-25 02:03:45'),(223,'Stock split for iShares Silver Trust (S: SLV) expected next quarter.','http://example.com/news/SLV/5','2026-01-19 20:03:45','MockNewsProvider',-0.05,'2026-01-25 02:03:45');
+INSERT INTO `news` VALUES (170,'Walmart Inc. (S: WMT) reports strong earnings, stock soars!','http://example.com/news/WMT/0','2026-01-26 09:41:35','MockNewsProvider',0.54,'2026-01-26 15:41:35'),(171,'Analysts downgrade Walmart Inc. (S: WMT) amid market uncertainty.','http://example.com/news/WMT/1','2026-01-25 09:41:35','MockNewsProvider',0.00,'2026-01-26 15:41:35'),(172,'Walmart Inc. (S: WMT) unveils new product line.','http://example.com/news/WMT/2','2026-01-24 09:41:35','MockNewsProvider',0.14,'2026-01-26 15:41:35'),(173,'Major partnership announced for Walmart Inc. (S: WMT).','http://example.com/news/WMT/3','2026-01-23 09:41:35','MockNewsProvider',0.06,'2026-01-26 15:41:35'),(174,'Walmart Inc. (S: WMT) faces regulatory challenges.','http://example.com/news/WMT/4','2026-01-22 09:41:35','MockNewsProvider',0.00,'2026-01-26 15:41:35'),(175,'Stock split for Walmart Inc. (S: WMT) expected next quarter.','http://example.com/news/WMT/5','2026-01-21 09:41:35','MockNewsProvider',-0.05,'2026-01-26 15:41:35'),(176,'CIENA CORP (S: CIEN) reports strong earnings, stock soars!','http://example.com/news/CIEN/0','2026-01-26 09:41:35','MockNewsProvider',0.54,'2026-01-26 15:41:35'),(177,'Analysts downgrade CIENA CORP (S: CIEN) amid market uncertainty.','http://example.com/news/CIEN/1','2026-01-25 09:41:35','MockNewsProvider',0.00,'2026-01-26 15:41:35'),(178,'CIENA CORP (S: CIEN) unveils new product line.','http://example.com/news/CIEN/2','2026-01-24 09:41:35','MockNewsProvider',0.14,'2026-01-26 15:41:35'),(179,'Major partnership announced for CIENA CORP (S: CIEN).','http://example.com/news/CIEN/3','2026-01-23 09:41:35','MockNewsProvider',0.06,'2026-01-26 15:41:35'),(180,'CIENA CORP (S: CIEN) faces regulatory challenges.','http://example.com/news/CIEN/4','2026-01-22 09:41:35','MockNewsProvider',0.00,'2026-01-26 15:41:35'),(181,'Stock split for CIENA CORP (S: CIEN) expected next quarter.','http://example.com/news/CIEN/5','2026-01-21 09:41:35','MockNewsProvider',-0.05,'2026-01-26 15:41:35'),(182,'Vale S.A. (S: VALE) reports strong earnings, stock soars!','http://example.com/news/VALE/0','2026-01-26 09:41:35','MockNewsProvider',0.54,'2026-01-26 15:41:35'),(183,'Analysts downgrade Vale S.A. (S: VALE) amid market uncertainty.','http://example.com/news/VALE/1','2026-01-25 09:41:35','MockNewsProvider',0.00,'2026-01-26 15:41:35'),(184,'Vale S.A. (S: VALE) unveils new product line.','http://example.com/news/VALE/2','2026-01-24 09:41:35','MockNewsProvider',0.14,'2026-01-26 15:41:35'),(185,'Major partnership announced for Vale S.A. (S: VALE).','http://example.com/news/VALE/3','2026-01-23 09:41:35','MockNewsProvider',0.06,'2026-01-26 15:41:35'),(186,'Vale S.A. (S: VALE) faces regulatory challenges.','http://example.com/news/VALE/4','2026-01-22 09:41:35','MockNewsProvider',0.00,'2026-01-26 15:41:35'),(187,'Stock split for Vale S.A. (S: VALE) expected next quarter.','http://example.com/news/VALE/5','2026-01-21 09:41:35','MockNewsProvider',-0.05,'2026-01-26 15:41:35'),(188,'AST SpaceMobile, Inc. (S: ASTS) reports strong earnings, stock soars!','http://example.com/news/ASTS/0','2026-01-26 09:41:36','MockNewsProvider',0.54,'2026-01-26 15:41:36'),(189,'Analysts downgrade AST SpaceMobile, Inc. (S: ASTS) amid market uncertainty.','http://example.com/news/ASTS/1','2026-01-25 09:41:36','MockNewsProvider',0.00,'2026-01-26 15:41:36'),(190,'AST SpaceMobile, Inc. (S: ASTS) unveils new product line.','http://example.com/news/ASTS/2','2026-01-24 09:41:36','MockNewsProvider',0.14,'2026-01-26 15:41:36'),(191,'Major partnership announced for AST SpaceMobile, Inc. (S: ASTS).','http://example.com/news/ASTS/3','2026-01-23 09:41:36','MockNewsProvider',0.06,'2026-01-26 15:41:36'),(192,'AST SpaceMobile, Inc. (S: ASTS) faces regulatory challenges.','http://example.com/news/ASTS/4','2026-01-22 09:41:36','MockNewsProvider',0.00,'2026-01-26 15:41:36'),(193,'Stock split for AST SpaceMobile, Inc. (S: ASTS) expected next quarter.','http://example.com/news/ASTS/5','2026-01-21 09:41:36','MockNewsProvider',-0.05,'2026-01-26 15:41:36'),(218,'iShares Silver Trust (S: SLV) reports strong earnings, stock soars!','http://example.com/news/SLV/0','2026-01-26 09:41:36','MockNewsProvider',0.54,'2026-01-26 15:41:36'),(219,'Analysts downgrade iShares Silver Trust (S: SLV) amid market uncertainty.','http://example.com/news/SLV/1','2026-01-25 09:41:36','MockNewsProvider',0.00,'2026-01-26 15:41:36'),(220,'iShares Silver Trust (S: SLV) unveils new product line.','http://example.com/news/SLV/2','2026-01-24 09:41:36','MockNewsProvider',0.14,'2026-01-26 15:41:36'),(221,'Major partnership announced for iShares Silver Trust (S: SLV).','http://example.com/news/SLV/3','2026-01-23 09:41:36','MockNewsProvider',0.06,'2026-01-26 15:41:36'),(222,'iShares Silver Trust (S: SLV) faces regulatory challenges.','http://example.com/news/SLV/4','2026-01-22 09:41:36','MockNewsProvider',0.00,'2026-01-26 15:41:36'),(223,'Stock split for iShares Silver Trust (S: SLV) expected next quarter.','http://example.com/news/SLV/5','2026-01-21 09:41:36','MockNewsProvider',-0.05,'2026-01-26 15:41:36');
 /*!40000 ALTER TABLE `news` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -101,7 +101,7 @@ CREATE TABLE `stocksdailyprice` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `stock_id` (`stock_id`,`date`),
   CONSTRAINT `stocksdailyprice_ibfk_1` FOREIGN KEY (`stock_id`) REFERENCES `stocks` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=12780 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=15280 DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -154,7 +154,8 @@ CREATE TABLE `user_stocks` (
   `stock_id` int NOT NULL,
   `shares` decimal(10,4) NOT NULL DEFAULT '0.0000',
   `purchase_price` decimal(10,2) NOT NULL DEFAULT '0.00',
-  `is_purchased` tinyint(1) NOT NULL DEFAULT '1',
+  `is_purchased` tinyint(1) NOT NULL DEFAULT '0',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`user_id`,`stock_id`),
   KEY `stock_id` (`stock_id`),
   CONSTRAINT `user_stocks_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
@@ -168,7 +169,7 @@ CREATE TABLE `user_stocks` (
 
 LOCK TABLES `user_stocks` WRITE;
 /*!40000 ALTER TABLE `user_stocks` DISABLE KEYS */;
-INSERT INTO `user_stocks` VALUES (1,4,4098.3820,119.70,1),(1,5,7.0000,243.42,1),(1,6,49.4000,14.61,1);
+INSERT INTO `user_stocks` VALUES (1,4,4098.3820,119.70,1,'2026-01-26 16:31:29'),(1,5,7.0000,243.42,1,'2026-01-26 16:31:29'),(1,6,49.4000,14.61,1,'2026-01-26 16:31:29'),(1,7,0.0000,0.00,0,'2026-01-26 16:59:31'),(1,8,0.0000,0.00,0,'2026-01-26 16:58:21');
 /*!40000 ALTER TABLE `user_stocks` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -187,7 +188,7 @@ CREATE TABLE `users` (
   `modified_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `username` (`username`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -196,7 +197,7 @@ CREATE TABLE `users` (
 
 LOCK TABLES `users` WRITE;
 /*!40000 ALTER TABLE `users` DISABLE KEYS */;
-INSERT INTO `users` VALUES (1,'testuser','$2b$10$0z0Q0Z8zJwZQe9Y2WfE3cOB6uXGz3tJ0zZzM3nP7z0fN8uKZ3mQy6','2026-01-17 20:12:31','2026-01-25 02:15:46');
+INSERT INTO `users` VALUES (1,'KevinBollman','$2b$10$F3jIRti55NDMJd2z/d2RR.Yi4mXl18QfL8F6qIgjdo6lIGd90EGvC','2026-01-17 20:12:31','2026-01-25 02:15:46'),(3,'testuser','$2b$10$F3jIRti55NDMJd2z/d2RR.Yi4mXl18QfL8F6qIgjdo6lIGd90EGvC','2026-01-26 16:32:49','2026-01-26 16:32:49');
 /*!40000 ALTER TABLE `users` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -209,4 +210,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-01-24 20:19:15
+-- Dump completed on 2026-01-26 11:03:07
