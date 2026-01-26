@@ -23,7 +23,9 @@ os.environ['NODE_TLS_REJECT_UNAUTHORIZED'] = '0'
 
 def create_db_connection():
     """Creates and returns a database connection."""
-    load_dotenv('.env.local')
+    env_file = os.getenv('DOTENV_FILE', '.env.local') # Default to .env.local
+    load_dotenv(env_file)
+    print(f"Loading environment variables from {env_file}") # Added for debugging
     try:
         connection = mysql.connector.connect(
             host=os.getenv('DB_HOST'),
