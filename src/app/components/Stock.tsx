@@ -1,22 +1,21 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation' // Import useRouter
+import { useRouter } from 'next/navigation'
 import { calculateTechnicalIndicators, TechnicalIndicators } from '@/utils/technicalIndicators'
 import { calculateAnnualizedVolatility, getVolatilityRating } from '@/utils/volatility'
 import ApiErrorDisplay, { ApiError } from './ApiErrorDisplay'
 import TechnicalIndicatorsDisplay from './TechnicalIndicatorsDisplay'
 import StockChart from './StockChart'
 import StockNews from './StockNews'
-import { createLogger } from '@/utils/logger';
+import { createLogger } from '@/utils/logger'
 
-const logger = createLogger('components/Stock');
+const logger = createLogger('components/Stock')
 
 interface StockData {
   symbol?: string
   name?: string
   last?: number
-
   open?: number
   high?: number
   low?: number
@@ -32,360 +31,330 @@ interface StockData {
 }
 
 interface HistoricalData {
-  date: string;
-  datetime: string;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-  adjOpen: number;
-  adjHigh: number;
-  adjLow: number;
-  adjClose: number;
-  adjVolume: number;
-}
-
-interface Metrics {
-  dollarChange: number
-  percentChange: number
-  avgDailyChange: number
+  date: string
+  datetime: string
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
+  adjOpen: number
+  adjHigh: number
+  adjLow: number
+  adjClose: number
+  adjVolume: number
 }
 
 type HistoricalResponse = HistoricalData[] | { error: string }
 
-export default function Stock({ ticker, source, companyName }: { ticker: string; source?: string; companyName?: string }) {
+export default function Stock({
+  ticker,
+  source,
+  companyName
+}: {
+  ticker: string
+  source?: string
+  companyName?: string
+}) {
   const [stockData, setStockData] = useState<StockData | null>(null)
   const [loading, setLoading] = useState(false)
   const [indicators, setIndicators] = useState<TechnicalIndicators | null>(null)
   const [apiError, setApiError] = useState<ApiError | null>(null)
-  const [volatilityRating, setVolatilityRating] = useState<"Low" | "Medium" | "High" | "N/A" | null>(null);
-  const [news, setNews] = useState<any>([]);
-  const [addingToWatchlist, setAddingToWatchlist] = useState(false);
-  const [watchlistSuccess, setWatchlistSuccess] = useState<string | null>(null);
-  const [watchlistError, setWatchlistError] = useState<string | null>(null);
-  const [isStockOnWatchlist, setIsStockOnWatchlist] = useState(false);
-  const [fullHistoricalData, setFullHistoricalData] = useState<HistoricalData[] | null>(null);
+  const [volatilityRating, setVolatilityRating] =
+    useState<'Low' | 'Medium' | 'High' | 'N/A' | null>(null)
+  const [news, setNews] = useState<any[]>([])
+  const [addingToWatchlist, setAddingToWatchlist] = useState(false)
+  const [watchlistSuccess, setWatchlistSuccess] = useState<string | null>(null)
+  const [watchlistError, setWatchlistError] = useState<string | null>(null)
+  const [isStockOnWatchlist, setIsStockOnWatchlist] = useState(false)
+  const [fullHistoricalData, setFullHistoricalData] =
+    useState<HistoricalData[] | null>(null)
 
-  const router = useRouter();
+  const router = useRouter()
 
-  // Fetch current stock data
   const fetchStockData = async (ticker: string) => {
     setLoading(true)
     setStockData(null)
     setIndicators(null)
     setApiError(null)
     setVolatilityRating(null)
-    setNews([]);
-    setFullHistoricalData(null); // Reset historical data
-    setWatchlistSuccess(null);
-    setWatchlistError(null);
+    setNews([])
+    setFullHistoricalData(null)
+    setWatchlistSuccess(null)
+    setWatchlistError(null)
+
     try {
-      // Check if stock is on watchlist (owned) and set source accordingly
-      let finalSource = source;
-      const watchlistRes = await fetch('/api/dashboard');
+      let finalSource = source
+
+      const watchlistRes = await fetch('/api/dashboard')
       if (watchlistRes.ok) {
-        const watchlistData = await watchlistRes.json();
-        const found = watchlistData.stocks.some((item: any) => item.symbol === ticker);
-        setIsStockOnWatchlist(found);
-        if (found) {
-          finalSource = 'dashboard';
-        }
+        const watchlistData = await watchlistRes.json()
+        const found = watchlistData.stocks.some(
+          (item: any) => item.symbol === ticker
+        )
+        setIsStockOnWatchlist(found)
+        if (found) finalSource = 'dashboard'
       } else {
-        logger.error('Failed to fetch watchlist for stock check.');
-        setIsStockOnWatchlist(false); // Assume not on watchlist if check fails
+        logger.error('Failed to fetch watchlist for stock check.')
+        setIsStockOnWatchlist(false)
       }
 
-      // Determine the initial URL to fetch
-      let currentStockData: StockData | null = null;
-      let currentApiError: ApiError | null = null;
+      let currentStockData: StockData | null = null
+      let currentApiError: ApiError | null = null
 
-      const genericUrl = `/api/stock/${ticker}`;
-
-      // --- Fetch from Generic API ---
       try {
-        const genericRes = await fetch(genericUrl);
+        const genericRes = await fetch(`/api/stock/${ticker}`)
         if (genericRes.ok) {
-          const genericData = await genericRes.json();
-          currentStockData = genericData;
+          currentStockData = await genericRes.json()
         } else {
-          const genericErrorData = await genericRes.json();
+          const genericErrorData = await genericRes.json()
           currentApiError = {
             type: 'stock',
-            ticker: ticker,
-            message: genericErrorData.error || 'Failed to fetch stock data from generic API',
+            ticker,
+            message:
+              genericErrorData.error ||
+              'Failed to fetch stock data from generic API',
             details: genericErrorData.details,
             failedServices: genericErrorData.failedServices
-          };
+          }
         }
-      } catch (genericErr) {
-        logger.error(`Generic API network error for ${ticker}:`, genericErr);
+      } catch (genericErr: unknown) {
+        const err =
+          genericErr instanceof Error
+            ? genericErr
+            : new Error(String(genericErr))
+
+        logger.error(`Generic API network error for ${ticker}:`, err)
+
         currentApiError = {
           type: 'stock',
-          ticker: ticker,
+          ticker,
           message: 'Network error while fetching stock data',
-          details: genericErr instanceof Error ? genericErr.message : 'Unknown network error',
+          details: err.message,
           failedServices: ['Yahoo']
-        };
-      }
-
-      setStockData(currentStockData);
-      setApiError(currentApiError);
-      
-      const news_url = `/api/stock/${ticker}/news`;
-      const hist_base_url = `/api/stock/${ticker}/historical/1Y`;
-
-      const news_res = await fetch(news_url);
-      let news_data: any = {};
-      if (news_res.ok) {
-        news_data = await news_res.json();
-        if (news_data && Array.isArray(news_data.articles)) {
-          setNews(news_data.articles);
-        } else {
-          setNews([]);
         }
       }
 
-      const hist_url = finalSource === 'dashboard' ? `${hist_base_url}?source=dashboard` : hist_base_url;
-      const hist_res = await fetch(hist_url);
-      if (hist_res.ok) {
-        const data = await hist_res.json()
-        if (data && data.historicalData && Array.isArray(data.historicalData) && data.historicalData.length > 0) {
-          setFullHistoricalData(data.historicalData);
-          const calcs = calculateTechnicalIndicators(
-            data.historicalData,
-            news_data.articles || [],
-            currentStockData?.peRatio,
-            currentStockData?.pbRatio,
-            currentStockData?.marketCap
+      setStockData(currentStockData)
+      setApiError(currentApiError)
+
+      const newsRes = await fetch(`/api/stock/${ticker}/news`)
+      const newsData = newsRes.ok ? await newsRes.json() : {}
+      setNews(Array.isArray(newsData.articles) ? newsData.articles : [])
+
+      const histUrl =
+        finalSource === 'dashboard'
+          ? `/api/stock/${ticker}/historical/1Y?source=dashboard`
+          : `/api/stock/${ticker}/historical/1Y`
+
+      const histRes = await fetch(histUrl)
+      if (histRes.ok) {
+        const data = await histRes.json()
+        if (Array.isArray(data.historicalData) && data.historicalData.length) {
+          setFullHistoricalData(data.historicalData)
+
+          setIndicators(
+            calculateTechnicalIndicators(
+              data.historicalData,
+              newsData.articles || [],
+              currentStockData?.peRatio,
+              currentStockData?.pbRatio,
+              currentStockData?.marketCap
+            )
           )
-          setIndicators(calcs)
-          
-          // Calculate volatility from FULL year data
-          const annualizedVolatility = calculateAnnualizedVolatility(data.historicalData);
-          const rating = getVolatilityRating(annualizedVolatility);
-          setVolatilityRating(rating);
-        } else {
-          setFullHistoricalData([]);
+
+          const vol = calculateAnnualizedVolatility(data.historicalData)
+          setVolatilityRating(getVolatilityRating(vol))
         }
-      } else {
-        const errorData = await hist_res.json()
-        setApiError({
-          type: 'historical',
-          ticker: ticker,
-          message: errorData.error || 'Failed to fetch historical data',
-          details: errorData.details,
-          failedServices: errorData.failedServices
-        })
       }
+    } catch (err: unknown) {
+      const error =
+        err instanceof Error ? err : new Error('Network connection failed')
 
+      logger.error('Stock fetch failed:', error)
 
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Network connection failed'
       setApiError({
         type: 'stock',
-        ticker: ticker,
+        ticker,
         message: 'Network error while fetching stock data',
-        details: errorMessage,
+        details: error.message,
         failedServices: ['Yahoo']
       })
+
       setStockData({ error: 'Network error. Please check your connection.' })
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
-  const addToWatchlist = async () => {
+  useEffect(() => {
+    if (ticker) fetchStockData(ticker)
+  }, [ticker])
+
+  var currentPrice = stockData ? stockData.last || stockData.close : null
+  if (currentPrice == null) {
+    currentPrice = 0
+  }
+
+  const handleWatchlistToggle = async () => {
     setAddingToWatchlist(true);
     setWatchlistSuccess(null);
     setWatchlistError(null);
+
     try {
-      const response = await fetch('/api/user/watchlist', {
-        method: 'POST',
+      const url = isStockOnWatchlist ? `/api/user/watchlist?stockId=${stockData?.symbol}` : '/api/user/watchlist';
+      const method = isStockOnWatchlist ? 'DELETE' : 'POST';
+
+      const res = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          ticker: ticker,
-          name: stockData?.name || stockData?.symbol || ticker,
+        body: isStockOnWatchlist ? undefined : JSON.stringify({
+          symbol: ticker,
+          companyName: companyName || stockData?.name || ticker,
+          // You might want to pass other relevant stock data here if needed for watchlist entry
         }),
       });
 
-      if (response.ok) {
-        setWatchlistSuccess('Added to watchlist!');
-        // Optionally refresh the page or redirect after successful addition
-        router.refresh(); 
+      const data = await res.json();
+
+      if (res.ok) {
+        setWatchlistSuccess(data.message);
+        setIsStockOnWatchlist(!isStockOnWatchlist);
       } else {
-        const errorData = await response.json();
-        setWatchlistError(errorData.error || 'Failed to add to watchlist.');
+        setWatchlistError(data.message || 'Failed to update watchlist.');
       }
-    } catch (error) {
-      setWatchlistError('Network error. Failed to add to watchlist.');
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err : new Error('Network connection failed');
+      setWatchlistError(error.message);
     } finally {
       setAddingToWatchlist(false);
     }
   };
 
-  useEffect(() => {
-    if (ticker) {
-      fetchStockData(ticker)
-    }
-  }, [ticker])
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64 flex-col mt-20">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+        <p className="ml-4 text-xl mt-20">Loading stock data...</p>
+      </div>
+    );
+  }
 
-  const getVolatilityClass = (volatility: string | null) => {
-    if (!volatility) return "bg-gray-100 text-gray-800";
-    switch (volatility) {
-      case "Low":
-        return "bg-green-100 text-green-800";
-      case "Medium":
-        return "bg-yellow-100 text-yellow-800";
-      case "High":
-        return "bg-red-100 text-red-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
+  if (apiError) {
+    return <ApiErrorDisplay error={apiError} />;
+  }
 
-  const currentPrice = stockData ? (stockData.last || stockData.close) : null;
+
+
+  if (!stockData || !stockData.symbol) {
+    return (
+      <div className="text-center p-8">
+      </div>
+    );
+  }
+
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <div className="max-w-6xl mx-auto">
-        {/* Loading State */}
-        {loading && (
-          <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-            <p className="mt-4 text-lg text-gray-600">Loading stock data...</p>
+    <div className="container mx-auto px-0 py-8 max-w-6xl mx-auto">
+      {/* Main Stock Info Card */}
+      <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
+        <div className="flex flex-col mb-20 text-center items-center gap-7">
+          <h1 className="text-3xl font-bold text-gray-800">
+            {stockData.name} ({stockData.symbol})
+          </h1>
+          {isStockOnWatchlist ? (
+            <span className="text-green-600 font-semibold px-3 py-1 bg-green-50 w-xsrounded-full">
+              On Watchlist
+            </span>
+          ) : (
+            <button
+              onClick={handleWatchlistToggle}
+              disabled={addingToWatchlist}
+              className="px-4 py-2 rounded-md text-white bg-blue-500 hover:bg-blue-600 disabled:opacity-50"
+            >
+              {addingToWatchlist ? 'Adding...' : 'Add to Watchlist'}
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="p-4 bg-gray-50 rounded-lg border border-[#e9ede8]">
+            <p className="text-sm text-gray-500">Last Price</p>
+            <p className="text-2xl font-bold text-gray-800">${currentPrice !== null ? currentPrice.toFixed(2) : 'N/A'}</p>
+            {stockData.prevClose !== undefined && currentPrice !== null && (
+              <p
+                className={`text-md ${
+                  (currentPrice - stockData.prevClose) >= 0
+                    ? 'text-green-600'
+                    : 'text-red-600'
+                }`}
+              >
+                {(currentPrice - stockData.prevClose).toFixed(2)}{' '}
+                (
+                {(
+                  ((currentPrice - stockData.prevClose) / stockData.prevClose) *
+                  100
+                ).toFixed(2)}
+                %)
+              </p>
+            )}
           </div>
-        )}
 
-        {/* Stock Data Card */}
-        {stockData && !stockData.error && (
-          <div className="bg-white p-8 rounded-2xl shadow-2xl mb-8">
-            <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">
-              {stockData.symbol || ticker}{stockData.name ? ` - ${stockData.name}` : ''}
-            </h2>
-            <div className="text-center text-gray-600 mb-8">
-              {!isStockOnWatchlist && (
-                <button
-                  onClick={addToWatchlist}
-                  disabled={addingToWatchlist || !!watchlistSuccess}
-                  className={`font-bold py-2 px-4 rounded-lg mb-4 cursor-pointer ${
-                    addingToWatchlist
-                      ? 'bg-blue-400 cursor-not-allowed' // This is for `addingToWatchlist` state, keep as is
-                      : watchlistSuccess
-                      ? 'bg-green-500 cursor-not-allowed' // This is for `watchlistSuccess` state, keep as is
-                      : 'bg-green-700 hover:bg-green-800'
-                  } text-white`}
-                >
-                  {addingToWatchlist ? 'Adding...' : watchlistSuccess || 'Add to Watchlist'}
-                </button>
-              )}
-              {isStockOnWatchlist && (
-                <p className="text-green-600 font-semibold mb-4">On Watchlist</p>
-              )}
-              {watchlistError && (
-                <p className="text-red-500 text-sm mt-2">{watchlistError}</p>
-              )}
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
-                <div className="text-sm font-medium text-gray-700 opacity-80">
-                  Last Price
-                </div>
-                <div className="text-3xl font-bold text-gray-900">${typeof currentPrice === 'number' ? currentPrice.toFixed(2) : 'N/A'}</div>
-              </div>
-              <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
-                <div className="text-sm font-medium text-gray-700 opacity-80">
-                  Open
-                </div>
-                <div className="text-3xl font-bold text-gray-900">${stockData.open ? stockData.open.toFixed(2) : 'N/A'}</div>
-              </div>
-              <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
-                <div className="text-sm font-medium text-gray-700 opacity-80">
-                  Volume
-                </div>
-                <div className="text-2xl font-bold text-gray-900">{(stockData.volume || 0).toLocaleString()}</div>
-              </div>
-              <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
-                <div className="text-sm font-medium text-gray-700 opacity-80">
-                  PE Ratio
-                </div>
-                <div className="text-2xl font-bold text-gray-900">{stockData.peRatio ? stockData.peRatio.toFixed(2) : 'N/A'}</div>
-              </div>
-              <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
-                <div className="text-sm font-medium text-gray-700 opacity-80">
-                  PB Ratio
-                </div>
-                <div className="text-2xl font-bold text-gray-900">{stockData.pbRatio ? stockData.pbRatio.toFixed(2) : 'N/A'}</div>
-              </div>
-              <div className="bg-white p-6 rounded-xl shadow-md border-1 border-slate-300">
-                <div className="text-sm font-medium text-gray-700 opacity-80">
-                  Market Cap
-                </div>
-                <div className="text-2xl font-bold text-gray-900">{stockData.marketCap ? `$${(stockData.marketCap / 1_000_000_000).toFixed(2)}B` : 'N/A'}</div>
-              </div>
-            </div>
+          <div className="p-4 bg-gray-50 rounded-lg border border-[#e9ede8]">
+            <p className="text-sm text-gray-500">Open</p>
+            <p className="text-2xl font-bold text-gray-800">${stockData.open?.toFixed(2) || 'N/A'}</p>
           </div>
-        )}
 
-        {/* Historical Data & Technical Indicators */}
-        {stockData && !stockData.error && (
-          <>
-            <div className="bg-white p-4 md:p-6 rounded-2xl shadow-2xl mb-8">
-              <StockChart ticker={ticker} historicalData={fullHistoricalData} />
-            </div>
-            <div className="mb-8">
-              <StockNews articles={news} />
-            </div>
-            <div className="bg-white p-8 rounded-2xl shadow-2xl">
-              <h3 className="text-3xl font-bold text-gray-800 mb-6 text-center">📊 Technical Analysis</h3>
-              
-              {/* Volatility Rating Display */}
-              {volatilityRating && volatilityRating !== "N/A" && (
-                  <div className="bg-white p-6 rounded-2xl shadow-2xl mb-8 flex items-center justify-center">
-                      <p className="text-xl font-semibold text-gray-700 mr-4">Annualized Volatility:</p>
-                      <span className={`px-4 py-2 inline-flex text-xl leading-5 font-semibold rounded-full ${getVolatilityClass(volatilityRating)}`}>
-                          {volatilityRating}
-                      </span>
-                  </div>
-              )}
-
-              {/* Technical Indicators */}
-              {indicators ? (
-                <TechnicalIndicatorsDisplay
-                  indicators={indicators}
-                />
-              ) : (
-                <div className="text-center">
-                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                  <p className="mt-2 text-gray-600">Loading technical analysis...</p>
-                </div>
-              )}
-            </div>
-          </>
-        )}
-
-        {/* API Error Display */}
-        {apiError && (
-          <ApiErrorDisplay
-            error={apiError}
-            selectedTicker={ticker}
-            onRetryStock={() => {
-              setApiError(null)
-              if (ticker) {
-                fetchStockData(ticker)
-              }
-            }}
-          />
-        )}
-
-        {/* Error State (fallback) */}
-        {stockData && stockData.error && !apiError && (
-          <div className="bg-red-100 border-2 border-red-400 text-red-700 px-6 py-4 rounded-xl text-center shadow-lg font-semibold">
-            Error: Failed to fetch data for {ticker}. Please try again.
+          <div className="p-4 bg-gray-50 rounded-lg border border-[#e9ede8]">
+            <p className="text-sm text-gray-500">Volume</p>
+            <p className="text-2xl font-bold text-gray-800">{stockData.volume?.toLocaleString() || 'N/A'}</p>
           </div>
+
+          <div className="p-4 bg-gray-50 rounded-lg border border-[#e9ede8]">
+            <p className="text-sm text-gray-500">P/E Ratio</p>
+            <p className="text-2xl font-bold text-gray-800">{stockData.peRatio?.toFixed(2) || 'N/A'}</p>
+          </div>
+
+          <div className="p-4 bg-gray-50 rounded-lg border border-[#e9ede8]">
+            <p className="text-sm text-gray-500">P/B Ratio</p>
+            <p className="text-2xl font-bold text-gray-800">{stockData.pbRatio?.toFixed(2) || 'N/A'}</p>
+          </div>
+
+          <div className="p-4 bg-gray-50 rounded-lg border border-[#e9ede8]">
+            <p className="text-sm text-gray-500">Market Cap</p>
+            <p className="text-2xl font-bold text-gray-800">{stockData.marketCap ? (stockData.marketCap / 1_000_000_000).toFixed(2) + 'B' : 'N/A'}</p>
+          </div>
+        </div>
+        {watchlistSuccess && (
+          <p className="text-green-600 mt-2 text-center">{watchlistSuccess}</p>
+        )}
+        {watchlistError && (
+          <p className="text-red-600 mt-2 text-center">{watchlistError}</p>
         )}
       </div>
+
+      {/* Price History Card */}
+      {fullHistoricalData && fullHistoricalData.length > 0 && (
+        <div className="mb-8">
+          <StockChart ticker={ticker} historicalData={fullHistoricalData} />
+        </div>
+      )}
+
+      {/* Technical Indicators Card (adjust placement as needed) */}
+      {indicators && (
+        <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
+          <h2 className="text-2xl font-semibold text-gray-800 mb-4">🎯 Technical Indicators & Trading Signal</h2>
+          <TechnicalIndicatorsDisplay indicators={indicators} />
+        </div>
+      )}
+
+      {/* Latest News Card */}
+      <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
+        <StockNews articles={news} />
+      </div>
     </div>
-  )
+  );
 }
+

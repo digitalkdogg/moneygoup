@@ -25,7 +25,7 @@ export default function StockNews({ articles }: StockNewsProps) {
   }
 
   return (
-    <div className="bg-white p-6 rounded-2xl shadow-lg">
+    <div className="p-6">
         <h3 className="text-2xl font-bold text-gray-800 mb-4 text-center">📰 Latest News</h3>
         <div className="space-y-2">
             {articles.map((article, index) => (

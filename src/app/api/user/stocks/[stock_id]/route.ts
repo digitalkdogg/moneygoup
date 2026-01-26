@@ -3,7 +3,7 @@ import { remove } from '@/utils/databaseHelper';
 import { createErrorResponse } from '@/utils/errorResponse';
 import { createLogger } from '@/utils/logger';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '../../../auth/[...nextauth]/route'; // Adjust path for nested folder
+import { authOptions } from '@/lib/auth';
 
 const logger = createLogger('api/user/stocks/[stock_id]');
 

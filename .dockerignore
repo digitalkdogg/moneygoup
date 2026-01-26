@@ -1,0 +1,30 @@
+# Node
+node_modules
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+
+# Environment / secrets
+.env
+.env.*
+*.pem
+*.key
+
+# Git
+.git
+.gitignore
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+.vscode
+.idea
+
+# Build artifacts (if applicable)
+dist
+build
+coverage
+
+# Docker
+Dockerfile
+docker-compose.yml

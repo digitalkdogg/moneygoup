@@ -34,8 +34,7 @@ export default function TechnicalIndicatorsDisplay({
   }
 
   return (
-    <div className="bg-gradient-to-br from-slate-50 to-slate-100 p-8 rounded-2xl shadow-lg border-2 border-indigo-300">
-      <h4 className="text-2xl font-bold text-gray-800 mb-6 text-center">🎯 Technical Indicators & Trading Signal</h4>
+    <div className=" p-8 rounded-2xl">
       
       {/* Main Signal Box */}
       <div className={`p-8 rounded-xl border-2 mb-8 text-center ${getSignalColor(indicators.signal)}`}>

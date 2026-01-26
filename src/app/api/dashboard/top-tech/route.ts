@@ -22,10 +22,17 @@ export async function GET(request: NextRequest) {
       }));
 
     return NextResponse.json(topTechStocks);
-  } catch (error) {
-    logger.error('Error fetching growth technology stocks:', error);
+  } catch (error: unknown) {
+    const err =
+      error instanceof Error ? error : new Error(String(error));
+
+    logger.error('Error fetching growth technology stocks:', err);
+
     return NextResponse.json(
-      { error: 'Failed to fetch top technology stocks', details: error instanceof Error ? error.message : 'Unknown error' },
+      {
+        error: 'Failed to fetch top technology stocks',
+        details: err.message,
+      },
       { status: 500 }
     );
   }

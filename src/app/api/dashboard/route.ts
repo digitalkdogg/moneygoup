@@ -1,5 +1,5 @@
 import { getServerSession } from 'next-auth';
-import { authOptions } from '../auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth';
 import { createLogger } from '@/utils/logger';
 import { NextResponse } from 'next/server';
 import { executeRawQuery } from '@/utils/databaseHelper';
@@ -23,9 +23,14 @@ export async function GET() {
   if (!session) {
     return new NextResponse(JSON.stringify({ message: 'Unauthorized' }), { status: 401 });
   }
-  
+
   try {
-    const userId = session.user.id; // Use authenticated user's ID
+    const userId = session.user?.id; // Use optional chaining to safely access id
+    if (!userId) {
+      logger.error('Session user ID is undefined or null for an authenticated session.');
+      return new NextResponse(JSON.stringify({ message: 'Unauthorized: User ID missing or invalid from session.' }), { status: 401 });
+    }
+
 
     // 1. Fetch all stocks with an is_owned flag
     const [stocksResult] = await executeRawQuery(`

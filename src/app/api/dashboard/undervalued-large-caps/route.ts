@@ -21,11 +21,18 @@ export async function GET(request: NextRequest) {
       }));
 
     return NextResponse.json(undervaluedLargeCapsStocks);
-  } catch (error) {
-    logger.error('Error fetching undervalued large caps:', error instanceof Error ? error : String(error));
-    return NextResponse.json(
-      { error: 'Failed to fetch undervalued large caps', details: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    );
-  }
+  } catch (error: unknown) {
+  const err =
+    error instanceof Error ? error : new Error(String(error));
+
+  logger.error('Error fetching growth technology stocks:', err);
+
+  return NextResponse.json(
+    {
+      error: 'Failed to fetch top technology stocks',
+      details: err.message,
+    },
+    { status: 500 }
+  );
+}
 }

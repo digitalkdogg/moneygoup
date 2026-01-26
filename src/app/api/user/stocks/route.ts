@@ -3,7 +3,7 @@ import { executeRawQuery } from '@/utils/databaseHelper';
 import { createErrorResponse } from '@/utils/errorResponse';
 import { createLogger } from '@/utils/logger';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '../../auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth';
 
 const logger = createLogger('api/user/stocks');
 

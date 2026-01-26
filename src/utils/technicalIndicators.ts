@@ -316,7 +316,8 @@ function generateSignal(
   } else if (tempSumForPreliminarySignal + coreMetricsScore <= -4) {
     preliminarySignal = 'SELL';
   }
-
+  if (!peRatio) {peRatio = 0;}
+   
   // Construct the coreMetricsReason based on preliminary signal and PE Ratio
   if (peRatio !== undefined && peRatio > 0) {
     if (preliminarySignal === 'BUY') {
