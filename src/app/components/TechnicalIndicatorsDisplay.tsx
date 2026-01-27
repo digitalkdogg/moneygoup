@@ -111,7 +111,7 @@ export default function TechnicalIndicatorsDisplay({
               
               {/* Volatility */}
               <tr className="border-b border-gray-200 hover:bg-gray-50">
-                <td className="py-3 px-4 font-semibold text-gray-800">Volatility</td>
+                <td className="py-3 px-4 font-semibold text-gray-800">Volatility ({indicators.volatility || 'N/A'})</td>
                 <td className={`text-center py-3 px-4 font-bold text-lg ${
                   indicators.scoreBreakdown.volatilityScore > 0 ? 'text-green-600' : 
                   indicators.scoreBreakdown.volatilityScore < 0 ? 'text-red-600' : 

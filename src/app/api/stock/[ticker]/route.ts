@@ -169,10 +169,14 @@ async function fetchFromExternalAPIs(ticker: string) {
   // Try Yahoo Finance
   try {
     const data = await yahooFinance.quote(ticker);
-    if (data) {
-      return normalizeYahooData(data, sources);
+    if (!data) { // Explicitly handle cases where Yahoo Finance returns no data but doesn't throw an error
+      throw new Error("StockNotFoundError: " + ticker);
     }
-  } catch (error) {
+    return normalizeYahooData(data, sources);
+  } catch (error: any) {
+    if (error.message && error.message.startsWith("StockNotFoundError:")) {
+      throw error; // Re-throw the custom error for upstream handling
+    }
     errors.push(`Yahoo Finance API: ${error instanceof Error ? error.message : 'Network error'}`)
   }
 
@@ -197,6 +201,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
   } catch (error: any) {
     console.error(error);
+    
+    // Check for our custom StockNotFoundError
+    if (error.message && error.message.startsWith("StockNotFoundError:")) {
+      return createErrorResponse("Stock not available", 404);
+    }
+    
     const isDashboardSource = source === 'dashboard';
     const message = isDashboardSource ? 'Failed to fetch stock data from database' : 'Failed to fetch stock data from external APIs';
     const status = isDashboardSource && (error instanceof Error && error.message.includes('No data found')) ? 404 : 500;

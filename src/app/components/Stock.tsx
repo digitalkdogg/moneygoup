@@ -110,7 +110,7 @@ export default function Stock({
             type: 'stock',
             ticker,
             message:
-              genericErrorData.error ||
+              genericErrorData.message ||
               'Failed to fetch stock data from generic API',
             details: genericErrorData.details,
             failedServices: genericErrorData.failedServices,
@@ -243,7 +243,11 @@ export default function Stock({
   }
 
   if (apiError) {
-    return <ApiErrorDisplay error={apiError} />;
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <ApiErrorDisplay error={apiError} />
+      </div>
+    );
   }
 
 

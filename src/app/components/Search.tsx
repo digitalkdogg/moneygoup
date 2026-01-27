@@ -19,10 +19,10 @@ export default function Search() {
 
   // Load ticker list on mount from API (fetches from SEC)
   useEffect(() => {
-    fetch('/api/tickers')
+    fetch('/company_tickers.json')
       .then(res => res.json())
       .then(data => {
-        const list: Ticker[] = data.tickers.map((item: any) => ({
+        const list: Ticker[] = data.map((item: any) => ({
           name: item.name,
           ticker: item.ticker
         }))
