@@ -30,7 +30,8 @@ export async function POST(request: Request) {
       VALUES (?, ?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE
         shares = shares + VALUES(shares),
-        purchase_price = ((purchase_price * shares) + (VALUES(purchase_price) * VALUES(shares))) / (shares + VALUES(shares));
+        purchase_price = ((purchase_price * shares) + (VALUES(purchase_price) * VALUES(shares))) / (shares + VALUES(shares)),
+        is_purchased = VALUES(is_purchased);
     `;
 
     await executeRawQuery(query, [userId, stock_id, shares, purchase_price, isPurchased]);
