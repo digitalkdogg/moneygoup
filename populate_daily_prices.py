@@ -21,11 +21,17 @@ from textblob import TextBlob # For sentiment analysis
 # Disable SSL certificate verification for local development
 os.environ['NODE_TLS_REJECT_UNAUTHORIZED'] = '0'
 
+# Load environment variables from the correct .env file
+env_file = os.getenv('DOTENV_FILE', '.env.local')
+load_dotenv(env_file)
+print(f"Loading environment variables from {env_file}")
+
+# Get NEXTAUTH_URL from environment, default to http://localhost:3001 if not set
+APP_HOST = os.getenv('NEXTAUTH_URL', 'http://localhost:3001')
+print(f"Using APP_HOST: {APP_HOST}")
+
 def create_db_connection():
     """Creates and returns a database connection."""
-    env_file = os.getenv('DOTENV_FILE', '.env.local') # Default to .env.local
-    load_dotenv(env_file)
-    print(f"Loading environment variables from {env_file}") # Added for debugging
     try:
         connection = mysql.connector.connect(
             host=os.getenv('DB_HOST'),
@@ -70,7 +76,8 @@ def fetch_user_stocks(connection):
 
 def fetch_historical_data(symbol):
     """Fetches historical stock data for a given stock symbol from the local API."""
-    api_url = f"http://localhost:3001/api/stock/{symbol}/historical/max"
+    # Use the APP_HOST global variable
+    api_url = f"{APP_HOST}/api/stock/{symbol}/historical/max"
     
     try:
         print(f"Fetching historical data for {symbol} from {api_url}")
@@ -299,7 +306,7 @@ def main():
 
         # --- Process Real-time Price from Next.js API ---
         try:
-            nextjs_api_url = f"http://localhost:3001/api/stock/quote/{symbol}"
+            nextjs_api_url = f"{APP_HOST}/api/stock/quote/{symbol}"
             print(f"Fetching real-time price from Next.js API: {nextjs_api_url}")
             response = requests.get(nextjs_api_url)
             response.raise_for_status() # Raise an exception for HTTP errors
