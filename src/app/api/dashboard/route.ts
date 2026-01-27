@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createLogger } from '@/utils/logger';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { executeRawQuery } from '@/utils/databaseHelper';
 import { calculateTechnicalIndicators, HistoricalData } from '@/utils/technicalIndicators';
 import { createErrorResponse } from '@/utils/errorResponse';
@@ -17,7 +17,53 @@ interface DailyPriceRow {
 }
 const logger = createLogger('api/dashboard');
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // 1. Whitelist Check (Origin Header)
+  const allowedOriginsString = process.env.ALLOWED_ORIGINS || process.env.NEXTAUTH_URL;
+  let allowedOrigins: Set<string>;
+
+  if (allowedOriginsString) {
+    try {
+      // Attempt to parse as JSON array
+      const parsed = JSON.parse(allowedOriginsString);
+      if (Array.isArray(parsed) && parsed.every(item => typeof item === 'string')) {
+        allowedOrigins = new Set(parsed.map(o => o.trim()));
+      } else {
+        // If JSON parsing yields something other than an array of strings, fall back to simple split
+        allowedOrigins = new Set(allowedOriginsString.split(',').map(o => o.trim()));
+      }
+    } catch (e) {
+      // If JSON parsing fails, fallback to comma-separated string
+      allowedOrigins = new Set(allowedOriginsString.split(',').map(o => o.trim()));
+    }
+  } else {
+    allowedOrigins = new Set();
+  }
+
+  const requestOrigin = request.headers.get('origin');
+  const secFetchSite = request.headers.get('sec-fetch-site');
+
+  // Only enforce whitelisting if ALLOWED_ORIGINS is configured
+  if (allowedOrigins.size > 0) {
+    if (!requestOrigin) {
+      // If origin is missing, but it's a same-origin request, allow it.
+      // Browsers often omit the Origin header for same-origin GET requests.
+      if (secFetchSite === 'same-origin') {
+        // Log a warning for awareness, but proceed
+        logger.warn('Missing Origin header but allowed due to same-origin request (Sec-Fetch-Site).');
+      } else {
+        // If origin is missing and it's NOT a same-origin request, then it's unauthorized.
+        logger.warn('Missing Origin header for whitelisted dashboard API access attempt (not same-origin).');
+        return new NextResponse(JSON.stringify({ message: 'Unauthorized: Missing Origin header' }), { status: 401 });
+      }
+    } else if (!allowedOrigins.has(requestOrigin)) {
+      // If origin is present but not in the whitelist, then it's unauthorized.
+      logger.warn(`Unauthorized origin: ${requestOrigin} attempted to access dashboard API.`);
+      return new NextResponse(JSON.stringify({ message: 'Unauthorized origin' }), { status: 401 });
+    }
+  }
+
+
   const session = await getServerSession(authOptions);
 
   if (!session) {
