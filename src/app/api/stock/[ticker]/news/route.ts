@@ -34,12 +34,26 @@ export async function GET(
 
     const articles = items.slice(0, 5).map((item: any) => {
       const sentimentResult = sentiment.analyze(item.title);
+
+      // Sanitize link: Ensure it's a safe HTTP/HTTPS URL
+      let sanitizedLink = item.link;
+      if (sanitizedLink) {
+        // Check for safe protocols and block javascript:
+        if (!sanitizedLink.startsWith('http://') && !sanitizedLink.startsWith('https://')) {
+          sanitizedLink = '#'; // Neutralize non-http/https links
+        } else if (sanitizedLink.toLowerCase().startsWith('javascript:')) {
+          sanitizedLink = '#'; // Explicitly block javascript: schemes
+        }
+      } else {
+        sanitizedLink = '#'; // Neutralize missing links
+      }
+
       return {
         title: item.title,
-        link: item.link,
+        link: sanitizedLink, // Use the sanitized link
         pubDate: item.pubDate,
         source: item.source,
-        sentiment_score: sentimentResult.score, // score is a number, comparative is a number
+        sentiment_score: sentimentResult.score,
       }
     });
 
