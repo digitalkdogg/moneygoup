@@ -38,6 +38,42 @@ export async function insert(tableName: string, data: Record<string, any>): Prom
 }
 
 /**
+ * Inserts a new record or updates an existing one if a duplicate key is found.
+ * @param tableName The name of the table.
+ * @param data An object where keys are column names and values are the data to insert or update.
+ * @param uniqueKeys An array of column names that form the unique key to check for duplicates.
+ * @returns The insert ID of the new record or 0 if an update occurred.
+ */
+export async function upsert(tableName: string, data: Record<string, any>, uniqueKeys: string[]): Promise<number | void> {
+  return executeDbOperation(async (connection) => {
+    const columns = Object.keys(data).join(', ');
+    const placeholders = Object.keys(data).map(() => '?').join(', ');
+    const values = Object.values(data);
+
+    const updateSetClause = Object.keys(data)
+      .filter(key => !uniqueKeys.includes(key)) // Don't update unique keys themselves
+      .map(key => `${key} = VALUES(${key})`)
+      .join(', ');
+
+    let query = `INSERT INTO ${tableName} (${columns}) VALUES (${placeholders})`;
+
+    if (updateSetClause) {
+      query += ` ON DUPLICATE KEY UPDATE ${updateSetClause}`;
+    } else {
+      // If only unique keys are provided in data, and no other fields to update,
+      // we still need an ON DUPLICATE KEY UPDATE clause to avoid an error.
+      // A common practice is to update one of the unique keys to its own value,
+      // or simply update a non-unique field to its own value if one exists.
+      // For simplicity, we'll just update one of the unique keys to itself.
+      query += ` ON DUPLICATE KEY UPDATE ${uniqueKeys[0]} = VALUES(${uniqueKeys[0]})`;
+    }
+
+    const [result] = await (connection as any).execute(query, values);
+    return (result as mysql.ResultSetHeader).insertId;
+  });
+}
+
+/**
  * Updates records in the specified table.
  * @param tableName The name of the table.
  * @param data An object where keys are column names and values are the data to update.

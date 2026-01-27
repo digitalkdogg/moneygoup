@@ -13,8 +13,7 @@ export async function GET(
   if (!ticker) {
     return createErrorResponse(
       new Error('Stock ticker is required'),
-      400,
-      'Invalid Request'
+      400
     );
   }
 
@@ -22,22 +21,9 @@ export async function GET(
     logger.info(`Fetching real-time quote for ticker: ${ticker}`);
 
     const yahooFinanceModule = await import('yahoo-finance2');
-    console.log("DEBUG: yahooFinanceModule:", yahooFinanceModule);
-    console.log("DEBUG: yahooFinanceModule.default:", yahooFinanceModule.default);
-
-    // Try instantiating yahooFinanceModule.default directly, if it's the class
-    let yahooFinanceInstance;
-    if (typeof yahooFinanceModule.default === 'function' && yahooFinanceModule.default.name === 'YahooFinance') {
-      yahooFinanceInstance = new yahooFinanceModule.default();
-    } else if (yahooFinanceModule.default && typeof yahooFinanceModule.default.YahooFinance === 'function') {
-    const yahooFinanceInstance = new yahooFinanceModule.default();
-    } else if (typeof yahooFinanceModule.YahooFinance === 'function') { // Fallback if it's not a default export but named
-      yahooFinanceInstance = new yahooFinanceModule.YahooFinance();
-    } else {
-      throw new Error("Could not find YahooFinance constructor in imported module.");
-    }
-    
-    console.log("DEBUG: yahooFinanceInstance:", yahooFinanceInstance);
+    // Assuming yahooFinanceModule.default is the YahooFinance constructor
+    const YahooFinance = yahooFinanceModule.default;
+    const yahooFinanceInstance = new YahooFinance();
 
     const result = await yahooFinanceInstance.quote(ticker);
 
@@ -45,8 +31,7 @@ export async function GET(
       logger.warn(`No real-time price found for ticker: ${ticker}`);
       return createErrorResponse(
         new Error(`No real-time price found for ${ticker}`),
-        404,
-        'Not Found'
+        404
       );
     }
 
@@ -62,8 +47,7 @@ export async function GET(
     logger.error(`Error fetching real-time quote for ${ticker}:`, error);
     return createErrorResponse(
       error,
-      500,
-      `Failed to fetch real-time quote for ${ticker}`
+      500
     );
   }
 }

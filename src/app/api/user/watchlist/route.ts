@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { validate } from '@/utils/validation';
 import { addStockSchema, AddStockInput } from '@/app/api/user/watchlist/schema';
-import { executeRawQuery, insert } from '@/utils/databaseHelper';
+import { executeRawQuery, insert, upsert } from '@/utils/databaseHelper';
 import { createErrorResponse } from '@/utils/errorResponse';
 import { createLogger } from '@/utils/logger';
 
@@ -67,7 +67,7 @@ export const POST = validate(addStockSchema)(
       }
 
       // 2. Add to user_stocks as a watchlist item (is_purchased = 0)
-      await insert('user_stocks', {
+      await upsert('user_stocks', {
         user_id: userId,
         stock_id: stockId,
         is_purchased: 0, // Mark as watchlist item
