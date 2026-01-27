@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { remove } from '@/utils/databaseHelper';
+import { remove, update } from '@/utils/databaseHelper'; // Add 'update'
 import { createErrorResponse } from '@/utils/errorResponse';
 import { createLogger } from '@/utils/logger';
 import { getServerSession } from 'next-auth';
@@ -7,7 +7,7 @@ import { authOptions } from '@/lib/auth';
 
 const logger = createLogger('api/user/stocks/[stock_id]');
 
-export async function DELETE(
+export async function PUT(
   request: Request,
   { params }: { params: { stock_id: string } }
 ) {
@@ -28,13 +28,19 @@ export async function DELETE(
 
     const userId = session.user.id;
     
-    const affectedRows = await remove('user_stocks', { user_id: userId, stock_id: parsedId });
+    // Update user_stocks to reflect "sold" state (i.e., move back to watchlist)
+    const affectedRows = await update(
+      'user_stocks',
+      { is_purchased: 0, shares: 0, purchase_price: 0 },
+      { user_id: userId, stock_id: parsedId }
+    );
 
     if (affectedRows === 0) {
+      // If no rows were affected, it means the stock was not found or not owned by the user.
       return createErrorResponse('Stock not found or not owned by user', 404);
     }
 
-    return NextResponse.json({ message: 'Stock sold successfully' }, { status: 200 });
+    return NextResponse.json({ message: 'Stock sold successfully (moved to watchlist)' }, { status: 200 });
 
   } catch (error: any) {
     logger.error("Failed to sell stock:", error);

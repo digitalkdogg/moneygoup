@@ -1,6 +1,8 @@
 import { createLogger } from '@/utils/logger';
 import { NextResponse } from 'next/server';
 import { secCompanyCache, stockDataCache, technicalIndicatorsCache } from '@/utils/cache';
+import { getServerSession } from 'next-auth'; // Add this import
+import { authOptions } from '@/lib/auth'; // Add this import
 
 const logger = createLogger('api/cache-stats');
 
@@ -10,21 +12,16 @@ const logger = createLogger('api/cache-stats');
  * Useful for monitoring and debugging cache behavior
  */
 export async function GET() {
-  try {
-    const stats = {
-      secCompanyCache: secCompanyCache.getStats(),
-      stockDataCache: stockDataCache.getStats(),
-      technicalIndicatorsCache: technicalIndicatorsCache.getStats(),
-      timestamp: new Date().toISOString(),
-      totalCachedItems:
-        secCompanyCache.size() + stockDataCache.size() + technicalIndicatorsCache.size()
-    };
-
-    return NextResponse.json(stats);
-  } catch (error: unknown) {
-    logger.error('Error fetching cache stats:', error instanceof Error ? error : String(error));
-    return NextResponse.json({ error: 'Failed to retrieve cache statistics' }, { status: 500 });
+  // Add authentication check
+  const session = await getServerSession(authOptions);
+  if (!session || !session.user || !session.user.id) {
+    return new NextResponse(JSON.stringify({ message: 'Unauthorized' }), { status: 401 });
   }
+
+  // Add authorization check (placeholder for admin role, currently denies all)
+  return new NextResponse(JSON.stringify({ message: 'Forbidden: This action requires administrative privileges.' }), { status: 403 });
+
+
 }
 
 /**
@@ -32,17 +29,14 @@ export async function GET() {
  * Useful for maintenance or resetting stale data
  */
 export async function DELETE() {
-  try {
-    secCompanyCache.clear();
-    stockDataCache.clear();
-    technicalIndicatorsCache.clear();
-
-    return NextResponse.json({
-      message: 'All caches cleared successfully',
-      timestamp: new Date().toISOString()
-    });
-  } catch (error: unknown) {
-    logger.error('Error clearing caches:', error instanceof Error ? error : String(error));
-    return NextResponse.json({ error: 'Failed to clear caches' }, { status: 500 });
+  // Add authentication check
+  const session = await getServerSession(authOptions);
+  if (!session || !session.user || !session.user.id) {
+    return new NextResponse(JSON.stringify({ message: 'Unauthorized' }), { status: 401 });
   }
+
+  // Add authorization check (placeholder for admin role, currently denies all)
+  return new NextResponse(JSON.stringify({ message: 'Forbidden: This action requires administrative privileges.' }), { status: 403 });
+
+
 }

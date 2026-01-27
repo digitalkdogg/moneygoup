@@ -255,7 +255,7 @@ export default function Dashboard() {
 
     try {
       const response = await fetch(`/api/user/stocks/${selectedStockForSell.stock_id}`, {
-        method: 'DELETE',
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -294,7 +294,7 @@ export default function Dashboard() {
     setRemoveSuccess(null);
 
     try {
-      const response = await fetch(`/api/stock/${selectedStockForRemove.stock_id}`, {
+      const response = await fetch(`/api/user/watchlist?stockId=${selectedStockForRemove.symbol}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',

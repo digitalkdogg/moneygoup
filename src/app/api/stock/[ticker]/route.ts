@@ -1,8 +1,10 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { executeRawQuery, transaction } from '@/utils/databaseHelper'
 import YahooFinance from 'yahoo-finance2';
 import { createErrorResponse } from '@/utils/errorResponse';
 import { secCompanyCache } from '@/utils/cache';
+import { getServerSession } from 'next-auth'; // Add this import
+import { authOptions } from '@/lib/auth'; // Add this import
 
 const yahooFinance = new YahooFinance();
 
@@ -216,27 +218,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: { ticker: string } }) {
-  const stockId = params.ticker; // The `ticker` param is actually `stock_id` in this context
-
-  // Validate stock_id is a positive integer
-  const parsedId = parseInt(stockId, 10);
-  if (!stockId || isNaN(parsedId) || parsedId <= 0 || !Number.isInteger(parsedId)) {
-    return Response.json({ error: 'Invalid stock ID' }, { status: 400 });
+  // Add authentication check
+  const session = await getServerSession(authOptions);
+  if (!session || !session.user || !session.user.id) {
+    return new NextResponse(JSON.stringify({ message: 'Unauthorized' }), { status: 401 });
   }
 
-  try {
-    await transaction(async (connection) => {
-      // 1. Delete from stocksdailyprice table
-      await connection.execute('DELETE FROM stocksdailyprice WHERE stock_id = ?', [parsedId]);
+  // Add authorization check
+  // Deleting a global stock is a highly sensitive action impacting all users.
+  // For now, we will forbid this action for all regular authenticated users.
+  // If an admin role system is implemented, this check would be adjusted to
+  // allow only users with 'admin' role.
+  return new NextResponse(JSON.stringify({ message: 'Forbidden: This action requires administrative privileges.' }), { status: 403 });
 
-      // 2. Delete from stocks table
-      await connection.execute('DELETE FROM stocks WHERE id = ?', [parsedId]);
-    });
 
-    return Response.json({ message: `Stock with ID ${parsedId} and its daily prices removed successfully.` });
-
-  } catch (error: any) {
-    console.error(`Error removing stock with ID ${parsedId}:`, error);
-    return createErrorResponse(error, 500);
-  }
 }
