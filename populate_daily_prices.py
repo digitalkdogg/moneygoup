@@ -30,6 +30,11 @@ print(f"Loading environment variables from {env_file}")
 APP_HOST = os.getenv('NEXTAUTH_URL', 'http://localhost:3001')
 print(f"Using APP_HOST: {APP_HOST}")
 
+# Define global headers for requests from this script
+HEADERS = {
+    "Origin": APP_HOST
+}
+
 def create_db_connection():
     """Creates and returns a database connection."""
     try:
@@ -81,7 +86,7 @@ def fetch_historical_data(symbol):
     
     try:
         print(f"Fetching historical data for {symbol} from {api_url}")
-        response = requests.get(api_url)
+        response = requests.get(api_url, headers=HEADERS)
         response.raise_for_status()  # Raise an exception for HTTP errors
         json_response = response.json()
         if isinstance(json_response, dict) and 'historicalData' in json_response:
@@ -308,7 +313,7 @@ def main():
         try:
             nextjs_api_url = f"{APP_HOST}/api/stock/quote/{symbol}"
             print(f"Fetching real-time price from Next.js API: {nextjs_api_url}")
-            response = requests.get(nextjs_api_url)
+            response = requests.get(nextjs_api_url, headers=HEADERS)
             response.raise_for_status() # Raise an exception for HTTP errors
             quote_data = response.json()
             realtime_price = quote_data.get('price')
