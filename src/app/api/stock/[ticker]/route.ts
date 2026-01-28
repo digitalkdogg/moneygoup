@@ -5,6 +5,7 @@ import { createErrorResponse } from '@/utils/errorResponse';
 import { secCompanyCache } from '@/utils/cache';
 import { getServerSession } from 'next-auth'; // Add this import
 import { authOptions } from '@/lib/auth'; // Add this import
+import { checkOrigin } from '@/utils/originCheck';
 
 const yahooFinance = new YahooFinance();
 
@@ -187,6 +188,10 @@ async function fetchFromExternalAPIs(ticker: string) {
 }
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ ticker: string }> }) {
+  const originCheckResponse = checkOrigin(request);
+  if (originCheckResponse) {
+    return originCheckResponse;
+  }
   const resolvedParams = await params;
   const ticker = resolvedParams.ticker.toUpperCase()
   const source = request.nextUrl.searchParams.get('source')
@@ -218,6 +223,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: { ticker: string } }) {
+  const originCheckResponse = checkOrigin(request);
+  if (originCheckResponse) {
+    return originCheckResponse;
+  }
   // Add authentication check
   const session = await getServerSession(authOptions);
   if (!session || !session.user || !session.user.id) {

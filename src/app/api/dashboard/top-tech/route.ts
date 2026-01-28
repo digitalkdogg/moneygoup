@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import YahooFinance from 'yahoo-finance2';
 import { createLogger } from '@/utils/logger';
+import { checkOrigin } from '@/utils/originCheck';
 
 const yahooFinance = new YahooFinance();
 const logger = createLogger('api/dashboard/top-tech');
 
 export async function GET(request: NextRequest) {
+  const originCheckResponse = checkOrigin(request);
+  if (originCheckResponse) {
+    return originCheckResponse;
+  }
   try {
     const growthTech = await yahooFinance.screener("growth_technology_stocks");
 

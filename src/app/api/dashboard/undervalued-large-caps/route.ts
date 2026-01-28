@@ -1,10 +1,15 @@
 import { createLogger } from '@/utils/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import YahooFinance from 'yahoo-finance2';
+import { checkOrigin } from '@/utils/originCheck';
 
 const logger = createLogger('api/dashboard/undervalued-large-caps');
 const yahooFinance = new YahooFinance();
 export async function GET(request: NextRequest) {
+  const originCheckResponse = checkOrigin(request);
+  if (originCheckResponse) {
+    return originCheckResponse;
+  }
   try {
     const undervalued = await yahooFinance.screener("undervalued_large_caps");
 

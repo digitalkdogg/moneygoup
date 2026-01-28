@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { executeRawQuery } from '@/utils/databaseHelper'
 import YahooFinance from 'yahoo-finance2';
 import { createErrorResponse } from '@/utils/errorResponse';
+import { checkOrigin } from '@/utils/originCheck';
 
 const yahooFinance = new YahooFinance();
 
@@ -156,6 +157,11 @@ export async function GET(
   { params }: { params: Promise<{ ticker: string; period: string }> }
 
 ) {
+
+  const originCheckResponse = checkOrigin(request);
+  if (originCheckResponse) {
+    return originCheckResponse;
+  }
 
   const resolvedParams = await params;
 

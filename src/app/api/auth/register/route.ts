@@ -5,6 +5,7 @@ import { createErrorResponse } from '@/utils/errorResponse';
 import { createLogger } from '@/utils/logger';
 import { z } from 'zod';
 import mysql from 'mysql2/promise'; // Import mysql types
+import { checkOrigin } from '@/utils/originCheck';
 
 const logger = createLogger('api/auth/register');
 
@@ -15,6 +16,10 @@ const registerSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  const originCheckResponse = checkOrigin(request);
+  if (originCheckResponse) {
+    return originCheckResponse;
+  }
   try {
     const body = await request.json();
     const { username, password } = registerSchema.parse(body);

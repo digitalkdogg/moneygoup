@@ -6,11 +6,16 @@ import { addStockSchema, AddStockInput } from '@/app/api/user/watchlist/schema';
 import { executeRawQuery, insert, upsert } from '@/utils/databaseHelper';
 import { createErrorResponse } from '@/utils/errorResponse';
 import { createLogger } from '@/utils/logger';
+import { checkOrigin } from '@/utils/originCheck';
 
 const logger = createLogger('api/user/watchlist');
 
 // GET: Fetch user's watchlist
 export async function GET(request: NextRequest) {
+  const originCheckResponse = checkOrigin(request);
+  if (originCheckResponse) {
+    return originCheckResponse;
+  }
   const session = await getServerSession(authOptions);
 
   if (!session || !session.user || !session.user.id) {
@@ -43,6 +48,10 @@ export async function GET(request: NextRequest) {
 // POST: Add stock to watchlist
 export const POST = validate(addStockSchema)(
   async (request: NextRequest, data: AddStockInput) => {
+    const originCheckResponse = checkOrigin(request);
+    if (originCheckResponse) {
+      return originCheckResponse;
+    }
     const session = await getServerSession(authOptions);
 
     if (!session || !session.user || !session.user.id) {
@@ -92,6 +101,10 @@ export const POST = validate(addStockSchema)(
 
 // DELETE: Remove stock from watchlist
 export async function DELETE(request: NextRequest) {
+  const originCheckResponse = checkOrigin(request);
+  if (originCheckResponse) {
+    return originCheckResponse;
+  }
   const session = await getServerSession(authOptions);
 
   if (!session || !session.user || !session.user.id) {

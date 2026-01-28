@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createLogger } from '@/utils/logger';
 import { createErrorResponse } from '@/utils/errorResponse';
+import { checkOrigin } from '@/utils/originCheck';
 
 const logger = createLogger('api/stock/quote/[ticker]');
 
@@ -8,24 +9,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { ticker: string } }
 ) {
-  // 1. Whitelist Check (Origin Header)
-  const allowedOriginsString = process.env.ALLOWED_ORIGINS || process.env.NEXTAUTH_URL;
-  let allowedOrigins: Set<string>;
-
-  if (allowedOriginsString) {
-    // Always use comma-separated string parsing
-    allowedOrigins = new Set(allowedOriginsString.split(',').map(o => o.trim()));
-  } else {
-    allowedOrigins = new Set();
-  }
-
-  const requestOrigin = request.headers.get('origin');
-
-  if (allowedOrigins.size > 0 && requestOrigin) {
-    if (!allowedOrigins.has(requestOrigin)) {
-      // If origin is present but not in the whitelist, then it's unauthorized.
-      return new NextResponse(JSON.stringify({ message: 'Unauthorized origin' }), { status: 401 });
-    }
+  const originCheckResponse = checkOrigin(request);
+  if (originCheckResponse) {
+    return originCheckResponse;
   }
 
   const { ticker } = params;

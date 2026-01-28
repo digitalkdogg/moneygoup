@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { XMLParser } from 'fast-xml-parser';
 import Sentiment from 'sentiment';
 import { createLogger } from '@/utils/logger';
+import { checkOrigin } from '@/utils/originCheck';
 
 const logger = createLogger('api/stock/[ticker]/news');
 
@@ -9,6 +10,10 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { ticker: string } }
 ) {
+  const originCheckResponse = checkOrigin(request);
+  if (originCheckResponse) {
+    return originCheckResponse;
+  }
   const ticker = params.ticker.toUpperCase();
   const url = `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${ticker}&region=US&lang=en-US`;
   const sentiment = new Sentiment();

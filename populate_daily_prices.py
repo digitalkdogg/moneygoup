@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 from textblob import TextBlob # For sentiment analysis
 
 # Disable SSL certificate verification for local development
-os.environ['NODE_TLS_REJECT_UNAUTHORIZED'] = '0'
+#os.environ['NODE_TLS_REJECT_UNAUTHORIZED'] = '0'
 
 # Load environment variables from the correct .env file
 env_file = os.getenv('DOTENV_FILE', '.env.local')
