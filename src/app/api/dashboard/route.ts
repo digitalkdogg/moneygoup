@@ -39,39 +39,71 @@ export async function GET(request: NextRequest) {
     }
 
 
-    // 1. Fetch all stocks with an is_owned flag
-    const [stocksResult] = await executeRawQuery(`
+    // 1. Fetch user-specific stock holdings
+    const [userHoldingsResult] = await executeRawQuery<{ id: number; symbol: string; shares: string; purchase_price: string; is_owned: number }[]>(`
         SELECT
             s.id,
             s.symbol,
-            s.company_name,
-            s.pe_ratio,
-            s.pb_ratio,
-            s.market_cap,
-            s.price AS current_price,
             us.shares,
             us.purchase_price,
-            us.is_purchased AS is_owned,
-            prev_price.close AS prev_close_price,
-            (s.price - prev_price.close) AS daily_change
+            us.is_purchased AS is_owned
         FROM user_stocks us
         JOIN stocks s ON us.stock_id = s.id
-        LEFT JOIN stocksdailyprice prev_price ON prev_price.stock_id = s.id
-            AND prev_price.date = (
-                SELECT MAX(date)
-                FROM stocksdailyprice
-                WHERE stock_id = s.id AND date < (
-                    SELECT MAX(date)
-                    FROM stocksdailyprice
-                    WHERE stock_id = s.id AND date <= CURDATE()
-                )
-            )
         WHERE us.user_id = ?
         ORDER BY s.symbol;
     `, [userId]);
-    let stocks = stocksResult as any[];
 
-    // Explicitly de-duplicate stocks based on ID, in case the query or data leads to duplicates
+    // Extract symbols for batch Yahoo Finance query
+    const symbols = userHoldingsResult.map(holding => holding.symbol);
+
+    let yahooFinanceData = [];
+    if (symbols.length > 0) {
+      // Internal call to the new API endpoint to get batch Yahoo Finance data
+      const yahooApiUrl = `${request.nextUrl.origin}/api/dashboard/get`;
+      const yahooApiResponse = await fetch(yahooApiUrl, {
+        headers: {
+          'Cookie': request.headers.get('Cookie') || '', // Forward cookies for session validation
+        },
+      });
+
+      if (!yahooApiResponse.ok) {
+        const errorBody = await yahooApiResponse.json();
+        throw new Error(`Failed to fetch Yahoo Finance data: ${errorBody.error || yahooApiResponse.statusText}`);
+      }
+      yahooFinanceData = await yahooApiResponse.json();
+    }
+
+    // Map Yahoo Finance data for easy lookup
+    const yahooDataMap = new Map<number, any>();
+    yahooFinanceData.forEach((data: any) => {
+      if (data.stock_id) { // Ensure stock_id is present
+        yahooDataMap.set(data.stock_id, data);
+      }
+    });
+
+    // Merge user holdings with Yahoo Finance data
+    const mergedStocks = userHoldingsResult.map(holding => {
+      const yahooData = yahooDataMap.get(holding.id);
+      return {
+        id: holding.id,
+        symbol: holding.symbol,
+        shares: parseFloat(holding.shares),
+        purchase_price: parseFloat(holding.purchase_price),
+        is_owned: holding.is_owned,
+        // Yahoo Finance data
+        company_name: yahooData?.companyName || 'N/A',
+        current_price: yahooData?.price || 0,
+        daily_change: yahooData?.daily_change || 0,
+        pe_ratio: yahooData?.trailingPE || null,
+        pb_ratio: yahooData?.priceToBook || null,
+        market_cap: yahooData?.marketCap || null,
+      };
+    });
+    
+    let stocks = mergedStocks; // Now 'stocks' contains merged data
+
+    // No need for explicit de-duplication if userHoldingsResult is unique by s.id
+    // But keeping this block for safety if underlying query could produce duplicates
     const uniqueStockIds = new Set<number>();
     stocks = stocks.filter(stock => {
       if (uniqueStockIds.has(stock.id)) {
@@ -80,6 +112,8 @@ export async function GET(request: NextRequest) {
       uniqueStockIds.add(stock.id);
       return true;
     });
+
+
 
     // 2. Fetch all historical prices, ordered by date for each stock
     const [pricesResult] = await executeRawQuery(`
