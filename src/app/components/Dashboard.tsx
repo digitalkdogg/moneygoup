@@ -4,6 +4,42 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link'; // Import Link
+import { calculateTechnicalIndicators, TechnicalIndicators } from '../../utils/technicalIndicators';
+
+
+interface StockData {
+  symbol?: string
+  name?: string
+  last?: number
+  open?: number
+  high?: number
+  low?: number
+  close?: number
+  volume?: number
+  prevClose?: number
+  timestamp?: string
+  exchange?: string
+  error?: string
+  peRatio?: number
+  pbRatio?: number
+  marketCap?: number
+}
+
+interface HistoricalData {
+  date: string
+  datetime: string
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
+  adjOpen: number
+  adjHigh: number
+  adjLow: number
+  adjClose: number
+  adjVolume: number
+}
+
 
 interface StockDashboardData {
   stock_id: number;
@@ -15,6 +51,7 @@ interface StockDashboardData {
   shares?: number;
   purchase_price?: number;
   recommendation?: 'BUY' | 'SELL' | 'HOLD';
+  indicators?: TechnicalIndicators | null;
   estimatedDailyEarnings?: number;
   lifetimeEarnings?: number;
 }
@@ -114,6 +151,40 @@ export default function Dashboard() {
   const [removeSuccess, setRemoveSuccess] = useState<string | null>(null);
 
 
+  const fetchStockDetailsAndCalculateRecommendation = async (ticker: string): Promise<Partial<StockDashboardData>> => {
+    try {
+      // Fetch all data in parallel
+      const [quoteRes, newsRes, historicalRes] = await Promise.all([
+        fetch(`/api/stock/${ticker}`),
+        fetch(`/api/stock/${ticker}/news`),
+        fetch(`/api/stock/${ticker}/historical/1Y`),
+      ]);
+  
+      const quoteData = quoteRes.ok ? await quoteRes.json() : null;
+      const newsData = newsRes.ok ? await newsRes.json() : { articles: [] };
+      const historicalData = historicalRes.ok ? (await historicalRes.json()).historicalData : [];
+  
+      if (historicalData.length > 0) {
+        const indicators = calculateTechnicalIndicators(
+          historicalData,
+          newsData.articles || [],
+          quoteData?.peRatio,
+          quoteData?.pbRatio,
+          quoteData?.marketCap
+        );
+        return {
+          recommendation: indicators.signal,
+          indicators: indicators,
+          price: quoteData?.last,
+          daily_change: quoteData ? quoteData.last - quoteData.prevClose : null,
+        };
+      }
+    } catch (error) {
+      console.error(`Failed to fetch details for ${ticker}:`, error);
+    }
+    return { recommendation: 'HOLD', indicators: null }; // Default on error
+  };
+  
   const fetchData = async () => {
     setLoading(true);
     setError(null);
@@ -122,9 +193,20 @@ export default function Dashboard() {
       if (!res.ok) {
         throw new Error('Failed to fetch data');
       }
-      const { stocks, summary } = await res.json();
-      setStocks(stocks);
+      const { stocks: initialStocks, summary } = await res.json();
+      setStocks(initialStocks);
       setSummary(summary);
+  
+      // Now, fetch details for each stock and update it
+      initialStocks.forEach(async (stock: StockDashboardData) => {
+        const details = await fetchStockDetailsAndCalculateRecommendation(stock.symbol);
+        setStocks(currentStocks =>
+          currentStocks.map(s =>
+            s.symbol === stock.symbol ? { ...s, ...details } : s
+          )
+        );
+      });
+  
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unknown error occurred');
     } finally {
@@ -401,9 +483,19 @@ export default function Dashboard() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stock.companyName || 'N/A'}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">{stock.price ? `$${stock.price.toFixed(2)}` : 'N/A'}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getRecommendationClass(stock.recommendation || '')}`}>
-                            {stock.recommendation || 'N/A'}
-                          </span>
+                          {stock.recommendation ? (
+                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getRecommendationClass(stock.recommendation)}`}>
+                              {stock.recommendation}
+                            </span>
+                          ) : (
+                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-gray-800" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              Calculating...
+                            </span>
+                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">{stock.isOwned && typeof stock.shares === 'number' ? stock.shares.toFixed(2) : 'N/A'}</td>
                         <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-medium ${

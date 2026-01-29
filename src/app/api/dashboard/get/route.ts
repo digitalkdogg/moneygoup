@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 1. Fetch all stock symbols the user is tracking
-    const [userStocksResult] = await executeRawQuery<{ symbol: string; stock_id: number }[]>(`
+    const [userStocksResult] = await executeRawQuery(`
         SELECT
             s.symbol,
             s.id AS stock_id
@@ -40,8 +40,9 @@ export async function GET(request: NextRequest) {
         ORDER BY s.symbol;
     `, [userId]);
 
-    const symbols = userStocksResult.map(stock => stock.symbol);
-    const stockIdMap = new Map<string, number>(userStocksResult.map(stock => [stock.symbol, stock.stock_id]));
+    const userStocks = userStocksResult as { symbol: string; stock_id: number }[];
+    const symbols = userStocks.map(stock => stock.symbol);
+    const stockIdMap = new Map<string, number>(userStocks.map(stock => [stock.symbol, stock.stock_id]));
 
 
     if (symbols.length === 0) {

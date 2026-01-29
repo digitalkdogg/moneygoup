@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
 
 
     // 1. Fetch user-specific stock holdings
-    const [userHoldingsResult] = await executeRawQuery<{ id: number; symbol: string; shares: string; purchase_price: string; is_owned: number }[]>(`
+    const [queryResult] = await executeRawQuery(`
         SELECT
             s.id,
             s.symbol,
@@ -52,6 +52,7 @@ export async function GET(request: NextRequest) {
         WHERE us.user_id = ?
         ORDER BY s.symbol;
     `, [userId]);
+    const userHoldingsResult = queryResult as { id: number; symbol: string; shares: string; purchase_price: string; is_owned: number }[];
 
     // Extract symbols for batch Yahoo Finance query
     const symbols = userHoldingsResult.map(holding => holding.symbol);
