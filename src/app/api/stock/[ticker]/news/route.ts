@@ -14,55 +14,78 @@ export async function GET(
   if (originCheckResponse) {
     return originCheckResponse;
   }
-  const ticker = params.ticker.toUpperCase();
-  const url = `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${ticker}&region=US&lang=en-US`;
-  const sentiment = new Sentiment();
+
+  // Normalize input to array
+  const tickerString = params.ticker.toUpperCase();
+  const tickerArray = tickerString.split(',').map(t => t.trim());
 
   try {
-    const response = await fetch(url);
+    const sentiment = new Sentiment();
+    const articlesByTicker: Record<string, any[]> = {};
+    
+    // Initialize empty arrays for all requested tickers
+    tickerArray.forEach(ticker => {
+      articlesByTicker[ticker] = [];
+    });
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch RSS feed: ${response.statusText}`);
-    }
+    // Fetch RSS feed for each ticker individually
+    const fetchPromises = tickerArray.map(async (ticker) => {
+      try {
+        const url = `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${ticker}&region=US&lang=en-US`;
+        const response = await fetch(url);
 
-    const xmlText = await response.text();
-    const parser = new XMLParser();
-    const parsed = parser.parse(xmlText);
-
-    if (!parsed.rss || !parsed.rss.channel || !parsed.rss.channel.item) {
-      return NextResponse.json([]);
-    }
-
-    const items = Array.isArray(parsed.rss.channel.item) 
-      ? parsed.rss.channel.item 
-      : [parsed.rss.channel.item];
-
-    const articles = items.slice(0, 5).map((item: any) => {
-      const sentimentResult = sentiment.analyze(item.title);
-
-      // Sanitize link: Ensure it's a safe HTTP/HTTPS URL
-      let sanitizedLink = item.link;
-      if (sanitizedLink) {
-        // Check for safe protocols and block javascript:
-        if (!sanitizedLink.startsWith('http://') && !sanitizedLink.startsWith('https://')) {
-          sanitizedLink = '#'; // Neutralize non-http/https links
-        } else if (sanitizedLink.toLowerCase().startsWith('javascript:')) {
-          sanitizedLink = '#'; // Explicitly block javascript: schemes
+        if (!response.ok) {
+          console.warn(`Failed to fetch RSS feed for ${ticker}: ${response.statusText}`);
+          return;
         }
-      } else {
-        sanitizedLink = '#'; // Neutralize missing links
-      }
 
-      return {
-        title: item.title,
-        link: sanitizedLink, // Use the sanitized link
-        pubDate: item.pubDate,
-        source: item.source,
-        sentiment_score: sentimentResult.score,
+        const xmlText = await response.text();
+        const parser = new XMLParser();
+        const parsed = parser.parse(xmlText);
+
+        if (!parsed.rss || !parsed.rss.channel || !parsed.rss.channel.item) {
+          return;
+        }
+
+        const items = Array.isArray(parsed.rss.channel.item)
+          ? parsed.rss.channel.item
+          : [parsed.rss.channel.item];
+
+        // Process articles for this ticker
+        items.slice(0, 5).forEach((item: any) => {
+          const sentimentResult = sentiment.analyze(item.title);
+
+          // Sanitize link: Ensure it's a safe HTTP/HTTPS URL
+          let sanitizedLink = item.link;
+          if (sanitizedLink) {
+            // Check for safe protocols and block javascript:
+            if (!sanitizedLink.startsWith('http://') && !sanitizedLink.startsWith('https://')) {
+              sanitizedLink = '#'; // Neutralize non-http/https links
+            } else if (sanitizedLink.toLowerCase().startsWith('javascript:')) {
+              sanitizedLink = '#'; // Explicitly block javascript: schemes
+            }
+          } else {
+            sanitizedLink = '#'; // Neutralize missing links
+          }
+
+          const article = {
+            title: item.title,
+            link: sanitizedLink,
+            pubDate: item.pubDate,
+            source: item.source,
+            sentiment_score: sentimentResult.score,
+          };
+
+          articlesByTicker[ticker].push(article);
+        });
+      } catch (error) {
+        console.warn(`Error fetching news for ${ticker}:`, error);
       }
     });
 
-    return NextResponse.json({ articles, source: ['Yahoo Finance'] });
+    await Promise.all(fetchPromises);
+
+    return NextResponse.json({ articles: articlesByTicker, source: ['Yahoo Finance'] });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Error fetching news:', error instanceof Error ? error : String(error));

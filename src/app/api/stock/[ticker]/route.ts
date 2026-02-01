@@ -132,27 +132,40 @@ async function fetchFromDatabase(ticker: string) {
   }
 }
 
-async function fetchFromExternalAPIs(ticker: string) {
-  const errors: string[] = []
-  let secCompanyName: string | null = null;
+async function fetchFromExternalAPIs(tickers: string | string[]) {
+  // Normalize input to array
+  const tickerArray = Array.isArray(tickers) ? tickers : tickers.split(',').map(t => t.trim().toUpperCase());
+  
+  const errors: string[] = [];
+  const results: any[] = [];
+  const secCompanyNames: Record<string, string | null> = {};
   const sources: string[] = [];
 
+  // Fetch SEC company names for all tickers
   try {
-    secCompanyName = await fetchCompanyNameFromSec(ticker);
-    if (secCompanyName) {
-      sources.push('SEC');
-    }
-  } catch (secError) {
-    console.warn(`Could not fetch company name from SEC for ${ticker}:`, secError);
+    const secPromises = tickerArray.map(async (ticker) => {
+      try {
+        secCompanyNames[ticker] = await fetchCompanyNameFromSec(ticker);
+        if (secCompanyNames[ticker]) {
+          if (!sources.includes('SEC')) sources.push('SEC');
+        }
+      } catch (secError) {
+        console.warn(`Could not fetch company name from SEC for ${ticker}:`, secError);
+        secCompanyNames[ticker] = null;
+      }
+    });
+    await Promise.all(secPromises);
+  } catch (error) {
+    console.error('Error fetching SEC company names:', error);
   }
 
   // Helper to normalize Yahoo Finance data
   const normalizeYahooData = (data: any, currentSources: string[]) => {
-    if (!data) return {};
+    if (!data) return null;
     const newSources = [...currentSources, 'Yahoo'];
     return {
       symbol: data.symbol,
-      name: data.longName || secCompanyName,
+      name: data.longName || secCompanyNames[data.symbol],
       last: data.regularMarketPrice,
       close: data.regularMarketPrice,
       open: data.regularMarketOpen,
@@ -162,29 +175,47 @@ async function fetchFromExternalAPIs(ticker: string) {
       prevClose: data.regularMarketPreviousClose,
       timestamp: new Date(data.regularMarketTime * 1000).toISOString(),
       exchange: data.fullExchangeName,
-      peRatio: data.trailingPE, // Assuming Yahoo Finance returns this
-      pbRatio: data.priceToBook, // Assuming Yahoo Finance returns this
-      marketCap: data.marketCap, // Assuming Yahoo Finance returns this
+      peRatio: data.trailingPE,
+      pbRatio: data.priceToBook,
+      marketCap: data.marketCap,
       source: newSources
     };
   };
 
-  // Try Yahoo Finance
+  // Try Yahoo Finance for all tickers
   try {
-    const data = await yahooFinance.quote(ticker);
-    if (!data) { // Explicitly handle cases where Yahoo Finance returns no data but doesn't throw an error
-      throw new Error("StockNotFoundError: " + ticker);
-    }
-    return normalizeYahooData(data, sources);
-  } catch (error: any) {
-    if (error.message && error.message.startsWith("StockNotFoundError:")) {
-      throw error; // Re-throw the custom error for upstream handling
-    }
-    errors.push(`Yahoo Finance API: ${error instanceof Error ? error.message : 'Network error'}`)
-  }
+    // Fetch all tickers in one call using quote with multiple symbols
+    const yahooPromises = tickerArray.map(async (ticker) => {
+      try {
+        const data = await yahooFinance.quote(ticker);
+        if (!data) {
+          throw new Error(`StockNotFoundError: ${ticker}`);
+        }
+        const normalized = normalizeYahooData(data, sources);
+        if (normalized) {
+          results.push(normalized);
+        }
+      } catch (error: any) {
+        if (error.message && error.message.startsWith('StockNotFoundError:')) {
+          errors.push(`${ticker}: Stock not found`);
+        } else {
+          errors.push(`${ticker}: ${error instanceof Error ? error.message : 'Network error'}`);
+        }
+      }
+    });
 
-  // All failed - throw error
-  throw new Error(errors.join('; ') || 'Failed to fetch stock data from external APIs')
+    await Promise.all(yahooPromises);
+
+    // If no results were successfully fetched, throw an error
+    if (results.length === 0) {
+      throw new Error(errors.join('; ') || 'Failed to fetch stock data from external APIs');
+    }
+
+    // Return single object if one ticker, array if multiple
+    return tickerArray.length === 1 ? [results[0]] : results;
+  } catch (error: any) {
+    throw error;
+  }
 }
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ ticker: string }> }) {
@@ -203,6 +234,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return Response.json(data)
     } else {
       // Use external APIs for direct search requests
+      // Now supports both single ticker and comma-separated tickers
       const data = await fetchFromExternalAPIs(ticker)
       return Response.json(data)
     }

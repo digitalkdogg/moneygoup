@@ -153,21 +153,39 @@ export default function Dashboard() {
 
   const fetchStockDetailsAndCalculateRecommendation = async (ticker: string): Promise<Partial<StockDashboardData>> => {
     try {
-      // Fetch all data in parallel
-      const [quoteRes, newsRes, historicalRes] = await Promise.all([
-        fetch(`/api/stock/${ticker}`),
-        fetch(`/api/stock/${ticker}/news`),
-        fetch(`/api/stock/${ticker}/historical/1Y`),
-      ]);
-  
-      const quoteData = quoteRes.ok ? await quoteRes.json() : null;
-      const newsData = newsRes.ok ? await newsRes.json() : { articles: [] };
-      const historicalData = historicalRes.ok ? (await historicalRes.json()).historicalData : [];
+      // Fetch consolidated data from /api/stock/{ticker}/get
+      const res = await fetch(`/api/stock/${ticker}/get`);
+      
+      if (!res.ok) {
+        throw new Error(`Failed to fetch data for ${ticker}`);
+      }
+
+      const data = await res.json();
+      
+      const quoteData = data.stock || null;
+      const newsData = data.news || { articles: {} };
+      const historicalResponse = data.historical || { historicalData: {} };
+      
+      // Extract historical data - handle both array and object formats
+      let historicalData: HistoricalData[] = [];
+      if (Array.isArray(historicalResponse.historicalData)) {
+        historicalData = historicalResponse.historicalData;
+      } else if (typeof historicalResponse.historicalData === 'object' && historicalResponse.historicalData !== null) {
+        historicalData = historicalResponse.historicalData[ticker] || [];
+      }
+      
+      // Extract news articles - handle both array and object formats
+      let newsArticles: any[] = [];
+      if (Array.isArray(newsData.articles)) {
+        newsArticles = newsData.articles;
+      } else if (typeof newsData.articles === 'object' && newsData.articles !== null) {
+        newsArticles = newsData.articles[ticker] || [];
+      }
   
       if (historicalData.length > 0) {
         const indicators = calculateTechnicalIndicators(
           historicalData,
-          newsData.articles || [],
+          newsArticles,
           quoteData?.peRatio,
           quoteData?.pbRatio,
           quoteData?.marketCap
@@ -197,15 +215,100 @@ export default function Dashboard() {
       setStocks(initialStocks);
       setSummary(summary);
   
-      // Now, fetch details for each stock and update it
-      initialStocks.forEach(async (stock: StockDashboardData) => {
-        const details = await fetchStockDetailsAndCalculateRecommendation(stock.symbol);
-        setStocks(currentStocks =>
-          currentStocks.map(s =>
-            s.symbol === stock.symbol ? { ...s, ...details } : s
-          )
-        );
-      });
+      // Fetch all stock details in one call using comma-separated tickers
+      if (initialStocks.length > 0) {
+        const tickerString = initialStocks.map((stock: StockDashboardData) => stock.symbol).join(',');
+        
+        try {
+          const detailsRes = await fetch(`/api/stock/${tickerString}/get`);
+          
+          if (detailsRes.ok) {
+            const allStockDetails = await detailsRes.json();
+            
+            // Update stocks with details from consolidated response
+            setStocks(currentStocks =>
+              currentStocks.map(stock => {
+                // Handle both single stock (object) and multiple stocks (object with keys)
+                let stockDetails = null;
+                
+                if (initialStocks.length === 1) {
+                  // Single stock: response is the data directly
+                  stockDetails = allStockDetails;
+                } else {
+                  // Multiple stocks: response is keyed by ticker
+                  stockDetails = allStockDetails[stock.symbol];
+                }
+                
+                if (stockDetails) {
+                  // Extract data from consolidated response
+                  const quoteData = stockDetails.stock || null;
+                  const newsData = stockDetails.news || { articles: {} };
+                  const historicalResponse = stockDetails.historical || { historicalData: {} };
+                  
+                  // Extract historical data - handle both array and object formats
+                  let historicalData: HistoricalData[] = [];
+                  if (Array.isArray(historicalResponse.historicalData)) {
+                    historicalData = historicalResponse.historicalData;
+                  } else if (typeof historicalResponse.historicalData === 'object' && historicalResponse.historicalData !== null) {
+                    historicalData = historicalResponse.historicalData[stock.symbol] || [];
+                  }
+                  
+                  // Extract news articles - handle both array and object formats
+                  let newsArticles: any[] = [];
+                  if (Array.isArray(newsData.articles)) {
+                    newsArticles = newsData.articles;
+                  } else if (typeof newsData.articles === 'object' && newsData.articles !== null) {
+                    newsArticles = newsData.articles[stock.symbol] || [];
+                  }
+                  
+                  // Calculate indicators if we have historical data
+                  if (historicalData.length > 0) {
+                    const indicators = calculateTechnicalIndicators(
+                      historicalData,
+                      newsArticles,
+                      quoteData?.peRatio,
+                      quoteData?.pbRatio,
+                      quoteData?.marketCap
+                    );
+                    
+                    return {
+                      ...stock,
+                      recommendation: indicators.signal,
+                      indicators: indicators,
+                      price: quoteData?.last,
+                      daily_change: quoteData ? quoteData.last - quoteData.prevClose : null,
+                    };
+                  }
+                }
+                
+                return stock;
+              })
+            );
+          } else {
+            console.error('Failed to fetch consolidated stock details');
+            // Fall back to individual calls if bulk call fails
+            initialStocks.forEach(async (stock: StockDashboardData) => {
+              const details = await fetchStockDetailsAndCalculateRecommendation(stock.symbol);
+              setStocks(currentStocks =>
+                currentStocks.map(s =>
+                  s.symbol === stock.symbol ? { ...s, ...details } : s
+                )
+              );
+            });
+          }
+        } catch (err) {
+          console.error('Error fetching consolidated stock details:', err);
+          // Fall back to individual calls if bulk call fails
+          initialStocks.forEach(async (stock: StockDashboardData) => {
+            const details = await fetchStockDetailsAndCalculateRecommendation(stock.symbol);
+            setStocks(currentStocks =>
+              currentStocks.map(s =>
+                s.symbol === stock.symbol ? { ...s, ...details } : s
+              )
+            );
+          });
+        }
+      }
   
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unknown error occurred');
