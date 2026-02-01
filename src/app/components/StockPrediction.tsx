@@ -61,53 +61,49 @@ export default function StockPrediction({
     })
   }, [ticker, currentPrice, peRatio, pbRatio, marketCap, sma20, sma50, rsi, momentum, newsArticles])
 
-  useEffect(() => {
+  const generatePrediction = async () => {
     if (!historicalData || historicalData.length < 5) {
       setError('Insufficient historical data for prediction')
       return
     }
 
-    const generatePrediction = async () => {
-      setLoading(true)
-      setError(null)
+    setLoading(true)
+    setError(null)
 
-      try {
-        const { predictStockPrice } = await import('@/utils/stockPrediction')
-        
-        // Calculate volatility from historical data
-        const volatilityResult = calculateAnnualizedVolatility(
-          historicalData.map((d, i) => ({
-            date: new Date(Date.now() - (historicalData.length - i - 1) * 86400000).toISOString().split('T')[0],
-            close: d.close
-          }))
-        )
-        
-        const result = await predictStockPrice(
-          historicalData,
-          {
-            peRatio,
-            pbRatio,
-            marketCap,
-            sma20,
-            sma50,
-            rsi,
-            momentum,
-            volatility: volatilityResult || undefined,
-          },
-          newsArticles
-        )
-        setPrediction(result)
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : 'Failed to generate prediction'
-        )
-      } finally {
-        setLoading(false)
-      }
+    try {
+      const { predictStockPrice } = await import('@/utils/stockPrediction')
+      
+      // Calculate volatility from historical data
+      const volatilityResult = calculateAnnualizedVolatility(
+        historicalData.map((d, i) => ({
+          date: new Date(Date.now() - (historicalData.length - i - 1) * 86400000).toISOString().split('T')[0],
+          close: d.close
+        }))
+      )
+      
+      const result = await predictStockPrice(
+        historicalData,
+        {
+          peRatio,
+          pbRatio,
+          marketCap,
+          sma20,
+          sma50,
+          rsi,
+          momentum,
+          volatility: volatilityResult || undefined,
+        },
+        newsArticles
+      )
+      setPrediction(result)
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Failed to generate prediction'
+      )
+    } finally {
+      setLoading(false)
     }
-
-    generatePrediction()
-  }, [historicalData, peRatio, pbRatio, marketCap, sma20, sma50, rsi, momentum, newsArticles])
+  }
 
   if (error) {
     return (
@@ -116,6 +112,12 @@ export default function StockPrediction({
           📊 1-Year Price Prediction
         </h2>
         <p className="text-gray-600">{error}</p>
+        <button
+          onClick={generatePrediction}
+          className="mt-4 bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors"
+        >
+          Retry Prediction
+        </button>
       </div>
     )
   }
@@ -134,7 +136,24 @@ export default function StockPrediction({
     )
   }
 
-  if (!prediction) return null
+  if (!prediction) {
+    return (
+      <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
+        <h2 className="text-2xl font-semibold text-gray-800 mb-4">
+          📊 1-Year Price Prediction
+        </h2>
+        <p className="text-gray-600 mb-4">
+          Click the button to generate an AI-powered 1-year price prediction for {ticker}.
+        </p>
+        <button
+          onClick={generatePrediction}
+          className="bg-green-700 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-800 transition-colors"
+        >
+          Generate 1 Year Prediction
+        </button>
+      </div>
+    )
+  }
 
   const isPositive = prediction.priceChange >= 0
   const changeColor = isPositive ? 'text-green-600' : 'text-red-600'
