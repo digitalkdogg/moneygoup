@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { calculateTechnicalIndicators, TechnicalIndicators } from '@/utils/technicalIndicators'
-import { calculateAnnualizedVolatility, getVolatilityRating } from '@/utils/volatility'
+import { TechnicalIndicators } from '@/utils/technicalIndicators'
+import { getVolatilityRating } from '@/utils/volatility'
 import ApiErrorDisplay, { ApiError } from './ApiErrorDisplay'
 import TechnicalIndicatorsDisplay from './TechnicalIndicatorsDisplay'
 import StockChart from './StockChart'
@@ -100,66 +100,73 @@ export default function Stock({
       let currentStockData: StockData | null = null;
       let currentApiError: ApiError | null = null;
 
+      // Try consolidated endpoint first
       try {
-        const genericRes = await fetch(`/api/stock/${ticker}`);
-        if (genericRes.ok) {
-          currentStockData = await genericRes.json();
+        const combinedRes = await fetch(`/api/stock/${ticker}/get`);
+        if (combinedRes.ok) {
+          const combined = await combinedRes.json();
+          currentStockData = combined.stock || null;
+
+          const newsData = combined.news || {};
+          setNews(Array.isArray(newsData.articles) ? newsData.articles : []);
+
+          const hist = combined.historical || {};
+          if (Array.isArray(hist.historicalData) && hist.historicalData.length) {
+            setFullHistoricalData(hist.historicalData);
+          }
+
+          setIndicators(combined.indicators || null);
+          setStockData(currentStockData);
+          setApiError(null);
         } else {
-          const genericErrorData = await genericRes.json();
+          // Fall back to original individual endpoint calls on non-ok response
+          throw new Error('Consolidated endpoint failed');
+        }
+      } catch (err: unknown) {
+        // Fallback: call individual endpoints (preserves original behavior)
+        try {
+          const genericRes = await fetch(`/api/stock/${ticker}`);
+          if (genericRes.ok) {
+            currentStockData = await genericRes.json();
+          } else {
+            const genericErrorData = await genericRes.json();
+            currentApiError = {
+              type: 'stock',
+              ticker,
+              message:
+                genericErrorData.message ||
+                'Failed to fetch stock data from generic API',
+              details: genericErrorData.details,
+              failedServices: genericErrorData.failedServices,
+            };
+          }
+        } catch (genericErr: unknown) {
+          const e = genericErr instanceof Error ? genericErr : new Error(String(genericErr));
+          logger.error(`Generic API network error for ${ticker}:`, e);
           currentApiError = {
             type: 'stock',
             ticker,
-            message:
-              genericErrorData.message ||
-              'Failed to fetch stock data from generic API',
-            details: genericErrorData.details,
-            failedServices: genericErrorData.failedServices,
+            message: 'Network error while fetching stock data',
+            details: e.message,
+            failedServices: ['Yahoo'],
           };
         }
-      } catch (genericErr: unknown) {
-        const err =
-          genericErr instanceof Error
-            ? genericErr
-            : new Error(String(genericErr));
 
-        logger.error(`Generic API network error for ${ticker}:`, err);
+        setStockData(currentStockData);
+        setApiError(currentApiError);
 
-        currentApiError = {
-          type: 'stock',
-          ticker,
-          message: 'Network error while fetching stock data',
-          details: err.message,
-          failedServices: ['Yahoo'],
-        };
-      }
+        const newsRes = await fetch(`/api/stock/${ticker}/news`);
+        const newsData = newsRes.ok ? await newsRes.json() : {};
+        setNews(Array.isArray(newsData.articles) ? newsData.articles : []);
 
-      setStockData(currentStockData);
-      setApiError(currentApiError);
+        const histUrl = `/api/stock/${ticker}/historical/1Y`;
 
-      const newsRes = await fetch(`/api/stock/${ticker}/news`);
-      const newsData = newsRes.ok ? await newsRes.json() : {};
-      setNews(Array.isArray(newsData.articles) ? newsData.articles : []);
-
-      const histUrl = `/api/stock/${ticker}/historical/1Y`; // Watchlist status no longer dictates historical data source
-
-      const histRes = await fetch(histUrl);
-      if (histRes.ok) {
-        const data = await histRes.json();
-        if (Array.isArray(data.historicalData) && data.historicalData.length) {
-          setFullHistoricalData(data.historicalData);
-
-          setIndicators(
-            calculateTechnicalIndicators(
-              data.historicalData,
-              newsData.articles || [],
-              currentStockData?.peRatio,
-              currentStockData?.pbRatio,
-              currentStockData?.marketCap
-            )
-          );
-
-          const vol = calculateAnnualizedVolatility(data.historicalData);
-          setVolatilityRating(getVolatilityRating(vol));
+        const histRes = await fetch(histUrl);
+        if (histRes.ok) {
+          const data = await histRes.json();
+          if (Array.isArray(data.historicalData) && data.historicalData.length) {
+            setFullHistoricalData(data.historicalData);
+          }
         }
       }
     } catch (err: unknown) {
@@ -276,7 +283,7 @@ export default function Stock({
             <button
               onClick={handleWatchlistToggle}
               disabled={addingToWatchlist}
-              className="px-4 py-2 rounded-md text-white bg-blue-500 hover:bg-blue-600 disabled:opacity-50"
+              className="px-4 py-2 rounded-md text-white bg-green-700 hover:bg-green-800 disabled:opacity-50"
             >
               {addingToWatchlist ? 'Adding...' : 'Add to Watchlist'}
             </button>
