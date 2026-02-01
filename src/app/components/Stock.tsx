@@ -9,6 +9,7 @@ import TechnicalIndicatorsDisplay from './TechnicalIndicatorsDisplay'
 import StockChart from './StockChart'
 import StockNews from './StockNews'
 import { createLogger } from '@/utils/logger'
+import StockPrediction from './StockPrediction'
 
 const logger = createLogger('components/Stock')
 
@@ -351,6 +352,23 @@ export default function Stock({
         <div className="mb-8">
           <StockChart ticker={ticker} historicalData={fullHistoricalData} />
         </div>
+      )}
+
+      {/* 1-Year Price Prediction Card */}
+      {fullHistoricalData && fullHistoricalData.length > 0 && (
+        <StockPrediction
+          ticker={ticker}
+          currentPrice={currentPrice}
+          historicalData={fullHistoricalData}
+          peRatio={stockData?.peRatio}
+          pbRatio={stockData?.pbRatio}
+          marketCap={stockData?.marketCap}
+          sma20={indicators?.sma20 ?? undefined}
+          sma50={indicators?.sma50 ?? undefined}
+          rsi={indicators?.rsi14 ?? undefined}
+          momentum={indicators?.momentum ?? undefined}
+          newsArticles={news}
+        />
       )}
 
       {/* Technical Indicators Card (adjust placement as needed) */}
