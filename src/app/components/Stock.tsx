@@ -97,7 +97,7 @@ export default function Stock({
         const statusMap: Record<string, boolean> = {}
         tickerArray.forEach(t => {
           statusMap[t] = watchlistData.watchlist.some(
-            (item: any) => item.symbol === t
+            (item: any) => item.symbol?.trim().toUpperCase() === t
           )
         })
         setWatchlistStatus(statusMap)
