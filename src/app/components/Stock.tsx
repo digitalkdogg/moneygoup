@@ -115,7 +115,7 @@ export default function Stock({
         // Fetch data for each ticker from /api/stock/{ticker}/get
         const fetchPromises = tickerArray.map(async (t) => {
           try {
-            const res = await fetch(`/api/stock/${t}/get`)
+            const res = await fetch(`/api/stock/${t}`)
             if (res.ok) {
               const data = await res.json()
               return {

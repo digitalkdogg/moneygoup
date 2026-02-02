@@ -154,7 +154,7 @@ export default function Dashboard() {
   const fetchStockDetailsAndCalculateRecommendation = async (ticker: string): Promise<Partial<StockDashboardData>> => {
     try {
       // Fetch consolidated data from /api/stock/{ticker}/get
-      const res = await fetch(`/api/stock/${ticker}/get`);
+      const res = await fetch(`/api/stock/${ticker}`);
       
       if (!res.ok) {
         throw new Error(`Failed to fetch data for ${ticker}`);
@@ -220,7 +220,7 @@ export default function Dashboard() {
         const tickerString = initialStocks.map((stock: StockDashboardData) => stock.symbol).join(',');
         
         try {
-          const detailsRes = await fetch(`/api/stock/${tickerString}/get`);
+          const detailsRes = await fetch(`/api/stock/${tickerString}`);
           
           if (detailsRes.ok) {
             const allStockDetails = await detailsRes.json();

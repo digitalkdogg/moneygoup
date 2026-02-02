@@ -3,9 +3,10 @@ import { executeRawQuery, transaction } from '@/utils/databaseHelper'
 import YahooFinance from 'yahoo-finance2';
 import { createErrorResponse } from '@/utils/errorResponse';
 import { secCompanyCache } from '@/utils/cache';
-import { getServerSession } from 'next-auth'; // Add this import
-import { authOptions } from '@/lib/auth'; // Add this import
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { checkOrigin } from '@/utils/originCheck';
+import { calculateTechnicalIndicators } from '@/utils/technicalIndicators'; // Added this import
 
 const yahooFinance = new YahooFinance();
 
@@ -132,6 +133,30 @@ async function fetchFromDatabase(ticker: string) {
   }
 }
 
+// Helper to normalize Yahoo Finance data
+const normalizeYahooData = (data: any, currentSources: string[]) => {
+  if (!data) return null;
+  const newSources = [...currentSources, 'Yahoo'];
+  return {
+    symbol: data.symbol,
+    name: data.longName || secCompanyNames[data.symbol],
+    last: data.regularMarketPrice,
+    close: data.regularMarketPrice,
+    open: data.regularMarketOpen,
+    high: data.regularMarketDayHigh,
+    low: data.regularMarketDayLow,
+    volume: data.regularMarketVolume,
+    prevClose: data.regularMarketPreviousClose,
+    timestamp: new Date(data.regularMarketTime * 1000).toISOString(),
+    exchange: data.fullExchangeName,
+    peRatio: data.trailingPE,
+    pbRatio: data.priceToBook,
+    marketCap: data.marketCap,
+    source: newSources
+  };
+};
+
+
 async function fetchFromExternalAPIs(tickers: string | string[]) {
   // Normalize input to array
   const tickerArray = Array.isArray(tickers) ? tickers : tickers.split(',').map(t => t.trim().toUpperCase());
@@ -158,29 +183,6 @@ async function fetchFromExternalAPIs(tickers: string | string[]) {
   } catch (error) {
     console.error('Error fetching SEC company names:', error);
   }
-
-  // Helper to normalize Yahoo Finance data
-  const normalizeYahooData = (data: any, currentSources: string[]) => {
-    if (!data) return null;
-    const newSources = [...currentSources, 'Yahoo'];
-    return {
-      symbol: data.symbol,
-      name: data.longName || secCompanyNames[data.symbol],
-      last: data.regularMarketPrice,
-      close: data.regularMarketPrice,
-      open: data.regularMarketOpen,
-      high: data.regularMarketDayHigh,
-      low: data.regularMarketDayLow,
-      volume: data.regularMarketVolume,
-      prevClose: data.regularMarketPreviousClose,
-      timestamp: new Date(data.regularMarketTime * 1000).toISOString(),
-      exchange: data.fullExchangeName,
-      peRatio: data.trailingPE,
-      pbRatio: data.priceToBook,
-      marketCap: data.marketCap,
-      source: newSources
-    };
-  };
 
   // Try Yahoo Finance for all tickers
   try {
@@ -218,42 +220,100 @@ async function fetchFromExternalAPIs(tickers: string | string[]) {
   }
 }
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ ticker: string }> }) {
-  const originCheckResponse = checkOrigin(request);
-  if (originCheckResponse) {
-    return originCheckResponse;
-  }
-  const resolvedParams = await params;
-  const ticker = resolvedParams.ticker.toUpperCase()
-  const source = request.nextUrl.searchParams.get('source')
+
+// The new GET handler, modified from get/route.ts
+export async function GET(request: NextRequest, { params }: { params: { ticker: string } }) {
+  const originCheckResponse = checkOrigin(request)
+  if (originCheckResponse) return originCheckResponse
+
+  const tickerString = params.ticker.toUpperCase()
+  const tickerArray = tickerString.split(',').map(t => t.trim())
+
+  const origin = request.nextUrl?.origin || ''
 
   try {
-    if (source === 'dashboard') {
-      // Use database for dashboard requests
-      const data = await fetchFromDatabase(ticker)
-      return Response.json(data)
+    // Fetch data for all tickers in parallel
+    const fetchPromises = tickerArray.map(async (ticker) => {
+      try {
+        // Replaced fetch(`${origin}/api/stock/${ticker}`) with direct call to fetchFromExternalAPIs
+        const stockDataArray = await fetchFromExternalAPIs(ticker)
+        const newsPromise = fetch(`${origin}/api/stock/${ticker}/news`)
+        const histPromise = fetch(`${origin}/api/stock/${ticker}/historical/1y`)
+
+        const [newsRes, histRes] = await Promise.all([newsPromise, histPromise])
+
+        // stockDataArray is already an array from fetchFromExternalAPIs, get the first element for single ticker
+        const stockData = (stockDataArray && stockDataArray.length > 0) ? stockDataArray[0] : { error: 'Failed to fetch stock' };
+        const stockJson = stockData;
+
+        const newsJson = newsRes.ok ? await newsRes.json() : { error: `Failed to fetch news: ${newsRes.status}` };
+        const histJson = histRes.ok ? await histRes.json() : { error: `Failed to fetch historical: ${histRes.status}` };
+
+        // Calculate indicators if all data is available
+        let indicators = null;
+        if (newsRes.ok && histRes.ok && stockJson && histJson.historicalData) { // Check stockJson directly now
+          // Handle both single ticker (array of data points) and multiple ticker (object with tickers as keys) formats
+          const historicalData = histJson.historicalData[ticker] || histJson.historicalData;
+          const newsArticles = newsJson.articles?.[ticker] || newsJson.articles || [];
+
+          indicators = calculateTechnicalIndicators(
+            historicalData,
+            newsArticles,
+            stockJson.peRatio,
+            stockJson.pbRatio,
+            stockJson.marketCap
+          );
+        }
+
+        return {
+          ticker,
+          stock: stockJson,
+          news: newsJson,
+          historical: histJson,
+          indicators
+        };
+      } catch (error) {
+        return {
+          ticker,
+          error: `Failed to fetch data for ${ticker}`,
+          details: error instanceof Error ? error.message : String(error)
+        };
+      }
+    });
+
+    const results = await Promise.all(fetchPromises);
+
+    // Format response based on number of tickers
+    if (tickerArray.length === 1) {
+      // Single ticker: return data directly
+      const result = results[0];
+      return NextResponse.json({
+        stock: result.stock,
+        news: result.news,
+        historical: result.historical,
+        indicators: result.indicators,
+        ...(result.error && { error: result.error, details: result.details })
+      });
     } else {
-      // Use external APIs for direct search requests
-      // Now supports both single ticker and comma-separated tickers
-      const data = await fetchFromExternalAPIs(ticker)
-      return Response.json(data)
+      // Multiple tickers: return object with tickers as keys
+      const consolidatedData: Record<string, any> = {};
+      results.forEach(result => {
+        consolidatedData[result.ticker] = {
+          stock: result.stock,
+          news: result.news,
+          historical: result.historical,
+          indicators: result.indicators,
+          ...(result.error && { error: result.error, details: result.details })
+        };
+      });
+      return NextResponse.json(consolidatedData);
     }
-  } catch (error: any) {
-    console.error(error);
-    
-    // Check for our custom StockNotFoundError
-    if (error.message && error.message.startsWith("StockNotFoundError:")) {
-      return createErrorResponse("Stock not available", 404);
-    }
-    
-    const isDashboardSource = source === 'dashboard';
-    const message = isDashboardSource ? 'Failed to fetch stock data from database' : 'Failed to fetch stock data from external APIs';
-    const status = isDashboardSource && (error instanceof Error && error.message.includes('No data found')) ? 404 : 500;
-    
-    return createErrorResponse(error, status);
+  } catch (error) {
+    return NextResponse.json({ error: 'Failed to fetch consolidated stock data', details: error instanceof Error ? error.message : String(error) }, { status: 500 })
   }
 }
 
+// The DELETE handler from the original route.ts
 export async function DELETE(request: NextRequest, { params }: { params: { ticker: string } }) {
   const originCheckResponse = checkOrigin(request);
   if (originCheckResponse) {
@@ -271,6 +331,4 @@ export async function DELETE(request: NextRequest, { params }: { params: { ticke
   // If an admin role system is implemented, this check would be adjusted to
   // allow only users with 'admin' role.
   return new NextResponse(JSON.stringify({ message: 'Forbidden: This action requires administrative privileges.' }), { status: 403 });
-
-
 }
