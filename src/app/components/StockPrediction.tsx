@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { calculateAnnualizedVolatility } from '@/utils/volatility'
 
 interface StockPredictionProps {
   ticker: string
@@ -71,37 +70,42 @@ export default function StockPrediction({
     setError(null)
 
     try {
-      const { predictStockPrice } = await import('@/utils/stockPrediction')
-      
-      // Calculate volatility from historical data
-      const volatilityResult = calculateAnnualizedVolatility(
-        historicalData.map((d, i) => ({
-          date: new Date(Date.now() - (historicalData.length - i - 1) * 86400000).toISOString().split('T')[0],
-          close: d.close
-        }))
-      )
-      
-      const result = await predictStockPrice(
-        historicalData,
-        {
-          peRatio,
-          pbRatio,
-          marketCap,
-          sma20,
-          sma50,
-          rsi,
-          momentum,
-          volatility: volatilityResult || undefined,
+      // Filter out news articles with a sentiment_score of 0
+      const filteredNewsArticles = newsArticles ? newsArticles.filter(article => article.sentiment_score !== 0) : [];
+
+      const response = await fetch(`/api/stock/${ticker}/predict`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-        newsArticles
-      )
-      setPrediction(result)
+        body: JSON.stringify({
+          historicalData,
+          stockMetrics: {
+            peRatio,
+            pbRatio,
+            marketCap,
+            sma20,
+            sma50,
+            rsi,
+            momentum,
+          },
+          newsArticles: filteredNewsArticles,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Failed to generate prediction');
+      }
+      
+      setPrediction(result);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Failed to generate prediction'
-      )
+      );
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
