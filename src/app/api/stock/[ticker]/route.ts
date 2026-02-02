@@ -152,6 +152,9 @@ const normalizeYahooData = (data: any, currentSources: string[]) => {
     peRatio: data.trailingPE,
     pbRatio: data.priceToBook,
     marketCap: data.marketCap,
+    sector: data.sector,
+    industry: data.industry,
+    longBusinessSummary: data.longBusinessSummary,
     source: newSources
   };
 };
@@ -189,8 +192,19 @@ async function fetchFromExternalAPIs(tickers: string | string[]) {
     // Fetch all tickers in one call using quote with multiple symbols
     const yahooPromises = tickerArray.map(async (ticker) => {
       try {
-        const data = await yahooFinance.quote(ticker);
-        if (!data) {
+        const summary = await yahooFinance.quoteSummary(ticker, {
+          modules: ["assetProfile", "price", "summaryDetail", "quoteType", "financialData"],
+        });
+
+        const data = {
+            ...summary.assetProfile,
+            ...summary.price,
+            ...summary.summaryDetail,
+            ...summary.quoteType,
+            ...summary.financialData,
+        };
+
+        if (!data || !data.symbol) {
           throw new Error(`StockNotFoundError: ${ticker}`);
         }
         const normalized = normalizeYahooData(data, sources);
