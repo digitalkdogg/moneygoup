@@ -90,24 +90,35 @@ export default function Stock({
     setWatchlistError(null)
 
     try {
-      // 1. Check watchlist for all tickers
-      const watchlistCheckRes = await fetch('/api/user/watchlist')
-      if (watchlistCheckRes.ok) {
-        const watchlistData = await watchlistCheckRes.json()
-        const statusMap: Record<string, boolean> = {}
-        tickerArray.forEach(t => {
-          statusMap[t] = watchlistData.watchlist.some(
-            (item: any) => item.symbol?.trim().toUpperCase() === t
-          )
-        })
-        setWatchlistStatus(statusMap)
+      // 1. Check watchlist status
+      if (isSingleTicker) {
+        const watchlistRes = await fetch(`/api/dashboard/on?ticker=${primaryTicker}`);
+        if (watchlistRes.ok) {
+          const { isOnWatchlist } = await watchlistRes.json();
+          setWatchlistStatus({ [primaryTicker]: isOnWatchlist });
+        } else {
+          logger.error('Failed to fetch single stock watchlist status');
+          setWatchlistStatus({ [primaryTicker]: false });
+        }
       } else {
-        logger.error('Failed to fetch user watchlist')
-        const emptyStatus: Record<string, boolean> = {}
-        tickerArray.forEach(t => {
-          emptyStatus[t] = false
-        })
-        setWatchlistStatus(emptyStatus)
+        const watchlistCheckRes = await fetch('/api/user/watchlist');
+        if (watchlistCheckRes.ok) {
+          const watchlistData = await watchlistCheckRes.json();
+          const statusMap: Record<string, boolean> = {};
+          tickerArray.forEach(t => {
+            statusMap[t] = watchlistData.watchlist.some(
+              (item: any) => item.symbol?.trim().toUpperCase() === t
+            );
+          });
+          setWatchlistStatus(statusMap);
+        } else {
+          logger.error('Failed to fetch user watchlist for multiple tickers');
+          const emptyStatus: Record<string, boolean> = {};
+          tickerArray.forEach(t => {
+            emptyStatus[t] = false;
+          });
+          setWatchlistStatus(emptyStatus);
+        }
       }
 
       // 2. Fetch consolidated data from /api/stock/{ticker}/get (supports multiple tickers)
