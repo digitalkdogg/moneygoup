@@ -232,29 +232,47 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
   const origin = request.nextUrl?.origin || ''
 
   try {
+    // 1. Fetch historical data for all tickers in a single call
+    const histAllTickersPromise = fetch(`${origin}/api/stock/${tickerString}/historical/1y`);
+    const histAllTickersRes = await histAllTickersPromise;
+    const histAllTickersJson = histAllTickersRes.ok ? await histAllTickersRes.json() : { historicalData: {}, error: `Failed to fetch historical for all tickers: ${histAllTickersRes.status}` };
+
+    // 2. Fetch news data for all tickers in a single call
+    const newsAllTickersPromise = fetch(`${origin}/api/stock/${tickerString}/news`);
+    const newsAllTickersRes = await newsAllTickersPromise;
+    const newsAllTickersJson = newsAllTickersRes.ok ? await newsAllTickersRes.json() : { articles: {}, error: `Failed to fetch news for all tickers: ${newsAllTickersRes.status}` };
+
     // Fetch data for all tickers in parallel
     const fetchPromises = tickerArray.map(async (ticker) => {
       try {
-        // Replaced fetch(`${origin}/api/stock/${ticker}`) with direct call to fetchFromExternalAPIs
         const stockDataArray = await fetchFromExternalAPIs(ticker)
-        const newsPromise = fetch(`${origin}/api/stock/${ticker}/news`)
-        const histPromise = fetch(`${origin}/api/stock/${ticker}/historical/1y`)
-
-        const [newsRes, histRes] = await Promise.all([newsPromise, histPromise])
+        // Removed individual newsPromise and histPromise, now handled by combined fetches above
 
         // stockDataArray is already an array from fetchFromExternalAPIs, get the first element for single ticker
         const stockData = (stockDataArray && stockDataArray.length > 0) ? stockDataArray[0] : { error: 'Failed to fetch stock' };
         const stockJson = stockData;
 
-        const newsJson = newsRes.ok ? await newsRes.json() : { error: `Failed to fetch news: ${newsRes.status}` };
-        const histJson = histRes.ok ? await histRes.json() : { error: `Failed to fetch historical: ${histRes.status}` };
+        // Extract news data for the current ticker from the pre-fetched all-tickers response
+        const newsJson = {
+          articles: newsAllTickersJson.articles?.[ticker] || [],
+          source: newsAllTickersJson.source,
+          error: newsAllTickersJson.error
+        };
+
+        // Extract historical data for the current ticker from the pre-fetched all-tickers response
+        const histJson = {
+          historicalData: histAllTickersJson.historicalData?.[ticker] || [],
+          source: histAllTickersJson.source,
+          error: histAllTickersJson.error
+        };
+
 
         // Calculate indicators if all data is available
         let indicators = null;
-        if (newsRes.ok && histRes.ok && stockJson && histJson.historicalData) { // Check stockJson directly now
-          // Handle both single ticker (array of data points) and multiple ticker (object with tickers as keys) formats
-          const historicalData = histJson.historicalData[ticker] || histJson.historicalData;
-          const newsArticles = newsJson.articles?.[ticker] || newsJson.articles || [];
+        // Check if historical data and news data was successfully fetched for this specific ticker
+        if (newsJson.articles && newsJson.articles.length > 0 && histJson.historicalData && histJson.historicalData.length > 0 && stockJson) {
+          const historicalData = histJson.historicalData;
+          const newsArticles = newsJson.articles;
 
           indicators = calculateTechnicalIndicators(
             historicalData,
