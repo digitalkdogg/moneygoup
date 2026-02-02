@@ -28,42 +28,21 @@ interface PredictionResult {
 }
 
 // Simple sentiment analysis for news articles
-function analyzeNewsSentiment(articles: Array<{ title?: string; description?: string; content?: string }>): number {
+function analyzeNewsSentiment(articles: Array<{ title?: string; description?: string; content?: string; sentiment_score?: number }>): number {
   if (!articles || articles.length === 0) return 0;
 
-  const positiveWords = [
-    'surge', 'gain', 'rally', 'bull', 'profit', 'boom', 'soar', 'jump', 'rise', 'up', 'positive',
-    'growth', 'strong', 'beat', 'outperform', 'upgrade', 'recovery', 'success', 'dividend',
-    'acquisition', 'partnership', 'expansion', 'launch', 'record', 'breakthrough'
-  ];
-
-  const negativeWords = [
-    'crash', 'plunge', 'drop', 'bear', 'loss', 'decline', 'fall', 'down', 'negative',
-    'weakness', 'weak', 'miss', 'underperform', 'downgrade', 'crisis', 'bankrupt',
-    'layoff', 'scandal', 'lawsuit', 'recall', 'investigation', 'penalty', 'recession'
-  ];
-
-  let totalScore = 0;
-  let wordCount = 0;
+  let totalSentimentScore = 0;
+  let articleCountWithScore = 0;
 
   for (const article of articles) {
-    const text = `${article.title || ''} ${article.description || ''} ${article.content || ''}`.toLowerCase();
-
-    for (const word of positiveWords) {
-      const count = (text.match(new RegExp(`\b${word}\b`, 'g')) || []).length;
-      totalScore += count;
-      wordCount += count;
-    }
-
-    for (const word of negativeWords) {
-      const count = (text.match(new RegExp(`\b${word}\b`, 'g')) || []).length;
-      totalScore -= count;
-      wordCount += count;
+    if (article.sentiment_score !== undefined && article.sentiment_score !== null) {
+      totalSentimentScore += article.sentiment_score;
+      articleCountWithScore++;
     }
   }
 
-  if (wordCount === 0) return 0;
-  return totalScore / wordCount;
+  if (articleCountWithScore === 0) return 0;
+  return totalSentimentScore / articleCountWithScore;
 }
 
 // Normalize multiple features together
@@ -355,8 +334,6 @@ export async function POST(request: NextRequest, { params }: { params: { ticker:
 
     const { historicalData, stockMetrics, newsArticles } = await request.json();
 
-    console.log('Received newsArticles in predict API for ticker:', params.ticker, newsArticles); // Add this line
-
     if (!historicalData || historicalData.length < 5) {
       return NextResponse.json({ message: 'Insufficient historical data for prediction' }, { status: 400 });
     }
@@ -379,7 +356,6 @@ export async function POST(request: NextRequest, { params }: { params: { ticker:
 
     // Analyze news sentiment
     const newsSentimentScore = newsArticles ? analyzeNewsSentiment(newsArticles) : 0;
-    console.log('Calculated newsSentimentScore for ticker:', params.ticker, newsSentimentScore); // Add this line
 
     try {
         let lstmPred: number;
