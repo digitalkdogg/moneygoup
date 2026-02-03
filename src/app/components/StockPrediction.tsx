@@ -27,6 +27,15 @@ interface PredictionResult {
   newsSentimentScore?: number
 }
 
+interface TfPredictionResult {
+    ticker: string;
+    current_price: number;
+    lstm_model: number;
+    linear_regression_model: number;
+    combined_average: number;
+    predicted_change: number;
+}
+
 export default function StockPrediction({
   ticker,
   currentPrice,
@@ -43,6 +52,10 @@ export default function StockPrediction({
   const [prediction, setPrediction] = useState<PredictionResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const [tfPrediction, setTfPrediction] = useState<TfPredictionResult | null>(null)
+  const [tfLoading, setTfLoading] = useState(false)
+  const [tfError, setTfError] = useState<string | null>(null)
 
   // Debug: Log the props we receive
   useEffect(() => {
@@ -109,6 +122,36 @@ export default function StockPrediction({
     }
   }
 
+  const generateTfPrediction = async () => {
+    setTfLoading(true);
+    setTfError(null);
+    try {
+      const response = await fetch(`/api/stock/${ticker}/predict/tensorflow`);
+      
+      if (!response.ok) {
+        try {
+            const result = await response.json();
+            throw new Error(result.message || 'Failed to generate TF prediction');
+        } catch (e) {
+            const text = await response.text();
+            throw new Error(`Failed to generate TF prediction. Server responded with: ${text}`);
+        }
+      }
+
+      const result = await response.json();
+      if (result.error) {
+        throw new Error(result.error);
+      }
+      setTfPrediction(result);
+    } catch (err) {
+      setTfError(
+        err instanceof Error ? err.message : 'An unknown error occurred'
+      );
+    } finally {
+      setTfLoading(false);
+    }
+  }
+
   if (error) {
     return (
       <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
@@ -149,12 +192,51 @@ export default function StockPrediction({
         <p className="text-gray-600 mb-4">
           Click the button to generate an AI-powered 1-year price prediction for {ticker}.
         </p>
-        <button
-          onClick={generatePrediction}
-          className="bg-green-700 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-800 transition-colors"
-        >
-          Generate 1 Year Prediction
-        </button>
+        <div className="flex space-x-4">
+            <button
+              onClick={generatePrediction}
+              className="bg-green-700 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-800 transition-colors"
+            >
+              Generate 1 Year Prediction
+            </button>
+            <button
+              onClick={generateTfPrediction}
+              disabled={tfLoading}
+              className="bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-800 transition-colors disabled:bg-blue-400"
+            >
+              {tfLoading ? 'Generating...' : 'Generate TF Prediction'}
+            </button>
+        </div>
+        {tfError && <p className="text-red-500 mt-4">{tfError}</p>}
+        {tfPrediction && (
+            <div className="mt-8">
+                <h3 className="text-xl font-semibold text-gray-800 mb-4">TensorFlow Prediction Results</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                        <p className="text-sm text-gray-600 mb-1">Current Price</p>
+                        <p className="text-2xl font-bold text-gray-800">${tfPrediction.current_price.toFixed(2)}</p>
+                    </div>
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                        <p className="text-sm text-gray-600 mb-1">Combined Average (1 Year)</p>
+                        <p className="text-2xl font-bold text-gray-800">${tfPrediction.combined_average.toFixed(2)}</p>
+                    </div>
+                    <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                        <p className="text-sm font-semibold text-gray-700 mb-2">LSTM Model Prediction</p>
+                        <p className="text-2xl font-bold text-blue-600">${tfPrediction.lstm_model.toFixed(2)}</p>
+                    </div>
+                    <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                        <p className="text-sm font-semibold text-gray-700 mb-2">Linear Regression Prediction</p>
+                        <p className="text-2xl font-bold text-purple-600">${tfPrediction.linear_regression_model.toFixed(2)}</p>
+                    </div>
+                </div>
+                 <div className="mt-4">
+                    <p className="text-sm text-gray-600 mb-1">Predicted Change</p>
+                    <p className={`text-2xl font-bold ${tfPrediction.predicted_change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {tfPrediction.predicted_change >= 0 ? '+' : ''}${tfPrediction.predicted_change.toFixed(2)} 
+                    </p>
+                </div>
+            </div>
+        )}
       </div>
     )
   }

@@ -27,16 +27,58 @@ interface PredictionResult {
   newsSentimentScore?: number;
 }
 
-// Simple sentiment analysis for news articles
-function analyzeNewsSentiment(articles: Array<{ title?: string; description?: string; content?: string; sentiment_score?: number }>): number {
+// Competitive mapping - companies that compete with each other
+const competitorMap: Record<string, string[]> = {
+  'WMT': ['AMZN', 'TGT', 'COST', 'AMAZON', 'TARGET', 'COSTCO'],
+  'AMZN': ['WMT', 'TGT', 'COST', 'WALMART', 'TARGET', 'COSTCO'],
+  'AAPL': ['GOOGL', 'GOOG', 'MSFT', 'GOOGLE', 'MICROSOFT', 'SAMSUNG'],
+  'GOOGL': ['AAPL', 'MSFT', 'META', 'APPLE', 'MICROSOFT', 'FACEBOOK'],
+  'GOOG': ['AAPL', 'MSFT', 'META', 'APPLE', 'MICROSOFT', 'FACEBOOK'], 
+  'MSFT': ['AAPL', 'GOOGL', 'GOOG', 'APPLE', 'GOOGLE'],
+  'TSLA': ['F', 'GM', 'FORD', 'TOYOTA', 'HONDA', 'VOLKSWAGEN'],
+  'TGT': ['WMT', 'AMZN', 'COST', 'WALMART', 'AMAZON', 'COSTCO'],
+  'COST': ['WMT', 'AMZN', 'TGT', 'WALMART', 'AMAZON', 'TARGET'],
+  'META': ['GOOGL', 'GOOG', 'SNAP', 'TWITTER', 'TIKTOK', 'GOOGLE']
+};
+
+// Enhanced sentiment analysis with competitive sentiment logic
+function analyzeNewsSentiment(articles: Array<{ title?: string; description?: string; content?: string; sentiment_score?: number }>, targetTicker: string): number {
   if (!articles || articles.length === 0) return 0;
 
   let totalSentimentScore = 0;
   let articleCountWithScore = 0;
+  const upperTicker = targetTicker.toUpperCase();
+  const competitors = competitorMap[upperTicker] || [];
 
   for (const article of articles) {
     if (article.sentiment_score !== undefined && article.sentiment_score !== null) {
-      totalSentimentScore += article.sentiment_score;
+      let sentimentScore = article.sentiment_score;
+      
+      // Check if article mentions target ticker or competitors
+      const articleText = ((article.title || '') + ' ' + (article.description || '') + ' ' + (article.content || '')).toUpperCase();
+      
+      const mentionsTarget = articleText.includes(upperTicker) || 
+                           articleText.includes(upperTicker.toLowerCase()) ||
+                           (upperTicker === 'WMT' && articleText.includes('WALMART')) ||
+                           (upperTicker === 'AAPL' && articleText.includes('APPLE')) ||
+                           (upperTicker === 'GOOGL' && articleText.includes('GOOGLE')) ||
+                           (upperTicker === 'GOOG' && articleText.includes('GOOGLE')) ||
+                           (upperTicker === 'MSFT' && articleText.includes('MICROSOFT')) ||
+                           (upperTicker === 'TSLA' && articleText.includes('TESLA')) ||
+                           (upperTicker === 'META' && (articleText.includes('FACEBOOK') || articleText.includes('META')));
+      
+      const mentionsCompetitor = competitors.some(competitor => 
+        articleText.includes(competitor) || 
+        articleText.includes(competitor.toLowerCase())
+      );
+      
+      // If article doesn't mention target but mentions competitor, flip sentiment
+      if (!mentionsTarget && mentionsCompetitor) {
+        sentimentScore = -sentimentScore; // Flip the polarity: competitor's bad news = good for us
+        console.log(`🔄 Flipped sentiment for ${upperTicker}: competitor mention detected, sentiment ${article.sentiment_score} → ${sentimentScore}`);
+      }
+      
+      totalSentimentScore += sentimentScore;
       articleCountWithScore++;
     }
   }
@@ -183,7 +225,7 @@ async function lstmPredictionMultivariate(features: number[][]): Promise<number>
       verbose: 0,
     });
 
-    const latestNewsSentiment = numFeatures > 8 ? normalized[normalized.length - 1][9] : 0;
+    const latestNewsSentiment = numFeatures > 7 ? normalized[normalized.length - 1][8] : 0;
     let currentSequence = normalized.slice(-sequenceLength);
 
     // Add momentum bias - recent trend has more influence
@@ -204,8 +246,8 @@ async function lstmPredictionMultivariate(features: number[][]): Promise<number>
       const newRow = [...currentSequence[currentSequence.length - 1]];
       newRow[0] = predValue;
       
-      if (numFeatures > 8) {
-        newRow[9] = latestNewsSentiment * Math.exp(-i / 252);
+      if (numFeatures > 7) {
+        newRow[8] = latestNewsSentiment * Math.exp(-i / 252);
       }
       
       currentSequence = [...currentSequence.slice(1), newRow];
@@ -354,15 +396,16 @@ export async function POST(request: NextRequest, { params }: { params: { ticker:
       volatility = volatilityResult || 0;
     }
 
-    // Analyze news sentiment
-    const newsSentimentScore = newsArticles ? analyzeNewsSentiment(newsArticles) : 0;
+    // Analyze news sentiment with competitive analysis
+    const newsSentimentScore = newsArticles ? analyzeNewsSentiment(newsArticles, params.ticker) : 0;
 
     try {
         let lstmPred: number;
         let linearPred: number;
 
         // Build comprehensive feature matrix
-        // [price, pe, pb, marketCap, sma20, sma50, rsi, momentum, volatility, newsSentiment]
+        // [price, pe, pb, marketCap, sma50, rsi, momentum, volatility, newsSentiment]
+        // Note: SMA20 removed from model per user request
         const features: number[][] = [];
 
         // Normalize metrics to reasonable scales for comparison
@@ -377,9 +420,7 @@ export async function POST(request: NextRequest, { params }: { params: { ticker:
             : 0.5;
 
         // Normalize technical indicators (0-1 or standardized ranges)
-        const normalizedSMA20 = stockMetrics?.sma20 !== undefined && stockMetrics.sma20 !== null
-            ? stockMetrics.sma20 / currentPrice
-            : 1;
+        // Note: SMA20 removed from model per user request
         const normalizedSMA50 = stockMetrics?.sma50 !== undefined && stockMetrics.sma50 !== null
             ? stockMetrics.sma50 / currentPrice
             : 1;
@@ -398,8 +439,7 @@ export async function POST(request: NextRequest, { params }: { params: { ticker:
                 normalizedPE,
                 normalizedPB,
                 normalizedMC,
-                normalizedSMA20,
-                normalizedSMA50,
+                normalizedSMA50,  // SMA20 removed from model
                 normalizedRSI,
                 normalizedMomentum,
                 normalizedVolatility,
@@ -417,8 +457,7 @@ export async function POST(request: NextRequest, { params }: { params: { ticker:
             metricsUsed.push('P/B Ratio');
         if (stockMetrics?.marketCap !== undefined && stockMetrics.marketCap !== null && stockMetrics.marketCap > 0)
             metricsUsed.push('Market Cap');
-        if (stockMetrics?.sma20 !== undefined && stockMetrics.sma20 !== null)
-            metricsUsed.push('SMA 20');
+        // SMA 20 removed from model per user request
         if (stockMetrics?.sma50 !== undefined && stockMetrics.sma50 !== null)
             metricsUsed.push('SMA 50');
         if (stockMetrics?.rsi !== undefined && stockMetrics.rsi !== null)

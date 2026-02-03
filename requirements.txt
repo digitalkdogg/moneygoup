@@ -1,0 +1,4 @@
+tensorflow
+yfinance
+scikit-learn
+numpy
