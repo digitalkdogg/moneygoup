@@ -3,5 +3,6 @@ node_modules
 .vscode/
 .env.local
 .venv/
+venv/
 .env.production
 src/src/.DS_Store
