@@ -237,18 +237,14 @@ export default function StockPrediction({
                         <p className="text-sm text-gray-600 mb-1">Current Price</p>
                         <p className="text-2xl font-bold text-gray-800">${tfPrediction.current_price.toFixed(2)}</p>
                     </div>
-                    <div className="p-4 bg-gray-50 rounded-lg">
-                        <p className="text-sm text-gray-600 mb-1">Current Price</p>
-                        <p className="text-2xl font-bold text-gray-800">${tfPrediction.current_price.toFixed(2)}</p>
-                    </div>
                     <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                         <p className="text-sm font-semibold text-gray-700 mb-2">Predicted Change Range</p>
-                        <p className="text-2xl font-bold text-blue-600">
+                        <p className={`text-2xl font-bold ${tfPrediction.predicted_change_range[0] >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {tfPrediction.predicted_change_range[0] >= 0 ? '+' : ''}{tfPrediction.predicted_change_range[0].toFixed(2)} to {tfPrediction.predicted_change_range[1] >= 0 ? '+' : ''}{tfPrediction.predicted_change_range[1].toFixed(2)}
                         </p>
                         {tfPrediction.current_price > 0 && tfPrediction.accuracy_metrics?.neural_network && (
                             <p className="text-xs text-gray-600 mt-2">
-                                MAE: {tfPrediction.accuracy_metrics.neural_network.mae.toFixed(2)} (RMSE: {tfPrediction.accuracy_metrics.neural_network.rmse.toFixed(2)})
+                                Est. Error Rate: {((tfPrediction.accuracy_metrics.neural_network.mae / tfPrediction.current_price) * 100).toFixed(2)}%
                             </p>
                         )}
                     </div>
