@@ -37,9 +37,9 @@ export async function GET(
         let companyName: string | undefined;
         try {
           const quoteSummary = await yahooFinance.quoteSummary(ticker, { modules: ["price"] });
-          companyName = quoteSummary.price?.longName;
+          companyName = quoteSummary.price?.longName || undefined;
         } catch (e) {
-          logger.warn(`Could not fetch longName for ${ticker} from Yahoo Finance. Will filter by ticker only.`, e);
+          logger.warn(`Could not fetch longName for ${ticker} from Yahoo Finance. Will filter by ticker only.`, e as Error);
         }
 
         const relevantKeywords: string[] = [ticker.toLowerCase()];

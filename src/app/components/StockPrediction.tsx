@@ -13,7 +13,7 @@ interface StockPredictionProps {
   sma50?: number
   rsi?: number
   momentum?: number
-  newsArticles?: Array<{ title?: string; description?: string; content?: string }>
+  newsArticles?: Array<{ title?: string; description?: string; content?: string; sentiment_score?: number }>
 }
 
 interface PredictionResult {

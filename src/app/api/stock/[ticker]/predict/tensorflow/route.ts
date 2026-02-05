@@ -15,7 +15,10 @@ export async function POST( // Changed GET to POST
 
   const tempFilePath = path.join('/tmp', `tf_prediction_input_${ticker}_${Date.now()}.json`); // Use /tmp for temporary files
 
-  return new Promise(async (resolve) => { // Added async here
+  // Determine Python executable path
+  const pythonExecutable = process.env.PYPROCESS_URL || 'Python3';
+
+  return new Promise<NextResponse>(async (resolve) => { // Added async here and proper typing
     let pythonProcess;
     try {
       const requestBody = await request.json(); // Read request body
@@ -23,7 +26,7 @@ export async function POST( // Changed GET to POST
       // Write the request body to a temporary file
       await fs.writeFile(tempFilePath, JSON.stringify(requestBody));
 
-      pythonProcess = spawn('python3', [
+      pythonProcess = spawn(pythonExecutable, [
         'predict_tensorflow.py',
         ticker,
         '--input_file', tempFilePath // Pass temp file path as argument
@@ -42,7 +45,7 @@ export async function POST( // Changed GET to POST
 
       let errorOutput = ''
       pythonProcess.stderr.on('data', (data) => {
-          errorOutput += data.toString()
+        errorOutput += data.toString()
       })
 
       pythonProcess.on('close', async (code) => { // Added async here
@@ -63,25 +66,25 @@ export async function POST( // Changed GET to POST
         try {
           const result = JSON.parse(output);
           if (result.error) {
-              return resolve(NextResponse.json({ message: result.error }, { status: 500 }));
+            return resolve(NextResponse.json({ message: result.error }, { status: 500 }));
           }
           resolve(NextResponse.json(result))
         } catch (e) {
           console.error('Failed to parse python script output:')
           console.error(output)
-          resolve(NextResponse.json({ message: 'Failed to parse python script output', error: `Python stdout: ${output}\nError: ${e.message}` }, { status: 500 }))
+          resolve(NextResponse.json({ message: 'Failed to parse python script output', error: `Python stdout: ${output}\nError: ${e instanceof Error ? e.message : String(e)}` }, { status: 500 }))
         }
       })
     } catch (e) {
-        // Handle errors during request body parsing or file writing
-        console.error('Error in Next.js API route:', e);
-        // Ensure temp file is cleaned up even if initial steps fail
-        try {
-          await fs.unlink(tempFilePath);
-        } catch (fileErr) {
-          // Ignore if file doesn't exist yet
-        }
-        resolve(NextResponse.json({ message: 'Error processing request for Python script', error: e instanceof Error ? e.message : String(e) }, { status: 500 }));
+      // Handle errors during request body parsing or file writing
+      console.error('Error in Next.js API route:', e);
+      // Ensure temp file is cleaned up even if initial steps fail
+      try {
+        await fs.unlink(tempFilePath);
+      } catch (fileErr) {
+        // Ignore if file doesn't exist yet
+      }
+      resolve(NextResponse.json({ message: 'Error processing request for Python script', error: e instanceof Error ? e.message : String(e) }, { status: 500 }));
     }
   })
 }

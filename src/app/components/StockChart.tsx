@@ -143,7 +143,12 @@ export default function StockChart({ ticker, historicalData }: StockChartProps) 
                     }}
                     labelStyle={{ fontWeight: 'bold', color: '#374151' }}
                     formatter={(value: number | undefined) => [typeof value === 'number' ? `$${value.toFixed(2)}` : 'N/A', 'Price']}
-                    labelFormatter={(label: string) => new Date(label).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+                    labelFormatter={(label) => {
+                        if (typeof label === 'string') {
+                            return new Date(label).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+                        }
+                        return 'Invalid Date';
+                    }}
                 />
                 <Legend iconType="circle" iconSize={8} />
                 <Line 

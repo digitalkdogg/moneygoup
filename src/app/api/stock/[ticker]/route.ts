@@ -136,7 +136,7 @@ async function fetchFromDatabase(ticker: string) {
 }
 
 // Helper to normalize Yahoo Finance data
-const normalizeYahooData = (data: any, currentSources: string[]) => {
+const normalizeYahooData = (data: any, currentSources: string[], secCompanyNames: Record<string, string | null> = {}) => {
   if (!data) return null;
   const newSources = [...currentSources, 'Yahoo'];
   return {
@@ -214,7 +214,7 @@ async function fetchFromExternalAPIs(tickers: string | string[]) {
         if (!data || !data.symbol) {
           throw new Error(`StockNotFoundError: ${ticker}`);
         }
-        const normalized = normalizeYahooData(data, sources);
+        const normalized = normalizeYahooData(data, sources, secCompanyNames);
         if (normalized) {
           results.push(normalized);
         }
