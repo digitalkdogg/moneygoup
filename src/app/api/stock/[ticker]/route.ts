@@ -7,8 +7,10 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { checkOrigin } from '@/utils/originCheck';
 import { calculateTechnicalIndicators } from '@/utils/technicalIndicators'; // Added this import
+import { createLogger } from '@/utils/logger';
 
 const yahooFinance = new YahooFinance();
+const logger = createLogger('api/stock/[ticker]');
 
 async function fetchCompanyNameFromSec(ticker: string): Promise<string | null> {
   // Check cache first
@@ -193,7 +195,7 @@ async function fetchFromExternalAPIs(tickers: string | string[]) {
     const yahooPromises = tickerArray.map(async (ticker) => {
       try {
         const summary = await yahooFinance.quoteSummary(ticker, {
-          modules: ["assetProfile", "price", "summaryDetail", "quoteType", "financialData"],
+          modules: ["assetProfile", "price", "summaryDetail", "quoteType", "financialData", "defaultKeyStatistics"], // Added defaultKeyStatistics
         });
 
         const data = {
@@ -202,7 +204,12 @@ async function fetchFromExternalAPIs(tickers: string | string[]) {
             ...summary.summaryDetail,
             ...summary.quoteType,
             ...summary.financialData,
+            ...summary.defaultKeyStatistics, // Added defaultKeyStatistics
         };
+
+        logger.info(`Raw priceToBook for ${ticker} (after defaultKeyStatistics): ${data.priceToBook}`); // Debug line
+
+
 
         if (!data || !data.symbol) {
           throw new Error(`StockNotFoundError: ${ticker}`);

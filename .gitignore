@@ -5,4 +5,9 @@ node_modules
 .venv/
 venv/
 .env.production
-src/src/.DS_Store
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
