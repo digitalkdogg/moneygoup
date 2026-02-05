@@ -3,8 +3,10 @@ import { XMLParser } from 'fast-xml-parser';
 import Sentiment from 'sentiment';
 import { createLogger } from '@/utils/logger';
 import { checkOrigin } from '@/utils/originCheck';
+import YahooFinance from 'yahoo-finance2'; // Import YahooFinance
 
 const logger = createLogger('api/stock/[ticker]/news');
+const yahooFinance = new YahooFinance(); // Initialize YahooFinance
 
 export async function GET(
   request: NextRequest,
@@ -31,6 +33,27 @@ export async function GET(
     // Fetch RSS feed for each ticker individually
     const fetchPromises = tickerArray.map(async (ticker) => {
       try {
+        // 1. Get company longName for filtering
+        let companyName: string | undefined;
+        try {
+          const quoteSummary = await yahooFinance.quoteSummary(ticker, { modules: ["price"] });
+          companyName = quoteSummary.price?.longName;
+        } catch (e) {
+          logger.warn(`Could not fetch longName for ${ticker} from Yahoo Finance. Will filter by ticker only.`, e);
+        }
+
+        const relevantKeywords: string[] = [ticker.toLowerCase()];
+        if (companyName) {
+            // Add full name and common variations
+            relevantKeywords.push(companyName.toLowerCase());
+            // Remove common corporate suffixes for broader matching
+            relevantKeywords.push(
+                companyName.toLowerCase()
+                    .replace(/,?\s+(inc|corporation|corp|ltd|llc|co)\.?$/g, '')
+                    .trim()
+            );
+        }
+
         const url = `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${ticker}&region=US&lang=en-US`;
         const response = await fetch(url);
 
@@ -51,21 +74,32 @@ export async function GET(
           ? parsed.rss.channel.item
           : [parsed.rss.channel.item];
 
-        // Process articles for this ticker
-        items.slice(0, 5).forEach((item: any) => {
+        // Process and filter articles for this ticker
+        items.slice(0, 10).forEach((item: any) => { // Increased to 10 to allow for filtering
+          const title = item.title ? item.title.toLowerCase() : '';
+          const description = item.description ? item.description.toLowerCase() : '';
+
+          // Filter: check if title or description contains relevant keywords
+          const isRelevant = relevantKeywords.some(keyword => 
+              title.includes(keyword) || description.includes(keyword)
+          );
+
+          if (!isRelevant) {
+              return; // Skip this article if not relevant
+          }
+
           const sentimentResult = sentiment.analyze(item.title);
 
           // Sanitize link: Ensure it's a safe HTTP/HTTPS URL
           let sanitizedLink = item.link;
           if (sanitizedLink) {
-            // Check for safe protocols and block javascript:
             if (!sanitizedLink.startsWith('http://') && !sanitizedLink.startsWith('https://')) {
-              sanitizedLink = '#'; // Neutralize non-http/https links
+              sanitizedLink = '#';
             } else if (sanitizedLink.toLowerCase().startsWith('javascript:')) {
-              sanitizedLink = '#'; // Explicitly block javascript: schemes
+              sanitizedLink = '#';
             }
           } else {
-            sanitizedLink = '#'; // Neutralize missing links
+            sanitizedLink = '#';
           }
 
           const article = {

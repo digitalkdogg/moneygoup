@@ -149,8 +149,8 @@ const normalizeYahooData = (data: any, currentSources: string[]) => {
     prevClose: data.regularMarketPreviousClose,
     timestamp: new Date(data.regularMarketTime * 1000).toISOString(),
     exchange: data.fullExchangeName,
-    peRatio: data.trailingPE,
-    pbRatio: data.priceToBook,
+    peRatio: data.trailingPE ?? null, // Use null if undefined
+    pbRatio: data.priceToBook ?? null, // Use null if undefined
     marketCap: data.marketCap,
     sector: data.sector,
     industry: data.industry,

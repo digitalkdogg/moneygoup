@@ -5,5 +5,3 @@ node_modules
 .venv/
 .env.production
 src/src/.DS_Store
-venv/lib/python3.12/site-packages/dotenv/__pycache__/variables.cpython-312.pyc
-venv/lib/python3.12/site-packages/dotenv/__pycache__/variables.cpython-312.pyc

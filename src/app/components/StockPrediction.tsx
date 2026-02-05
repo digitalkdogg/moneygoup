@@ -30,10 +30,24 @@ interface PredictionResult {
 interface TfPredictionResult {
     ticker: string;
     current_price: number;
-    lstm_model: number;
-    linear_regression_model: number;
-    combined_average: number;
+    lstm_model_prediction: number;
+    linear_regression_model_prediction: number;
+    combined_average_prediction: number;
     predicted_change: number;
+    accuracy_metrics: {
+        neural_network: {
+            mae: number;
+            rmse: number;
+        };
+        linear_regression: {
+            mae: number;
+            rmse: number;
+        };
+        combined_model: {
+            mae: number;
+            rmse: number;
+        };
+    };
 }
 
 export default function StockPrediction({
@@ -126,7 +140,25 @@ export default function StockPrediction({
     setTfLoading(true);
     setTfError(null);
     try {
-      const response = await fetch(`/api/stock/${ticker}/predict/tensorflow`);
+      const response = await fetch(`/api/stock/${ticker}/predict/tensorflow`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          historicalData,
+          stockMetrics: {
+            peRatio,
+            pbRatio,
+            marketCap,
+            sma20,
+            sma50,
+            rsi,
+            momentum,
+          },
+          newsArticles,
+        }),
+      });
       
       if (!response.ok) {
         try {
@@ -218,23 +250,39 @@ export default function StockPrediction({
                     </div>
                     <div className="p-4 bg-gray-50 rounded-lg">
                         <p className="text-sm text-gray-600 mb-1">Combined Average (1 Year)</p>
-                        <p className="text-2xl font-bold text-gray-800">${tfPrediction.combined_average.toFixed(2)}</p>
+                        <p className="text-2xl font-bold text-gray-800">${tfPrediction.combined_average_prediction.toFixed(2)}</p>
                     </div>
                     <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                        <p className="text-sm font-semibold text-gray-700 mb-2">LSTM Model Prediction</p>
-                        <p className="text-2xl font-bold text-blue-600">${tfPrediction.lstm_model.toFixed(2)}</p>
+                        <p className="text-sm font-semibold text-gray-700 mb-2">Neural Network Prediction</p>
+                        <p className="text-2xl font-bold text-blue-600">${tfPrediction.lstm_model_prediction.toFixed(2)}</p>
+                        {tfPrediction.current_price > 0 && tfPrediction.accuracy_metrics?.neural_network && (
+                            <p className="text-xs text-gray-600 mt-2">
+                                Error Rate: {((tfPrediction.accuracy_metrics.neural_network.mae / tfPrediction.current_price) * 100).toFixed(2)}%
+                            </p>
+                        )}
                     </div>
                     <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
                         <p className="text-sm font-semibold text-gray-700 mb-2">Linear Regression Prediction</p>
-                        <p className="text-2xl font-bold text-purple-600">${tfPrediction.linear_regression_model.toFixed(2)}</p>
+                        <p className="text-2xl font-bold text-purple-600">${tfPrediction.linear_regression_model_prediction.toFixed(2)}</p>
+                        {tfPrediction.current_price > 0 && tfPrediction.accuracy_metrics?.linear_regression && (
+                            <p className="text-xs text-gray-600 mt-2">
+                                Error Rate: {((tfPrediction.accuracy_metrics.linear_regression.mae / tfPrediction.current_price) * 100).toFixed(2)}%
+                            </p>
+                        )}
                     </div>
                 </div>
                  <div className="mt-4">
                     <p className="text-sm text-gray-600 mb-1">Predicted Change</p>
                     <p className={`text-2xl font-bold ${tfPrediction.predicted_change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         {tfPrediction.predicted_change >= 0 ? '+' : ''}${tfPrediction.predicted_change.toFixed(2)} 
+                        {tfPrediction.current_price > 0 && tfPrediction.accuracy_metrics?.combined_model && (
+                            <span className="text-sm text-gray-600 ml-2">
+                                (Error Rate: {((tfPrediction.accuracy_metrics.combined_model.mae / tfPrediction.current_price) * 100).toFixed(2)}%)
+                            </span>
+                        )}
                     </p>
                 </div>
+
             </div>
         )}
       </div>
