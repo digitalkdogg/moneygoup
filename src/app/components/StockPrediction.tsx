@@ -30,9 +30,7 @@ interface PredictionResult {
 interface TfPredictionResult {
     ticker: string;
     current_price: number;
-    predicted_change_range_3m: [number, number];
-    predicted_change_range_6m: [number, number];
-    predicted_change_range_1y: [number, number];
+    predicted_change_range: [number, number]; // Changed to single predicted_change_range
     accuracy_metrics: {
         neural_network?: {
             mae: number;
@@ -45,22 +43,10 @@ interface TfPredictionResult {
     };
     stock_type?: string;
     growth_rate_20d?: number;
-    is_uptrend?: string;
+    is_uptrend?: number; // Changed to number as per Python script output
     model_status?: string;
-    feature_influences?: {
-        "3m": {
-            positive: Array<{ feature: string; impact: number }>;
-            negative: Array<{ feature: string; impact: number }>;
-        };
-        "6m": {
-            positive: Array<{ feature: string; impact: number }>;
-            negative: Array<{ feature: string; impact: number }>;
-        };
-        "1y": {
-            positive: Array<{ feature: string; impact: number }>;
-            negative: Array<{ feature: string; impact: number }>;
-        };
-    };
+    note?: string; // Added note field from Python script
+    metric_analysis?: any; // Added metric_analysis field for detailed insights
 }
 
 export default function StockPrediction({
@@ -337,43 +323,52 @@ export default function StockPrediction({
                         </div>
                     </div>
                     <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                        <p className="text-sm font-semibold text-gray-700 mb-3">Predicted Price Change Ranges</p>
+                        <p className="text-sm font-semibold text-gray-700 mb-3">Predicted Price Change Range</p>
                         
-                        {/* 3-Month Prediction */}
-                        {tfPrediction.predicted_change_range_3m && (
+                        {tfPrediction.predicted_change_range && (
                             <div className="mb-4 pb-2 border-b border-blue-200">
-                                <p className="text-sm text-gray-600 mb-1">3-Month Outlook</p>
-                                <p className={`text-xl font-bold ${tfPrediction.predicted_change_range_3m[0] >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                    {tfPrediction.predicted_change_range_3m[0] >= 0 ? '+' : ''}{tfPrediction.predicted_change_range_3m[0].toFixed(2)} to {tfPrediction.predicted_change_range_3m[1] >= 0 ? '+' : ''}{tfPrediction.predicted_change_range_3m[1].toFixed(2)}
+                                <p className="text-sm text-gray-600 mb-1">Predicted Change</p>
+                                <p className={`text-xl font-bold ${tfPrediction.predicted_change_range[0] >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {tfPrediction.predicted_change_range[0] >= 0 ? '+' : ''}{tfPrediction.predicted_change_range[0].toFixed(2)} to {tfPrediction.predicted_change_range[1] >= 0 ? '+' : ''}{tfPrediction.predicted_change_range[1].toFixed(2)}
                                 </p>
                             </div>
                         )}
 
-                        {/* 6-Month Prediction */}
-                        {tfPrediction.predicted_change_range_6m && (
-                            <div className="mb-4 pb-2 border-b border-blue-200">
-                                <p className="text-sm text-gray-600 mb-1">6-Month Outlook</p>
-                                <p className={`text-xl font-bold ${tfPrediction.predicted_change_range_6m[0] >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                    {tfPrediction.predicted_change_range_6m[0] >= 0 ? '+' : ''}{tfPrediction.predicted_change_range_6m[0].toFixed(2)} to {tfPrediction.predicted_change_range_6m[1] >= 0 ? '+' : ''}{tfPrediction.predicted_change_range_6m[1].toFixed(2)}
-                                </p>
+                        {tfPrediction.predicted_change_range && (
+                            <div className="mb-4">
+                                <p className="text-sm font-semibold text-gray-700 mb-2">Predicted Price Outlook</p>
+                                {/* Calculate actual predicted prices */}
+                                {(() => {
+                                    const predictedLowPrice = tfPrediction.current_price + tfPrediction.predicted_change_range[0];
+                                    const predictedHighPrice = tfPrediction.current_price + tfPrediction.predicted_change_range[1];
+                                    const predictedAveragePrice = (predictedLowPrice + predictedHighPrice) / 2;
+
+                                    return (
+                                        <div className="grid grid-cols-3 gap-2 text-center">
+                                            <div>
+                                                <p className="text-xs text-gray-500">Low</p>
+                                                <p className="text-lg font-bold text-red-600">${predictedLowPrice.toFixed(2)}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs text-gray-500">Average</p>
+                                                <p className="text-lg font-bold text-gray-800">${predictedAveragePrice.toFixed(2)}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs text-gray-500">High</p>
+                                                <p className="text-lg font-bold text-green-600">${predictedHighPrice.toFixed(2)}</p>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         )}
-
-                        {/* 1-Year Prediction */}
-                        {tfPrediction.predicted_change_range_1y && (
-                            <div className="mb-4 pb-2">
-                                <p className="text-sm text-gray-600 mb-1">1-Year Outlook</p>
-                                <p className={`text-xl font-bold ${tfPrediction.predicted_change_range_1y[0] >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                    {tfPrediction.predicted_change_range_1y[0] >= 0 ? '+' : ''}{tfPrediction.predicted_change_range_1y[0].toFixed(2)} to {tfPrediction.predicted_change_range_1y[1] >= 0 ? '+' : ''}{tfPrediction.predicted_change_range_1y[1].toFixed(2)}
-                                </p>
-                            </div>
-                        )}
-
+                        
+                        {/* Accuracy Metrics (now with more robust conditional rendering) */}
                         {tfPrediction.current_price > 0 && (tfPrediction.accuracy_metrics?.neural_network || tfPrediction.accuracy_metrics?.model) && (
                             (() => {
                                 const metrics = tfPrediction.accuracy_metrics.neural_network || tfPrediction.accuracy_metrics.model;
                                 if (!metrics || tfPrediction.current_price === 0) {
-                                    return null; // Don't render if metrics are missing or price is zero
+                                    return null; // Should not happen often with outer check, but good for type safety
                                 }
                                 const errorRate = (metrics.mae / tfPrediction.current_price) * 100;
                                 const accuracy = Math.max(0, 100 - errorRate);
@@ -401,6 +396,11 @@ export default function StockPrediction({
                                                 {tfPrediction.model_status === 'fallback_baseline_model' ? '⚠️ Using fallback baseline model' : ''}
                                             </p>
                                         )}
+                                        {tfPrediction.note && (
+                                            <p className="text-xs text-blue-600 mt-2">
+                                                Note: {tfPrediction.note}
+                                            </p>
+                                        )}
                                     </div>
                                 );
                             })()
@@ -408,42 +408,37 @@ export default function StockPrediction({
                     </div>
                  </div>
 
-                {/* Feature Influences */}
-                {tfPrediction.feature_influences && (
-                    <div className="mt-8">
-                        <h4 className="text-lg font-semibold text-gray-800 mb-3">Feature Influences (for each horizon)</h4>
-                        {Object.entries(tfPrediction.feature_influences).map(([horizon, influences]) => (
-                            <div key={horizon} className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                                <p className="text-md font-semibold text-gray-700 mb-2 capitalize">{horizon} Horizon</p>
-                                {influences.positive.length > 0 && (
-                                    <div className="mb-2">
-                                        <p className="text-sm font-medium text-green-700 mb-1">Positive Influences:</p>
-                                        <div className="flex flex-wrap gap-2">
-                                            {influences.positive.map((item, idx) => (
-                                                <span key={idx} className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">
-                                                    {item.feature}: {item.impact >= 0 ? '+' : ''}{item.impact.toFixed(4)}
-                                                </span>
-                                            ))}
-                                        </div>
+                {/* Metric Analysis from Backend */}
+                {tfPrediction.metric_analysis && (
+                    <div className="mt-8 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                        <h4 className="text-lg font-semibold text-gray-800 mb-3">Detailed Metric Analysis</h4>
+                        {Object.entries(tfPrediction.metric_analysis).map(([key, value]: [string, any]) => {
+                            // Skip total_metric_impact and impact_classification for individual display
+                            if (key === "total_metric_impact" || key === "impact_classification") {
+                                return null;
+                            }
+                            return (
+                                <div key={key} className="mb-4 pb-2 border-b border-gray-200 last:border-b-0">
+                                    <p className="text-md font-semibold text-gray-700 mb-1 capitalize">{key.replace(/_/g, ' ')}</p>
+                                    <div className="text-sm text-gray-600 pl-2">
+                                        {Object.entries(value).map(([metricKey, metricValue]: [string, any]) => (
+                                            <p key={metricKey}>
+                                                <span className="font-medium capitalize">{metricKey.replace(/_/g, ' ')}:</span>{' '}
+                                                {typeof metricValue === 'boolean' ? (metricValue ? 'Yes' : 'No') : 
+                                                 (typeof metricValue === 'number' ? metricValue.toFixed(4) : metricValue)}
+                                            </p>
+                                        ))}
                                     </div>
-                                )}
-                                {influences.negative.length > 0 && (
-                                    <div className="mb-2">
-                                        <p className="text-sm font-medium text-red-700 mb-1">Negative Influences:</p>
-                                        <div className="flex flex-wrap gap-2">
-                                            {influences.negative.map((item, idx) => (
-                                                <span key={idx} className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs">
-                                                    {item.feature}: {item.impact >= 0 ? '+' : ''}{item.impact.toFixed(4)}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                                {influences.positive.length === 0 && influences.negative.length === 0 && (
-                                    <p className="text-sm text-gray-600">No significant influences detected for this horizon.</p>
-                                )}
+                                </div>
+                            );
+                        })}
+                        {/* Display total_metric_impact and impact_classification separately at the end */}
+                        {tfPrediction.metric_analysis.total_metric_impact !== undefined && (
+                            <div className="mt-4 pt-2 border-t border-gray-200">
+                                <p className="text-md font-semibold text-gray-700">Overall Impact Score: <span className="font-bold text-blue-600">{tfPrediction.metric_analysis.total_metric_impact.toFixed(4)}</span></p>
+                                <p className="text-md font-semibold text-gray-700">Classification: <span className="font-bold text-purple-600 capitalize">{tfPrediction.metric_analysis.impact_classification.replace(/_/g, ' ')}</span></p>
                             </div>
-                        ))}
+                        )}
                     </div>
                 )}
             </div>
