@@ -32,11 +32,19 @@ interface TfPredictionResult {
     current_price: number;
     predicted_change_range: [number, number];
     accuracy_metrics: {
-        neural_network: {
+        neural_network?: {
+            mae: number;
+            rmse: number;
+        };
+        model?: {
             mae: number;
             rmse: number;
         };
     };
+    stock_type?: string;
+    growth_rate_20d?: number;
+    is_uptrend?: number;
+    model_status?: string;
 }
 
 export default function StockPrediction({
@@ -234,8 +242,83 @@ export default function StockPrediction({
                 <h3 className="text-xl font-semibold text-gray-800 mb-4">TensorFlow Prediction Results</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="p-4 bg-gray-50 rounded-lg">
-                        <p className="text-sm text-gray-600 mb-1">Current Price</p>
-                        <p className="text-2xl font-bold text-gray-800">${tfPrediction.current_price.toFixed(2)}</p>
+                        <p className="text-sm text-gray-600 mb-3">Current Price</p>
+                        <p className="text-2xl font-bold text-gray-800 mb-4">${tfPrediction.current_price.toFixed(2)}</p>
+
+                        {/* Influential Metrics Section */}
+                        <div className="space-y-2 text-xs">
+                            {/* RSI */}
+                            {rsi !== undefined && (
+                                <div className="pb-2 border-b border-gray-300">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-gray-600">RSI (14)</span>
+                                        <span className={`font-semibold ${rsi > 70 ? 'text-red-600' : rsi < 30 ? 'text-green-600' : 'text-gray-700'}`}>
+                                            {rsi.toFixed(1)}
+                                        </span>
+                                    </div>
+                                    <p className="text-gray-500 text-xs mt-1">
+                                        {rsi > 70 ? '🔴 Overbought' : rsi < 30 ? '🟢 Oversold' : '⚪ Neutral'}
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Momentum */}
+                            {momentum !== undefined && (
+                                <div className="pb-2 border-b border-gray-300">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-gray-600">Momentum</span>
+                                        <span className={`font-semibold ${Math.abs(momentum) > 2 ? momentum > 0 ? 'text-green-600' : 'text-red-600' : 'text-gray-700'}`}>
+                                            {momentum.toFixed(2)}
+                                        </span>
+                                    </div>
+                                    <p className="text-gray-500 text-xs mt-1">
+                                        {Math.abs(momentum) > 2 ? momentum > 0 ? '🚀 Strong Upward' : '📉 Strong Downward' : '➡️ Neutral'}
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* SMA Comparison */}
+                            {sma20 !== undefined && sma50 !== undefined && (
+                                <div className="pb-2 border-b border-gray-300">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-gray-600">SMA Trend</span>
+                                        <span className={`font-semibold ${sma20 > sma50 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {sma20 > sma50 ? 'Bullish' : 'Bearish'}
+                                        </span>
+                                    </div>
+                                    <p className="text-gray-500 text-xs mt-1">
+                                        SMA20: ${sma20.toFixed(2)} {sma20 > tfPrediction.current_price ? '(Above)' : '(Below)'} Price
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* P/E Ratio */}
+                            {peRatio !== undefined && peRatio > 0 && (
+                                <div className="pb-2 border-b border-gray-300">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-gray-600">P/E Ratio</span>
+                                        <span className={`font-semibold ${peRatio < 15 ? 'text-green-600' : peRatio > 25 ? 'text-red-600' : 'text-gray-700'}`}>
+                                            {peRatio.toFixed(1)}
+                                        </span>
+                                    </div>
+                                    <p className="text-gray-500 text-xs mt-1">
+                                        {peRatio < 15 ? '💰 Undervalued' : peRatio > 25 ? '⚠️ Overvalued' : '⚪ Fair Value'}
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Stock Type from Prediction */}
+                            {tfPrediction.stock_type && (
+                                <div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-gray-600">Stock Type</span>
+                                        <span className="font-semibold text-gray-700 capitalize">
+                                            {tfPrediction.stock_type.replace(/_/g, ' ')}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                     <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                         <p className="text-sm font-semibold text-gray-700 mb-3">Predicted Price Change Range</p>
@@ -277,10 +360,38 @@ export default function StockPrediction({
                                 })()}
                             </div>
                         </div>
-                        {tfPrediction.current_price > 0 && tfPrediction.accuracy_metrics?.neural_network && (
-                            <p className="text-xs text-gray-600 mt-3 pt-3 border-t border-blue-200">
-                                Est. Error Rate: {((tfPrediction.accuracy_metrics.neural_network.mae / tfPrediction.current_price) * 100).toFixed(2)}%
-                            </p>
+                        {tfPrediction.current_price > 0 && (tfPrediction.accuracy_metrics?.neural_network || tfPrediction.accuracy_metrics?.model) && (
+                            (() => {
+                                const metrics = tfPrediction.accuracy_metrics.neural_network || tfPrediction.accuracy_metrics.model;
+                                const errorRate = (metrics.mae / tfPrediction.current_price) * 100;
+                                const accuracy = Math.max(0, 100 - errorRate);
+                                return (
+                                    <div className="mt-4 pt-3 border-t border-blue-200">
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <p className="text-xs text-gray-600 mb-1">Model Accuracy</p>
+                                                <p className={`text-lg font-bold ${accuracy >= 85 ? 'text-green-600' : accuracy >= 70 ? 'text-yellow-600' : 'text-red-600'}`}>
+                                                    {accuracy.toFixed(1)}%
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs text-gray-600 mb-1">Error Rate (MAE)</p>
+                                                <p className="text-lg font-bold text-gray-700">
+                                                    ±{errorRate.toFixed(2)}%
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-2">
+                                            MAE: ${metrics.mae.toFixed(2)} | RMSE: ${metrics.rmse?.toFixed(2) || 'N/A'}
+                                        </p>
+                                        {tfPrediction.model_status && (
+                                            <p className="text-xs text-amber-600 mt-2">
+                                                {tfPrediction.model_status === 'fallback_baseline_model' ? '⚠️ Using fallback baseline model' : ''}
+                                            </p>
+                                        )}
+                                    </div>
+                                );
+                            })()
                         )}
                     </div>
                  </div>
