@@ -238,12 +238,29 @@ export default function StockPrediction({
                         <p className="text-2xl font-bold text-gray-800">${tfPrediction.current_price.toFixed(2)}</p>
                     </div>
                     <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                        <p className="text-sm font-semibold text-gray-700 mb-2">Predicted Change Range</p>
-                        <p className={`text-2xl font-bold ${tfPrediction.predicted_change_range[0] >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {tfPrediction.predicted_change_range[0] >= 0 ? '+' : ''}{tfPrediction.predicted_change_range[0].toFixed(2)} to {tfPrediction.predicted_change_range[1] >= 0 ? '+' : ''}{tfPrediction.predicted_change_range[1].toFixed(2)}
-                        </p>
+                        <p className="text-sm font-semibold text-gray-700 mb-3">Predicted Price Change Range</p>
+                        <div className="space-y-3">
+                            <div>
+                                <p className="text-xs text-gray-600 mb-1">Low Estimate</p>
+                                <p className={`text-xl font-bold ${tfPrediction.predicted_change_range[0] >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    ${(tfPrediction.current_price + tfPrediction.predicted_change_range[0]).toFixed(2)}
+                                </p>
+                                <p className="text-xs text-gray-600 mt-1">
+                                    {tfPrediction.predicted_change_range[0] >= 0 ? '+' : ''}{tfPrediction.predicted_change_range[0].toFixed(2)} ({((tfPrediction.predicted_change_range[0] / tfPrediction.current_price) * 100).toFixed(2)}%)
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-xs text-gray-600 mb-1">High Estimate</p>
+                                <p className={`text-xl font-bold ${tfPrediction.predicted_change_range[1] >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    ${(tfPrediction.current_price + tfPrediction.predicted_change_range[1]).toFixed(2)}
+                                </p>
+                                <p className="text-xs text-gray-600 mt-1">
+                                    {tfPrediction.predicted_change_range[1] >= 0 ? '+' : ''}{tfPrediction.predicted_change_range[1].toFixed(2)} ({((tfPrediction.predicted_change_range[1] / tfPrediction.current_price) * 100).toFixed(2)}%)
+                                </p>
+                            </div>
+                        </div>
                         {tfPrediction.current_price > 0 && tfPrediction.accuracy_metrics?.neural_network && (
-                            <p className="text-xs text-gray-600 mt-2">
+                            <p className="text-xs text-gray-600 mt-3 pt-3 border-t border-blue-200">
                                 Est. Error Rate: {((tfPrediction.accuracy_metrics.neural_network.mae / tfPrediction.current_price) * 100).toFixed(2)}%
                             </p>
                         )}
