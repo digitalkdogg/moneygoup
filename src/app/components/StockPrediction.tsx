@@ -323,17 +323,6 @@ export default function StockPrediction({
                         </div>
                     </div>
                     <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                        <p className="text-sm font-semibold text-gray-700 mb-3">Predicted Price Change Range</p>
-                        
-                        {tfPrediction.predicted_change_range && (
-                            <div className="mb-4 pb-2 border-b border-blue-200">
-                                <p className="text-sm text-gray-600 mb-1">Predicted Change</p>
-                                <p className={`text-xl font-bold ${tfPrediction.predicted_change_range[0] >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                    {tfPrediction.predicted_change_range[0] >= 0 ? '+' : ''}{tfPrediction.predicted_change_range[0].toFixed(2)} to {tfPrediction.predicted_change_range[1] >= 0 ? '+' : ''}{tfPrediction.predicted_change_range[1].toFixed(2)}
-                                </p>
-                            </div>
-                        )}
-
                         {tfPrediction.predicted_change_range && (
                             <div className="mb-4">
                                 <p className="text-sm font-semibold text-gray-700 mb-2">Predicted Price Outlook</p>
