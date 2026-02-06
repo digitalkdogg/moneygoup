@@ -258,6 +258,24 @@ export default function StockPrediction({
                                     {tfPrediction.predicted_change_range[1] >= 0 ? '+' : ''}{tfPrediction.predicted_change_range[1].toFixed(2)} ({((tfPrediction.predicted_change_range[1] / tfPrediction.current_price) * 100).toFixed(2)}%)
                                 </p>
                             </div>
+                            <div className="pt-3 border-t border-blue-200">
+                                <p className="text-xs text-gray-600 mb-1">Average Estimate</p>
+                                {(() => {
+                                    const avgChange = (tfPrediction.predicted_change_range[0] + tfPrediction.predicted_change_range[1]) / 2;
+                                    const avgPrice = tfPrediction.current_price + avgChange;
+                                    const avgPercentage = (avgChange / tfPrediction.current_price) * 100;
+                                    return (
+                                        <>
+                                            <p className={`text-xl font-bold ${avgChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                ${avgPrice.toFixed(2)}
+                                            </p>
+                                            <p className="text-xs text-gray-600 mt-1">
+                                                {avgChange >= 0 ? '+' : ''}{avgChange.toFixed(2)} ({avgPercentage.toFixed(2)}%)
+                                            </p>
+                                        </>
+                                    );
+                                })()}
+                            </div>
                         </div>
                         {tfPrediction.current_price > 0 && tfPrediction.accuracy_metrics?.neural_network && (
                             <p className="text-xs text-gray-600 mt-3 pt-3 border-t border-blue-200">
