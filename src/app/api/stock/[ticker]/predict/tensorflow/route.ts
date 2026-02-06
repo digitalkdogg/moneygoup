@@ -16,7 +16,7 @@ export async function POST( // Changed GET to POST
   const tempFilePath = path.join('/tmp', `tf_prediction_input_${ticker}_${Date.now()}.json`); // Use /tmp for temporary files
 
   // Determine Python executable path
-  const pythonExecutable = process.env.PYPROCESS_URL || 'Python3';
+  const pythonExecutable = process.env.PYPROCESS_URL || 'python3';
 
   return new Promise<NextResponse>(async (resolve) => { // Added async here and proper typing
     let pythonProcess;
@@ -26,11 +26,18 @@ export async function POST( // Changed GET to POST
       // Write the request body to a temporary file
       await fs.writeFile(tempFilePath, JSON.stringify(requestBody));
 
-      pythonProcess = spawn(pythonExecutable, [
-        'predict_tensorflow.py',
+	pythonProcess = spawn(pythonExecutable, [
+        'predict_sklearn.py',
         ticker,
         '--input_file', tempFilePath // Pass temp file path as argument
       ]);
+
+
+     // pythonProcess = spawn(pythonExecutable, [
+     //   'predict_tensorflow.py',
+     //   ticker,
+     //   '--input_file', tempFilePath // Pass temp file path as argument
+     // ]);
 
       pythonProcess.on('error', (err) => {
         console.error('Failed to start python script:', err);
