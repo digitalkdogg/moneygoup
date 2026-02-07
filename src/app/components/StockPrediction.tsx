@@ -54,6 +54,7 @@ export default function StockPrediction({
   const [tfPrediction, setTfPrediction] = useState<TfPredictionResult | null>(null)
   const [tfLoading, setTfLoading] = useState(false)
   const [tfError, setTfError] = useState<string | null>(null)
+  const [showMetricAnalysis, setShowMetricAnalysis] = useState(false); // New state for accordion
 
 
   const generateTfPrediction = async () => {
@@ -208,16 +209,9 @@ export default function StockPrediction({
                       </div>
                   </div>
                   <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                      <p className="text-sm font-semibold text-gray-700 mb-3">Predicted Price Change Range</p>
+
                       
-                      {tfPrediction.predicted_change_range && (
-                          <div className="mb-4 pb-2 border-b border-blue-200">
-                              <p className="text-sm text-gray-600 mb-1">Predicted Change</p>
-                              <p className={`text-xl font-bold ${tfPrediction.predicted_change_range[0] >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                  {tfPrediction.predicted_change_range[0] >= 0 ? '+' : ''}{tfPrediction.predicted_change_range[0].toFixed(2)} to {tfPrediction.predicted_change_range[1] >= 0 ? '+' : ''}{tfPrediction.predicted_change_range[1].toFixed(2)}
-                              </p>
-                          </div>
-                      )}
+
 
                       {tfPrediction.predicted_change_range && (
                           <div className="mb-4">
@@ -236,7 +230,18 @@ export default function StockPrediction({
                                           </div>
                                           <div>
                                               <p className="text-xs text-gray-500">Average</p>
-                                              <p className="text-lg font-bold text-gray-800">${predictedAveragePrice.toFixed(2)}</p>
+                                              {(() => {
+                                                  const percentChange = ((predictedAveragePrice - tfPrediction.current_price) / tfPrediction.current_price) * 100;
+                                                  const textColor = percentChange >= 0 ? 'text-green-600' : 'text-red-600';
+                                                  return (
+                                                      <p className="text-lg font-bold text-gray-800">
+                                                          ${predictedAveragePrice.toFixed(2)}{' '}
+                                                          <span className={`text-sm ${textColor}`}>
+                                                              ({percentChange >= 0 ? '+' : ''}{percentChange.toFixed(2)}%)
+                                                          </span>
+                                                      </p>
+                                                  );
+                                              })()}
                                           </div>
                                           <div>
                                               <p className="text-xs text-gray-500">High</p>
@@ -293,35 +298,45 @@ export default function StockPrediction({
                   </div>
                </div>
 
-              {/* Metric Analysis from Backend */}
+              {/* Metric Analysis from Backend as Accordion */}
               {tfPrediction.metric_analysis && (
-                  <div className="mt-8 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                      <h4 className="text-lg font-semibold text-gray-800 mb-3">Detailed Metric Analysis</h4>
-                      {Object.entries(tfPrediction.metric_analysis).map(([key, value]: [string, any]) => {
-                          // Skip total_metric_impact and impact_classification for individual display
-                          if (key === "total_metric_impact" || key === "impact_classification") {
-                              return null;
-                          }
-                          return (
-                              <div key={key} className="mb-4 pb-2 border-b border-gray-200 last:border-b-0">
-                                  <p className="text-md font-semibold text-gray-700 mb-1 capitalize">{key.replace(/_/g, ' ')}</p>
-                                  <div className="text-sm text-gray-600 pl-2">
-                                      {Object.entries(value).map(([metricKey, metricValue]: [string, any]) => (
-                                          <p key={metricKey}>
-                                              <span className="font-medium capitalize">{metricKey.replace(/_/g, ' ')}:</span>{' '}
-                                              {typeof metricValue === 'boolean' ? (metricValue ? 'Yes' : 'No') : 
-                                               (typeof metricValue === 'number' ? metricValue.toFixed(4) : metricValue)}
-                                          </p>
-                                      ))}
+                  <div className="mt-8">
+                      <button
+                          className="w-full text-left p-4 bg-gray-50 rounded-t-lg border border-gray-200 flex justify-between items-center focus:outline-none"
+                          onClick={() => setShowMetricAnalysis(!showMetricAnalysis)}
+                      >
+                          <h4 className="text-lg font-semibold text-gray-800">Detailed Metric Analysis</h4>
+                          <span>{showMetricAnalysis ? '▲' : '▼'}</span>
+                      </button>
+                      {showMetricAnalysis && (
+                          <div className="p-4 bg-gray-50 rounded-b-lg border border-gray-200 border-t-0">
+                              {Object.entries(tfPrediction.metric_analysis).map(([key, value]: [string, any]) => {
+                                  // Skip total_metric_impact and impact_classification for individual display
+                                  if (key === "total_metric_impact" || key === "impact_classification") {
+                                      return null;
+                                  }
+                                  return (
+                                      <div key={key} className="mb-4 pb-2 border-b border-gray-200 last:border-b-0">
+                                          <p className="text-md font-semibold text-gray-700 mb-1 capitalize">{key.replace(/_/g, ' ')}</p>
+                                          <div className="text-sm text-gray-600 pl-2">
+                                              {Object.entries(value).map(([metricKey, metricValue]: [string, any]) => (
+                                                  <p key={metricKey}>
+                                                      <span className="font-medium capitalize">{metricKey.replace(/_/g, ' ')}:</span>{' '}
+                                                      {typeof metricValue === 'boolean' ? (metricValue ? 'Yes' : 'No') : 
+                                                       (typeof metricValue === 'number' ? metricValue.toFixed(4) : metricValue)}
+                                                  </p>
+                                              ))}
+                                          </div>
+                                      </div>
+                                  );
+                              })}
+                              {/* Display total_metric_impact and impact_classification separately at the end */}
+                              {tfPrediction.metric_analysis.total_metric_impact !== undefined && (
+                                  <div className="mt-4 pt-2 border-t border-gray-200">
+                                      <p className="text-md font-semibold text-gray-700">Overall Impact Score: <span className="font-bold text-blue-600">{tfPrediction.metric_analysis.total_metric_impact.toFixed(4)}</span></p>
+                                      <p className="text-md font-semibold text-gray-700">Classification: <span className="font-bold text-purple-600 capitalize">{tfPrediction.metric_analysis.impact_classification.replace(/_/g, ' ')}</span></p>
                                   </div>
-                              </div>
-                          );
-                      })}
-                      {/* Display total_metric_impact and impact_classification separately at the end */}
-                      {tfPrediction.metric_analysis.total_metric_impact !== undefined && (
-                          <div className="mt-4 pt-2 border-t border-gray-200">
-                              <p className="text-md font-semibold text-gray-700">Overall Impact Score: <span className="font-bold text-blue-600">{tfPrediction.metric_analysis.total_metric_impact.toFixed(4)}</span></p>
-                              <p className="text-md font-semibold text-gray-700">Classification: <span className="font-bold text-purple-600 capitalize">{tfPrediction.metric_analysis.impact_classification.replace(/_/g, ' ')}</span></p>
+                              )}
                           </div>
                       )}
                   </div>
