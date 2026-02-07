@@ -223,7 +223,7 @@ export default function StockPrediction({
                                   const predictedAveragePrice = (predictedLowPrice + predictedHighPrice) / 2;
 
                                   return (
-                                      <div className="grid grid-cols-3 gap-2 text-center">
+                                      <div className="grid grid-cols-3 gap-2 text-left">
                                           <div>
                                               <p className="text-xs text-gray-500">Low</p>
                                               <p className="text-lg font-bold text-red-600">${predictedLowPrice.toFixed(2)}</p>
