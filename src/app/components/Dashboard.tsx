@@ -769,126 +769,137 @@ export default function Dashboard() {
             )}
           </section>
 
-          {/* Recommended Stocks Section */}
+          {/* Momentum Plays Section */}
           <section className="bg-white p-6 rounded-2xl shadow-lg mb-8">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">⭐ Recommended Stocks</h2>
-            {recommendedStocksError && <p className="text-red-500 text-sm mb-4 text-center">{recommendedStocksError}</p>}
-            {recommendedStocksLoading && <p className="text-gray-600 text-center">Loading recommendations...</p>}
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Momentum Plays */}
-              <div className="bg-gradient-to-br from-yellow-50 to-orange-50 p-5 rounded-xl border-2 border-orange-200">
-                <h3 className="text-lg font-semibold text-orange-900 mb-4 flex items-center">
-                  <span className="text-2xl mr-2">🚀</span> Momentum Plays
-                </h3>
-                {momentumPlays.length > 0 ? (
-                  <div className="space-y-3">
+            <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">🚀 Momentum Plays</h2>
+            {recommendedStocksLoading && momentumPlays.length === 0 && <p className="text-gray-600 text-center">Loading momentum plays...</p>}
+            {recommendedStocksError && momentumPlays.length === 0 && <p className="text-red-500 text-sm mb-4 text-center">{recommendedStocksError}</p>}
+          {momentumPlays.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Symbol</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company Name</th>
+                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{momentumPlays[0]?.metricLabel || 'Metric'}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
                     {momentumPlays.map((stock) => (
-                      <div key={stock.symbol} onClick={() => handleRowClick(stock.symbol)} className="bg-white p-3 rounded-lg cursor-pointer hover:shadow-md transition-shadow">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="font-semibold text-gray-900">{stock.symbol}</p>
-                            <p className="text-sm text-gray-600">{stock.name}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-semibold text-gray-900">${stock.regularMarketPrice.toFixed(2)}</p>
-                            <p className="text-sm font-bold text-green-600">+{Number(stock.metric).toFixed(2)}%</p>
-                          </div>
-                        </div>
-                        <p className="text-xs text-gray-500 mt-2">{stock.metricLabel}</p>
-                      </div>
+                      <tr key={stock.symbol} onClick={() => handleRowClick(stock.symbol)} className="hover:bg-gray-50 cursor-pointer group">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{stock.symbol}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stock.name}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">${stock.regularMarketPrice.toFixed(2)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-green-600">+{Number(stock.metric).toFixed(2)}%</td>
+                      </tr>
                     ))}
-                  </div>
-                ) : (
-                  <p className="text-gray-600 text-sm">No momentum stocks found.</p>
-                )}
+                  </tbody>
+                </table>
               </div>
-
-              {/* Breakout Candidates */}
-              <div className="bg-gradient-to-br from-red-50 to-pink-50 p-5 rounded-xl border-2 border-red-200">
-                <h3 className="text-lg font-semibold text-red-900 mb-4 flex items-center">
-                  <span className="text-2xl mr-2">📈</span> Breakout Candidates
-                </h3>
-                {breakoutCandidates.length > 0 ? (
-                  <div className="space-y-3">
-                    {breakoutCandidates.map((stock) => (
-                      <div key={stock.symbol} onClick={() => handleRowClick(stock.symbol)} className="bg-white p-3 rounded-lg cursor-pointer hover:shadow-md transition-shadow">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="font-semibold text-gray-900">{stock.symbol}</p>
-                            <p className="text-sm text-gray-600">{stock.name}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-semibold text-gray-900">${stock.regularMarketPrice.toFixed(2)}</p>
-                            <p className="text-sm font-bold text-red-600">{Number(stock.metric).toFixed(2)}% from high</p>
-                          </div>
+            ) : (
+                !recommendedStocksLoading && !recommendedStocksError && <p className="text-gray-600 text-center">No momentum stocks found.</p>
+            )}
+                    </section>
+          
+                    {/* Breakout Candidates Section */}
+                    <section className="bg-white p-6 rounded-2xl shadow-lg mb-8">
+                      <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">📈 Breakout Candidates</h2>
+                      {recommendedStocksLoading && breakoutCandidates.length === 0 && <p className="text-gray-600 text-center">Loading breakout candidates...</p>}
+                      {recommendedStocksError && breakoutCandidates.length === 0 && <p className="text-red-500 text-sm mb-4 text-center">{recommendedStocksError}</p>}
+                      {breakoutCandidates.length > 0 ? (
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Symbol</th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company Name</th>
+                                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+                                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{breakoutCandidates[0]?.metricLabel || 'Metric'}</th>
+                              </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                              {breakoutCandidates.map((stock) => (
+                                <tr key={stock.symbol} onClick={() => handleRowClick(stock.symbol)} className="hover:bg-gray-50 cursor-pointer group">
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{stock.symbol}</td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stock.name}</td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">${stock.regularMarketPrice.toFixed(2)}</td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-red-600">{Number(stock.metric).toFixed(2)}%</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
-                        <p className="text-xs text-gray-500 mt-2">{stock.metricLabel}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-gray-600 text-sm">No breakout candidates found.</p>
-                )}
-              </div>
-
-              {/* Analyst Favorites */}
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-5 rounded-xl border-2 border-blue-200">
-                <h3 className="text-lg font-semibold text-blue-900 mb-4 flex items-center">
-                  <span className="text-2xl mr-2">👨‍💼</span> Analyst Favorites
-                </h3>
-                {analystFavorites.length > 0 ? (
-                  <div className="space-y-3">
-                    {analystFavorites.map((stock) => (
-                      <div key={stock.symbol} onClick={() => handleRowClick(stock.symbol)} className="bg-white p-3 rounded-lg cursor-pointer hover:shadow-md transition-shadow">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="font-semibold text-gray-900">{stock.symbol}</p>
-                            <p className="text-sm text-gray-600">{stock.name}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-semibold text-gray-900">${stock.regularMarketPrice.toFixed(2)}</p>
-                            <p className="text-sm font-bold text-blue-600">{Number(stock.metric).toFixed(1)}</p>
-                          </div>
-                        </div>
-                        <p className="text-xs text-gray-500 mt-2">{stock.metricLabel}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-gray-600 text-sm">No analyst favorites found.</p>
-                )}
-              </div>
-
-              {/* Insider Activity */}
-              <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-5 rounded-xl border-2 border-green-200">
-                <h3 className="text-lg font-semibold text-green-900 mb-4 flex items-center">
-                  <span className="text-2xl mr-2">💼</span> Insider Activity
-                </h3>
-                {insiderActivity.length > 0 ? (
-                  <div className="space-y-3">
-                    {insiderActivity.map((stock) => (
-                      <div key={stock.symbol} onClick={() => handleRowClick(stock.symbol)} className="bg-white p-3 rounded-lg cursor-pointer hover:shadow-md transition-shadow">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="font-semibold text-gray-900">{stock.symbol}</p>
-                            <p className="text-sm text-gray-600">{stock.name}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-semibold text-gray-900">${stock.regularMarketPrice.toFixed(2)}</p>
-                            <p className="text-sm font-bold text-green-600">{Number(stock.metric).toFixed(1)}%</p>
-                          </div>
-                        </div>
-                        <p className="text-xs text-gray-500 mt-2">{stock.metricLabel}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-gray-600 text-sm">No insider activity found.</p>
-                )}
-              </div>
-            </div>
-          </section>
+                      ) : (
+                        !recommendedStocksLoading && !recommendedStocksError && <p className="text-gray-600 text-center">No breakout candidates found.</p>
+                      )}
+                              </section>
+                    
+                              {/* Insider Activity Section */}
+                              <section className="bg-white p-6 rounded-2xl shadow-lg mb-8">
+                                <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">💼 Insider Activity</h2>
+                                {recommendedStocksLoading && insiderActivity.length === 0 && <p className="text-gray-600 text-center">Loading insider activity...</p>}
+                                {recommendedStocksError && insiderActivity.length === 0 && <p className="text-red-500 text-sm mb-4 text-center">{recommendedStocksError}</p>}
+                                {insiderActivity.length > 0 ? (
+                                  <div className="overflow-x-auto">
+                                    <table className="min-w-full divide-y divide-gray-200">
+                                      <thead className="bg-gray-50">
+                                        <tr>
+                                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Symbol</th>
+                                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company Name</th>
+                                          <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+                                          <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{insiderActivity[0]?.metricLabel || 'Metric'}</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="bg-white divide-y divide-gray-200">
+                                            {insiderActivity.map((stock) => (
+                                              <tr key={stock.symbol} onClick={() => handleRowClick(stock.symbol)} className="hover:bg-gray-50 cursor-pointer group">
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{stock.symbol}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stock.name}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">${stock.regularMarketPrice.toFixed(2)}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-green-600">{Number(stock.metric).toFixed(1)}%</td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    ) : (
+                                      !recommendedStocksLoading && !recommendedStocksError && <p className="text-gray-600 text-center">No insider activity found.</p>
+                                    )}
+                                  </section>
+                    
+                              {/* Analyst Favorites Section */}
+                              <section className="bg-white p-6 rounded-2xl shadow-lg mb-8">
+                                <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">👨‍💼 Analyst Favorites</h2>
+                                {recommendedStocksLoading && analystFavorites.length === 0 && <p className="text-gray-600 text-center">Loading analyst favorites...</p>}
+                                {recommendedStocksError && analystFavorites.length === 0 && <p className="text-red-500 text-sm mb-4 text-center">{recommendedStocksError}</p>}
+                                {analystFavorites.length > 0 ? (
+                                  <div className="overflow-x-auto">
+                                    <table className="min-w-full divide-y divide-gray-200">
+                                      <thead className="bg-gray-50">
+                                        <tr>
+                                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Symbol</th>
+                                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company Name</th>
+                                          <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+                                          <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{analystFavorites[0]?.metricLabel || 'Metric'}</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="bg-white divide-y divide-gray-200">
+                                            {analystFavorites.map((stock) => (
+                                              <tr key={stock.symbol} onClick={() => handleRowClick(stock.symbol)} className="hover:bg-gray-50 cursor-pointer group">
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{stock.symbol}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stock.name}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">${stock.regularMarketPrice.toFixed(2)}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-blue-600">{Number(stock.metric).toFixed(1)}</td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    ) : (
+                                      !recommendedStocksLoading && !recommendedStocksError && <p className="text-gray-600 text-center">No analyst favorites found.</p>
+                                    )}
+                              </section>
         </div>
       </div>
 
@@ -1022,4 +1033,3 @@ export default function Dashboard() {
     </>
   );
 }
-
