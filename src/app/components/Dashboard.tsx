@@ -82,6 +82,15 @@ interface UndervaluedLargeCap {
   priceToBook?: number;
 }
 
+interface RecommendedStock {
+  symbol: string;
+  name: string | undefined;
+  regularMarketPrice: number;
+  marketCap: number | undefined;
+  metric?: string | number;
+  metricLabel?: string;
+}
+
 const EarningsSummary = ({ summary }: { summary: SummaryData | null }) => {
   if (!summary) {
     return null;
@@ -125,6 +134,15 @@ export default function Dashboard() {
   const [topTechError, setTopTechError] = useState<string | null>(null);
   const [undervaluedLargeCaps, setUndervaluedLargeCaps] = useState<UndervaluedLargeCap[]>([]); // New state for undervalued large caps
   const [undervaluedLargeCapsError, setUndervaluedLargeCapsError] = useState<string | null>(null);
+  
+  // State for technical/sentiment recommendations
+  const [momentumPlays, setMomentumPlays] = useState<RecommendedStock[]>([]);
+  const [breakoutCandidates, setBreakoutCandidates] = useState<RecommendedStock[]>([]);
+  const [analystFavorites, setAnalystFavorites] = useState<RecommendedStock[]>([]);
+  const [insiderActivity, setInsiderActivity] = useState<RecommendedStock[]>([]);
+  const [recommendedStocksError, setRecommendedStocksError] = useState<string | null>(null);
+  const [recommendedStocksLoading, setRecommendedStocksLoading] = useState(false);
+  
   const router = useRouter();
 
   // State for the purchase modal
@@ -347,10 +365,31 @@ export default function Dashboard() {
     }
   };
 
+  const fetchRecommendedStocks = async () => {
+    setRecommendedStocksLoading(true);
+    setRecommendedStocksError(null);
+    try {
+      const res = await fetch('/api/dashboard/recommended-stocks');
+      if (!res.ok) {
+        throw new Error('Failed to fetch recommended stocks');
+      }
+      const data = await res.json();
+      setMomentumPlays(data.momentumPlays || []);
+      setBreakoutCandidates(data.breakoutCandidates || []);
+      setAnalystFavorites(data.analystFavorites || []);
+      setInsiderActivity(data.insiderActivity || []);
+    } catch (err) {
+      setRecommendedStocksError(err instanceof Error ? err.message : 'An unknown error occurred while fetching recommended stocks');
+    } finally {
+      setRecommendedStocksLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchData();
     fetchTopTech(); // Fetch top technology stocks when component mounts
     fetchUndervaluedLargeCaps(); // Fetch undervalued large caps when component mounts
+    fetchRecommendedStocks(); // Fetch technical/sentiment recommendations when component mounts
   }, []);
 
   const handleRowClick = (symbol: string) => {
@@ -728,6 +767,127 @@ export default function Dashboard() {
             ) : (
               !undervaluedLargeCapsError && !loading && <p className="text-gray-600 text-center">No undervalued large caps data available.</p>
             )}
+          </section>
+
+          {/* Recommended Stocks Section */}
+          <section className="bg-white p-6 rounded-2xl shadow-lg mb-8">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">⭐ Recommended Stocks</h2>
+            {recommendedStocksError && <p className="text-red-500 text-sm mb-4 text-center">{recommendedStocksError}</p>}
+            {recommendedStocksLoading && <p className="text-gray-600 text-center">Loading recommendations...</p>}
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Momentum Plays */}
+              <div className="bg-gradient-to-br from-yellow-50 to-orange-50 p-5 rounded-xl border-2 border-orange-200">
+                <h3 className="text-lg font-semibold text-orange-900 mb-4 flex items-center">
+                  <span className="text-2xl mr-2">🚀</span> Momentum Plays
+                </h3>
+                {momentumPlays.length > 0 ? (
+                  <div className="space-y-3">
+                    {momentumPlays.map((stock) => (
+                      <div key={stock.symbol} onClick={() => handleRowClick(stock.symbol)} className="bg-white p-3 rounded-lg cursor-pointer hover:shadow-md transition-shadow">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-semibold text-gray-900">{stock.symbol}</p>
+                            <p className="text-sm text-gray-600">{stock.name}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-semibold text-gray-900">${stock.regularMarketPrice.toFixed(2)}</p>
+                            <p className="text-sm font-bold text-green-600">+{Number(stock.metric).toFixed(2)}%</p>
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">{stock.metricLabel}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-600 text-sm">No momentum stocks found.</p>
+                )}
+              </div>
+
+              {/* Breakout Candidates */}
+              <div className="bg-gradient-to-br from-red-50 to-pink-50 p-5 rounded-xl border-2 border-red-200">
+                <h3 className="text-lg font-semibold text-red-900 mb-4 flex items-center">
+                  <span className="text-2xl mr-2">📈</span> Breakout Candidates
+                </h3>
+                {breakoutCandidates.length > 0 ? (
+                  <div className="space-y-3">
+                    {breakoutCandidates.map((stock) => (
+                      <div key={stock.symbol} onClick={() => handleRowClick(stock.symbol)} className="bg-white p-3 rounded-lg cursor-pointer hover:shadow-md transition-shadow">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-semibold text-gray-900">{stock.symbol}</p>
+                            <p className="text-sm text-gray-600">{stock.name}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-semibold text-gray-900">${stock.regularMarketPrice.toFixed(2)}</p>
+                            <p className="text-sm font-bold text-red-600">{Number(stock.metric).toFixed(2)}% from high</p>
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">{stock.metricLabel}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-600 text-sm">No breakout candidates found.</p>
+                )}
+              </div>
+
+              {/* Analyst Favorites */}
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-5 rounded-xl border-2 border-blue-200">
+                <h3 className="text-lg font-semibold text-blue-900 mb-4 flex items-center">
+                  <span className="text-2xl mr-2">👨‍💼</span> Analyst Favorites
+                </h3>
+                {analystFavorites.length > 0 ? (
+                  <div className="space-y-3">
+                    {analystFavorites.map((stock) => (
+                      <div key={stock.symbol} onClick={() => handleRowClick(stock.symbol)} className="bg-white p-3 rounded-lg cursor-pointer hover:shadow-md transition-shadow">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-semibold text-gray-900">{stock.symbol}</p>
+                            <p className="text-sm text-gray-600">{stock.name}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-semibold text-gray-900">${stock.regularMarketPrice.toFixed(2)}</p>
+                            <p className="text-sm font-bold text-blue-600">{Number(stock.metric).toFixed(1)}</p>
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">{stock.metricLabel}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-600 text-sm">No analyst favorites found.</p>
+                )}
+              </div>
+
+              {/* Insider Activity */}
+              <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-5 rounded-xl border-2 border-green-200">
+                <h3 className="text-lg font-semibold text-green-900 mb-4 flex items-center">
+                  <span className="text-2xl mr-2">💼</span> Insider Activity
+                </h3>
+                {insiderActivity.length > 0 ? (
+                  <div className="space-y-3">
+                    {insiderActivity.map((stock) => (
+                      <div key={stock.symbol} onClick={() => handleRowClick(stock.symbol)} className="bg-white p-3 rounded-lg cursor-pointer hover:shadow-md transition-shadow">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-semibold text-gray-900">{stock.symbol}</p>
+                            <p className="text-sm text-gray-600">{stock.name}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-semibold text-gray-900">${stock.regularMarketPrice.toFixed(2)}</p>
+                            <p className="text-sm font-bold text-green-600">{Number(stock.metric).toFixed(1)}%</p>
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">{stock.metricLabel}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-600 text-sm">No insider activity found.</p>
+                )}
+              </div>
+            </div>
           </section>
         </div>
       </div>
