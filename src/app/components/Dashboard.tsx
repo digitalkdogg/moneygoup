@@ -62,17 +62,6 @@ interface SummaryData {
   totalDailyChange: number;
 }
 
-
-
-interface TopTechStock {
-  symbol: string;
-  name: string;
-  regularMarketPrice: number;
-  marketCap: number;
-  trailingPE?: number; // Make optional as per example console.log
-  priceToBook?: number;
-}
-
 interface UndervaluedLargeCap {
   symbol: string;
   name: string;
@@ -130,8 +119,6 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [topTech, setTopTech] = useState<TopTechStock[]>([]); // New state for top tech stocks
-  const [topTechError, setTopTechError] = useState<string | null>(null);
   const [undervaluedLargeCaps, setUndervaluedLargeCaps] = useState<UndervaluedLargeCap[]>([]); // New state for undervalued large caps
   const [undervaluedLargeCapsError, setUndervaluedLargeCapsError] = useState<string | null>(null);
   
@@ -335,22 +322,6 @@ export default function Dashboard() {
     }
   };
 
-
-
-  const fetchTopTech = async () => {
-    setTopTechError(null);
-    try {
-      const res = await fetch('/api/dashboard/top-tech');
-      if (!res.ok) {
-        throw new Error('Failed to fetch top technology stocks');
-      }
-      const data = await res.json();
-      setTopTech(data);
-    } catch (err) {
-      setTopTechError(err instanceof Error ? err.message : 'An unknown error occurred while fetching top technology stocks');
-    }
-  };
-
   const fetchUndervaluedLargeCaps = async () => {
     setUndervaluedLargeCapsError(null);
     try {
@@ -387,7 +358,6 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchData();
-    fetchTopTech(); // Fetch top technology stocks when component mounts
     fetchUndervaluedLargeCaps(); // Fetch undervalued large caps when component mounts
     fetchRecommendedStocks(); // Fetch technical/sentiment recommendations when component mounts
   }, []);
@@ -694,44 +664,6 @@ export default function Dashboard() {
               </table>
             </div>
           </div>
-
-
-
-          {/* Top Technology Stocks Section */}
-          <section className="bg-white p-6 rounded-2xl shadow-lg mb-8">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">🔝 Top Technology Stocks</h2>
-            {topTechError && <p className="text-red-500 text-sm mb-4 text-center">{topTechError}</p>}
-            {topTech.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Symbol</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company Name</th>
-                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Market Cap</th>
-                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">P/E</th>
-                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">P/B</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {topTech.map((stock) => (
-                      <tr key={stock.symbol} onClick={() => handleRowClick(stock.symbol)} className="hover:bg-gray-50 cursor-pointer group">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{stock.symbol}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stock.name}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">${stock.regularMarketPrice.toFixed(2)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">${(stock.marketCap / 1e9).toFixed(2)}B</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">{stock.trailingPE?.toFixed(2) || 'N/A'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">{stock.priceToBook?.toFixed(2) || 'N/A'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              !topTechError && !loading && <p className="text-gray-600 text-center">No top technology stocks data available.</p>
-            )}
-          </section>
 
           {/* Undervalued Large Caps Section */}
           <section className="bg-white p-6 rounded-2xl shadow-lg mb-8">
