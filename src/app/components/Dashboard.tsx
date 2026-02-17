@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link'; // Import Link
 import { calculateTechnicalIndicators, TechnicalIndicators } from '../../utils/technicalIndicators';
+import StockTable, { StockTableRow } from '../components/StockTable';
 
 
 interface StockData {
@@ -666,172 +667,151 @@ export default function Dashboard() {
           </div>
 
           {/* Undervalued Large Caps Section */}
-          <section className="bg-white p-6 rounded-2xl shadow-lg mb-8">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">💰 Undervalued Large Caps</h2>
-            {undervaluedLargeCapsError && <p className="text-red-500 text-sm mb-4 text-center">{undervaluedLargeCapsError}</p>}
-            {undervaluedLargeCaps.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Symbol</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company Name</th>
-                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Market Cap</th>
-                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">P/E</th>
-                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">P/B</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {undervaluedLargeCaps.map((stock) => (
-                      <tr key={stock.symbol} onClick={() => handleRowClick(stock.symbol)} className="hover:bg-gray-50 cursor-pointer group">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{stock.symbol}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stock.name}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">${stock.regularMarketPrice.toFixed(2)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">${(stock.marketCap / 1e9).toFixed(2)}B</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">{stock.trailingPE?.toFixed(2) || 'N/A'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">{stock.priceToBook?.toFixed(2) || 'N/A'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              !undervaluedLargeCapsError && !loading && <p className="text-gray-600 text-center">No undervalued large caps data available.</p>
-            )}
-          </section>
+          <StockTable<UndervaluedLargeCap>
+            title="Undervalued Large Caps"
+            icon="💰"
+            data={undervaluedLargeCaps}
+            columns={[
+              { key: 'symbol', label: 'Symbol' },
+              { key: 'name', label: 'Company Name' },
+              {
+                key: 'regularMarketPrice',
+                label: 'Price',
+                align: 'right',
+                format: (value: number) => `$${value.toFixed(2)}`,
+              },
+              {
+                key: 'marketCap',
+                label: 'Market Cap',
+                align: 'right',
+                format: (value: number) => `$${(value / 1e9).toFixed(2)}B`,
+              },
+              {
+                key: 'trailingPE',
+                label: 'P/E',
+                align: 'right',
+                format: (value: number) => value?.toFixed(2) || 'N/A',
+              },
+              {
+                key: 'priceToBook',
+                label: 'P/B',
+                align: 'right',
+                format: (value: number) => value?.toFixed(2) || 'N/A',
+              },
+            ]}
+            onRowClick={handleRowClick}
+            loading={false}
+            error={undervaluedLargeCapsError}
+            emptyMessage="No undervalued large caps data available."
+          />
 
           {/* Momentum Plays Section */}
-          <section className="bg-white p-6 rounded-2xl shadow-lg mb-8">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">🚀 Momentum Plays</h2>
-            {recommendedStocksLoading && momentumPlays.length === 0 && <p className="text-gray-600 text-center">Loading momentum plays...</p>}
-            {recommendedStocksError && momentumPlays.length === 0 && <p className="text-red-500 text-sm mb-4 text-center">{recommendedStocksError}</p>}
-          {momentumPlays.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Symbol</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company Name</th>
-                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{momentumPlays[0]?.metricLabel || 'Metric'}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {momentumPlays.map((stock) => (
-                      <tr key={stock.symbol} onClick={() => handleRowClick(stock.symbol)} className="hover:bg-gray-50 cursor-pointer group">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{stock.symbol}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stock.name}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">${stock.regularMarketPrice.toFixed(2)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-green-600">+{Number(stock.metric).toFixed(2)}%</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-                !recommendedStocksLoading && !recommendedStocksError && <p className="text-gray-600 text-center">No momentum stocks found.</p>
-            )}
-                    </section>
+          <StockTable<RecommendedStock>
+            title="Momentum Plays"
+            icon="🚀"
+            data={momentumPlays}
+            columns={[
+              { key: 'symbol', label: 'Symbol' },
+              { key: 'name', label: 'Company Name' },
+              {
+                key: 'regularMarketPrice',
+                label: 'Price',
+                align: 'right',
+                format: (value: number) => `$${value.toFixed(2)}`,
+              },
+              {
+                key: 'metric',
+                label: momentumPlays[0]?.metricLabel || 'Metric',
+                align: 'right',
+                format: (value: number) => `+${Number(value).toFixed(2)}%`,
+              },
+            ]}
+            onRowClick={handleRowClick}
+            loading={recommendedStocksLoading && momentumPlays.length === 0}
+            error={recommendedStocksError && momentumPlays.length === 0 ? recommendedStocksError : null}
+            emptyMessage="No momentum stocks found."
+          />
           
-                    {/* Breakout Candidates Section */}
-                    <section className="bg-white p-6 rounded-2xl shadow-lg mb-8">
-                      <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">📈 Breakout Candidates</h2>
-                      {recommendedStocksLoading && breakoutCandidates.length === 0 && <p className="text-gray-600 text-center">Loading breakout candidates...</p>}
-                      {recommendedStocksError && breakoutCandidates.length === 0 && <p className="text-red-500 text-sm mb-4 text-center">{recommendedStocksError}</p>}
-                      {breakoutCandidates.length > 0 ? (
-                        <div className="overflow-x-auto">
-                          <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
-                              <tr>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Symbol</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company Name</th>
-                                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{breakoutCandidates[0]?.metricLabel || 'Metric'}</th>
-                              </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                              {breakoutCandidates.map((stock) => (
-                                <tr key={stock.symbol} onClick={() => handleRowClick(stock.symbol)} className="hover:bg-gray-50 cursor-pointer group">
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{stock.symbol}</td>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stock.name}</td>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">${stock.regularMarketPrice.toFixed(2)}</td>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-red-600">{Number(stock.metric).toFixed(2)}%</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      ) : (
-                        !recommendedStocksLoading && !recommendedStocksError && <p className="text-gray-600 text-center">No breakout candidates found.</p>
-                      )}
-                              </section>
+          {/* Breakout Candidates Section */}
+          <StockTable<RecommendedStock>
+            title="Breakout Candidates"
+            icon="📈"
+            data={breakoutCandidates}
+            columns={[
+              { key: 'symbol', label: 'Symbol' },
+              { key: 'name', label: 'Company Name' },
+              {
+                key: 'regularMarketPrice',
+                label: 'Price',
+                align: 'right',
+                format: (value: number) => `$${value.toFixed(2)}`,
+              },
+              {
+                key: 'metric',
+                label: breakoutCandidates[0]?.metricLabel || 'Metric',
+                align: 'right',
+                format: (value: number) => `${Number(value).toFixed(2)}%`,
+              },
+            ]}
+            onRowClick={handleRowClick}
+            loading={recommendedStocksLoading && breakoutCandidates.length === 0}
+            error={recommendedStocksError && breakoutCandidates.length === 0 ? recommendedStocksError : null}
+            emptyMessage="No breakout candidates found."
+          />
                     
-                              {/* Insider Activity Section */}
-                              <section className="bg-white p-6 rounded-2xl shadow-lg mb-8">
-                                <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">💼 Insider Activity</h2>
-                                {recommendedStocksLoading && insiderActivity.length === 0 && <p className="text-gray-600 text-center">Loading insider activity...</p>}
-                                {recommendedStocksError && insiderActivity.length === 0 && <p className="text-red-500 text-sm mb-4 text-center">{recommendedStocksError}</p>}
-                                {insiderActivity.length > 0 ? (
-                                  <div className="overflow-x-auto">
-                                    <table className="min-w-full divide-y divide-gray-200">
-                                      <thead className="bg-gray-50">
-                                        <tr>
-                                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Symbol</th>
-                                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company Name</th>
-                                          <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                                          <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{insiderActivity[0]?.metricLabel || 'Metric'}</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody className="bg-white divide-y divide-gray-200">
-                                            {insiderActivity.map((stock) => (
-                                              <tr key={stock.symbol} onClick={() => handleRowClick(stock.symbol)} className="hover:bg-gray-50 cursor-pointer group">
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{stock.symbol}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stock.name}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">${stock.regularMarketPrice.toFixed(2)}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-green-600">{Number(stock.metric).toFixed(1)}%</td>
-                                              </tr>
-                                            ))}
-                                          </tbody>
-                                        </table>
-                                      </div>
-                                    ) : (
-                                      !recommendedStocksLoading && !recommendedStocksError && <p className="text-gray-600 text-center">No insider activity found.</p>
-                                    )}
-                                  </section>
+          {/* Insider Activity Section */}
+          <StockTable<RecommendedStock>
+            title="Insider Activity"
+            icon="💼"
+            data={insiderActivity}
+            columns={[
+              { key: 'symbol', label: 'Symbol' },
+              { key: 'name', label: 'Company Name' },
+              {
+                key: 'regularMarketPrice',
+                label: 'Price',
+                align: 'right',
+                format: (value: number) => `$${value.toFixed(2)}`,
+              },
+              {
+                key: 'metric',
+                label: insiderActivity[0]?.metricLabel || 'Metric',
+                align: 'right',
+                format: (value: number) => `${Number(value).toFixed(1)}%`,
+              },
+            ]}
+            onRowClick={handleRowClick}
+            loading={recommendedStocksLoading && insiderActivity.length === 0}
+            error={recommendedStocksError && insiderActivity.length === 0 ? recommendedStocksError : null}
+            emptyMessage="No insider activity found."
+          />
                     
-                              {/* Analyst Favorites Section */}
-                              <section className="bg-white p-6 rounded-2xl shadow-lg mb-8">
-                                <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">👨‍💼 Analyst Favorites</h2>
-                                {recommendedStocksLoading && analystFavorites.length === 0 && <p className="text-gray-600 text-center">Loading analyst favorites...</p>}
-                                {recommendedStocksError && analystFavorites.length === 0 && <p className="text-red-500 text-sm mb-4 text-center">{recommendedStocksError}</p>}
-                                {analystFavorites.length > 0 ? (
-                                  <div className="overflow-x-auto">
-                                    <table className="min-w-full divide-y divide-gray-200">
-                                      <thead className="bg-gray-50">
-                                        <tr>
-                                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Symbol</th>
-                                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company Name</th>
-                                          <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                                          <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{analystFavorites[0]?.metricLabel || 'Metric'}</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody className="bg-white divide-y divide-gray-200">
-                                            {analystFavorites.map((stock) => (
-                                              <tr key={stock.symbol} onClick={() => handleRowClick(stock.symbol)} className="hover:bg-gray-50 cursor-pointer group">
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{stock.symbol}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stock.name}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">${stock.regularMarketPrice.toFixed(2)}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-blue-600">{Number(stock.metric).toFixed(1)}</td>
-                                              </tr>
-                                            ))}
-                                          </tbody>
-                                        </table>
-                                      </div>
-                                    ) : (
-                                      !recommendedStocksLoading && !recommendedStocksError && <p className="text-gray-600 text-center">No analyst favorites found.</p>
-                                    )}
-                              </section>
+          {/* Analyst Favorites Section */}
+          <StockTable<RecommendedStock>
+            title="Analyst Favorites"
+            icon="👨‍💼"
+            data={analystFavorites}
+            columns={[
+              { key: 'symbol', label: 'Symbol' },
+              { key: 'name', label: 'Company Name' },
+              {
+                key: 'regularMarketPrice',
+                label: 'Price',
+                align: 'right',
+                format: (value: number) => `$${value.toFixed(2)}`,
+              },
+              {
+                key: 'metric',
+                label: analystFavorites[0]?.metricLabel || 'Metric',
+                align: 'right',
+                format: (value: number) => Number(value).toFixed(1),
+              },
+            ]}
+            onRowClick={handleRowClick}
+            loading={recommendedStocksLoading && analystFavorites.length === 0}
+            error={recommendedStocksError && analystFavorites.length === 0 ? recommendedStocksError : null}
+            emptyMessage="No analyst favorites found."
+          />
         </div>
       </div>
 

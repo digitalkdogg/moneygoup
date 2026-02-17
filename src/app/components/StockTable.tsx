@@ -21,7 +21,7 @@ interface StockTableProps<T extends StockTableRow> {
     key: keyof T | string;
     label: string;
     align?: 'left' | 'center' | 'right';
-    format?: (value: any) => ReactNode;
+    format?: (value: any, row: T) => ReactNode;
   }>;
   onRowClick?: (symbol: string) => void;
   loading?: boolean;
@@ -46,7 +46,7 @@ export default function StockTable<T extends StockTableRow>({
   };
 
   return (
-    <section className="bg-white p-6 rounded-2xl shadow-lg mb-8">
+    <section className="bg-white p-6 rounded-2xl shadow-lg mb-8" id = "table">
       <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">
         {icon && <span className="mr-2">{icon}</span>}
         {title}
@@ -91,7 +91,7 @@ export default function StockTable<T extends StockTableRow>({
                 >
                   {columns.map((column) => {
                     const value = row[column.key as keyof T];
-                    const displayValue = column.format ? column.format(value) : value;
+                    const displayValue = column.format ? column.format(value, row) : value;
 
                     return (
                       <td
