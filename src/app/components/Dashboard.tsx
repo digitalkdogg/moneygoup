@@ -4,8 +4,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link'; // Import Link
-import { calculateTechnicalIndicators, TechnicalIndicators } from '../../utils/technicalIndicators';
 import StockTable, { StockTableRow } from '../components/StockTable';
+import WatchlistSection from './WatchlistSection';
+import PortfolioSection from './PortfolioSection';
 
 
 interface StockData {
@@ -51,8 +52,6 @@ interface StockDashboardData {
   isOwned: boolean;
   shares?: number;
   purchase_price?: number;
-  recommendation?: 'BUY' | 'SELL' | 'HOLD';
-  indicators?: TechnicalIndicators | null;
   estimatedDailyEarnings?: number;
   lifetimeEarnings?: number;
 }
@@ -157,57 +156,7 @@ export default function Dashboard() {
   const [removeSuccess, setRemoveSuccess] = useState<string | null>(null);
 
 
-  const fetchStockDetailsAndCalculateRecommendation = async (ticker: string): Promise<Partial<StockDashboardData>> => {
-    try {
-      // Fetch consolidated data from /api/stock/{ticker}/get
-      const res = await fetch(`/api/stock/${ticker}`);
-      
-      if (!res.ok) {
-        throw new Error(`Failed to fetch data for ${ticker}`);
-      }
 
-      const data = await res.json();
-      
-      const quoteData = data.stock || null;
-      const newsData = data.news || { articles: {} };
-      const historicalResponse = data.historical || { historicalData: {} };
-      
-      // Extract historical data - handle both array and object formats
-      let historicalData: HistoricalData[] = [];
-      if (Array.isArray(historicalResponse.historicalData)) {
-        historicalData = historicalResponse.historicalData;
-      } else if (typeof historicalResponse.historicalData === 'object' && historicalResponse.historicalData !== null) {
-        historicalData = historicalResponse.historicalData[ticker] || [];
-      }
-      
-      // Extract news articles - handle both array and object formats
-      let newsArticles: any[] = [];
-      if (Array.isArray(newsData.articles)) {
-        newsArticles = newsData.articles;
-      } else if (typeof newsData.articles === 'object' && newsData.articles !== null) {
-        newsArticles = newsData.articles[ticker] || [];
-      }
-  
-      if (historicalData.length > 0) {
-        const indicators = calculateTechnicalIndicators(
-          historicalData,
-          newsArticles,
-          quoteData?.peRatio,
-          quoteData?.pbRatio,
-          quoteData?.marketCap
-        );
-        return {
-          recommendation: indicators.signal,
-          indicators: indicators,
-          price: quoteData?.last,
-          daily_change: quoteData ? quoteData.last - quoteData.prevClose : null,
-        };
-      }
-    } catch (error) {
-      console.error(`Failed to fetch details for ${ticker}:`, error);
-    }
-    return { recommendation: 'HOLD', indicators: null }; // Default on error
-  };
   
   const fetchData = async () => {
     setLoading(true);
@@ -267,24 +216,12 @@ export default function Dashboard() {
                     newsArticles = newsData.articles[stock.symbol] || [];
                   }
                   
-                  // Calculate indicators if we have historical data
-                  if (historicalData.length > 0) {
-                    const indicators = calculateTechnicalIndicators(
-                      historicalData,
-                      newsArticles,
-                      quoteData?.peRatio,
-                      quoteData?.pbRatio,
-                      quoteData?.marketCap
-                    );
-                    
-                    return {
-                      ...stock,
-                      recommendation: indicators.signal,
-                      indicators: indicators,
-                      price: quoteData?.last,
-                      daily_change: quoteData ? quoteData.last - quoteData.prevClose : null,
-                    };
-                  }
+                  // Only update price and daily_change
+                  return {
+                    ...stock,
+                    price: quoteData?.last,
+                    daily_change: quoteData ? quoteData.last - quoteData.prevClose : null,
+                  };
                 }
                 
                 return stock;
@@ -292,27 +229,10 @@ export default function Dashboard() {
             );
           } else {
             console.error('Failed to fetch consolidated stock details');
-            // Fall back to individual calls if bulk call fails
-            initialStocks.forEach(async (stock: StockDashboardData) => {
-              const details = await fetchStockDetailsAndCalculateRecommendation(stock.symbol);
-              setStocks(currentStocks =>
-                currentStocks.map(s =>
-                  s.symbol === stock.symbol ? { ...s, ...details } : s
-                )
-              );
-            });
+
           }
         } catch (err) {
           console.error('Error fetching consolidated stock details:', err);
-          // Fall back to individual calls if bulk call fails
-          initialStocks.forEach(async (stock: StockDashboardData) => {
-            const details = await fetchStockDetailsAndCalculateRecommendation(stock.symbol);
-            setStocks(currentStocks =>
-              currentStocks.map(s =>
-                s.symbol === stock.symbol ? { ...s, ...details } : s
-              )
-            );
-          });
         }
       }
   
@@ -523,16 +443,7 @@ export default function Dashboard() {
   };
 
 
-  const getRecommendationClass = (recommendation: string) => {
-    switch (recommendation) {
-      case "BUY":
-        return "bg-green-100 text-green-800";
-      case "SELL":
-        return "bg-red-100 text-red-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
+
 
 
 
@@ -565,106 +476,14 @@ export default function Dashboard() {
 
           <EarningsSummary summary={summary} />
 
-          <div className="bg-white p-8 rounded-2xl shadow-lg mb-8">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center"> &#128083; My Watchlist</h2>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Symbol</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company Name</th>
-                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                    <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Recommendation</th>
-                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Shares</th>
-                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Daily Change</th>
-                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Lifetime Earnings</th>
-                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Est. Daily Earnings</th>
-                    <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                    <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"></th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {stocks.map((stock) => {
-                    const earnings = stock.lifetimeEarnings? stock.lifetimeEarnings : 0;
-                    const earningsClass = earnings
-                      ? earnings > 0 ? 'text-green-600' : 'text-red-600'
-                      : 'text-gray-500';
-
-                    return (
-                      <tr key={stock.symbol} onClick={() => handleRowClick(stock.symbol)} className="hover:bg-gray-50 cursor-pointer group">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{stock.symbol}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stock.companyName || 'N/A'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">{stock.price ? `$${stock.price.toFixed(2)}` : 'N/A'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
-                          {stock.recommendation ? (
-                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getRecommendationClass(stock.recommendation)}`}>
-                              {stock.recommendation}
-                            </span>
-                          ) : (
-                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
-                              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-gray-800" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                              </svg>
-                              Calculating...
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">{stock.isOwned && typeof stock.shares === 'number' ? stock.shares.toFixed(2) : 'N/A'}</td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-medium ${
-                          stock.daily_change
-                            ? stock.daily_change > 0 ? 'text-green-600' : 'text-red-600'
-                            : 'text-gray-500'
-                        }`}>
-                          {stock.daily_change !== null ? `${stock.daily_change > 0 ? '+' : ''}$${stock.daily_change.toFixed(2)}` : 'N/A'}
-                        </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-medium ${earningsClass}`}>
-                          {earnings !== null ? `${earnings > 0 ? '+' : ''}$${earnings.toFixed(2)}` : 'N/A'}
-                        </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-medium ${
-                          stock.estimatedDailyEarnings !== undefined && stock.estimatedDailyEarnings !== null
-                            ? stock.estimatedDailyEarnings > 0 ? 'text-green-600' : 'text-red-600'
-                            : 'text-gray-500'
-                        }`}>
-                          {stock.estimatedDailyEarnings !== undefined && stock.estimatedDailyEarnings !== null
-                            ? `${stock.estimatedDailyEarnings > 0 ? '+' : ''}$${stock.estimatedDailyEarnings.toFixed(2)}`
-                            : 'N/A'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
-                              {stock.isOwned ? (
-                                <button
-                                  onClick={(e) => handleSellClick(e, stock)}
-                                  className="px-4 py-2 font-semibold text-white bg-gray-400 rounded-lg hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-300 transition-colors duration-200 cursor-pointer"
-                                >
-                                  Sell
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={(e) => handlePurchaseClick(e, stock)}
-                                  className="px-4 py-2 font-semibold text-white bg-green-700 rounded-lg hover:bg-green-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600 transition-colors duration-200 cursor-pointer"
-                                >
-                                  Purchase
-                                </button>
-                              )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
-                          {!stock.isOwned && (
-                            <button
-                              onClick={(e) => handleRemoveStock(e, stock)}
-                              className="text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-1 text-2xl cursor-pointer"
-                              aria-label="Remove stock"
-                            >
-                              &#x2715; {/* Unicode 'X' character */}
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          {/* Portfolio and Watchlist Sections */}
+          <PortfolioSection onRefresh={() => {
+            // Optional: refresh other data if needed
+          }} />
+          
+          <WatchlistSection onRefresh={() => {
+            // Optional: refresh other data if needed
+          }} />
 
           {/* Undervalued Large Caps Section */}
           <StockTable<UndervaluedLargeCap>

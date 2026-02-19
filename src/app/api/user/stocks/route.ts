@@ -33,12 +33,14 @@ export const POST = validate(purchaseStockSchema)(
       const isPurchased = 1;
       
       const query = `
-        INSERT INTO user_stocks (user_id, stock_id, shares, purchase_price, is_purchased)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO user_stocks (user_id, stock_id, shares, purchase_price, is_purchased, initial_purchase_date, last_transaction_date, is_active)
+        VALUES (?, ?, ?, ?, ?, NOW(), NOW(), 1)
         ON DUPLICATE KEY UPDATE
           shares = shares + VALUES(shares),
           purchase_price = ((purchase_price * shares) + (VALUES(purchase_price) * VALUES(shares))) / (shares + VALUES(shares)),
-          is_purchased = VALUES(is_purchased);
+          is_purchased = VALUES(is_purchased),
+          last_transaction_date = NOW(),
+          is_active = 1;
       `;
 
       await executeRawQuery(query, [userId, stock_id, shares, purchase_price, isPurchased]);
