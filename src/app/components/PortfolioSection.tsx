@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import BuyMoreModal from './modals/BuyMoreModal';
 import SellModal from './modals/SellModal';
+import { useRouter } from 'next/navigation';
 
 interface PortfolioItem {
   user_id?: number;
@@ -27,6 +28,15 @@ export default function PortfolioSection({ onRefresh }: PortfolioSectionProps) {
   const [error, setError] = useState<string | null>(null);
   const [selectedStock, setSelectedStock] = useState<PortfolioItem | null>(null);
   const [modalType, setModalType] = useState<'buy' | 'sell' | null>(null);
+  const router = useRouter();
+
+  const handleRowClick = (symbol: string) => {
+    router.push(`/search/${symbol}`);
+  };
+
+  const handleActionClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent row click from firing when action buttons are clicked
+  };
 
   useEffect(() => {
     fetchPortfolio();
@@ -123,7 +133,7 @@ export default function PortfolioSection({ onRefresh }: PortfolioSectionProps) {
                 <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Price</th>
                 <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Current Price</th>
                 <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Position Value</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purchased</th>
+
                 <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
@@ -133,7 +143,11 @@ export default function PortfolioSection({ onRefresh }: PortfolioSectionProps) {
                   ? stock.shares * stock.current_price 
                   : parseFloat(stock.shares as any) * parseFloat(stock.purchase_price as any); // Fallback to purchase_price if current_price is null
                 return (
-                  <tr key={stock.stock_id} className="hover:bg-gray-50">
+                  <tr 
+                    key={stock.stock_id} 
+                    className="hover:bg-gray-50 cursor-pointer"
+                    onClick={() => handleRowClick(stock.symbol)}
+                  >
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{stock.symbol}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stock.company_name}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900 font-medium">{parseFloat(stock.shares as any).toFixed(4)}</td>
@@ -142,8 +156,8 @@ export default function PortfolioSection({ onRefresh }: PortfolioSectionProps) {
                       {stock.current_price !== null ? `$${stock.current_price.toFixed(2)}` : 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600 font-semibold">${positionValue.toFixed(2)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatDate(stock.initial_purchase_date)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center space-x-2">
+
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center space-x-2" onClick={handleActionClick}>
                       <button
                         onClick={() => handleBuyMore(stock)}
                         className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold text-sm"

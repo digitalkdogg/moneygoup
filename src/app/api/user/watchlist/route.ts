@@ -25,20 +25,40 @@ export async function GET(request: NextRequest) {
   const userId = session.user.id;
 
   try {
-    const [watchlistItems] = await executeRawQuery(`
+    const [watchlistItems]: any[] = await executeRawQuery(`
       SELECT
         s.id AS stock_id,
         s.symbol,
         s.company_name,
         us.shares,
         us.purchase_price,
-        us.is_purchased
+        us.is_purchased,
+        s.price AS current_price
       FROM user_stocks us
       JOIN stocks s ON us.stock_id = s.id
       WHERE us.user_id = ? AND us.is_purchased = 0
     `, [userId]);
 
-    return NextResponse.json({ watchlist: watchlistItems }, { status: 200 });
+    const watchlistWithMA = await Promise.all(watchlistItems.map(async (item: any) => {
+      const [dailyPrices]: any[] = await executeRawQuery(`
+        SELECT close
+        FROM stocksdailyprice
+        WHERE stock_id = ?
+        ORDER BY date DESC
+        LIMIT 120
+      `, [item.stock_id]);
+
+      const closingPrices = dailyPrices.map((price: any) => parseFloat(price.close));
+      const sum = closingPrices.reduce((acc: number, price: number) => acc + price, 0);
+      const ma6_month = closingPrices.length > 0 ? sum / closingPrices.length : null;
+
+      return {
+        ...item,
+        ma6_month: ma6_month,
+      };
+    }));
+
+    return NextResponse.json({ watchlist: watchlistWithMA }, { status: 200 });
   } catch (error: any) {
     logger.error('Error fetching user watchlist:', error);
     return createErrorResponse(error, 500);

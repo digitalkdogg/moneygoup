@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import PurchaseFromWatchlistModal from './modals/PurchaseFromWatchlistModal';
+import { useRouter } from 'next/navigation';
 
 interface WatchlistItem {
   stock_id: number;
@@ -11,6 +12,10 @@ interface WatchlistItem {
   shares: number;
   purchase_price: number;
   is_purchased: number;
+  current_price: number | null; // Added current_price
+  ma6_month: number | null; // Added 6-month moving average
+
+
 }
 
 interface WatchlistSectionProps {
@@ -23,6 +28,15 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
   const [error, setError] = useState<string | null>(null);
   const [selectedStock, setSelectedStock] = useState<WatchlistItem | null>(null);
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+  const router = useRouter();
+
+  const handleRowClick = (symbol: string) => {
+    router.push(`/search/${symbol}`);
+  };
+
+  const handleActionClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent row click from firing when action buttons are clicked
+  };
 
   useEffect(() => {
     fetchWatchlist();
@@ -39,7 +53,10 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
       }
       
       const data = await response.json();
-      setWatchlist(data.watchlist || []);
+      setWatchlist(data.watchlist.map((item: any) => ({
+        ...item,
+        current_price: item.current_price !== null ? parseFloat(item.current_price) : null
+      })) || []);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -113,15 +130,27 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
               <tr>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Symbol</th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company Name</th>
+                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">6M MA</th>
                 <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {watchlist.map((stock) => (
-                <tr key={stock.stock_id} className="hover:bg-gray-50">
+                <tr 
+                  key={stock.stock_id} 
+                  className="hover:bg-gray-50 cursor-pointer"
+                  onClick={() => handleRowClick(stock.symbol)}
+                >
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{stock.symbol}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stock.company_name}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-center space-x-2">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-blue-600 font-semibold">
+                    {stock.current_price !== null ? `$${stock.current_price.toFixed(2)}` : 'N/A'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
+                    {stock.ma6_month !== null ? `$${stock.ma6_month.toFixed(2)}` : 'N/A'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-center space-x-2" onClick={handleActionClick}>
                     <button
                       onClick={() => handlePurchase(stock)}
                       className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold text-sm"
