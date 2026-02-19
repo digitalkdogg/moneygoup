@@ -47,8 +47,6 @@ interface StockDashboardData {
   stock_id: number;
   symbol: string;
   companyName: string;
-  price: number | null;
-  daily_change: number | null;
   isOwned: boolean;
   shares?: number;
   purchase_price?: number;
@@ -170,71 +168,7 @@ export default function Dashboard() {
       setStocks(initialStocks);
       setSummary(summary);
   
-      // Fetch all stock details in one call using comma-separated tickers
-      if (initialStocks.length > 0) {
-        const tickerString = initialStocks.map((stock: StockDashboardData) => stock.symbol).join(',');
-        
-        try {
-          const detailsRes = await fetch(`/api/stock/${tickerString}`);
-          
-          if (detailsRes.ok) {
-            const allStockDetails = await detailsRes.json();
-            
-            // Update stocks with details from consolidated response
-            setStocks(currentStocks =>
-              currentStocks.map(stock => {
-                // Handle both single stock (object) and multiple stocks (object with keys)
-                let stockDetails = null;
-                
-                if (initialStocks.length === 1) {
-                  // Single stock: response is the data directly
-                  stockDetails = allStockDetails;
-                } else {
-                  // Multiple stocks: response is keyed by ticker
-                  stockDetails = allStockDetails[stock.symbol];
-                }
-                
-                if (stockDetails) {
-                  // Extract data from consolidated response
-                  const quoteData = stockDetails.stock || null;
-                  const newsData = stockDetails.news || { articles: {} };
-                  const historicalResponse = stockDetails.historical || { historicalData: {} };
-                  
-                  // Extract historical data - handle both array and object formats
-                  let historicalData: HistoricalData[] = [];
-                  if (Array.isArray(historicalResponse.historicalData)) {
-                    historicalData = historicalResponse.historicalData;
-                  } else if (typeof historicalResponse.historicalData === 'object' && historicalResponse.historicalData !== null) {
-                    historicalData = historicalResponse.historicalData[stock.symbol] || [];
-                  }
-                  
-                  // Extract news articles - handle both array and object formats
-                  let newsArticles: any[] = [];
-                  if (Array.isArray(newsData.articles)) {
-                    newsArticles = newsData.articles;
-                  } else if (typeof newsData.articles === 'object' && newsData.articles !== null) {
-                    newsArticles = newsData.articles[stock.symbol] || [];
-                  }
-                  
-                  // Only update price and daily_change
-                  return {
-                    ...stock,
-                    price: quoteData?.last,
-                    daily_change: quoteData ? quoteData.last - quoteData.prevClose : null,
-                  };
-                }
-                
-                return stock;
-              })
-            );
-          } else {
-            console.error('Failed to fetch consolidated stock details');
-
-          }
-        } catch (err) {
-          console.error('Error fetching consolidated stock details:', err);
-        }
-      }
+      
   
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unknown error occurred');
@@ -293,7 +227,7 @@ export default function Dashboard() {
     setIsPurchaseModalOpen(true);
     setPurchaseError(null);
     setPurchaseSuccess(null);
-    setPurchasePrice(stock.price ? stock.price.toFixed(2) : ''); // Pre-fill with current price
+    setPurchasePrice(''); // No longer pre-fill with current price
     setShares('');
   };
 
@@ -664,7 +598,7 @@ export default function Dashboard() {
                   value={purchasePrice}
                   onChange={(e) => setPurchasePrice(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-green-600 focus:border-green-600"
-                  placeholder={`Current price: $${selectedStockForPurchase.price?.toFixed(2)}`}
+                  placeholder="e.g., 150.00"
                   required
                   step="any"
                 />
