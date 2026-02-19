@@ -51,6 +51,18 @@ interface ConsolidatedStockData {
   news: any
   historical: any
   indicators: TechnicalIndicators | null
+  earnings: EarningsData | null // Add earnings data
+}
+
+interface EarningsData {
+  upcomingEarnings: string | null;
+  historicalEarnings: {
+    date: string;
+    revenue: number | null;
+    earnings: number | null;
+    epsActual: number | null;
+    epsEstimate: number | null;
+  }[];
 }
 
 type HistoricalResponse = HistoricalData[] | { error: string }
@@ -73,6 +85,7 @@ export default function Stock({
   const [watchlistSuccess, setWatchlistSuccess] = useState<string | null>(null)
   const [watchlistError, setWatchlistError] = useState<string | null>(null)
   const [watchlistStatus, setWatchlistStatus] = useState<Record<string, boolean>>({})
+  const [earningsData, setEarningsData] = useState<EarningsData | null>(null);
 
   const router = useRouter()
 
@@ -81,6 +94,28 @@ export default function Stock({
   const isSingleTicker = tickerArray.length === 1
   const primaryTicker = tickerArray[0]
 
+      const formatDate = (dateString: string) => {
+        if (!dateString) return 'N/A';
+  
+        // Check for "XQYYYY" format (e.g., "1Q2025")
+        const quarterMatch = dateString.match(/(\d)Q(\d{4})/);
+        if (quarterMatch) {
+          const quarter = quarterMatch[1];
+          const year = quarterMatch[2];
+          return `Q${quarter} ${year}`; // Format as "Q1 2025"
+        }
+  
+        // Fallback for standard date strings
+        try {
+          return new Date(dateString).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+          });
+        } catch {
+          return 'N/A';
+        }
+      };
   const fetchStockData = async (tickerString: string) => {
     setLoading(true)
     setStockDataMap({})
@@ -158,12 +193,28 @@ export default function Stock({
             stock: result.stock,
             news: result.news,
             historical: result.historical,
-            indicators: result.indicators
+            indicators: result.indicators,
+            earnings: result.earnings // Include earnings data
           }
         })
         
         setStockDataMap(dataMap)
         setApiError(null)
+
+        // Fetch earnings data separately if single ticker
+        if (isSingleTicker) {
+          try {
+            const earningsRes = await fetch(`/api/stock/${primaryTicker}/earnings`);
+            if (earningsRes.ok) {
+              const earnings = await earningsRes.json();
+              setEarningsData(earnings);
+            } else {
+              logger.error('Failed to fetch earnings data for single ticker');
+            }
+          } catch (err) {
+            logger.error('Error fetching earnings data for single ticker:', err);
+          }
+        }
       } catch (err: unknown) {
         // Fallback: call individual endpoints
         logger.warn('Consolidated endpoint failed, falling back to individual endpoints')
@@ -171,15 +222,17 @@ export default function Stock({
 
         for (const t of tickerArray) {
           try {
-            const [stockRes, newsRes, histRes] = await Promise.all([
+            const [stockRes, newsRes, histRes, earningsRes] = await Promise.all([
               fetch(`/api/stock/${t}`),
               fetch(`/api/stock/${t}/news`),
-              fetch(`/api/stock/${t}/historical/1y`)
+              fetch(`/api/stock/${t}/historical/1y`),
+              fetch(`/api/stock/${t}/earnings`) // Fetch earnings data
             ])
 
             const stock = stockRes.ok ? await stockRes.json() : {}
             const newsJson = newsRes.ok ? await newsRes.json() : {}
             const histJson = histRes.ok ? await histRes.json() : {}
+            const earningsJson = earningsRes.ok ? await earningsRes.json() : null // Fetch earnings
 
             // Handle array response from quote endpoint
             const stockData = Array.isArray(stock) ? stock[0] : stock
@@ -194,7 +247,8 @@ export default function Stock({
               stock: stockData || { error: 'Failed to fetch stock data' },
               news: { articles: newsArticles, source: newsJson.source },
               historical: { historicalData, source: histJson.source },
-              indicators: null // Would need to calculate if needed
+              indicators: null, // Would need to calculate if needed
+              earnings: earningsJson // Include earnings data
             }
           } catch (tickerErr: unknown) {
             const e = tickerErr instanceof Error ? tickerErr : new Error(String(tickerErr))
@@ -203,7 +257,8 @@ export default function Stock({
               stock: { error: 'Network error' },
               news: { articles: [] },
               historical: { historicalData: [] },
-              indicators: null
+              indicators: null,
+              earnings: null
             }
           }
         }
@@ -440,6 +495,53 @@ export default function Stock({
           <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
             <h2 className="text-2xl font-semibold text-gray-800 mb-4">🎯 Technical Indicators & Trading Signal</h2>
             <TechnicalIndicatorsDisplay indicators={indicators} />
+          </div>
+        )}
+
+        {/* Earnings Information */}
+        {earningsData && (earningsData.upcomingEarnings || earningsData.historicalEarnings.length > 0) && (
+          <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
+            <h2 className="text-2xl font-semibold text-gray-800 mb-4">🗓️ Earnings Information</h2>
+
+            {earningsData.upcomingEarnings && (
+              <div className="mb-6">
+                <h3 className="text-xl font-medium text-gray-700 mb-2">Upcoming Earnings:</h3>
+                <p className="text-lg text-gray-900 font-bold">{earningsData.upcomingEarnings}</p>
+              </div>
+            )}
+
+            {earningsData.historicalEarnings.length > 0 && (
+              <div>
+                <h3 className="text-xl font-medium text-gray-700 mb-4">Historical Earnings:</h3>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                        <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">EPS Actual</th>
+                        <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">EPS Estimate</th>
+                        <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Revenue</th>
+                        <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Earnings</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {earningsData.historicalEarnings.map((earning, index) => (
+                        <tr key={index} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{formatDate(earning.date)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{earning.epsActual != null ? earning.epsActual.toFixed(2) : 'N/A'}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{earning.epsEstimate != null ? earning.epsEstimate.toFixed(2) : 'N/A'}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{earning.revenue != null ? `$${(earning.revenue / 1_000_000).toFixed(2)}M` : 'N/A'}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{earning.earnings != null ? `$${(earning.earnings / 1_000_000).toFixed(2)}M` : 'N/A'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            {(!earningsData.upcomingEarnings && earningsData.historicalEarnings.length === 0) && (
+              <p className="text-gray-500">No earnings data available for this stock.</p>
+            )}
           </div>
         )}
 
