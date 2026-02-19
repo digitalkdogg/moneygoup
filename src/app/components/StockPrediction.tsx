@@ -14,6 +14,13 @@ interface StockPredictionProps {
   rsi?: number
   momentum?: number
   newsArticles?: Array<{ title?: string; description?: string; content?: string; sentiment_score?: number }>
+  historicalEarnings?: Array<{
+    date: string;
+    revenue: number | null;
+    earnings: number | null;
+    epsActual: number | null;
+    epsEstimate: number | null;
+  }>;
 }
 
 interface TfPredictionResult {
@@ -50,6 +57,7 @@ export default function StockPrediction({
   rsi,
   momentum,
   newsArticles,
+  historicalEarnings,
 }: StockPredictionProps) {
   const [tfPrediction, setTfPrediction] = useState<TfPredictionResult | null>(null)
   const [tfLoading, setTfLoading] = useState(false)
@@ -78,6 +86,7 @@ export default function StockPrediction({
             momentum,
           },
           newsArticles,
+          historicalEarnings, // Pass historical earnings data
         }),
       });
       

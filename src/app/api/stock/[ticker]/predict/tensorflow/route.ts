@@ -32,12 +32,11 @@ export async function POST( // Changed GET to POST
         '--input_file', tempFilePath // Pass temp file path as argument
       ]);
 
-
       // pythonProcess = spawn(pythonExecutable, [
-      //   'predict_tensorflow.py',
-      //   ticker,
-      //   '--input_file', tempFilePath // Pass temp file path as argument
-      // ]);
+      //    'predict_tensorflow.py',
+      //    ticker,
+      //    '--input_file', tempFilePath // Pass temp file path as argument
+      //  ]);
 
       pythonProcess.on('error', (err) => {
         console.error('Failed to start python script:', err);

@@ -487,6 +487,7 @@ export default function Stock({
             rsi={indicators?.rsi14 ?? undefined}
             momentum={indicators?.momentum ?? undefined}
             newsArticles={news}
+            historicalEarnings={earningsData?.historicalEarnings || []}
           />
         )}
 

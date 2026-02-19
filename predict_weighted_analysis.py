@@ -61,6 +61,7 @@ WEIGHTS = {
     # DERIVED METRICS
     'growth_rate': {'min': 0.03, 'max': 0.05, 'name': 'Growth Rate (20d)'},
     'uptrend': {'min': 0.05, 'max': 0.08, 'name': 'Uptrend Flag'},
+    'earnings_beat_streak': {'min': 0.03, 'max': 0.06, 'name': 'Earnings Beat Streak'},
 }
 
 def create_dataset(dataset, time_step=1):
@@ -141,9 +142,41 @@ def calculate_metric_weights(metrics_data):
         sentiment = metrics_data['news_sentiment_score']
         weights['sentiment_impact'] = sentiment * 0.04
 
+    # Earnings Beat Streak Weight Calculation (3-6%)
+    if 'earnings_beat_streak' in metrics_data:
+        streak = metrics_data['earnings_beat_streak']
+        if streak >= 3: # Significant positive impact for 3+ consecutive beats
+            weights['earnings_beat_streak_impact'] = 0.06
+        elif streak == 2:
+            weights['earnings_beat_streak_impact'] = 0.03
+        elif streak == 1:
+            weights['earnings_beat_streak_impact'] = 0.01
+        else: # No beat or negative streak (not explicitly tracked, but 0 impact)
+            weights['earnings_beat_streak_impact'] = 0
     return weights
 
-def predict_with_weighted_analysis(ticker, historical_data_input, stock_metrics_input, news_articles_input, external_economic_data_input):
+def calculate_earnings_beat_streak(historical_earnings):
+    """
+    Calculates the longest streak of consecutive earnings beats.
+    Returns the length of the streak.
+    """
+    if not historical_earnings:
+        return 0
+    
+    consecutive_beats = 0
+    for earning in historical_earnings:
+        eps_actual = earning.get('epsActual')
+        eps_estimate = earning.get('epsEstimate')
+
+        # Check for beat: actual > estimate and both are not None
+        if eps_actual is not None and eps_estimate is not None and eps_actual > eps_estimate:
+            consecutive_beats += 1
+        else:
+            # Streak broken or data missing for this quarter
+            break
+    return consecutive_beats
+
+def predict_with_weighted_analysis(ticker, historical_data_input, stock_metrics_input, news_articles_input, external_economic_data_input, historical_earnings_input):
     """
     Main prediction function with detailed weight analysis.
     Returns prediction with metric breakdown showing which metrics drove the result.
@@ -151,6 +184,8 @@ def predict_with_weighted_analysis(ticker, historical_data_input, stock_metrics_
     try:
         if not historical_data_input:
             raise ValueError("No historical data provided.")
+
+        earnings_beat_streak_val = 0 # Initialize earnings_beat_streak_val
 
         stock_data = pd.DataFrame(historical_data_input)
         stock_data.rename(columns={'close': 'Close', 'open': 'Open', 'high': 'High', 'low': 'Low', 'volume': 'Volume'}, inplace=True)
@@ -226,13 +261,17 @@ def predict_with_weighted_analysis(ticker, historical_data_input, stock_metrics_
                 news_sentiment_score_val = 0
         stock_data['NewsSentiment'] = news_sentiment_score_val
 
+        # Add earnings beat streak as a feature
+        stock_data['EarningsBeatStreak'] = earnings_beat_streak_val
+
         stock_data = stock_data.ffill().bfill()
 
         # Select features
         all_features = stock_data.select_dtypes(include=np.number)
         important_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
         technical_cols = [col for col in all_features.columns if col not in important_cols][:8]
-        selected_cols = important_cols + technical_cols
+        # Ensure EarningsBeatStreak is always included
+        selected_cols = important_cols + technical_cols + ['EarningsBeatStreak']
         selected_cols = [col for col in selected_cols if col in all_features.columns]
 
         features = all_features[selected_cols].values
@@ -321,6 +360,9 @@ def predict_with_weighted_analysis(ticker, historical_data_input, stock_metrics_
         current_volume = stock_data['Volume'].iloc[-1]
         volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1
 
+        # Calculate earnings beat streak
+        earnings_beat_streak_val = calculate_earnings_beat_streak(historical_earnings_input)
+
         # Calculate impacts
         metrics_for_analysis = {
             'current_price': current_price,
@@ -338,6 +380,7 @@ def predict_with_weighted_analysis(ticker, historical_data_input, stock_metrics_
             'is_uptrend': is_uptrend,
             'news_sentiment_score': news_sentiment_score_val,
             'macd_above_signal': current_macd > current_signal,
+            'earnings_beat_streak': earnings_beat_streak_val,
         }
 
         metric_weights = calculate_metric_weights(metrics_for_analysis)
@@ -538,8 +581,9 @@ if __name__ == '__main__':
         stock_metrics = input_data.get("stockMetrics", {})
         news_articles = input_data.get("newsArticles", [])
         external_economic_data = input_data.get("externalEconomicData", {})
+        historical_earnings = input_data.get("historicalEarnings", [])
 
-        predict_with_weighted_analysis(args.ticker, historical_data, stock_metrics, news_articles, external_economic_data)
+        predict_with_weighted_analysis(args.ticker, historical_data, stock_metrics, news_articles, external_economic_data, historical_earnings)
 
     except FileNotFoundError:
         print(json.dumps({"error": f"Input file not found at {args.input_file}"}, cls=NumpyEncoder), file=sys.stderr)
