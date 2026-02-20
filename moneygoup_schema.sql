@@ -189,6 +189,7 @@ CREATE TABLE `users` (
   `password_hash` varchar(255) NOT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `modified_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `role` varchar(50) NOT NULL DEFAULT 'user',
   PRIMARY KEY (`id`),
   UNIQUE KEY `username` (`username`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb3;
@@ -200,7 +201,7 @@ CREATE TABLE `users` (
 
 LOCK TABLES `users` WRITE;
 /*!40000 ALTER TABLE `users` DISABLE KEYS */;
-INSERT INTO `users` VALUES (1,'KevinBollman','$2b$10$F3jIRti55NDMJd2z/d2RR.Yi4mXl18QfL8F6qIgjdo6lIGd90EGvC','2026-01-17 20:12:31','2026-01-25 02:15:46'),(3,'testuser','$2b$10$F3jIRti55NDMJd2z/d2RR.Yi4mXl18QfL8F6qIgjdo6lIGd90EGvC','2026-01-26 16:32:49','2026-01-26 16:32:49');
+INSERT INTO `users` (`id`, `username`, `password_hash`, `created_at`, `modified_at`, `role`) VALUES (1,'KevinBollman','$2b$10$F3jIRti55NDMJd2z/d2RR.Yi4mXl18QfL8F6qIgjdo6lIGd90EGvC','2026-01-17 20:12:31','2026-01-25 02:15:46','user'),(3,'testuser','$2b$10$F3jIRti55NDMJd2z/d2RR.Yi4mXl18QfL8F6qIgjdo6lIGd90EGvC','2026-01-26 16:32:49','2026-01-26 16:32:49','user');
 /*!40000 ALTER TABLE `users` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;

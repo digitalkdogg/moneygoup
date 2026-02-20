@@ -29,6 +29,7 @@ interface StockData {
   peRatio?: number
   pbRatio?: number
   marketCap?: number
+  longBusinessSummary?: string // Added company description
 }
 
 interface HistoricalData {
@@ -86,6 +87,8 @@ export default function Stock({
   const [watchlistError, setWatchlistError] = useState<string | null>(null)
   const [watchlistStatus, setWatchlistStatus] = useState<Record<string, boolean>>({})
   const [earningsData, setEarningsData] = useState<EarningsData | null>(null);
+  const [showFullSummary, setShowFullSummary] = useState(false); // State for showing full summary
+  const TRUNCATE_LENGTH = 300; // Define truncation length
 
   const router = useRouter()
 
@@ -389,12 +392,13 @@ export default function Stock({
 
     return (
       <div className="container mx-auto px-0 py-8 max-w-6xl">
-        {/* Main Stock Info Card */}
         <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
-          <div className="flex flex-col mb-20 text-center items-center gap-7">
+          {/* Company Title */}
+          <div className="flex flex-col mb-4 text-center items-center gap-4">
             <h1 className="text-3xl font-bold text-gray-800">
               {stockData.name} ({stockData.symbol})
             </h1>
+            {/* Watchlist Status/Button */}
             {watchlistStatus[primaryTicker] ? (
               <span className="text-green-600 font-semibold px-3 py-1 bg-green-50 rounded-full">
                 On Watchlist
@@ -410,6 +414,27 @@ export default function Stock({
             )}
           </div>
 
+          {/* Company Description */}
+          {stockData.longBusinessSummary && (
+            <div className="mb-6"> {/* Added mb-6 for spacing */}
+              <h2 className="text-2xl font-semibold text-gray-800 mb-4">📚 Company Overview</h2>
+              <div className="text-gray-700 leading-relaxed">
+                {showFullSummary || stockData.longBusinessSummary.length <= TRUNCATE_LENGTH
+                  ? stockData.longBusinessSummary
+                  : `${stockData.longBusinessSummary.substring(0, TRUNCATE_LENGTH)}...`}
+                {stockData.longBusinessSummary.length > TRUNCATE_LENGTH && (
+                  <button
+                    onClick={() => setShowFullSummary(!showFullSummary)}
+                    className="text-blue-600 hover:text-blue-800 font-semibold ml-1 focus:outline-none"
+                  >
+                    {showFullSummary ? 'Read Less' : 'Read More'}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Stock Info Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div className="p-4 bg-gray-50 rounded-lg border border-[#e9ede8]">
               <p className="text-sm text-gray-500">Last Price</p>
