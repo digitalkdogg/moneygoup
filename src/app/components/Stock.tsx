@@ -197,7 +197,7 @@ export default function Stock({
             news: result.news,
             historical: result.historical,
             indicators: result.indicators,
-            earnings: result.earnings // Include earnings data
+            earnings: null // Initialize earnings to null here
           }
         })
         
@@ -215,7 +215,8 @@ export default function Stock({
               logger.error('Failed to fetch earnings data for single ticker');
             }
           } catch (err) {
-            logger.error('Error fetching earnings data for single ticker:', err);
+            const error = err instanceof Error ? err : new Error(String(err));
+            logger.error('Error fetching earnings data for single ticker:', error);
           }
         }
       } catch (err: unknown) {

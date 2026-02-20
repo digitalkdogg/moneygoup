@@ -7,7 +7,7 @@ import { createErrorResponse } from '@/utils/errorResponse';
 const logger = createLogger('api/stock/[ticker]/earnings');
 
 // Declare yahooFinance outside to potentially reuse, but initialize inside GET for testing
-let yahooFinanceInstance: typeof YahooFinance | null = null;
+let yahooFinanceInstance: InstanceType<typeof YahooFinance> | null = null;
 
 export async function GET(request: NextRequest, { params }: { params: { ticker: string } }) {
   const originCheckResponse = checkOrigin(request);
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
       }, { status: 200 });
     }
 
-        const upcomingEarnings = earningsData.earningsChart?.earningsDate?.[0]?.fmt || null;
+        const upcomingEarnings = (earningsData.earningsChart?.earningsDate?.[0] as any)?.fmt || null;
 
     
 

@@ -150,7 +150,7 @@ export async function remove(tableName: string, conditions: Record<string, any>)
  */
 export async function executeRawQuery(sql: string, values?: any[]): Promise<[mysql.RowDataPacket[] | mysql.ResultSetHeader, mysql.FieldPacket[]]> {
   return executeDbOperation(async (connection) => {
-    return await connection.execute(sql, values);
+    return await connection.execute(sql, values || []);
   });
 }
 
