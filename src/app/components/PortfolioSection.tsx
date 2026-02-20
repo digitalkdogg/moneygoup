@@ -1,21 +1,33 @@
 // src/app/components/PortfolioSection.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, ReactNode } from 'react';
 import BuyMoreModal from './modals/BuyMoreModal';
 import SellModal from './modals/SellModal';
 import { useRouter } from 'next/navigation';
+import StockTable, { StockTableRow } from './StockTable'; // Import StockTable
+import { formatNumber, formatCurrency } from '@/utils/formatters'; // Import formatters
+
+// Define the type for a column definition for StockTable
+type ColumnDefinition<T> = {
+  key: keyof T | string;
+  label: string;
+  align?: 'left' | 'center' | 'right';
+  format?: (value: any, row: T) => ReactNode;
+};
 
 interface PortfolioItem {
   user_id?: number;
   stock_id: number;
   symbol: string;
   company_name: string;
+  name?: string; // Added to align with StockTableRow
   shares: number;
   purchase_price: number;
   initial_purchase_date?: string;
   last_transaction_date?: string;
-  current_price: number | null; // Added current_price
+  regularMarketPrice: number; // Renamed from current_price to align with StockTableRow
+  [key: string]: any; // Add index signature for StockTableRow compatibility
 }
 
 interface PortfolioSectionProps {
@@ -30,14 +42,6 @@ export default function PortfolioSection({ onRefresh }: PortfolioSectionProps) {
   const [modalType, setModalType] = useState<'buy' | 'sell' | null>(null);
   const router = useRouter();
 
-  const handleRowClick = (symbol: string) => {
-    router.push(`/search/${symbol}`);
-  };
-
-  const handleActionClick = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent row click from firing when action buttons are clicked
-  };
-
   useEffect(() => {
     fetchPortfolio();
   }, []);
@@ -47,22 +51,27 @@ export default function PortfolioSection({ onRefresh }: PortfolioSectionProps) {
       setLoading(true);
       setError(null);
       const response = await fetch('/api/user/portfolio');
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch portfolio');
       }
-      
+
       const data = await response.json();
-      // Ensure current_price is a number or null
       setPortfolio(data.portfolio.map((item: any) => ({
         ...item,
-        current_price: typeof item.current_price === 'number' ? item.current_price : null
+        name: item.company_name, // Map company_name to name for StockTableRow compatibility
+        shares: typeof item.shares === 'string' ? parseFloat(item.shares) : 0, // Parse shares string to number, default to 0
+        regularMarketPrice: typeof item.current_price === 'number' ? item.current_price : 0 // Default to 0 instead of null
       })) || []);
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRowClick = (symbol: string) => {
+    router.push(`/search/${symbol}`);
   };
 
   const handleBuyMore = (stock: PortfolioItem) => {
@@ -82,102 +91,75 @@ export default function PortfolioSection({ onRefresh }: PortfolioSectionProps) {
     onRefresh?.();
   };
 
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return 'N/A';
-    try {
-      return new Date(dateStr).toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric', 
-        year: '2-digit' 
-      });
-    } catch {
-      return 'N/A';
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-600">
-        {error}
-      </div>
-    );
-  }
-
-  if (portfolio.length === 0) {
-    return (
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center text-gray-500">
-        <p>No stocks in your portfolio yet. Add stocks from your watchlist to get started!</p>
-      </div>
-    );
-  }
+  const portfolioColumns: ColumnDefinition<PortfolioItem>[] = [ // Applied the type here
+    { key: 'symbol', label: 'Symbol' },
+    { key: 'company_name', label: 'Company Name' },
+    {
+      key: 'shares',
+      label: 'Shares',
+      align: 'right',
+      format: (value: number) => formatNumber(value, 2, true),
+    },
+    {
+      key: 'purchase_price',
+      label: 'Avg Price',
+      align: 'right',
+      format: (value: number) => formatCurrency(value, 2),
+    },
+    {
+      key: 'regularMarketPrice',
+      label: 'Current Price',
+      align: 'right',
+      format: (value: number) => // Changed type to number
+        <span className="text-blue-600 font-semibold">{formatCurrency(value, 2)}</span>,
+    },
+    {
+      key: 'positionValue',
+      label: 'Position Value',
+      align: 'right',
+      format: (value: any, row: PortfolioItem) => {
+        const positionValue = row.shares * row.purchase_price; // Initial calculation
+        if (row.regularMarketPrice !== 0) { // Only use current market price if available
+          return <span className="text-green-600 font-semibold">{formatCurrency(row.shares * row.regularMarketPrice, 2)}</span>;
+        }
+        return <span className="text-gray-500 font-semibold">{formatCurrency(positionValue, 2)}</span>; // Fallback or if current price is 0
+      },
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      align: 'center',
+      format: (value: any, row: PortfolioItem) => (
+        <span className="space-x-2">
+          <button
+            onClick={(e) => { e.stopPropagation(); handleBuyMore(row); }}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold text-sm cursor-pointer"
+          >
+            Buy More
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleSell(row); }}
+            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500 transition-colors cursor-pointer font-semibold text-sm"
+          >
+            Sell
+          </button>
+        </span>
+      ),
+    },
+  ];
 
   return (
     <>
-      <div className="bg-white p-8 rounded-2xl shadow-lg mb-8">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6">📈 My Portfolio</h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Symbol</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company Name</th>
-                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Shares</th>
-                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Price</th>
-                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Current Price</th>
-                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Position Value</th>
-
-                <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {portfolio.map((stock) => {
-                const positionValue = stock.current_price !== null 
-                  ? stock.shares * stock.current_price 
-                  : parseFloat(stock.shares as any) * parseFloat(stock.purchase_price as any); // Fallback to purchase_price if current_price is null
-                return (
-                  <tr 
-                    key={stock.stock_id} 
-                    className="hover:bg-gray-50 cursor-pointer"
-                    onClick={() => handleRowClick(stock.symbol)}
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{stock.symbol}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stock.company_name}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900 font-medium">{parseFloat(stock.shares as any).toFixed(4)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900 font-medium">${parseFloat(stock.purchase_price as any).toFixed(2)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-blue-600 font-semibold">
-                      {stock.current_price !== null ? `$${stock.current_price.toFixed(2)}` : 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600 font-semibold">${positionValue.toFixed(2)}</td>
-
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center space-x-2" onClick={handleActionClick}>
-                      <button
-                        onClick={() => handleBuyMore(stock)}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold text-sm"
-                      >
-                        Buy More
-                      </button>
-                      <button
-                        onClick={() => handleSell(stock)}
-                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-semibold text-sm"
-                      >
-                        Sell
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <StockTable<PortfolioItem>
+        title="My Portfolio"
+        icon="📈"
+        data={portfolio}
+        columns={portfolioColumns}
+        onRowClick={handleRowClick}
+        loading={loading}
+        error={error}
+        emptyMessage="No stocks in your portfolio yet. Add stocks from your watchlist to get started!"
+      />
 
       {modalType === 'buy' && selectedStock && (
         <BuyMoreModal stock={selectedStock} onClose={handleModalClose} />

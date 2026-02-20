@@ -7,7 +7,7 @@ import Link from 'next/link'; // Import Link
 import StockTable, { StockTableRow } from '../components/StockTable';
 import WatchlistSection from './WatchlistSection';
 import PortfolioSection from './PortfolioSection';
-
+import { formatNumber, formatCurrency as formatUtilityCurrency } from '@/utils/formatters'; // Import formatters
 
 interface StockData {
   symbol?: string
@@ -78,15 +78,23 @@ interface RecommendedStock {
   metricLabel?: string;
 }
 
+// Define the type for a column definition for StockTable (copied from PortfolioSection.tsx to avoid circular dependency for now)
+type ColumnDefinition<T> = {
+  key: keyof T | string;
+  label: string;
+  align?: 'left' | 'center' | 'right';
+  format?: (value: any, row: T) => React.ReactNode;
+};
+
 const EarningsSummary = ({ summary }: { summary: SummaryData | null }) => {
   if (!summary) {
     return null;
   }
 
-  const formatCurrency = (value: number) => {
+  const formatCurrency = (value: number) => { // Local formatCurrency for styling
     const sign = value > 0 ? '+' : '';
     const colorClass = value > 0 ? 'text-green-600' : value < 0 ? 'text-red-600' : 'text-gray-600';
-    return <span className={colorClass}>{sign}${value.toFixed(2)}</span>;
+    return <span className={colorClass}>{sign}{formatUtilityCurrency(value, 2)}</span>;
   };
 
   return (
@@ -431,25 +439,25 @@ export default function Dashboard() {
                 key: 'regularMarketPrice',
                 label: 'Price',
                 align: 'right',
-                format: (value: number) => `$${value.toFixed(2)}`,
+                format: (value: number) => formatUtilityCurrency(value, 2),
               },
               {
                 key: 'marketCap',
                 label: 'Market Cap',
                 align: 'right',
-                format: (value: number) => `$${(value / 1e9).toFixed(2)}B`,
+                format: (value: number) => `${formatUtilityCurrency(value / 1e9, 2)}B`,
               },
               {
                 key: 'trailingPE',
                 label: 'P/E',
                 align: 'right',
-                format: (value: number) => value?.toFixed(2) || 'N/A',
+                format: (value: number) => formatNumber(value, 2),
               },
               {
                 key: 'priceToBook',
                 label: 'P/B',
                 align: 'right',
-                format: (value: number) => value?.toFixed(2) || 'N/A',
+                format: (value: number) => formatNumber(value, 2),
               },
             ]}
             onRowClick={handleRowClick}
@@ -470,13 +478,13 @@ export default function Dashboard() {
                 key: 'regularMarketPrice',
                 label: 'Price',
                 align: 'right',
-                format: (value: number) => `$${value.toFixed(2)}`,
+                format: (value: number) => formatUtilityCurrency(value, 2),
               },
               {
                 key: 'metric',
                 label: momentumPlays[0]?.metricLabel || 'Metric',
                 align: 'right',
-                format: (value: number) => `+${Number(value).toFixed(2)}%`,
+                format: (value: number) => `+${formatNumber(value, 2)}%`,
               },
             ]}
             onRowClick={handleRowClick}
@@ -497,13 +505,13 @@ export default function Dashboard() {
                 key: 'regularMarketPrice',
                 label: 'Price',
                 align: 'right',
-                format: (value: number) => `$${value.toFixed(2)}`,
+                format: (value: number) => formatUtilityCurrency(value, 2),
               },
               {
                 key: 'metric',
                 label: breakoutCandidates[0]?.metricLabel || 'Metric',
                 align: 'right',
-                format: (value: number) => `${Number(value).toFixed(2)}%`,
+                format: (value: number) => `${formatNumber(value, 2)}%`,
               },
             ]}
             onRowClick={handleRowClick}
@@ -524,13 +532,13 @@ export default function Dashboard() {
                 key: 'regularMarketPrice',
                 label: 'Price',
                 align: 'right',
-                format: (value: number) => `$${value.toFixed(2)}`,
+                format: (value: number) => formatUtilityCurrency(value, 2),
               },
               {
                 key: 'metric',
                 label: insiderActivity[0]?.metricLabel || 'Metric',
                 align: 'right',
-                format: (value: number) => `${Number(value).toFixed(1)}%`,
+                format: (value: number) => `${formatNumber(value, 1)}%`,
               },
             ]}
             onRowClick={handleRowClick}
@@ -551,13 +559,13 @@ export default function Dashboard() {
                 key: 'regularMarketPrice',
                 label: 'Price',
                 align: 'right',
-                format: (value: number) => `$${value.toFixed(2)}`,
+                format: (value: number) => formatUtilityCurrency(value, 2),
               },
               {
                 key: 'metric',
                 label: analystFavorites[0]?.metricLabel || 'Metric',
                 align: 'right',
-                format: (value: number) => Number(value).toFixed(1),
+                format: (value: number) => formatNumber(value, 1),
               },
             ]}
             onRowClick={handleRowClick}
