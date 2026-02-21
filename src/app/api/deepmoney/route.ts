@@ -2,11 +2,9 @@
 import { NextResponse } from 'next/server';
 import nlp from 'compromise';
 import Sentiment from 'sentiment';
+import { getNews } from './getNews';
 
 const sentiment = new Sentiment();
-
-// Assuming the news endpoint is hosted on the same instance
-const NEWS_API_URL = `${process.env.NEXTAUTH_URL}/api/deepmoney/news`;
 
 // Load tickers from the public file
 import tickers from '@/../../public/company_tickers.json';
@@ -40,7 +38,7 @@ const industries = {
 
 export async function GET() {
     try {
-        const newsResponse = await fetch(NEWS_API_URL);
+        const newsResponse = await getNews();
         if (!newsResponse.ok) {
             throw new Error(`Failed to fetch news: ${newsResponse.statusText}`);
         }
