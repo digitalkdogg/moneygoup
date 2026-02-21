@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import pandas_ta as ta
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error
@@ -196,14 +195,55 @@ def predict_with_weighted_analysis(ticker, historical_data_input, stock_metrics_
         # CALCULATE ALL TECHNICAL INDICATORS
         # ================================================================================
 
-        # Technical Indicators
-        stock_data.ta.macd(append=True)
-        stock_data.ta.bbands(append=True)
-        stock_data.ta.rsi(append=True)
-        stock_data.ta.stoch(append=True)
-        stock_data.ta.atr(append=True)
-        stock_data.ta.sma(20, append=True)
-        stock_data.ta.ema(50, append=True)
+        # Manual implementation of technical indicators
+        close = stock_data['Close'].values
+        high = stock_data['High'].values
+        low = stock_data['Low'].values
+        volume = stock_data['Volume'].values
+        
+        # MACD
+        exp1 = pd.Series(close).ewm(span=12).mean()
+        exp2 = pd.Series(close).ewm(span=26).mean()
+        macd = exp1 - exp2
+        signal = macd.ewm(span=9).mean()
+        stock_data['MACD_12_26_9'] = macd.values
+        stock_data['MACDh_12_26_9'] = (macd - signal).values
+        stock_data['MACDs_12_26_9'] = signal.values
+        
+        # Bollinger Bands
+        sma20 = pd.Series(close).rolling(window=20).mean()
+        std20 = pd.Series(close).rolling(window=20).std()
+        stock_data['BBL_20_2.0'] = (sma20 - 2 * std20).values
+        stock_data['BB_20_2.0'] = sma20.values
+        stock_data['BBU_20_2.0'] = (sma20 + 2 * std20).values
+        stock_data['BBB_20_2.0'] = ((close - (sma20 - 2 * std20)) / (2 * std20)).values
+        stock_data['BBP_20_2.0'] = ((close - (sma20 - 2 * std20)) / (4 * std20)).values
+        
+        # RSI
+        delta = pd.Series(close).diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rs = gain / loss
+        stock_data['RSI_14'] = (100 - (100 / (1 + rs))).values
+        
+        # Stochastic Oscillator
+        lowest_low = pd.Series(low).rolling(window=14).min()
+        highest_high = pd.Series(high).rolling(window=14).max()
+        stock_data['STOCHk_14_3_3'] = (100 * (close - lowest_low) / (highest_high - lowest_low)).values
+        stock_data['STOCHd_14_3_3'] = pd.Series(stock_data['STOCHk_14_3_3']).rolling(window=3).mean().values
+        
+        # ATR (Average True Range)
+        tr1 = high - low
+        tr2 = np.abs(high - np.roll(close, 1))
+        tr3 = np.abs(low - np.roll(close, 1))
+        tr = np.maximum(tr1, np.maximum(tr2, tr3))
+        stock_data['ATR_14'] = pd.Series(tr).rolling(window=14).mean().values
+        
+        # SMA (Simple Moving Average)
+        stock_data['SMA_20'] = pd.Series(close).rolling(window=20).mean().values
+        
+        # EMA (Exponential Moving Average)
+        stock_data['EMA_50'] = pd.Series(close).ewm(span=50).mean().values
 
         # Volatility
         stock_data['log_returns'] = np.log(stock_data['Close'] / stock_data['Close'].shift(1))

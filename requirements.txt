@@ -3,5 +3,4 @@ yfinance
 scikit-learn
 numpy
 pandas
-pandas_ta
 shap

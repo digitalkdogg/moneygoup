@@ -1,4 +1,4 @@
--- MySQL dump 10.13  Distrib 8.0.36, for Linux (x86_64)
+-- MySQL dump 10.13  Distrib 8.0.45, for Linux (x86_64)
 --
 -- Host: localhost    Database: moneygoup
 -- ------------------------------------------------------
@@ -155,8 +155,8 @@ CREATE TABLE `user_stocks` (
   `shares` decimal(10,4) NOT NULL DEFAULT '0.0000',
   `purchase_price` decimal(10,2) NOT NULL DEFAULT '0.00',
   `is_purchased` tinyint(1) NOT NULL DEFAULT '0',
-  `initial_purchase_date` datetime NULL COMMENT 'When stock was first purchased',
-  `last_transaction_date` datetime NULL COMMENT 'When shares were last added/removed',
+  `initial_purchase_date` datetime DEFAULT NULL COMMENT 'When stock was first purchased',
+  `last_transaction_date` datetime DEFAULT NULL COMMENT 'When shares were last added/removed',
   `is_active` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'False when position is closed (shares = 0)',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`user_id`,`stock_id`),
@@ -172,7 +172,7 @@ CREATE TABLE `user_stocks` (
 
 LOCK TABLES `user_stocks` WRITE;
 /*!40000 ALTER TABLE `user_stocks` DISABLE KEYS */;
-INSERT INTO `user_stocks` VALUES (1,4,4098.3820,119.70,1,NULL,'2026-01-26 16:31:29',1,'2026-01-26 16:31:29'),(1,5,7.0000,243.42,1,NULL,'2026-01-26 16:31:29',1,'2026-01-26 16:31:29'),(1,6,49.4000,14.61,1,NULL,'2026-01-26 16:31:29',1,'2026-01-26 16:31:29'),(1,7,0.0000,0.00,0,NULL,NULL,1,'2026-01-26 16:59:31'),(1,10,0.0000,0.00,0,NULL,NULL,1,'2026-01-27 00:41:48'),(1,11,0.0000,0.00,0,NULL,NULL,1,'2026-01-27 13:37:43'),(1,12,0.0000,0.00,0,NULL,NULL,1,'2026-01-27 15:16:44'),(1,13,77.0000,6.07,1,NULL,'2026-01-28 01:08:53',1,'2026-01-28 01:08:53'),(1,14,0.0000,0.00,0,NULL,NULL,1,'2026-02-06 01:47:09');
+INSERT INTO `user_stocks` VALUES (1,4,2014.1910,119.70,1,NULL,'2026-01-26 16:31:29',1,'2026-01-26 16:31:29'),(1,5,14.0000,243.93,1,NULL,'2026-02-20 18:41:49',1,'2026-01-26 16:31:29'),(1,6,49.4000,14.07,1,NULL,'2026-01-26 16:31:29',1,'2026-01-26 16:31:29'),(1,7,0.0000,0.00,0,NULL,NULL,1,'2026-01-26 16:59:31'),(1,10,0.0000,0.00,0,NULL,NULL,1,'2026-01-27 00:41:48'),(1,11,0.0000,0.00,0,NULL,NULL,1,'2026-01-27 13:37:43'),(1,12,0.0000,0.00,0,NULL,NULL,1,'2026-01-27 15:16:44'),(1,13,77.0000,12.13,1,NULL,'2026-01-28 01:08:53',1,'2026-01-28 01:08:53'),(1,14,0.0000,0.00,0,NULL,NULL,1,'2026-02-06 01:47:09');
 /*!40000 ALTER TABLE `user_stocks` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -201,7 +201,7 @@ CREATE TABLE `users` (
 
 LOCK TABLES `users` WRITE;
 /*!40000 ALTER TABLE `users` DISABLE KEYS */;
-INSERT INTO `users` (`id`, `username`, `password_hash`, `created_at`, `modified_at`, `role`) VALUES (1,'KevinBollman','$2b$10$F3jIRti55NDMJd2z/d2RR.Yi4mXl18QfL8F6qIgjdo6lIGd90EGvC','2026-01-17 20:12:31','2026-01-25 02:15:46','user'),(3,'testuser','$2b$10$F3jIRti55NDMJd2z/d2RR.Yi4mXl18QfL8F6qIgjdo6lIGd90EGvC','2026-01-26 16:32:49','2026-01-26 16:32:49','user');
+INSERT INTO `users` VALUES (1,'KevinBollman','$2b$10$F3jIRti55NDMJd2z/d2RR.Yi4mXl18QfL8F6qIgjdo6lIGd90EGvC','2026-01-17 20:12:31','2026-01-25 02:15:46','admin'),(3,'testuser','$2b$10$F3jIRti55NDMJd2z/d2RR.Yi4mXl18QfL8F6qIgjdo6lIGd90EGvC','2026-01-26 16:32:49','2026-01-26 16:32:49','user');
 /*!40000 ALTER TABLE `users` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -214,4 +214,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-02-18 17:06:35
+-- Dump completed on 2026-02-20 19:45:01
