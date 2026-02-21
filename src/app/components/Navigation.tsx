@@ -62,7 +62,7 @@ export default function Navigation() {
                       {session.user.name}
                     </div>
                     <button
-                      onClick={() => signOut({ callbackUrl: 'http://localhost:3001/login' })}
+                      onClick={() => signOut({ callbackUrl: `${process.env.NEXT_PUBLIC_NEXTAUTH_URL || ''}/login` })}
                       className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
                     >
                       Logout

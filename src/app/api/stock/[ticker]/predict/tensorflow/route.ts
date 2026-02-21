@@ -13,6 +13,12 @@ export async function POST( // Changed GET to POST
     return NextResponse.json({ message: 'Ticker is required' }, { status: 400 })
   }
 
+  // Validate ticker against allowed characters to prevent path traversal or command injection
+  const tickerRegex = /^[A-Z0-9.^]{1,10}$/;
+  if (!tickerRegex.test(ticker)) {
+    return NextResponse.json({ message: 'Invalid ticker format' }, { status: 400 });
+  }
+
   const tempFilePath = path.join('/tmp', `tf_prediction_input_${ticker}_${Date.now()}.json`); // Use /tmp for temporary files
 
   // Determine Python executable path
