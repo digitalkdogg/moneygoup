@@ -7,6 +7,7 @@ import SellModal from './modals/SellModal';
 import { useRouter } from 'next/navigation';
 import StockTable, { StockTableRow } from './StockTable'; // Import StockTable
 import { formatNumber, formatCurrency } from '@/utils/formatters'; // Import formatters
+import { PortfolioItem } from '@/types/portfolio'; // NEW: Import PortfolioItem
 
 // Define the type for a column definition for StockTable
 type ColumnDefinition<T> = {
@@ -16,61 +17,15 @@ type ColumnDefinition<T> = {
   format?: (value: any, row: T) => ReactNode;
 };
 
-interface PortfolioItem {
-  user_id?: number;
-  stock_id: number;
-  symbol: string;
-  company_name: string;
-  name?: string; // Added to align with StockTableRow
-  shares: number;
-  purchase_price: number;
-  initial_purchase_date?: string;
-  last_transaction_date?: string;
-  regularMarketPrice: number; // Renamed from current_price to align with StockTableRow
-  prev_close?: number; // NEW: Previous close price
-  [key: string]: any; // Add index signature for StockTableRow compatibility
-}
-
 interface PortfolioSectionProps {
-  onRefresh?: () => void;
+  portfolio: PortfolioItem[]; // NEW: Portfolio data now comes from props
+  onRefresh: () => void; // NEW: onRefresh function now comes from props
 }
 
-export default function PortfolioSection({ onRefresh }: PortfolioSectionProps) {
-  const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export default function PortfolioSection({ portfolio, onRefresh }: PortfolioSectionProps) {
   const [selectedStock, setSelectedStock] = useState<PortfolioItem | null>(null);
   const [modalType, setModalType] = useState<'buy' | 'sell' | null>(null);
   const router = useRouter();
-
-  useEffect(() => {
-    fetchPortfolio();
-  }, []);
-
-  const fetchPortfolio = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await fetch('/api/user/portfolio');
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch portfolio');
-      }
-
-      const data = await response.json();
-      setPortfolio(data.portfolio.map((item: any) => ({
-        ...item,
-        name: item.company_name, // Map company_name to name for StockTableRow compatibility
-        shares: typeof item.shares === 'string' ? parseFloat(item.shares) : 0, // Parse shares string to number, default to 0
-        regularMarketPrice: typeof item.current_price === 'number' ? item.current_price : 0, // Default to 0 instead of null
-        prev_close: typeof item.prev_close === 'number' ? item.prev_close : null, // NEW
-      })) || []);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleRowClick = (symbol: string) => {
     router.push(`/search/${symbol}`);
@@ -89,8 +44,7 @@ export default function PortfolioSection({ onRefresh }: PortfolioSectionProps) {
   const handleModalClose = () => {
     setSelectedStock(null);
     setModalType(null);
-    fetchPortfolio();
-    onRefresh?.();
+    onRefresh(); // Call the passed onRefresh prop
   };
 
   const portfolioColumns: ColumnDefinition<PortfolioItem>[] = [ // Applied the type here
@@ -245,8 +199,8 @@ export default function PortfolioSection({ onRefresh }: PortfolioSectionProps) {
         data={portfolio}
         columns={portfolioColumns}
         onRowClick={handleRowClick}
-        loading={loading}
-        error={error}
+        loading={false} // Loading handled by Dashboard
+        error={null} // Error handled by Dashboard
         emptyMessage="No stocks in your portfolio yet. Add stocks from your watchlist to get started!"
       />
 

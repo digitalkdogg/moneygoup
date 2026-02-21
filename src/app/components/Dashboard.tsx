@@ -1,13 +1,15 @@
 // src/app/components/Dashboard.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react'; // Import useCallback
 import { useRouter } from 'next/navigation';
 import Link from 'next/link'; // Import Link
 import StockTable, { StockTableRow } from '../components/StockTable';
 import WatchlistSection from './WatchlistSection';
 import PortfolioSection from './PortfolioSection';
+import PortfolioSummary from './PortfolioSummary'; // NEW: Import PortfolioSummary
 import { formatNumber, formatCurrency as formatUtilityCurrency } from '@/utils/formatters'; // Import formatters
+import { PortfolioItem } from '@/types/portfolio'; // NEW: Import PortfolioItem
 
 interface StockData {
   symbol?: string
@@ -54,11 +56,6 @@ interface StockDashboardData {
   lifetimeEarnings?: number;
 }
 
-interface SummaryData {
-  totalDailyEarnings: number;
-  totalLifetimeEarnings: number;
-  totalDailyChange: number;
-}
 
 interface UndervaluedLargeCap {
   symbol: string;
@@ -86,44 +83,13 @@ type ColumnDefinition<T> = {
   format?: (value: any, row: T) => React.ReactNode;
 };
 
-const EarningsSummary = ({ summary }: { summary: SummaryData | null }) => {
-  if (!summary) {
-    return null;
-  }
-
-  const formatCurrency = (value: number) => { // Local formatCurrency for styling
-    const sign = value > 0 ? '+' : '';
-    const colorClass = value > 0 ? 'text-green-600' : value < 0 ? 'text-red-600' : 'text-gray-600';
-    return <span className={colorClass}>{sign}{formatUtilityCurrency(value, 2)}</span>;
-  };
-
-  return (
-    <div className="bg-white p-6 rounded-2xl shadow-lg mb-8">
-      <h2 className="text-2xl font-bold text-gray-800 mb-4">Earnings Summary</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-center">
-        <div className="p-4 bg-gray-50 rounded-lg">
-          <p className="text-sm font-medium text-gray-500">Total Daily Change</p>
-          <p className="text-2xl font-semibold">{formatCurrency(summary.totalDailyChange)}</p>
-        </div>
-        <div className="p-4 bg-gray-50 rounded-lg">
-          <p className="text-sm font-medium text-gray-500">Total Daily Earnings</p>
-          <p className="text-2xl font-semibold">{formatCurrency(summary.totalDailyEarnings)}</p>
-        </div>
-        <div className="p-4 bg-gray-50 rounded-lg">
-          <p className="text-sm font-medium text-gray-500">Total Lifetime</p>
-          <p className="text-2xl font-semibold">{formatCurrency(summary.totalLifetimeEarnings)}</p>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 
 export default function Dashboard() {
-  const [stocks, setStocks] = useState<StockDashboardData[]>([]);
-  const [summary, setSummary] = useState<SummaryData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // NEW: Portfolio state and market status
+  const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
+  const [marketStatus, setMarketStatus] = useState<'open' | 'closed'>('closed');
+  const [loadingPortfolio, setLoadingPortfolio] = useState(true);
+  const [portfolioError, setPortfolioError] = useState<string | null>(null);
 
   const [undervaluedLargeCaps, setUndervaluedLargeCaps] = useState<UndervaluedLargeCap[]>([]); // New state for undervalued large caps
   const [undervaluedLargeCapsError, setUndervaluedLargeCapsError] = useState<string | null>(null);
@@ -140,7 +106,7 @@ export default function Dashboard() {
 
   // State for the purchase modal
   const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false);
-  const [selectedStockForPurchase, setSelectedStockForPurchase] = useState<StockDashboardData | null>(null);
+  const [selectedStockForPurchase, setSelectedStockForPurchase] = useState<PortfolioItem | null>(null); // Use PortfolioItem
   const [purchasePrice, setPurchasePrice] = useState('');
   const [shares, setShares] = useState('');
   const [isSubmittingPurchase, setIsSubmittingPurchase] = useState(false);
@@ -149,43 +115,52 @@ export default function Dashboard() {
 
   // State for the sell modal
   const [isSellModalOpen, setIsSellModalOpen] = useState(false);
-  const [selectedStockForSell, setSelectedStockForSell] = useState<StockDashboardData | null>(null);
+  const [selectedStockForSell, setSelectedStockForSell] = useState<PortfolioItem | null>(null); // Use PortfolioItem
   const [isSubmittingSell, setIsSubmittingSell] = useState(false);
   const [sellError, setSellError] = useState<string | null>(null);
   const [sellSuccess, setSellSuccess] = useState<string | null>(null);
 
   // State for the remove modal
   const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
-  const [selectedStockForRemove, setSelectedStockForRemove] = useState<StockDashboardData | null>(null);
+  const [selectedStockForRemove, setSelectedStockForRemove] = useState<StockDashboardData | null>(null); // This is still StockDashboardData for watchlist
   const [isSubmittingRemove, setIsSubmittingRemove] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [removeSuccess, setRemoveSuccess] = useState<string | null>(null);
 
 
-
-  
-  const fetchData = async () => {
-    setLoading(true);
-    setError(null);
+  // NEW: Fetch portfolio data
+  const fetchPortfolioData = useCallback(async () => {
+    setLoadingPortfolio(true);
+    setPortfolioError(null);
     try {
-      const res = await fetch(`/api/dashboard?_=${new Date().getTime()}`);
+      const res = await fetch(`/api/user/portfolio?_=${new Date().getTime()}`);
       if (!res.ok) {
-        throw new Error('Failed to fetch data');
+        throw new Error('Failed to fetch portfolio data');
       }
-      const { stocks: initialStocks, summary } = await res.json();
-      setStocks(initialStocks);
-      setSummary(summary);
-  
-      
-  
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unknown error occurred');
-    } finally {
-      setLoading(false);
-    }
-  };
+      const data = await res.json();
+      const fetchedPortfolio: PortfolioItem[] = data.portfolio.map((item: any) => ({
+        ...item,
+        name: item.company_name, // Map company_name to name for StockTableRow compatibility
+        shares: typeof item.shares === 'string' ? parseFloat(item.shares) : item.shares,
+        regularMarketPrice: typeof item.current_price === 'number' ? item.current_price : 0,
+        prev_close: typeof item.prev_close === 'number' ? item.prev_close : null,
+      }));
+      setPortfolio(fetchedPortfolio);
 
-  const fetchUndervaluedLargeCaps = async () => {
+      // Determine market status: if any stock has a currentPrice different from prevClose, market is open
+      const marketIsOpen = fetchedPortfolio.some(item =>
+        item.regularMarketPrice !== null && item.prev_close !== null && item.regularMarketPrice !== item.prev_close
+      );
+      setMarketStatus(marketIsOpen ? 'open' : 'closed');
+
+    } catch (err) {
+      setPortfolioError(err instanceof Error ? err.message : 'An unknown error occurred while fetching portfolio');
+    } finally {
+      setLoadingPortfolio(false);
+    }
+  }, []); // Empty dependency array as it doesn't depend on any props or state from Dashboard directly
+
+  const fetchUndervaluedLargeCaps = useCallback(async () => {
     setUndervaluedLargeCapsError(null);
     try {
       const res = await fetch('/api/dashboard/undervalued-large-caps');
@@ -197,9 +172,9 @@ export default function Dashboard() {
     } catch (err) {
       setUndervaluedLargeCapsError(err instanceof Error ? err.message : 'An unknown error occurred while fetching undervalued large caps');
     }
-  };
+  }, []); // Empty dependency array
 
-  const fetchRecommendedStocks = async () => {
+  const fetchRecommendedStocks = useCallback(async () => {
     setRecommendedStocksLoading(true);
     setRecommendedStocksError(null);
     try {
@@ -217,19 +192,20 @@ export default function Dashboard() {
     } finally {
       setRecommendedStocksLoading(false);
     }
-  };
+  }, []); // Empty dependency array
+
 
   useEffect(() => {
-    fetchData();
+    fetchPortfolioData(); // Fetch portfolio data when component mounts
     fetchUndervaluedLargeCaps(); // Fetch undervalued large caps when component mounts
     fetchRecommendedStocks(); // Fetch technical/sentiment recommendations when component mounts
-  }, []);
+  }, [fetchPortfolioData, fetchUndervaluedLargeCaps, fetchRecommendedStocks]); // Add functions to dependency array
 
   const handleRowClick = (symbol: string) => {
     router.push(`/search/${symbol}`);
   };
 
-  const handlePurchaseClick = (e: React.MouseEvent, stock: StockDashboardData) => {
+  const handlePurchaseClick = (e: React.MouseEvent, stock: PortfolioItem) => { // Use PortfolioItem
     e.stopPropagation(); // Prevent row click from firing
     setSelectedStockForPurchase(stock);
     setIsPurchaseModalOpen(true);
@@ -275,7 +251,7 @@ export default function Dashboard() {
       }
 
       setPurchaseSuccess(`Successfully purchased ${shares} shares of ${selectedStockForPurchase.symbol}.`);
-      fetchData(); // Refresh dashboard data
+      fetchPortfolioData(); // Refresh dashboard data
       setTimeout(() => {
         handleClosePurchaseModal();
       }, 2000);
@@ -288,7 +264,7 @@ export default function Dashboard() {
   };
 
 
-  const handleSellClick = (e: React.MouseEvent, stock: StockDashboardData) => {
+  const handleSellClick = (e: React.MouseEvent, stock: PortfolioItem) => { // Use PortfolioItem
     e.stopPropagation(); // Prevent row click from firing
     setSelectedStockForSell(stock);
     setIsSellModalOpen(true);
@@ -324,7 +300,7 @@ export default function Dashboard() {
       }
 
       setSellSuccess(`Successfully sold all shares of ${selectedStockForSell.symbol}.`);
-      fetchData(); // Refresh dashboard data
+      fetchPortfolioData(); // Refresh dashboard data
       setTimeout(() => {
         handleCloseSellModal();
       }, 2000);
@@ -364,7 +340,7 @@ export default function Dashboard() {
       }
 
       setRemoveSuccess(`Successfully removed ${selectedStockForRemove.symbol}.`);
-      fetchData(); // Refresh dashboard data
+      fetchPortfolioData(); // Refresh portfolio data (if a watchlist item was owned, it might affect portfolio)
       setTimeout(() => {
         handleCloseRemoveModal();
       }, 2000);
@@ -376,7 +352,7 @@ export default function Dashboard() {
     }
   };
 
-  const handleRemoveStock = (e: React.MouseEvent, stock: StockDashboardData) => {
+  const handleRemoveStock = (e: React.MouseEvent, stock: StockDashboardData) => { // This still takes StockDashboardData
     e.stopPropagation(); // Prevent row click from firing
     setSelectedStockForRemove(stock);
     setIsRemoveModalOpen(true);
@@ -385,11 +361,7 @@ export default function Dashboard() {
   };
 
 
-
-
-
-
-  if (loading) {
+  if (loadingPortfolio) { // Use loadingPortfolio for overall loading
     return (
       <div className="text-center p-10">
         <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -398,10 +370,10 @@ export default function Dashboard() {
     );
   }
 
-  if (error) {
+  if (portfolioError) { // Use portfolioError for overall error
     return (
       <div className="bg-red-100 border-2 border-red-400 text-red-700 px-6 py-4 rounded-xl text-center shadow-lg font-semibold m-4">
-        Error: {error}.<br/>
+        Error: {portfolioError}.<br/>
         Please ensure the database is running and accessible.
       </div>
     );
@@ -416,12 +388,11 @@ export default function Dashboard() {
             <p className="text-lg text-gray-600">Tracked stocks and their latest data.</p>
           </header>
 
-          <EarningsSummary summary={summary} />
+          {/* NEW: Portfolio Summary */}
+          <PortfolioSummary portfolio={portfolio} marketStatus={marketStatus} />
 
           {/* Portfolio and Watchlist Sections */}
-          <PortfolioSection onRefresh={() => {
-            // Optional: refresh other data if needed
-          }} />
+          <PortfolioSection portfolio={portfolio} onRefresh={fetchPortfolioData} />
           
           <WatchlistSection onRefresh={() => {
             // Optional: refresh other data if needed
