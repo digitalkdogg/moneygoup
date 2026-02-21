@@ -2,6 +2,7 @@
 'use client';
 
 import { useState } from 'react';
+import { formatNumber, formatCurrency } from '@/utils/formatters';
 
 interface PortfolioItem {
   stock_id: number;
@@ -90,7 +91,7 @@ export default function SellModal({ stock, onClose }: SellModalProps) {
         return;
       }
       if (sharesNum > maxShares) {
-        setError(`Cannot sell more than ${maxShares.toFixed(4)} shares`);
+        setError(`Cannot sell more than ${formatNumber(maxShares, 4)} shares`);
         return;
       }
     }
@@ -133,11 +134,11 @@ export default function SellModal({ stock, onClose }: SellModalProps) {
           </div>
           <div className="flex justify-between">
             <span className="text-sm text-gray-600">Current Shares:</span>
-            <span className="font-semibold text-gray-800">{maxShares.toFixed(4)}</span>
+            <span className="font-semibold text-gray-800">{formatNumber(maxShares, 4)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-sm text-gray-600">Avg Cost:</span>
-            <span className="font-semibold text-gray-800">${parseFloat(stock.purchase_price as any).toFixed(2)}</span>
+            <span className="font-semibold text-gray-800">{formatCurrency(stock.purchase_price)}</span>
           </div>
         </div>
 
@@ -213,14 +214,14 @@ export default function SellModal({ stock, onClose }: SellModalProps) {
             <div className={`p-4 rounded-lg ${realizingGain >= 0 ? 'bg-green-50' : 'bg-red-50'} space-y-2`}>
               <p className={`text-sm ${realizingGain >= 0 ? 'text-gray-600' : 'text-gray-600'}`}>
                 Shares to Sell: <span className="font-semibold text-gray-800">
-                  {(sellType === 'all' ? maxShares : parseFloat(shares)).toFixed(4)}
+                  {formatNumber((sellType === 'all' ? maxShares : parseFloat(shares)), 4)}
                 </span>
               </p>
               <p className={`text-sm ${realizingGain >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 Realized Gain/Loss: <span className="font-semibold">
-                  {realizingGain >= 0 ? '+' : ''}{realizingGain.toFixed(2)} (
+                  {realizingGain >= 0 ? '+' : ''}{formatCurrency(realizingGain)} (
                   {(realizingGain >= 0 ? '+' : '')}
-                  {((realizingGain / (parseFloat(stock.purchase_price as any) * (sellType === 'all' ? maxShares : parseFloat(shares)))) * 100).toFixed(2)}%)
+                  {formatNumber(((realizingGain / (parseFloat(stock.purchase_price as any) * (sellType === 'all' ? maxShares : parseFloat(shares)))) * 100), 2)}%)
                 </span>
               </p>
             </div>

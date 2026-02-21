@@ -1,6 +1,7 @@
 'use client'
 
 import { TechnicalIndicators, HistoricalData } from '@/utils/technicalIndicators'
+import { formatNumber } from '@/utils/formatters'
 
 interface Metrics {
   dollarChange: number
@@ -40,7 +41,7 @@ export default function TechnicalIndicatorsDisplay({
       <div className={`p-8 rounded-xl border-2 mb-8 text-center ${getSignalColor(indicators.signal)}`}>
         <div className="text-sm font-semibold opacity-80 mb-2">TRADING SIGNAL</div>
         <div className="text-5xl font-bold mb-3">{indicators.signal}</div>
-        <div className="text-base font-semibold mb-2">Signal Strength: {indicators.signalStrength}%</div>
+        <div className="text-base font-semibold mb-2">Signal Strength: {formatNumber(indicators.signalStrength, 0, true)}%</div>
         <div className="text-sm leading-relaxed mt-4">{indicators.signalReason}</div>
       </div>
 
@@ -65,7 +66,7 @@ export default function TechnicalIndicatorsDisplay({
                   indicators.scoreBreakdown.maScore < 0 ? 'text-red-600' : 
                   'text-gray-600'
                 }`}>
-                  {indicators.scoreBreakdown.maScore > 0 ? '+' : ''}{indicators.scoreBreakdown.maScore}
+                  {indicators.scoreBreakdown.maScore > 0 ? '+' : ''}{formatNumber(indicators.scoreBreakdown.maScore, 0, true)}
                 </td>
                 <td className="py-3 px-4 text-gray-700">{indicators.scoreBreakdown.maReason}</td>
               </tr>
@@ -78,7 +79,7 @@ export default function TechnicalIndicatorsDisplay({
                   indicators.scoreBreakdown.rsiScore < 0 ? 'text-red-600' : 
                   'text-gray-600'
                 }`}>
-                  {indicators.scoreBreakdown.rsiScore > 0 ? '+' : ''}{indicators.scoreBreakdown.rsiScore}
+                  {indicators.scoreBreakdown.rsiScore > 0 ? '+' : ''}{formatNumber(indicators.scoreBreakdown.rsiScore, 0, true)}
                 </td>
                 <td className="py-3 px-4 text-gray-700">{indicators.scoreBreakdown.rsiReason}</td>
               </tr>
@@ -91,7 +92,7 @@ export default function TechnicalIndicatorsDisplay({
                   indicators.scoreBreakdown.momentumScore < 0 ? 'text-red-600' : 
                   'text-gray-600'
                 }`}>
-                  {indicators.scoreBreakdown.momentumScore > 0 ? '+' : ''}{indicators.scoreBreakdown.momentumScore}
+                  {indicators.scoreBreakdown.momentumScore > 0 ? '+' : ''}{formatNumber(indicators.scoreBreakdown.momentumScore, 0, true)}
                 </td>
                 <td className="py-3 px-4 text-gray-700">{indicators.scoreBreakdown.momentumReason}</td>
               </tr>
@@ -104,7 +105,7 @@ export default function TechnicalIndicatorsDisplay({
                   indicators.scoreBreakdown.priceScore < 0 ? 'text-red-600' : 
                   'text-gray-600'
                 }`}>
-                  {indicators.scoreBreakdown.priceScore > 0 ? '+' : ''}{indicators.scoreBreakdown.priceScore}
+                  {indicators.scoreBreakdown.priceScore > 0 ? '+' : ''}{formatNumber(indicators.scoreBreakdown.priceScore, 0, true)}
                 </td>
                 <td className="py-3 px-4 text-gray-700">{indicators.scoreBreakdown.priceReason}</td>
               </tr>
@@ -117,7 +118,7 @@ export default function TechnicalIndicatorsDisplay({
                   indicators.scoreBreakdown.volatilityScore < 0 ? 'text-red-600' : 
                   'text-gray-600'
                 }`}>
-                  {indicators.scoreBreakdown.volatilityScore > 0 ? '+' : ''}{indicators.scoreBreakdown.volatilityScore}
+                  {indicators.scoreBreakdown.volatilityScore > 0 ? '+' : ''}{formatNumber(indicators.scoreBreakdown.volatilityScore, 0, true)}
                 </td>
                 <td className="py-3 px-4 text-gray-700">{indicators.scoreBreakdown.volatilityReason}</td>
               </tr>
@@ -130,7 +131,7 @@ export default function TechnicalIndicatorsDisplay({
                   indicators.scoreBreakdown.newsScore < 0 ? 'text-red-600' : 
                   'text-gray-600'
                 }`}>
-                  {indicators.scoreBreakdown.newsScore > 0 ? '+' : ''}{indicators.scoreBreakdown.newsScore}
+                  {indicators.scoreBreakdown.newsScore > 0 ? '+' : ''}{formatNumber(indicators.scoreBreakdown.newsScore, 0, true)}
                 </td>
                 <td className="py-3 px-4 text-gray-700">{indicators.scoreBreakdown.newsReason}</td>
               </tr>
@@ -143,7 +144,7 @@ export default function TechnicalIndicatorsDisplay({
                   indicators.scoreBreakdown.coreMetricsScore < 0 ? 'text-red-600' : 
                   'text-gray-600'
                 }`}>
-                  {indicators.scoreBreakdown.coreMetricsScore > 0 ? '+' : ''}{indicators.scoreBreakdown.coreMetricsScore}
+                  {indicators.scoreBreakdown.coreMetricsScore > 0 ? '+' : ''}{formatNumber(indicators.scoreBreakdown.coreMetricsScore, 0, true)}
                 </td>
                 <td className="py-3 px-4 text-gray-700">{indicators.scoreBreakdown.coreMetricsReason}</td>
               </tr>
@@ -156,7 +157,7 @@ export default function TechnicalIndicatorsDisplay({
                   indicators.scoreBreakdown.totalScore <= -4 ? 'text-red-600' : 
                   'text-blue-600'
                 }`}>
-                  {indicators.scoreBreakdown.totalScore > 0 ? '+' : ''}{indicators.scoreBreakdown.totalScore}
+                  {indicators.scoreBreakdown.totalScore > 0 ? '+' : ''}{formatNumber(indicators.scoreBreakdown.totalScore, 0, true)}
                 </td>
                 <td className="py-4 px-4 text-gray-700">
                   {indicators.scoreBreakdown.totalScore >= 4 ? '✅ BUY Signal' :
@@ -178,7 +179,7 @@ export default function TechnicalIndicatorsDisplay({
         <div className="bg-white p-5 rounded-lg shadow-md border-l-4 border-blue-500 hover:shadow-lg transition">
           <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">SMA 20</div>
           <div className="text-2xl font-bold text-gray-800">
-            {indicators.sma20 !== null ? indicators.sma20.toFixed(2) : 'N/A'}
+            {indicators.sma20 !== null ? formatNumber(indicators.sma20, 2) : 'N/A'}
           </div>
           <div className="text-xs text-gray-600 mt-2">20-day Avg</div>
         </div>
@@ -187,7 +188,7 @@ export default function TechnicalIndicatorsDisplay({
         <div className="bg-white p-5 rounded-lg shadow-md border-l-4 border-purple-500 hover:shadow-lg transition">
           <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">SMA 50</div>
           <div className="text-2xl font-bold text-gray-800">
-            {indicators.sma50 !== null ? indicators.sma50.toFixed(2) : 'N/A'}
+            {indicators.sma50 !== null ? formatNumber(indicators.sma50, 2) : 'N/A'}
           </div>
           <div className="text-xs text-gray-600 mt-2">50-day Avg</div>
         </div>
@@ -196,7 +197,7 @@ export default function TechnicalIndicatorsDisplay({
         <div className="bg-white p-5 rounded-lg shadow-md border-l-4 border-orange-500 hover:shadow-lg transition">
           <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">RSI (14)</div>
           <div className={`text-2xl font-bold ${getRSIColor(indicators.rsi14)}`}>
-            {indicators.rsi14 !== null ? indicators.rsi14.toFixed(2) : 'N/A'}
+            {indicators.rsi14 !== null ? formatNumber(indicators.rsi14, 2) : 'N/A'}
           </div>
           <div className="text-xs text-gray-600 mt-2">
             {indicators.rsi14 !== null
@@ -219,7 +220,7 @@ export default function TechnicalIndicatorsDisplay({
               ? 'text-red-600'
               : 'text-gray-800'
           }`}>
-            {indicators.momentum !== null ? indicators.momentum.toFixed(2) : 'N/A'}
+            {indicators.momentum !== null ? formatNumber(indicators.momentum, 2) : 'N/A'}
           </div>
           <div className="text-xs text-gray-600 mt-2">
             {indicators.momentum !== null

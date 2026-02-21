@@ -1,5 +1,5 @@
 // src/app/components/PortfolioCard.tsx
-'use client';
+import { formatNumber, formatCurrency } from '@/utils/formatters'
 
 interface PortfolioItem {
   id?: number;
@@ -49,22 +49,22 @@ export default function PortfolioCard({ stock, onBuyMore, onSell }: PortfolioCar
       <div className="mb-4 space-y-2 bg-gray-50 p-3 rounded">
         <div className="flex justify-between">
           <span className="text-xs text-gray-600">Shares:</span>
-          <span className="text-sm font-semibold text-gray-800">{parseFloat(stock.shares as any).toFixed(4)}</span>
+          <span className="text-sm font-semibold text-gray-800">{formatNumber(stock.shares, 4)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-xs text-gray-600">Avg Price:</span>
-          <span className="text-sm font-semibold text-gray-800">${parseFloat(stock.purchase_price as any).toFixed(2)}</span>
+          <span className="text-sm font-semibold text-gray-800">{formatCurrency(stock.purchase_price)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-xs text-gray-600">Current Price:</span>
           <span className="text-sm font-semibold text-blue-600">
-            {stock.current_price !== null ? `$${stock.current_price.toFixed(2)}` : 'N/A'}
+            {stock.current_price !== null ? formatCurrency(stock.current_price) : 'N/A'}
           </span>
         </div>
         <div className="flex justify-between">
           <span className="text-xs text-gray-600">Position Value:</span>
           <span className="text-sm font-semibold text-green-600">
-            ${positionValue.toFixed(2)}
+            {formatCurrency(positionValue)}
           </span>
         </div>
         <div className="flex justify-between text-xs text-gray-500 pt-2 border-t border-gray-200">

@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { formatNumber, formatCurrency } from '@/utils/formatters';
 
 interface PortfolioItem {
   stock_id: number;
@@ -94,11 +95,11 @@ export default function BuyMoreModal({ stock, onClose }: BuyMoreModalProps) {
           </div>
           <div className="flex justify-between">
             <span className="text-sm text-gray-600">Current Shares:</span>
-            <span className="font-semibold text-gray-800">{parseFloat(stock.shares as any).toFixed(4)}</span>
+            <span className="font-semibold text-gray-800">{formatNumber(stock.shares, 4)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-sm text-gray-600">Avg Cost:</span>
-            <span className="font-semibold text-gray-800">${parseFloat(stock.purchase_price as any).toFixed(2)}</span>
+            <span className="font-semibold text-gray-800">{formatCurrency(stock.purchase_price)}</span>
           </div>
         </div>
 
@@ -137,17 +138,17 @@ export default function BuyMoreModal({ stock, onClose }: BuyMoreModalProps) {
             <div className="p-4 bg-blue-50 rounded-lg space-y-2">
               <p className="text-sm text-gray-600">
                 Total Cost of New Shares: <span className="font-semibold text-gray-800">
-                  ${(parseFloat(shares) * parseFloat(price)).toFixed(2)}
+                  {formatCurrency(parseFloat(shares) * parseFloat(price))}
                 </span>
               </p>
               <p className="text-sm text-gray-600">
                 New Average Price: <span className="font-semibold text-blue-600">
-                  ${newAvgPrice.toFixed(2)}
+                  {formatCurrency(newAvgPrice)}
                 </span>
               </p>
               <p className="text-sm text-gray-600">
                 Total Shares After: <span className="font-semibold text-gray-800">
-                  {(parseFloat(stock.shares as any) + parseFloat(shares)).toFixed(4)}
+                  {formatNumber(parseFloat(stock.shares as any) + parseFloat(shares), 4)}
                 </span>
               </p>
             </div>

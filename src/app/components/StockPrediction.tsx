@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { formatNumber, formatCurrency } from '@/utils/formatters'
 
 interface StockPredictionProps {
   ticker: string
@@ -140,7 +141,7 @@ export default function StockPrediction({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="p-4 bg-gray-50 rounded-lg">
                       <p className="text-sm text-gray-600 mb-3">Current Price</p>
-                      <p className="text-2xl font-bold text-gray-800 mb-4">${tfPrediction.current_price.toFixed(2)}</p>
+                      <p className="text-2xl font-bold text-gray-800 mb-4">{formatCurrency(tfPrediction.current_price)}</p>
 
                       {/* Influential Metrics Section */}
                       <div className="space-y-2 text-xs">
@@ -150,7 +151,7 @@ export default function StockPrediction({
                                   <div className="flex justify-between items-center">
                                       <span className="text-gray-600">RSI (14)</span>
                                       <span className={`font-semibold ${rsi > 70 ? 'text-red-600' : rsi < 30 ? 'text-green-600' : 'text-gray-700'}`}>
-                                          {rsi.toFixed(1)}
+                                          {formatNumber(rsi, 1)}
                                       </span>
                                   </div>
                                   <p className="text-gray-500 text-xs mt-1">
@@ -165,7 +166,7 @@ export default function StockPrediction({
                                   <div className="flex justify-between items-center">
                                       <span className="text-gray-600">Momentum</span>
                                       <span className={`font-semibold ${Math.abs(momentum) > 2 ? momentum > 0 ? 'text-green-600' : 'text-red-600' : 'text-gray-700'}`}>
-                                          {momentum.toFixed(2)}
+                                          {formatNumber(momentum, 2)}
                                       </span>
                                   </div>
                                   <p className="text-gray-500 text-xs mt-1">
@@ -184,7 +185,7 @@ export default function StockPrediction({
                                       </span>
                                   </div>
                                   <p className="text-gray-500 text-xs mt-1">
-                                      SMA20: ${sma20.toFixed(2)} {sma20 > tfPrediction.current_price ? '(Above)' : '(Below)'} Price
+                                      SMA20: {formatCurrency(sma20, 2)} {sma20 > tfPrediction.current_price ? '(Above)' : '(Below)'} Price
                                   </p>
                               </div>
                           )}
@@ -195,7 +196,7 @@ export default function StockPrediction({
                                   <div className="flex justify-between items-center">
                                       <span className="text-gray-600">P/E Ratio</span>
                                       <span className={`font-semibold ${peRatio < 15 ? 'text-green-600' : peRatio > 25 ? 'text-red-600' : 'text-gray-700'}`}>
-                                          {peRatio.toFixed(1)}
+                                          {formatNumber(peRatio, 1)}
                                       </span>
                                   </div>
                                   <p className="text-gray-500 text-xs mt-1">
@@ -235,7 +236,7 @@ export default function StockPrediction({
                                       <div className="grid grid-cols-3 gap-2 text-left">
                                           <div>
                                               <p className="text-xs text-gray-500">Low</p>
-                                              <p className="text-lg font-bold text-red-600">${predictedLowPrice.toFixed(2)}</p>
+                                              <p className={`text-lg font-bold ${predictedLowPrice >= tfPrediction.current_price ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(predictedLowPrice)}</p>
                                           </div>
                                           <div>
                                               <p className="text-xs text-gray-500">Average</p>
@@ -243,10 +244,10 @@ export default function StockPrediction({
                                                   const percentChange = ((predictedAveragePrice - tfPrediction.current_price) / tfPrediction.current_price) * 100;
                                                   const textColor = percentChange >= 0 ? 'text-green-600' : 'text-red-600';
                                                   return (
-                                                      <p className="text-lg font-bold text-gray-800">
-                                                          ${predictedAveragePrice.toFixed(2)}{' '}
+                                                      <p className={`text-lg font-bold ${predictedAveragePrice >= tfPrediction.current_price ? 'text-green-600' : 'text-red-600'}`}>
+                                                          {formatCurrency(predictedAveragePrice)}{' '}
                                                           <span className={`text-sm ${textColor}`}>
-                                                              ({percentChange >= 0 ? '+' : ''}{percentChange.toFixed(2)}%)
+                                                              ({percentChange >= 0 ? '+' : ''}{formatNumber(percentChange, 2)}%)
                                                           </span>
                                                       </p>
                                                   );
@@ -254,7 +255,7 @@ export default function StockPrediction({
                                           </div>
                                           <div>
                                               <p className="text-xs text-gray-500">High</p>
-                                              <p className="text-lg font-bold text-green-600">${predictedHighPrice.toFixed(2)}</p>
+                                              <p className={`text-lg font-bold ${predictedHighPrice >= tfPrediction.current_price ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(predictedHighPrice)}</p>
                                           </div>
                                       </div>
                                   );
@@ -277,18 +278,18 @@ export default function StockPrediction({
                                           <div>
                                               <p className="text-xs text-gray-600 mb-1">Model Accuracy</p>
                                               <p className={`text-lg font-bold ${accuracy >= 85 ? 'text-green-600' : accuracy >= 70 ? 'text-yellow-600' : 'text-red-600'}`}>
-                                                  {accuracy.toFixed(1)}%
+                                                  {formatNumber(accuracy, 1)}%
                                               </p>
                                           </div>
                                           <div>
                                               <p className="text-xs text-gray-600 mb-1">Error Rate (MAE)</p>
                                               <p className="text-lg font-bold text-gray-700">
-                                                  ±{errorRate.toFixed(2)}%
+                                                  ±{formatNumber(errorRate, 2)}%
                                               </p>
                                           </div>
                                       </div>
                                       <p className="text-xs text-gray-500 mt-2">
-                                          MAE: ${metrics.mae.toFixed(2)} | RMSE: ${metrics.rmse?.toFixed(2) || 'N/A'}
+                                          MAE: {formatCurrency(metrics.mae, 2)} | RMSE: {metrics.rmse != null ? formatNumber(metrics.rmse, 2) : 'N/A'}
                                       </p>
                                       {tfPrediction.model_status && (
                                           <p className="text-xs text-amber-600 mt-2">
@@ -332,7 +333,7 @@ export default function StockPrediction({
                                                   <p key={metricKey}>
                                                       <span className="font-medium capitalize">{metricKey.replace(/_/g, ' ')}:</span>{' '}
                                                       {typeof metricValue === 'boolean' ? (metricValue ? 'Yes' : 'No') : 
-                                                       (typeof metricValue === 'number' ? metricValue.toFixed(4) : metricValue)}
+                                                       (typeof metricValue === 'number' ? formatNumber(metricValue, 4) : metricValue)}
                                                   </p>
                                               ))}
                                           </div>
@@ -342,7 +343,7 @@ export default function StockPrediction({
                               {/* Display total_metric_impact and impact_classification separately at the end */}
                               {tfPrediction.metric_analysis.total_metric_impact !== undefined && (
                                   <div className="mt-4 pt-2 border-t border-gray-200">
-                                      <p className="text-md font-semibold text-gray-700">Overall Impact Score: <span className="font-bold text-blue-600">{tfPrediction.metric_analysis.total_metric_impact.toFixed(4)}</span></p>
+                                      <p className="text-md font-semibold text-gray-700">Overall Impact Score: <span className="font-bold text-blue-600">{formatNumber(tfPrediction.metric_analysis.total_metric_impact, 4)}</span></p>
                                       <p className="text-md font-semibold text-gray-700">Classification: <span className="font-bold text-purple-600 capitalize">{tfPrediction.metric_analysis.impact_classification.replace(/_/g, ' ')}</span></p>
                                   </div>
                               )}

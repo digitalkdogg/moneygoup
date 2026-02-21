@@ -2,6 +2,7 @@
 'use client';
 
 import { useState } from 'react';
+import { formatCurrency } from '@/utils/formatters';
 
 interface WatchlistItem {
   stock_id: number;
@@ -108,7 +109,7 @@ export default function PurchaseFromWatchlistModal({ stock, onClose }: PurchaseF
             <div className="p-3 bg-blue-50 rounded-lg">
               <p className="text-sm text-gray-600">
                 Total Cost: <span className="font-semibold text-gray-800">
-                  ${(parseFloat(shares) * parseFloat(price)).toFixed(2)}
+                  {formatCurrency(parseFloat(shares) * parseFloat(price))}
                 </span>
               </p>
             </div>
