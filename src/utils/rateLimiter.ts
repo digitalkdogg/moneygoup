@@ -1,0 +1,84 @@
+// src/utils/rateLimiter.ts
+
+interface RateLimitEntry {
+  count: number;
+  windowStart: number;
+}
+
+interface RateLimitOptions {
+  /** Max requests allowed within the window */
+  limit: number;
+  /** Window duration in milliseconds */
+  windowMs: number;
+}
+
+interface RateLimitResult {
+  allowed: boolean;
+  remaining: number;
+  resetInMs: number;
+}
+
+export class RateLimiter {
+  private store = new Map<string, RateLimitEntry>();
+  private readonly limit: number;
+  private readonly windowMs: number;
+
+  constructor({ limit, windowMs }: RateLimitOptions) {
+    this.limit = limit;
+    this.windowMs = windowMs;
+
+    // Purge stale entries every 10 minutes.
+    // .unref() prevents this timer from keeping the process alive.
+    const timer = setInterval(() => this.cleanup(), 10 * 60 * 1000);
+    if (timer.unref) timer.unref();
+  }
+
+  check(key: string): RateLimitResult {
+    const now = Date.now();
+    const entry = this.store.get(key);
+
+    if (!entry || now - entry.windowStart >= this.windowMs) {
+      // New window
+      this.store.set(key, { count: 1, windowStart: now });
+      return {
+        allowed: true,
+        remaining: this.limit - 1,
+        resetInMs: this.windowMs,
+      };
+    }
+
+    if (entry.count < this.limit) {
+      entry.count++;
+      return {
+        allowed: true,
+        remaining: this.limit - entry.count,
+        resetInMs: this.windowMs - (now - entry.windowStart),
+      };
+    }
+
+    // Limit exceeded
+    return {
+      allowed: false,
+      remaining: 0,
+      resetInMs: this.windowMs - (now - entry.windowStart),
+    };
+  }
+
+  private cleanup(): void {
+    const now = Date.now();
+    for (const [key, entry] of this.store) {
+      if (now - entry.windowStart >= this.windowMs) {
+        this.store.delete(key);
+      }
+    }
+  }
+}
+
+// ── Singleton instances ────────────────────────────────────────
+// Defined here so they persist across requests in the same process.
+
+/** 5 registration attempts per IP per 15 minutes */
+export const registerLimiter = new RateLimiter({ limit: 5, windowMs: 15 * 60 * 1000 });
+
+/** 10 login attempts per IP per 15 minutes */
+export const loginLimiter = new RateLimiter({ limit: 10, windowMs: 15 * 60 * 1000 });

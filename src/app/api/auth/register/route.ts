@@ -15,11 +15,35 @@ const registerSchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters long').max(100, 'Password cannot exceed 100 characters'),
 });
 
+import { registerLimiter } from '@/utils/rateLimiter';
+
+
 export async function POST(request: NextRequest) {
   const originCheckResponse = checkOrigin(request);
   if (originCheckResponse) {
     return originCheckResponse;
   }
+
+  // Rate limit by IP address
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim()
+    ?? request.headers.get('x-real-ip')
+    ?? 'unknown';
+  const { allowed, remaining, resetInMs } = registerLimiter.check(ip);
+
+  if (!allowed) {
+    return new NextResponse(
+      JSON.stringify({ message: 'Too many registration attempts. Please try again later.' }),
+      {
+        status: 429,
+        headers: {
+          'Retry-After': String(Math.ceil(resetInMs / 1000)),
+          'X-RateLimit-Limit': '5',
+          'X-RateLimit-Remaining': '0',
+        },
+      }
+    );
+  }
+
   try {
     const body = await request.json();
     const { username, password } = registerSchema.parse(body);

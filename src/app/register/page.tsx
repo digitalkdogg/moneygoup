@@ -37,6 +37,12 @@ export default function RegisterPage() {
       const data = await response.json();
 
       if (!response.ok) {
+        if (response.status === 429) {
+          const retryAfter = response.headers.get('Retry-After');
+          setError(`Too many attempts. Please wait ${retryAfter ? retryAfter + ' seconds' : 'a few minutes'} and try again.`);
+          setLoading(false);
+          return;
+        }
         setError(data.message || data.error || 'Registration failed');
         // Handle Zod errors specifically if present
         if (Array.isArray(data.error)) {

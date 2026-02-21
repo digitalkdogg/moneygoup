@@ -1,3 +1,4 @@
+import { loginLimiter } from '@/utils/rateLimiter';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 import { executeRawQuery } from '@/utils/databaseHelper';
@@ -17,6 +18,19 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.username || !credentials.password) {
           logger.warn('Authorization attempt with missing credentials.');
+          return null;
+        }
+
+        // Rate limit login attempts by IP
+        const ip = (req?.headers as any)?.['x-forwarded-for']?.split(',')[0].trim()
+          ?? (req?.headers as any)?.['x-real-ip']
+          ?? 'unknown';
+        const { allowed } = loginLimiter.check(ip);
+
+        if (!allowed) {
+          // Returning null tells NextAuth "credentials invalid" without leaking rate limit info
+          // to the client via the error message. The 429 is not surfaced directly here.
+          logger.warn('Login rate limit exceeded', { ip });
           return null;
         }
 
