@@ -112,7 +112,7 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
       label: 'Price',
       align: 'right',
       format: (value: number) =>
-        <span className="text-blue-600 font-semibold">{formatCurrency(value, 2)}</span>,
+        <span className="text-gray-600 font-semibold">{formatCurrency(value, 2)}</span>,
     },
     {
       key: 'ma6_month',

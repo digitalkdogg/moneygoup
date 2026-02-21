@@ -52,12 +52,51 @@ export async function GET(request: NextRequest) {
     const portfolioWithCurrentPrices = await Promise.all(
       (portfolioItems as any[]).map(async (item) => {
         try {
-          const result: any = await yahooFinanceInstance.quote(item.symbol);
-          const currentPrice = result && result.regularMarketPrice ? result.regularMarketPrice : null;
-          return { ...item, current_price: currentPrice };
+          const [quoteResult, historicalResult] = await Promise.all([
+            yahooFinanceInstance.quote(item.symbol),
+            yahooFinanceInstance.historical(item.symbol, { 
+                period1: new Date(Date.now() - 86400000 * 3).toISOString().split('T')[0], // 3 days ago
+                period2: new Date().toISOString().split('T')[0] // Today
+            })
+          ]);
+          
+          const currentPrice = (quoteResult as any)?.regularMarketPrice || null;
+          let prevClose = null;
+
+          if (historicalResult && historicalResult.length >= 2) {
+            // Find the most recent historical data that is not today's date
+            const today = new Date();
+            today.setHours(0, 0, 0, 0); // Normalize today's date to avoid time comparison issues
+
+            // Find the data for the previous trading day
+            let previousTradingDayData = null;
+            for (const dataPoint of historicalResult) {
+                const dataPointDate = new Date(dataPoint.date);
+                dataPointDate.setHours(0, 0, 0, 0);
+                // Ensure it's not today's date and that it's a valid trading day
+                if (dataPointDate.getTime() < today.getTime()) {
+                    previousTradingDayData = dataPoint;
+                    break;
+                }
+            }
+
+            if (previousTradingDayData) {
+                prevClose = previousTradingDayData.close;
+            }
+
+          } else if (historicalResult && historicalResult.length === 1) {
+             const dataPointDate = new Date(historicalResult[0].date);
+             const today = new Date();
+             today.setHours(0, 0, 0, 0);
+             if (dataPointDate.getTime() < today.getTime()) {
+                 prevClose = historicalResult[0].close;
+             }
+          }
+          
+          return { ...item, current_price: currentPrice, prev_close: prevClose };
         } catch (priceError) {
-          logger.error(`Error fetching current price for ${item.symbol}:`, priceError as Error);
-          return { ...item, current_price: null }; // Return null if price fetching fails
+          logger.error(`Error fetching data for ${item.symbol}:`, priceError as Error);
+          return { ...item, current_price: null, prev_close: null };
         }
       })
     );

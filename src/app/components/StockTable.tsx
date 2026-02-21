@@ -107,7 +107,7 @@ export default function StockTable<T extends StockTableRow>({
                         {column.key === 'symbol' ? (
                           <span className="font-medium text-gray-900">{displayValue}</span>
                         ) : column.key === 'metric' ? (
-                          <span className="font-bold text-blue-600">{displayValue}</span>
+                          <span className="text-gray-500">{displayValue}</span>
                         ) : (
                           <span className="text-gray-500">{displayValue}</span>
                         )}

@@ -10,6 +10,7 @@ import StockChart from './StockChart'
 import StockNews from './StockNews'
 import { createLogger } from '@/utils/logger'
 import StockPrediction from './StockPrediction'
+import { formatNumber, formatCurrency } from '@/utils/formatters' // Added import
 
 const logger = createLogger('components/Stock')
 
@@ -439,7 +440,7 @@ export default function Stock({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div className="p-4 bg-gray-50 rounded-lg border border-[#e9ede8]">
               <p className="text-sm text-gray-500">Last Price</p>
-              <p className="text-2xl font-bold text-gray-800">${currentPrice.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-gray-800">{formatCurrency(currentPrice)}</p>
               {stockData.prevClose !== undefined && currentPrice !== null && (
                 <p
                   className={`text-md ${
@@ -448,12 +449,12 @@ export default function Stock({
                       : 'text-red-600'
                   }`}
                 >
-                  {(currentPrice - stockData.prevClose).toFixed(2)}{' '}
+                  {formatNumber(currentPrice - stockData.prevClose)}{' '}
                   (
-                  {(
+                  {formatNumber(
                     ((currentPrice - stockData.prevClose) / stockData.prevClose) *
                     100
-                  ).toFixed(2)}
+                  )}
                   %)
                 </p>
               )}
@@ -461,27 +462,27 @@ export default function Stock({
 
             <div className="p-4 bg-gray-50 rounded-lg border border-[#e9ede8]">
               <p className="text-sm text-gray-500">Open</p>
-              <p className="text-2xl font-bold text-gray-800">${stockData.open?.toFixed(2) || 'N/A'}</p>
+              <p className="text-2xl font-bold text-gray-800">{formatCurrency(stockData.open)}</p>
             </div>
 
             <div className="p-4 bg-gray-50 rounded-lg border border-[#e9ede8]">
               <p className="text-sm text-gray-500">Volume</p>
-              <p className="text-2xl font-bold text-gray-800">{stockData.volume?.toLocaleString() || 'N/A'}</p>
+              <p className="text-2xl font-bold text-gray-800">{formatNumber(stockData.volume, 0)}</p>
             </div>
 
             <div className="p-4 bg-gray-50 rounded-lg border border-[#e9ede8]">
               <p className="text-sm text-gray-500">P/E Ratio</p>
-              <p className="text-2xl font-bold text-gray-800">{stockData.peRatio?.toFixed(2) || 'N/A'}</p>
+              <p className="text-2xl font-bold text-gray-800">{formatNumber(stockData.peRatio)}</p>
             </div>
 
             <div className="p-4 bg-gray-50 rounded-lg border border-[#e9ede8]">
               <p className="text-sm text-gray-500">P/B Ratio</p>
-              <p className="text-2xl font-bold text-gray-800">{stockData.pbRatio?.toFixed(2) || 'N/A'}</p>
+              <p className="text-2xl font-bold text-gray-800">{formatNumber(stockData.pbRatio)}</p>
             </div>
 
             <div className="p-4 bg-gray-50 rounded-lg border border-[#e9ede8]">
               <p className="text-sm text-gray-500">Market Cap</p>
-              <p className="text-2xl font-bold text-gray-800">{stockData.marketCap ? (stockData.marketCap / 1_000_000_000).toFixed(2) + 'B' : 'N/A'}</p>
+              <p className="text-2xl font-bold text-gray-800">{stockData.marketCap ? formatNumber(stockData.marketCap / 1_000_000_000) + 'B' : 'N/A'}</p>
             </div>
           </div>
           {watchlistSuccess && (
@@ -555,10 +556,10 @@ export default function Stock({
                       {earningsData.historicalEarnings.map((earning, index) => (
                         <tr key={index} className="hover:bg-gray-50">
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{formatDate(earning.date)}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{earning.epsActual != null ? earning.epsActual.toFixed(2) : 'N/A'}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{earning.epsEstimate != null ? earning.epsEstimate.toFixed(2) : 'N/A'}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{earning.revenue != null ? `$${(earning.revenue / 1_000_000).toFixed(2)}M` : 'N/A'}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{earning.earnings != null ? `$${(earning.earnings / 1_000_000).toFixed(2)}M` : 'N/A'}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{formatNumber(earning.epsActual)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{formatNumber(earning.epsEstimate)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{earning.revenue != null ? formatCurrency(earning.revenue / 1_000_000) + 'M' : 'N/A'}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{earning.earnings != null ? formatCurrency(earning.earnings / 1_000_000) + 'M' : 'N/A'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -639,17 +640,17 @@ export default function Stock({
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="p-4 bg-gray-50 rounded-lg border border-[#e9ede8]">
                     <p className="text-sm text-gray-500">Last Price</p>
-                    <p className="text-2xl font-bold text-gray-800">${currentPrice.toFixed(2)}</p>
+                    <p className="text-2xl font-bold text-gray-800">{formatCurrency(currentPrice)}</p>
                   </div>
 
                   <div className="p-4 bg-gray-50 rounded-lg border border-[#e9ede8]">
                     <p className="text-sm text-gray-500">P/E Ratio</p>
-                    <p className="text-2xl font-bold text-gray-800">{stockData.peRatio?.toFixed(2) || 'N/A'}</p>
+                    <p className="text-2xl font-bold text-gray-800">{formatNumber(stockData.peRatio)}</p>
                   </div>
 
                   <div className="p-4 bg-gray-50 rounded-lg border border-[#e9ede8]">
                     <p className="text-sm text-gray-500">Market Cap</p>
-                    <p className="text-2xl font-bold text-gray-800">{stockData.marketCap ? (stockData.marketCap / 1_000_000_000).toFixed(2) + 'B' : 'N/A'}</p>
+                    <p className="text-2xl font-bold text-gray-800">{stockData.marketCap ? formatNumber(stockData.marketCap / 1_000_000_000) + 'B' : 'N/A'}</p>
                   </div>
                 </div>
               </div>

@@ -27,6 +27,7 @@ interface PortfolioItem {
   initial_purchase_date?: string;
   last_transaction_date?: string;
   regularMarketPrice: number; // Renamed from current_price to align with StockTableRow
+  prev_close?: number; // NEW: Previous close price
   [key: string]: any; // Add index signature for StockTableRow compatibility
 }
 
@@ -61,7 +62,8 @@ export default function PortfolioSection({ onRefresh }: PortfolioSectionProps) {
         ...item,
         name: item.company_name, // Map company_name to name for StockTableRow compatibility
         shares: typeof item.shares === 'string' ? parseFloat(item.shares) : 0, // Parse shares string to number, default to 0
-        regularMarketPrice: typeof item.current_price === 'number' ? item.current_price : 0 // Default to 0 instead of null
+        regularMarketPrice: typeof item.current_price === 'number' ? item.current_price : 0, // Default to 0 instead of null
+        prev_close: typeof item.prev_close === 'number' ? item.prev_close : null, // NEW
       })) || []);
     } catch (err: any) {
       setError(err.message);
@@ -93,7 +95,6 @@ export default function PortfolioSection({ onRefresh }: PortfolioSectionProps) {
 
   const portfolioColumns: ColumnDefinition<PortfolioItem>[] = [ // Applied the type here
     { key: 'symbol', label: 'Symbol' },
-    { key: 'company_name', label: 'Company Name' },
     {
       key: 'shares',
       label: 'Shares',
@@ -110,8 +111,96 @@ export default function PortfolioSection({ onRefresh }: PortfolioSectionProps) {
       key: 'regularMarketPrice',
       label: 'Current Price',
       align: 'right',
-      format: (value: number) => // Changed type to number
-        <span className="text-blue-600 font-semibold">{formatCurrency(value, 2)}</span>,
+      format: (value: number, row: PortfolioItem) => {
+        const { regularMarketPrice, prev_close } = row;
+        const formattedCurrentPrice = formatCurrency(regularMarketPrice, 2);
+
+        let percentageDisplay: ReactNode;
+
+        if (prev_close === null || prev_close === undefined || prev_close === 0) {
+          percentageDisplay = <span className="text-gray-500 ml-1">(—)</span>;
+        } else {
+          const dailyPercentageChange = ((regularMarketPrice - prev_close) / prev_close) * 100;
+          let textColor = 'text-gray-500'; // Default for 0.00%
+          if (dailyPercentageChange > 0) {
+            textColor = 'text-green-600';
+          } else if (dailyPercentageChange < 0) {
+            textColor = 'text-red-600';
+          }
+
+          const formattedPercentage = formatNumber(dailyPercentageChange, 2);
+          const displayPercentage = dailyPercentageChange > 0 ? `+${formattedPercentage}` : formattedPercentage;
+          
+          percentageDisplay = <span className={`${textColor} ml-1`}>({displayPercentage}%)</span>;
+        }
+
+        return (
+          <span className="font-semibold">
+            <span className="text-gray-600">{formattedCurrentPrice}</span>
+            {percentageDisplay}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'dailyEarnings', // A new key for this column
+      label: 'Daily Earnings',
+      align: 'right',
+      format: (value: any, row: PortfolioItem) => {
+        const { shares, regularMarketPrice, prev_close } = row;
+
+        if (shares === 0) {
+          return <span className="text-gray-500">{formatCurrency(0, 2)}</span>; // $0.00 for 0 shares
+        }
+
+        if (prev_close === null || prev_close === undefined) {
+          return <span className="text-gray-500">—</span>; // Em dash for unavailable prevClose
+        }
+
+        const dailyEarnings = shares * (regularMarketPrice - prev_close);
+        let textColor = 'text-gray-500'; // Default for $0.00
+        if (dailyEarnings > 0) {
+          textColor = 'text-green-600';
+        } else if (dailyEarnings < 0) {
+          textColor = 'text-red-600';
+        }
+
+        const formattedEarnings = formatCurrency(dailyEarnings, 2);
+        // Add + prefix for positive values
+        const displayValue = dailyEarnings > 0 ? `+${formattedEarnings}` : formattedEarnings;
+
+        return <span className={`${textColor} font-semibold`}>{displayValue}</span>;
+      },
+    },
+    {
+      key: 'lifetimeEarnings', // A new key for this column
+      label: 'Lifetime Earnings',
+      align: 'right',
+      format: (value: any, row: PortfolioItem) => {
+        const { shares, regularMarketPrice, purchase_price } = row;
+
+        if (shares === 0) {
+          return <span className="text-gray-500">{formatCurrency(0, 2)}</span>; // $0.00 for 0 shares
+        }
+
+        if (purchase_price === null || purchase_price === undefined || purchase_price === 0) {
+          return <span className="text-gray-500">—</span>; // Em dash for unavailable Avg Price
+        }
+
+        const lifetimeEarnings = (regularMarketPrice * shares) - (purchase_price * shares);
+        let textColor = 'text-gray-500'; // Default for $0.00
+        if (lifetimeEarnings > 0) {
+          textColor = 'text-green-600';
+        } else if (lifetimeEarnings < 0) {
+          textColor = 'text-red-600';
+        }
+
+        const formattedEarnings = formatCurrency(lifetimeEarnings, 2);
+        // Add + prefix for positive values
+        const displayValue = lifetimeEarnings > 0 ? `+${formattedEarnings}` : formattedEarnings;
+
+        return <span className={`${textColor} font-semibold`}>{displayValue}</span>;
+      },
     },
     {
       key: 'positionValue',
@@ -133,7 +222,7 @@ export default function PortfolioSection({ onRefresh }: PortfolioSectionProps) {
         <span className="space-x-2">
           <button
             onClick={(e) => { e.stopPropagation(); handleBuyMore(row); }}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold text-sm cursor-pointer"
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold text-sm cursor-pointer" 
           >
             Buy More
           </button>

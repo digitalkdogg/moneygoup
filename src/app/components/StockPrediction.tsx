@@ -128,7 +128,7 @@ export default function StockPrediction({
           <button
             onClick={generateTfPrediction}
             disabled={tfLoading}
-            className="bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-800 transition-colors disabled:bg-blue-400"
+            className="bg-green-700 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-800 cursor-pointer transition-colors disabled:bg-gray-400"
           >
             {tfLoading ? 'Generating...' : 'Generate Prediction'}
           </button>
