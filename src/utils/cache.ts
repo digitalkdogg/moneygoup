@@ -12,13 +12,24 @@ interface CacheEntry<T> {
 class Cache<T> {
   private store: Map<string, CacheEntry<T>> = new Map();
   private defaultTtlMs: number;
+  private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(defaultTtlMs: number = 3600000) {
     // Default: 1 hour
     this.defaultTtlMs = defaultTtlMs;
 
     // Clean up expired entries every 5 minutes
-    setInterval(() => this.cleanup(), 300000);
+    this.cleanupTimer = setInterval(() => this.cleanup(), 5 * 60 * 1000);
+    if (this.cleanupTimer.unref) this.cleanupTimer.unref();
+  }
+
+  /** Stop the cleanup timer. Call in tests or on graceful shutdown. */
+  destroy(): void {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
+    }
+    this.store.clear();
   }
 
   /**

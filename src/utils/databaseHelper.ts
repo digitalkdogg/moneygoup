@@ -8,13 +8,15 @@ import mysql from 'mysql2/promise';
  * @returns The result of the operation.
  */
 async function executeDbOperation<T>(operation: (connection: mysql.PoolConnection) => Promise<T>): Promise<T> {
-  let connection: mysql.PoolConnection | null = null;
+  let poolConnection: mysql.PoolConnection | null = null;
+  let pool: mysql.Pool | null = null;
   try {
-    connection = await getDbConnection();
-    return await operation(connection);
+    pool = await getDbConnection();
+    poolConnection = await pool.getConnection();
+    return await operation(poolConnection);
   } finally {
-    if (connection) {
-      connection.release();
+    if (poolConnection) {
+      poolConnection.release();
     }
   }
 }
@@ -143,34 +145,85 @@ export async function remove(tableName: string, conditions: Record<string, any>)
 }
 
 /**
+ * Heuristic check for obvious SQL injection patterns.
+ * Not a complete parser — just a last-resort safety net.
+ * Real protection comes from always using parameterized queries.
+ */
+function assertNoInterpolation(sql: string): void {
+  // These patterns strongly suggest user input was interpolated directly
+  const suspiciousPatterns = [
+    // Unquoted literals that look like they came from string concat
+    /WHERE\s+\w+\s*=\s*\d+(?!\s*\?)/i,     // WHERE id = 42  (should be WHERE id = ?)
+    /WHERE\s+\w+\s*=\s*'[^']*'/i,          // WHERE name = 'alice'  (should use ?)
+    /IN\s*\(\s*(?!')\d/i,                   // IN (1, 2, 3)  (should be IN (?, ?, ?))
+    // /LIMIT\s+\d+\s+OFFSET\s+\d+/i,      // LIMIT 10 OFFSET 0  (acceptable — these are usually safe)
+  ];
+
+  const isDevOrTest = process.env.NODE_ENV !== 'production';
+
+  for (const pattern of suspiciousPatterns.slice(0, 3)) {
+    if (pattern.test(sql)) {
+      const message = [
+        '[databaseHelper] Possible SQL injection: literal value detected in query.',
+        'Use parameterized queries: executeRawQuery("... WHERE id = ?", [id])',
+        `Offending query: ${sql.substring(0, 200)}`,
+      ].join('\\n');
+
+      if (isDevOrTest) {
+        throw new Error(message);   // Hard fail in dev — forces immediate fix
+      } else {
+        // Assuming `logger` is available globally or imported
+        // If not, a simple console.error could be used or `logger` needs to be imported/created
+        console.error(message);        // Log in prod, then fall through to block
+        throw new Error('Query rejected due to security policy');
+      }
+    }
+  }
+}
+
+/**
  * Executes a raw SQL query. Use with caution.
  * @param sql The raw SQL query string.
- * @param values Optional array of values to bind to the query.
+ * @param params Required array of values to bind to the query. Pass [] if no values.
  * @returns The result of the query.
  */
-export async function executeRawQuery(sql: string, values?: any[]): Promise<[mysql.RowDataPacket[] | mysql.ResultSetHeader, mysql.FieldPacket[]]> {
+export async function executeRawQuery(sql: string, params: readonly unknown[]): Promise<[mysql.RowDataPacket[] | mysql.ResultSetHeader, mysql.FieldPacket[]]> {
+  assertNoInterpolation(sql);
   return executeDbOperation(async (connection) => {
-    return await connection.execute(sql, values || []);
+    return await connection.execute(sql, params);
+  });
+}
+
+/**
+ * Use this ONLY for queries with no user-influenced values whatsoever.
+ * The name is intentional — it makes the choice visible in code review.
+ * If you're unsure whether to use this, use executeRawQuery with params.
+ */
+export async function executeStaticQuery(sql: string): Promise<[mysql.RowDataPacket[] | mysql.ResultSetHeader, mysql.FieldPacket[]]> {
+  return executeDbOperation(async (connection) => {
+    return await connection.execute(sql);
   });
 }
 
 // Transaction helper
 export async function transaction<T>(callback: (connection: mysql.PoolConnection) => Promise<T>): Promise<T> {
-  let connection: mysql.PoolConnection | null = null;
+  let poolConnection: mysql.PoolConnection | null = null;
+  let pool: mysql.Pool | null = null;
   try {
-    connection = await getDbConnection();
-    await connection.beginTransaction();
-    const result = await callback(connection);
-    await connection.commit();
+    pool = await getDbConnection();
+    poolConnection = await pool.getConnection();
+    await poolConnection.beginTransaction();
+    const result = await callback(poolConnection);
+    await poolConnection.commit();
     return result;
   } catch (error) {
-    if (connection) {
-      await connection.rollback();
+    if (poolConnection) {
+      await poolConnection.rollback();
     }
     throw error;
   } finally {
-    if (connection) {
-      connection.release();
+    if (poolConnection) {
+      poolConnection.release();
     }
   }
 }
