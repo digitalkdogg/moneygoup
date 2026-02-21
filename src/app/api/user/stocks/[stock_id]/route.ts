@@ -28,12 +28,12 @@ export const PATCH = validate(tradeSchema)(
     try {
       const params = ctx?.params;
       if (!params || !params.stock_id) {
-        return createErrorResponse('Stock ID is required', 400);
+        return createErrorResponse(null, 'Stock ID is required', { status: 400 });
       }
 
       const stockId = parseInt(params.stock_id, 10);
       if (isNaN(stockId) || stockId <= 0) {
-        return createErrorResponse('Invalid stock ID', 400);
+        return createErrorResponse(null, 'Invalid stock ID', { status: 400 });
       }
 
       const userId = session.user.id;
@@ -46,7 +46,7 @@ export const PATCH = validate(tradeSchema)(
       );
 
       if (!Array.isArray(existingPosition) || existingPosition.length === 0) {
-        return createErrorResponse('Position not found', 404);
+        return createErrorResponse(null, 'Position not found', { status: 404 });
       }
 
       const position = existingPosition[0];
@@ -55,7 +55,7 @@ export const PATCH = validate(tradeSchema)(
 
       if (action === 'buy') {
         if (!sharesToTrade) {
-          return createErrorResponse('Shares required for buy action', 400);
+          return createErrorResponse(null, 'Shares required for buy action', { status: 400 });
         }
 
         // Calculate new weighted average price
@@ -82,11 +82,11 @@ export const PATCH = validate(tradeSchema)(
         );
       } else if (action === 'sell_partial') {
         if (!sharesToTrade) {
-          return createErrorResponse('Shares required for sell_partial action', 400);
+          return createErrorResponse(null, 'Shares required for sell_partial action', { status: 400 });
         }
 
         if (sharesToTrade > currentShares) {
-          return createErrorResponse('Cannot sell more shares than you own', 400);
+          return createErrorResponse(null, 'Cannot sell more shares than you own', { status: 400 });
         }
 
         const realizedGain = (price - currentPrice) * sharesToTrade;
@@ -137,10 +137,10 @@ export const PATCH = validate(tradeSchema)(
         );
       }
 
-      return createErrorResponse('Invalid action', 400);
+      return createErrorResponse(null, 'Invalid action', { status: 400 });
     } catch (error: any) {
       logger.error('Failed to execute trade:', error);
-      return createErrorResponse(error, 500);
+      return createErrorResponse(error, 'Failed to execute trade', { status: 500 });
     }
   }
 );
@@ -161,7 +161,7 @@ export async function PUT(
     // Validate stock_id is a positive integer
     const parsedId = parseInt(stockId, 10);
     if (!stockId || isNaN(parsedId) || parsedId <= 0 || !Number.isInteger(parsedId)) {
-      return createErrorResponse('Invalid stock ID', 400);
+      return createErrorResponse(null, 'Invalid stock ID', { status: 400 });
     }
 
     const userId = session.user.id;
@@ -175,13 +175,13 @@ export async function PUT(
 
     if (affectedRows === 0) {
       // If no rows were affected, it means the stock was not found or not owned by the user.
-      return createErrorResponse('Stock not found or not owned by user', 404);
+      return createErrorResponse(null, 'Stock not found or not owned by user', { status: 404 });
     }
 
     return NextResponse.json({ message: 'Stock sold successfully (moved to watchlist)' }, { status: 200 });
 
   } catch (error: any) {
     logger.error("Failed to sell stock:", error);
-    return createErrorResponse('Failed to sell stock', 500);
+    return createErrorResponse(error, 'Failed to sell stock', { status: 500 });
   }
 }

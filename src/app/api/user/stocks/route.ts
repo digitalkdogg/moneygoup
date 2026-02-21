@@ -49,7 +49,7 @@ export const POST = validate(purchaseStockSchema)(
 
     } catch (error: any) {
       logger.error("Failed to purchase stock:", error);
-      return createErrorResponse(error, 500);
+      return createErrorResponse(error, 'Failed to purchase stock', { status: 500 });
     }
   }
 );

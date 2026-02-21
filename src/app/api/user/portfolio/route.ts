@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ portfolio: portfolioWithCurrentPrices || [] }, { status: 200 });
   } catch (error: any) {
     logger.error('Error fetching user portfolio:', error);
-    return createErrorResponse(error, 500);
+    return createErrorResponse(error, 'Error fetching user portfolio', { status: 500 });
   }
 }
 

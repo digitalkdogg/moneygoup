@@ -122,7 +122,7 @@ export async function GET(
     return NextResponse.json({ articles: articlesByTicker, source: ['Yahoo Finance'] });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Error fetching news:', error instanceof Error ? error : String(error));
+    logger.error('Error fetching news:', { error: error instanceof Error ? error : String(error) });
     return NextResponse.json(
       {
         error: 'Failed to fetch or parse news feed'

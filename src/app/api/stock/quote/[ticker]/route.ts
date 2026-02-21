@@ -18,8 +18,8 @@ export async function GET(
 
   if (!ticker) {
     return createErrorResponse(
-      new Error('Stock ticker is required'),
-      400
+      new Error('Stock ticker is required'), 'Stock ticker is required',
+      { status: 400 }
     );
   }
 
@@ -36,8 +36,8 @@ export async function GET(
     if (!result || !result.regularMarketPrice) {
       logger.warn(`No real-time price found for ticker: ${ticker}`);
       return createErrorResponse(
-        new Error(`No real-time price found for ${ticker}`),
-        404
+        new Error(`No real-time price found for ${ticker}`), `No real-time price found for ${ticker}`,
+        { status: 404 }
       );
     }
 
@@ -52,8 +52,8 @@ export async function GET(
   } catch (error: any) {
     logger.error(`Error fetching real-time quote for ${ticker}:`, error);
     return createErrorResponse(
-      error,
-      500
+      error, `Error fetching real-time quote for ${ticker}`,
+      { status: 500 }
     );
   }
 }

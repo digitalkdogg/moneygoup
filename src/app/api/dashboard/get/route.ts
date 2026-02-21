@@ -69,6 +69,6 @@ export async function GET(request: NextRequest) {
 
   } catch (error: any) {
     logger.error("Failed to fetch dashboard data from Yahoo Finance.", error);
-    return createErrorResponse(error, 500);
+    return createErrorResponse(error, 'Failed to fetch dashboard data from Yahoo Finance.', { status: 500 });
   }
 }

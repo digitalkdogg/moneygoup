@@ -203,6 +203,6 @@ export async function GET(
     const message = isDashboardSource ? 'Failed to fetch historical data from database' : 'Failed to fetch historical data from external APIs';
     const status = isDashboardSource && (error instanceof Error && error.message.includes('No historical data found')) ? 404 : 500;
 
-    return createErrorResponse(error, status);
+    return createErrorResponse(error, message, { status });
   }
 }

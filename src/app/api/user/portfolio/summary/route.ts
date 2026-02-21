@@ -61,6 +61,6 @@ export async function GET(request: NextRequest) {
     }, { status: 200 });
   } catch (error: any) {
     logger.error('Error fetching portfolio summary:', error);
-    return createErrorResponse(error, 500);
+    return createErrorResponse(error, 'Error fetching portfolio summary', { status: 500 });
   }
 }

@@ -238,6 +238,6 @@ export async function GET(request: NextRequest) {
 
   } catch (error: any) {
     logger.error("Failed to fetch dashboard data.", error);
-    return createErrorResponse(error, 500);
+    return createErrorResponse(error, 'Failed to fetch dashboard data.', { status: 500 });
   }
 }

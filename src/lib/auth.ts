@@ -15,7 +15,7 @@ export const authOptions: NextAuthOptions = {
         username: { label: 'Username', type: 'text' },
         password: { label: 'Password', type: 'password' },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.username || !credentials.password) {
           logger.warn('Authorization attempt with missing credentials.');
           return null;
@@ -74,7 +74,7 @@ export const authOptions: NextAuthOptions = {
         } catch (error: unknown) {
           logger.error(
             'Database error during authorization:',
-            error instanceof Error ? error : String(error)
+            { error: error instanceof Error ? error : String(error) }
           );
           return null;
         }

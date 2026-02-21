@@ -2,38 +2,33 @@
 
 // Define a simple Logger interface
 interface Logger {
-  info: (message: string, context?: Record<string, any>) => void;
-  warn: (message: string, context?: Record<string, any>) => void;
-  error: (message: string, error?: Error | string, context?: Record<string, any>) => void;
+  info: (message: string, meta?: Record<string, any>) => void;
+  warn: (message: string, meta?: Record<string, any>) => void;
+  error: (message: string, meta?: Record<string, any>) => void;
 }
 
 // Function to create a logger instance for a given module
 export function createLogger(moduleName: string): Logger {
-  const log = (level: string, message: string, ...args: any[]) => {
+  const log = (level: string, message: string, meta?: Record<string, any>) => {
     const timestamp = new Date().toISOString();
-    let context: Record<string, any> = {};
-    let error: Error | string | undefined;
-
-    // Check for an error object as the first arg if level is error
-    if (level === 'ERROR' && args[0] instanceof Error) {
-      error = args.shift(); // Remove error from args
-    } else if (level === 'ERROR' && typeof args[0] === 'string') {
-      error = args.shift(); // Assume it's an error message string
-    }
-
-    // Remaining args are context
-    if (args.length > 0 && typeof args[0] === 'object' && args[0] !== null) {
-      context = args.shift();
-    }
     
-    // Add moduleName and potentially error details to context for structured logging
+    let errorDetails: { message?: string, stack?: string, name?: string } = {};
+    if (meta?.error instanceof Error) {
+      errorDetails = { message: meta.error.message, stack: meta.error.stack, name: meta.error.name };
+      delete meta.error; // Remove error from meta to avoid duplication
+    } else if (typeof meta?.error === 'string') {
+      errorDetails = { message: meta.error };
+      delete meta.error;
+    }
+
+    // Add moduleName to context for structured logging
     const structuredLog = {
       timestamp,
       level,
       module: moduleName,
       message,
-      ...context,
-      ...(error && { error: error instanceof Error ? error.message : error, stack: error instanceof Error ? error.stack : undefined }),
+      ...meta, // Spread all remaining meta properties
+      ...(Object.keys(errorDetails).length > 0 && { error: errorDetails }),
     };
 
     // Output to console (or send to a logging service in a real app)
@@ -53,8 +48,8 @@ export function createLogger(moduleName: string): Logger {
   };
 
   return {
-    info: (message, context) => log('INFO', message, context),
-    warn: (message, context) => log('WARN', message, context),
-    error: (message, error, context) => log('ERROR', message, error, context),
+    info: (message, meta) => log('INFO', message, meta),
+    warn: (message, meta) => log('WARN', message, meta),
+    error: (message, meta) => log('ERROR', message, meta),
   };
 }

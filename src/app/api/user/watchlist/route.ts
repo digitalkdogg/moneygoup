@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ watchlist: watchlistWithMA }, { status: 200 });
   } catch (error: any) {
     logger.error('Error fetching user watchlist:', error);
-    return createErrorResponse(error, 500);
+    return createErrorResponse(error, 'Error fetching user watchlist', { status: 500 });
   }
 }
 
@@ -114,7 +114,7 @@ export const POST = validate(addStockSchema)(
       );
     } catch (dbError: any) {
       logger.error('Database error adding stock to watchlist:', dbError);
-      return createErrorResponse(dbError, 500);
+      return createErrorResponse(dbError, 'Database error adding stock to watchlist', { status: 500 });
     }
   }
 );
@@ -166,6 +166,6 @@ export async function DELETE(request: NextRequest) {
     );
   } catch (dbError: any) {
     logger.error('Database error removing stock from watchlist:', dbError);
-    return createErrorResponse(dbError, 500);
+    return createErrorResponse(dbError, 'Database error removing stock from watchlist', { status: 500 });
   }
 }

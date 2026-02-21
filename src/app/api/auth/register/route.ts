@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     const [existingUsers] = await executeRawQuery('SELECT id FROM users WHERE username = ?', [username]);
     if (Array.isArray(existingUsers) && existingUsers.length > 0) {
       logger.warn('Registration attempt with existing username:', { username });
-      return createErrorResponse('Username already exists', 409);
+      return createErrorResponse(null, 'Username already exists', { status: 409 });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10); // Hash password with salt rounds = 10
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     const insertId = resultHeader.insertId;
 
     if (insertId === undefined || insertId === null) {
-        logger.error('Failed to retrieve insertId after user registration.', undefined, { username });
+        logger.error('Failed to retrieve insertId after user registration.', { username });
         throw new Error('Failed to create user.');
     }
 
@@ -74,9 +74,9 @@ export async function POST(request: NextRequest) {
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       logger.warn('Validation error during registration:', { issues: error.issues });
-      return createErrorResponse(error.issues, 400);
+      return createErrorResponse(error.issues, 'Validation error during registration', { status: 400 });
     }
-    logger.error('Error during user registration:', error instanceof Error ? error : String(error));
-    return createErrorResponse('Failed to register user', 500);
+    logger.error('Error during user registration:', { error: error instanceof Error ? error : String(error) });
+    return createErrorResponse(error, 'Failed to register user', { status: 500 });
   }
 }

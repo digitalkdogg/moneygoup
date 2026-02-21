@@ -164,6 +164,6 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
   } catch (error: unknown) {
     const err = error instanceof Error ? error : new Error(String(error));
     logger.error(`Error fetching earnings data for ${ticker}:`, err);
-    return createErrorResponse(err, 500);
+    return createErrorResponse(err, `Error fetching earnings data for ${ticker}`, { status: 500 });
   }
 }
