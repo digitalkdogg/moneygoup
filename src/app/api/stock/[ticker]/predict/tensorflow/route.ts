@@ -1,156 +1,195 @@
-import { NextResponse } from 'next/server'
-import { spawn } from 'child_process'
-import { promises as fs } from 'fs' // Import promises version of fs
-import path from 'path' // Import path module
-import { randomUUID } from 'crypto';
-import { predictionSemaphore } from '@/utils/predictionQueue';
+// src/app/api/stock/[ticker]/predict/tensorflow/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { checkOrigin } from '@/utils/originCheck';
+import { unauthorizedResponse, createErrorResponse } from '@/utils/errorResponse';
 import { createLogger } from '@/utils/logger';
-import { getServerSession } from 'next-auth'; // Add this import
-import { authOptions } from '@/lib/auth'; // Add this import
-import { predictionLimiter } from '@/utils/rateLimiter'; // Add this import
+import { predictionSemaphore } from '@/utils/predictionQueue';
+import { spawn } from 'child_process';
+import { writeFileSync, unlinkSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { randomUUID } from 'crypto';
 
-const logger = createLogger('api/stock/[ticker]/predict/tensorflow');
+const logger = createLogger('api/stock/predict/tensorflow');
 
-// Optional: Per-ticker cooldown (30 seconds)
+// ---------------------------------------------------------------------------
+// Rate-limiting: track the last prediction time per user+ticker combination.
+//
+// Keys are "${userId}-${ticker}" strings. The map is bounded — on every write
+// we evict entries that are older than COOLDOWN_MS so the map doesn't grow
+// unboundedly over the lifetime of the process. Without eviction, a large
+// number of users each requesting many different tickers would accumulate
+// entries indefinitely in server memory.
+// ---------------------------------------------------------------------------
+const COOLDOWN_MS = 30_000; // 30 seconds between predictions per user+ticker
 const tickerCooldown = new Map<string, number>();
-const COOLDOWN_MS = 30 * 1000; // 30 seconds
 
-// NOTE: This endpoint requires authentication.
-export async function POST( // Changed GET to POST
-  request: Request,
-  { params }: { params: { ticker: string } }
-) {
-  const ticker = params.ticker
-
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-  }
-
-  // --- Rate Limiting for Prediction Endpoint ---
-  const userId = session.user.id;
-  const { allowed, resetInMs } = predictionLimiter.check(userId);
-
-  if (!allowed) {
-    return NextResponse.json(
-      { message: `Too many prediction requests. Please try again in ${Math.ceil(resetInMs / 1000)} seconds.` },
-      { status: 429, headers: { 'Retry-After': String(Math.ceil(resetInMs / 1000)) } }
-    );
-  }
-
-  // --- Per-ticker Cooldown ---
-  const lastPredictionTime = tickerCooldown.get(`${userId}-${ticker}`);
+/**
+ * Records a cooldown timestamp for `key` and evicts all expired entries.
+ *
+ * Eviction runs on every write (O(n) over current map size). The map is
+ * expected to stay small in normal use — entries expire after 30 s, so size
+ * is bounded by (active users × distinct tickers requested in the last 30 s).
+ * The hard cap below provides a backstop for pathological traffic.
+ */
+function setCooldown(key: string): void {
   const now = Date.now();
+  tickerCooldown.set(key, now);
 
-  if (lastPredictionTime && (now - lastPredictionTime < COOLDOWN_MS)) {
-    const remainingCooldown = COOLDOWN_MS - (now - lastPredictionTime);
-    return NextResponse.json(
-      { message: `Please wait ${Math.ceil(remainingCooldown / 1000)} seconds before predicting ${ticker} again.` },
-      { status: 429, headers: { 'Retry-After': String(Math.ceil(remainingCooldown / 1000)) } }
-    );
-  }
-  tickerCooldown.set(`${userId}-${ticker}`, now);
-
-  if (!ticker) {
-    return NextResponse.json({ message: 'Ticker is required' }, { status: 400 })
+  // Evict expired entries so the map stays bounded.
+  // An entry is "expired" once its cooldown window has passed — it no longer
+  // needs to be retained for rate-limit enforcement.
+  for (const [k, timestamp] of tickerCooldown.entries()) {
+    if (now - timestamp > COOLDOWN_MS) {
+      tickerCooldown.delete(k);
+    }
   }
 
-  // Validate ticker against allowed characters to prevent path traversal or command injection
-  const tickerRegex = /^[A-Z0-9.^]{1,10}$/;
-  if (!tickerRegex.test(ticker)) {
-    return NextResponse.json({ message: 'Invalid ticker format' }, { status: 400 });
-  }
-
-  // Concurrency check — reject immediately if at capacity
-  if (predictionSemaphore.isFull()) {
-    return NextResponse.json(
-      { message: 'Prediction service busy. Please try again shortly.' },
-      { status: 503, headers: { 'Retry-After': '10' } }
-    );
-  }
-
-  const tempFilePath = path.join('/tmp', `tf_prediction_input_${randomUUID()}.json`);
-
-  // Determine Python executable path
-  const pythonExecutable = process.env.PYPROCESS_URL || 'python3';
-
-  let killTimer: NodeJS.Timeout | undefined;
-
-  await predictionSemaphore.acquire();
-
-  try {
-    const requestBody = await request.json(); // Read request body
-
-    // Write the request body to a temporary file
-    await fs.writeFile(tempFilePath, JSON.stringify(requestBody));
-
-    const result = await new Promise<NextResponse>((resolve) => {
-      let pythonProcess = spawn(pythonExecutable, [
-        'predict_weighted_analysis.py',
-        ticker,
-        '--input_file', tempFilePath
-      ]);
-
-      // Kill the process after 30 seconds and return a 504
-      killTimer = setTimeout(() => {
-        logger.warn('Prediction process timed out, sending SIGTERM.', { ticker, tempFilePath });
-        pythonProcess.kill('SIGTERM');
-        // Give it 2s to terminate gracefully, then force-kill
-        setTimeout(() => {
-          if (!pythonProcess.killed) {
-            logger.error('Prediction process did not terminate gracefully, sending SIGKILL.', { ticker, tempFilePath });
-            pythonProcess.kill('SIGKILL');
-          }
-        }, 2000);
-        resolve(NextResponse.json(
-          { message: 'Prediction timed out. Please try again.' },
-          { status: 504 }
-        ));
-      }, 30_000); // 30 seconds
-
-      let stdoutData = ''
-      let stderrData = ''
-
-      pythonProcess.stdout.on('data', (chunk) => { stdoutData += chunk; });
-      pythonProcess.stderr.on('data', (chunk) => { stderrData += chunk; });
-
-      pythonProcess.on('close', (code) => {
-        clearTimeout(killTimer); // Clear the timeout if the process closes
-
-        if (code !== 0) {
-          logger.error('Prediction process failed', { code, stderr: stderrData, ticker, tempFilePath });
-          resolve(NextResponse.json({ message: 'Prediction failed' }, { status: 500 }));
-          return;
-        }
-        try {
-          const prediction = JSON.parse(stdoutData);
-          resolve(NextResponse.json(prediction));
-        } catch (e) {
-          logger.error('Failed to parse python script output', { stdout: stdoutData, error: e instanceof Error ? e.message : String(e), ticker, tempFilePath });
-          resolve(NextResponse.json({ message: 'Invalid prediction output' }, { status: 500 }));
-        }
-      });
-
-      pythonProcess.on('error', (err) => {
-        clearTimeout(killTimer); // Clear the timeout if the process errors
-        logger.error('Failed to spawn prediction process', { err, ticker, tempFilePath });
-        resolve(NextResponse.json({ message: 'Prediction unavailable' }, { status: 503 }));
-      });
+  // Hard cap: if eviction still leaves the map very large (e.g. a burst of
+  // unique keys all set in the same second), clear the whole map. All entries
+  // set < 30 s ago would still be within their cooldown window, but a map
+  // of 5 000+ concurrent rate-limited keys indicates abnormal traffic and
+  // the clean slate is safer than unbounded memory growth.
+  if (tickerCooldown.size > 5_000) {
+    logger.warn('tickerCooldown map exceeded 5 000 entries — clearing', {
+      size: tickerCooldown.size,
     });
-
-    return result;
-
-  } catch (e) {
-    logger.error('Error in Next.js API route for prediction', { error: e instanceof Error ? e.message : String(e), ticker });
-    clearTimeout(killTimer); // Clear timer if error occurs before promise is created or resolved
-    return NextResponse.json({ message: 'Error processing prediction request' }, { status: 500 });
-  } finally {
-    predictionSemaphore.release();
-    // Always clean up the temp file — even if spawn threw, even if we timed out
-    await fs.unlink(tempFilePath).catch((fileErr) => {
-      // Ignore if file doesn't exist yet or already deleted
-      logger.warn('Failed to delete temporary file, it might not exist or was already deleted.', { tempFilePath, error: fileErr instanceof Error ? fileErr.message : String(fileErr) });
-    });
+    tickerCooldown.clear();
   }
 }
 
+function isOnCooldown(key: string): boolean {
+  const last = tickerCooldown.get(key);
+  if (last === undefined) return false;
+  return Date.now() - last < COOLDOWN_MS;
+}
+
+// ---------------------------------------------------------------------------
+// Route handler
+// ---------------------------------------------------------------------------
+export async function POST(
+  request: NextRequest,
+  { params }: { params: { ticker: string } }
+) {
+  // 1. Origin check
+  const originCheckResponse = checkOrigin(request);
+  if (originCheckResponse) return originCheckResponse;
+
+  // 2. Auth
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return unauthorizedResponse('Authentication required');
+  }
+
+  const userId = session.user.email;
+
+  // 3. Validate ticker
+  const { ticker } = params;
+  const tickerRegex = /^[A-Z0-9.^]{1,10}$/;
+  if (!tickerRegex.test(ticker)) {
+    return NextResponse.json({ message: 'Invalid ticker symbol' }, { status: 400 });
+  }
+
+  // 4. Per-user+ticker rate limit
+  const cooldownKey = `${userId}-${ticker}`;
+  if (isOnCooldown(cooldownKey)) {
+    const retryAfterMs = COOLDOWN_MS - (Date.now() - (tickerCooldown.get(cooldownKey) ?? 0));
+    return NextResponse.json(
+      { message: `Please wait ${Math.ceil(retryAfterMs / 1000)} seconds before requesting another prediction for ${ticker}.` },
+      { status: 429 }
+    );
+  }
+
+  // 5. Concurrency limit — check before acquiring the slot
+  if (predictionSemaphore.isFull()) {
+    return NextResponse.json(
+      { message: 'Prediction service is busy. Please try again in a moment.' },
+      { status: 503 }
+    );
+  }
+
+  // 6. Record cooldown before spawning (prevents double-submit races)
+  setCooldown(cooldownKey);
+
+  // 7. Acquire semaphore slot, run prediction, release on completion
+  const tempFile = join(tmpdir(), `tf_prediction_input_${randomUUID()}.json`);
+
+  await predictionSemaphore.acquire();
+  try {
+    const body = await request.json();
+
+    // Write input data to temp file.
+    // Ticker is NOT included in the JSON — the Python script reads it from
+    // the CLI positional argument, not from the file.
+    writeFileSync(tempFile, JSON.stringify(body));
+
+    // Python script CLI signature (predict_weighted_analysis.py argparse):
+    //   python3 predict_weighted_analysis.py <ticker> --input_file <path>
+    const result = await runPythonPrediction(ticker, tempFile);
+    return NextResponse.json(result);
+  } catch (error) {
+    logger.error('Prediction failed', {
+      ticker,
+      error: error instanceof Error ? error : String(error),
+    });
+    return createErrorResponse(error, 'Prediction failed', { status: 500 });
+  } finally {
+    predictionSemaphore.release();
+    // Always clean up the temp file, even if the process was interrupted
+    try {
+      unlinkSync(tempFile);
+    } catch {
+      // File may not exist if writeFileSync failed — ignore
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Spawn the Python prediction process and return its parsed JSON output.
+// ---------------------------------------------------------------------------
+function runPythonPrediction(ticker: string, inputFile: string): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const python = spawn(
+      'python3',
+      ['predict_weighted_analysis.py', ticker, '--input_file', inputFile],
+      {
+        cwd: process.cwd(),
+        env: { ...process.env },
+      }
+    );
+
+    let stdout = '';
+    let stderr = '';
+
+    python.stdout.on('data', (data: Buffer) => { stdout += data.toString(); });
+    python.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
+
+    python.on('close', (code) => {
+      if (code !== 0) {
+        logger.error('Python process exited with non-zero code', {
+          code,
+          ticker,
+          stderr: stderr.substring(0, 500),
+        });
+        reject(new Error(`Prediction process failed (exit code ${code})`));
+        return;
+      }
+
+      try {
+        resolve(JSON.parse(stdout));
+      } catch {
+        logger.error('Failed to parse Python output', {
+          ticker,
+          stdout: stdout.substring(0, 500),
+        });
+        reject(new Error('Prediction process returned invalid JSON'));
+      }
+    });
+
+    python.on('error', (err) => {
+      reject(new Error(`Failed to start prediction process: ${err.message}`));
+    });
+  });
+}

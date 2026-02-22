@@ -5,7 +5,7 @@ describe('AsyncSemaphore', () => {
     const maxConcurrency = 3;
     const semaphore = new AsyncSemaphore(maxConcurrency);
     let runningCount = 0;
-    const promises = [];
+    let promises: Promise<void>[] = [];
 
     // Acquire up to maxConcurrency
     for (let i = 0; i < maxConcurrency; i++) {
@@ -22,6 +22,7 @@ describe('AsyncSemaphore', () => {
     const semaphore = new AsyncSemaphore(maxConcurrency);
     let runningCount = 0;
     const acquisitionOrder: number[] = [];
+    let promises: Promise<void>[] = []; // Correct declaration here
 
     // Acquire maxConcurrency slots
     const releaseFunctions: (() => void)[] = [];
@@ -38,6 +39,7 @@ describe('AsyncSemaphore', () => {
       // Create a function to release this specific acquisition
       releaseFunctions.push(() => {
         semaphore.release();
+        runningCount--; // Decrement runningCount when a slot is released
       });
     }
 

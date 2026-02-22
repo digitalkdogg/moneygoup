@@ -2,158 +2,194 @@
 import { getDbConnection } from './db';
 import mysql from 'mysql2/promise';
 
-// Define a set of allowed table names to prevent SQL injection
+// Allowlist of tables this helper is permitted to touch.
+// If a caller passes a table name not in this set, the query is rejected
+// before it reaches the database — preventing injection if this helper is
+// ever refactored to accept user-influenced input.
 const ALLOWED_TABLES = new Set([
-  'stocks', 'user_stocks', 'users', 'stocksdailyprice', 'news', 'user_stock_news'
+  'stocks',
+  'user_stocks',
+  'users',
+  'stocksdailyprice',
+  'news',
+  'user_stock_news',
 ]);
 
 /**
- * Asserts that the provided table name is valid and allowed.
- * Throws an error if the table name is not in the ALLOWED_TABLES set.
- * @param tableName The table name to validate.
+ * Validates that a table name is in the explicit allowlist.
  */
 function assertValidTable(tableName: string): void {
   if (!ALLOWED_TABLES.has(tableName)) {
-    throw new Error(`Invalid or disallowed table name: ${tableName}`);
+    throw new Error(`Invalid or disallowed table name: "${tableName}"`);
   }
 }
 
 /**
- * Asserts that the provided column name is valid.
- * Throws an error if the column name does not match the expected regex pattern.
- * @param columnName The column name to validate.
+ * Validates that a column name contains only safe characters.
+ * Allows letters, digits, and underscores — no spaces, quotes, or operators.
  */
 function assertValidColumnName(columnName: string): void {
   const columnNameRegex = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
   if (!columnNameRegex.test(columnName)) {
-    throw new Error(`Invalid column name: ${columnName}`);
+    throw new Error(`Invalid column name: "${columnName}"`);
   }
 }
 
 /**
- * Executes a database operation within a try-finally block to ensure connection release.
- * @param operation The database operation to execute with the connection.
- * @returns The result of the operation.
+ * Validates the full ORDER BY clause — not just the first word.
+ *
+ * IMPORTANT: A previous version only validated `orderBy.split(' ')[0]`, which
+ * allowed injection via payloads like "name ASC; DROP TABLE stocks--" where
+ * "name" passes the column check but the rest is raw SQL. This version
+ * validates the entire string against a strict pattern.
+ *
+ * Accepted formats:
+ *   "column_name"           e.g. "date"
+ *   "column_name ASC"       e.g. "price ASC"
+ *   "column_name DESC"      e.g. "created_at DESC"
+ *
+ * All current call sites of select() pass hardcoded string literals for
+ * orderBy, so this pattern covers every legitimate use in the codebase.
+ * If you need multi-column or expression-based ORDER BY, use executeRawQuery
+ * with a fully static SQL string instead.
  */
-async function executeDbOperation<T>(operation: (connection: mysql.PoolConnection) => Promise<T>): Promise<T> {
-  let poolConnection: mysql.PoolConnection | null = null;
-  let pool: mysql.Pool | null = null;
+function assertValidOrderBy(orderBy: string): void {
+  const orderByRegex = /^[a-zA-Z_][a-zA-Z0-9_]*(\s+(ASC|DESC))?$/i;
+  if (!orderByRegex.test(orderBy.trim())) {
+    throw new Error(
+      `Invalid ORDER BY clause: "${orderBy}". ` +
+        'Must be a single column name with an optional ASC or DESC direction.'
+    );
+  }
+}
+
+/**
+ * Acquires a connection from the pool, runs the operation, then releases it.
+ */
+async function withConnection<T>(
+  operation: (connection: mysql.PoolConnection) => Promise<T>
+): Promise<T> {
+  const pool = await getDbConnection();
+  const connection = await pool.getConnection();
   try {
-    pool = await getDbConnection();
-    poolConnection = await pool.getConnection();
-    return await operation(poolConnection);
+    return await operation(connection);
   } finally {
-    if (poolConnection) {
-      poolConnection.release();
-    }
+    connection.release();
   }
 }
 
+// ---------------------------------------------------------------------------
+// Public helpers
+// ---------------------------------------------------------------------------
+
 /**
- * Inserts a new record into the specified table.
- * @param tableName The name of the table.
- * @param data An object where keys are column names and values are the data to insert.
- * @returns The insert ID of the new record.
+ * Inserts a row into `tableName`. Returns the auto-increment insert ID.
  */
-export async function insert(tableName: string, data: Record<string, any>): Promise<number> {
+export async function insert(
+  tableName: string,
+  data: Record<string, unknown>
+): Promise<number> {
   assertValidTable(tableName);
   Object.keys(data).forEach(assertValidColumnName);
-  return executeDbOperation(async (connection) => {
+
+  return withConnection(async (conn) => {
     const columns = Object.keys(data).join(', ');
     const placeholders = Object.keys(data).map(() => '?').join(', ');
     const values = Object.values(data);
-
     const query = `INSERT INTO ${tableName} (${columns}) VALUES (${placeholders})`;
-    const [result] = await (connection as any).execute(query, values);
-    return (result as mysql.ResultSetHeader).insertId;
+    const [result] = await conn.execute<mysql.ResultSetHeader>(query, values);
+    return result.insertId;
   });
 }
 
 /**
- * Inserts a new record or updates an existing one if a duplicate key is found.
- * @param tableName The name of the table.
- * @param data An object where keys are column names and values are the data to insert or update.
- * @param uniqueKeys An array of column names that form the unique key to check for duplicates.
- * @returns The insert ID of the new record or 0 if an update occurred.
+ * Inserts a row or updates it on duplicate key. Returns the insert ID (or 0
+ * when an existing row was updated).
  */
-export async function upsert(tableName: string, data: Record<string, any>, uniqueKeys: string[]): Promise<number | void> {
+export async function upsert(
+  tableName: string,
+  data: Record<string, unknown>,
+  uniqueKeys: string[]
+): Promise<number> {
   assertValidTable(tableName);
   Object.keys(data).forEach(assertValidColumnName);
   uniqueKeys.forEach(assertValidColumnName);
-  return executeDbOperation(async (connection) => {
+
+  return withConnection(async (conn) => {
     const columns = Object.keys(data).join(', ');
     const placeholders = Object.keys(data).map(() => '?').join(', ');
     const values = Object.values(data);
 
-    const updateSetClause = Object.keys(data)
-      .filter(key => !uniqueKeys.includes(key)) // Don't update unique keys themselves
-      .map(key => `${key} = VALUES(${key})`)
-      .join(', ');
+    const updateCols = Object.keys(data).filter((k) => !uniqueKeys.includes(k));
+    const updateClause =
+      updateCols.length > 0
+        ? updateCols.map((k) => `${k} = VALUES(${k})`).join(', ')
+        : `${uniqueKeys[0]} = VALUES(${uniqueKeys[0]})`; // no-op fallback
 
-    let query = `INSERT INTO ${tableName} (${columns}) VALUES (${placeholders})`;
+    const query =
+      `INSERT INTO ${tableName} (${columns}) VALUES (${placeholders}) ` +
+      `ON DUPLICATE KEY UPDATE ${updateClause}`;
 
-    if (updateSetClause) {
-      query += ` ON DUPLICATE KEY UPDATE ${updateSetClause}`;
-    } else {
-      // If only unique keys are provided in data, and no other fields to update,
-      // we still need an ON DUPLICATE KEY UPDATE clause to avoid an error.
-      // A common practice is to update one of the unique keys to its own value,
-      // or simply update a non-unique field to its own value if one exists.
-      // For simplicity, we'll just update one of the unique keys to itself.
-      query += ` ON DUPLICATE KEY UPDATE ${uniqueKeys[0]} = VALUES(${uniqueKeys[0]})`;
-    }
-
-    const [result] = await (connection as any).execute(query, values);
-    return (result as mysql.ResultSetHeader).insertId;
+    const [result] = await conn.execute<mysql.ResultSetHeader>(query, values);
+    return result.insertId;
   });
 }
 
 /**
- * Updates records in the specified table.
- * @param tableName The name of the table.
- * @param data An object where keys are column names and values are the data to update.
- * @param conditions An object where keys are column names and values are the conditions for the update.
- * @returns The number of affected rows.
+ * Updates rows in `tableName` matching `conditions`. Returns affected row count.
  */
-export async function update(tableName: string, data: Record<string, any>, conditions: Record<string, any>): Promise<number> {
+export async function update(
+  tableName: string,
+  data: Record<string, unknown>,
+  conditions: Record<string, unknown>
+): Promise<number> {
   assertValidTable(tableName);
   Object.keys(data).forEach(assertValidColumnName);
   Object.keys(conditions).forEach(assertValidColumnName);
-  return executeDbOperation(async (connection) => {
-    const setClause = Object.keys(data).map(key => `${key} = ?`).join(', ');
-    const whereClause = Object.keys(conditions).map(key => `${key} = ?`).join(' AND ');
-    const values = [...Object.values(data), ...Object.values(conditions)];
 
+  return withConnection(async (conn) => {
+    const setClause = Object.keys(data).map((k) => `${k} = ?`).join(', ');
+    const whereClause = Object.keys(conditions).map((k) => `${k} = ?`).join(' AND ');
+    const values = [...Object.values(data), ...Object.values(conditions)];
     const query = `UPDATE ${tableName} SET ${setClause} WHERE ${whereClause}`;
-    const [result] = await (connection as any).execute(query, values);
-    return (result as mysql.ResultSetHeader).affectedRows;
+    const [result] = await conn.execute<mysql.ResultSetHeader>(query, values);
+    return result.affectedRows;
   });
 }
 
 /**
- * Selects records from the specified table.
- * @param tableName The name of the table.
- * @param conditions An optional object for WHERE clause conditions.
- * @param orderBy An optional string for the ORDER BY clause.
- * @param limit An optional number for the LIMIT clause.
- * @returns An array of selected records.
+ * Selects rows from `tableName`.
+ *
+ * @param tableName  Table to query (must be in ALLOWED_TABLES).
+ * @param conditions Optional WHERE conditions — all parameterized.
+ * @param orderBy    Optional single-column ORDER BY, e.g. "created_at DESC".
+ *                   The full string is validated against a strict allowlist
+ *                   pattern. Multi-column sorts are not supported here — use
+ *                   executeRawQuery for those.
+ * @param limit      Optional LIMIT value.
  */
-export async function select(tableName: string, conditions?: Record<string, any>, orderBy?: string, limit?: number): Promise<any[]> {
+export async function select(
+  tableName: string,
+  conditions?: Record<string, unknown>,
+  orderBy?: string,
+  limit?: number
+): Promise<mysql.RowDataPacket[]> {
   assertValidTable(tableName);
-  if (conditions) {
-    Object.keys(conditions).forEach(assertValidColumnName);
-  }
-  if (orderBy) {
-    // Basic validation for orderBy, assuming single column name
-    // This will only check the first word if it contains ASC/DESC
-    assertValidColumnName(orderBy.split(' ')[0]); 
-  }
-  return executeDbOperation(async (connection) => {
+  if (conditions) Object.keys(conditions).forEach(assertValidColumnName);
+
+  // Validate the FULL orderBy string — not just the first word.
+  // Validating only orderBy.split(' ')[0] would allow payloads like
+  // "name ASC; DROP TABLE stocks--" to slip through.
+  if (orderBy) assertValidOrderBy(orderBy);
+
+  return withConnection(async (conn) => {
+    const values: unknown[] = [];
     let query = `SELECT * FROM ${tableName}`;
-    const values: any[] = [];
 
     if (conditions && Object.keys(conditions).length > 0) {
-      const whereClause = Object.keys(conditions).map(key => `${key} = ?`).join(' AND ');
+      const whereClause = Object.keys(conditions)
+        .map((k) => `${k} = ?`)
+        .join(' AND ');
       query += ` WHERE ${whereClause}`;
       values.push(...Object.values(conditions));
     }
@@ -167,110 +203,62 @@ export async function select(tableName: string, conditions?: Record<string, any>
       values.push(limit);
     }
 
-    const [rows] = await (connection as any).execute(query, values);
-    return rows as any[];
+    const [rows] = await conn.execute<mysql.RowDataPacket[]>(query, values);
+    return rows;
   });
 }
 
 /**
- * Deletes records from the specified table.
- * @param tableName The name of the table.
- * @param conditions An object where keys are column names and values are the conditions for deletion.
- * @returns The number of affected rows.
+ * Deletes rows from `tableName` matching `conditions`. Returns affected row count.
  */
-export async function remove(tableName: string, conditions: Record<string, any>): Promise<number> {
+export async function remove(
+  tableName: string,
+  conditions: Record<string, unknown>
+): Promise<number> {
   assertValidTable(tableName);
   Object.keys(conditions).forEach(assertValidColumnName);
-  return executeDbOperation(async (connection) => {
-    const whereClause = Object.keys(conditions).map(key => `${key} = ?`).join(' AND ');
+
+  return withConnection(async (conn) => {
+    const whereClause = Object.keys(conditions).map((k) => `${k} = ?`).join(' AND ');
     const values = Object.values(conditions);
-
     const query = `DELETE FROM ${tableName} WHERE ${whereClause}`;
-    const [result] = await (connection as any).execute(query, values);
-    return (result as mysql.ResultSetHeader).affectedRows;
+    const [result] = await conn.execute<mysql.ResultSetHeader>(query, values);
+    return result.affectedRows;
   });
 }
 
 /**
- * Heuristic check for obvious SQL injection patterns.
- * Not a complete parser — just a last-resort safety net.
- * Real protection comes from always using parameterized queries.
+ * Executes a raw parameterized query. Use when the helpers above are not
+ * expressive enough (e.g. JOINs, multi-column ORDER BY, subqueries).
+ *
+ * The `params` array is required — pass [] if the query has no bind values.
+ * Never interpolate user input into `sql` directly.
  */
-function assertNoInterpolation(sql: string): void {
-  // These patterns strongly suggest user input was interpolated directly
-  const suspiciousPatterns = [
-    // Unquoted literals that look like they came from string concat
-    /WHERE\s+\w+\s*=\s*\d+(?!\s*\?)/i,     // WHERE id = 42  (should be WHERE id = ?)
-    /WHERE\s+\w+\s*=\s*'[^']*'/i,          // WHERE name = 'alice'  (should use ?)
-    /IN\s*\(\s*(?!')\d/i,                   // IN (1, 2, 3)  (should be IN (?, ?, ?))
-    // /LIMIT\s+\d+\s+OFFSET\s+\d+/i,      // LIMIT 10 OFFSET 0  (acceptable — these are usually safe)
-  ];
-
-  const isDevOrTest = process.env.NODE_ENV !== 'production';
-
-  for (const pattern of suspiciousPatterns.slice(0, 3)) {
-    if (pattern.test(sql)) {
-      const message = [
-        '[databaseHelper] Possible SQL injection: literal value detected in query.',
-        'Use parameterized queries: executeRawQuery("... WHERE id = ?", [id])',
-        `Offending query: ${sql.substring(0, 200)}`,
-      ].join('\\n');
-
-      if (isDevOrTest) {
-        throw new Error(message);   // Hard fail in dev — forces immediate fix
-      } else {
-        // Assuming `logger` is available globally or imported
-        // If not, a simple console.error could be used or `logger` needs to be imported/created
-        console.error(message);        // Log in prod, then fall through to block
-        throw new Error('Query rejected due to security policy');
-      }
-    }
-  }
+export async function executeRawQuery(
+  sql: string,
+  params: readonly unknown[]
+): Promise<[mysql.RowDataPacket[] | mysql.ResultSetHeader, mysql.FieldPacket[]]> {
+  return withConnection((conn) => conn.execute(sql, params));
 }
 
 /**
- * Executes a raw SQL query. Use with caution.
- * @param sql The raw SQL query string.
- * @param params Required array of values to bind to the query. Pass [] if no values.
- * @returns The result of the query.
+ * Wraps multiple operations in a database transaction.
+ * Rolls back automatically if the callback throws.
  */
-export async function executeRawQuery(sql: string, params: readonly unknown[]): Promise<[mysql.RowDataPacket[] | mysql.ResultSetHeader, mysql.FieldPacket[]]> {
-  assertNoInterpolation(sql);
-  return executeDbOperation(async (connection) => {
-    return await connection.execute(sql, params);
-  });
-}
-
-/**
- * Use this ONLY for queries with no user-influenced values whatsoever.
- * The name is intentional — it makes the choice visible in code review.
- * If you're unsure whether to use this, use executeRawQuery with params.
- */
-export async function executeStaticQuery(sql: string): Promise<[mysql.RowDataPacket[] | mysql.ResultSetHeader, mysql.FieldPacket[]]> {
-  return executeDbOperation(async (connection) => {
-    return await connection.execute(sql);
-  });
-}
-
-// Transaction helper
-export async function transaction<T>(callback: (connection: mysql.PoolConnection) => Promise<T>): Promise<T> {
-  let poolConnection: mysql.PoolConnection | null = null;
-  let pool: mysql.Pool | null = null;
+export async function transaction<T>(
+  callback: (connection: mysql.PoolConnection) => Promise<T>
+): Promise<T> {
+  const pool = await getDbConnection();
+  const connection = await pool.getConnection();
   try {
-    pool = await getDbConnection();
-    poolConnection = await pool.getConnection();
-    await poolConnection.beginTransaction();
-    const result = await callback(poolConnection);
-    await poolConnection.commit();
+    await connection.beginTransaction();
+    const result = await callback(connection);
+    await connection.commit();
     return result;
   } catch (error) {
-    if (poolConnection) {
-      await poolConnection.rollback();
-    }
+    await connection.rollback();
     throw error;
   } finally {
-    if (poolConnection) {
-      poolConnection.release();
-    }
+    connection.release();
   }
 }
