@@ -53,7 +53,17 @@ export default function Navigation() {
                   onClick={() => setIsMenuOpen(!isMenuOpen)}
                   className="flex items-center justify-center h-9 w-9 rounded-full bg-green-800 text-white font-bold text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600"
                 >
-                  {session.user.name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2)}
+                  {
+                    (session.user.name ?? '')
+                      .trim()
+                      .split(/\\s+/)                          // split on any whitespace
+                      .map(n => n[0] ?? '')                  // first char of each word
+                      .filter(c => /[A-Za-z0-9]/.test(c))   // ASCII only — consistent rendering
+                      .join('')
+                      .toUpperCase()
+                      .substring(0, 2)                       // max 2 chars
+                      || '?'                                // fallback for empty/non-ASCII names
+                  }
                 </button>
 
                 {isMenuOpen && (

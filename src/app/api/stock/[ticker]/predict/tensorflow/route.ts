@@ -5,15 +5,22 @@ import path from 'path' // Import path module
 import { randomUUID } from 'crypto';
 import { predictionSemaphore } from '@/utils/predictionQueue';
 import { createLogger } from '@/utils/logger';
+import { getServerSession } from 'next-auth'; // Add this import
+import { authOptions } from '@/lib/auth'; // Add this import
 
 const logger = createLogger('api/stock/[ticker]/predict/tensorflow');
 
-
+// NOTE: This endpoint requires authentication.
 export async function POST( // Changed GET to POST
   request: Request,
   { params }: { params: { ticker: string } }
 ) {
   const ticker = params.ticker
+
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+  }
 
   if (!ticker) {
     return NextResponse.json({ message: 'Ticker is required' }, { status: 400 })

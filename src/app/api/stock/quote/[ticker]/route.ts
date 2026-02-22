@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createLogger } from '@/utils/logger';
 import { createErrorResponse } from '@/utils/errorResponse';
 import { checkOrigin } from '@/utils/originCheck';
+import { getServerSession } from 'next-auth'; // Add this import
+import { authOptions } from '@/lib/auth'; // Add this import
 
 const logger = createLogger('api/stock/quote/[ticker]');
 
+// NOTE: This endpoint requires authentication.
 export async function GET(
   request: NextRequest,
   { params }: { params: { ticker: string } }
@@ -12,6 +15,11 @@ export async function GET(
   const originCheckResponse = checkOrigin(request);
   if (originCheckResponse) {
     return originCheckResponse;
+  }
+
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
 
   const { ticker } = params;

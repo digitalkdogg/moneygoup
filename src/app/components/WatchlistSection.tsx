@@ -35,7 +35,9 @@ interface WatchlistSectionProps {
 export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null); // Keep this existing error state
+  const [pendingDeleteTicker, setPendingDeleteTicker] = useState<string | null>(null); // Corrected
+  const [deleteError, setDeleteError] = useState<string | null>(null); // Corrected
   const [selectedStock, setSelectedStock] = useState<WatchlistItem | null>(null);
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   const router = useRouter();
@@ -77,13 +79,14 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
     setShowPurchaseModal(true);
   };
 
-  const handleRemove = async (stock: WatchlistItem) => {
-    if (!confirm(`Remove ${stock.symbol} from watchlist?`)) {
-      return;
-    }
+  const handleRemoveClick = (stock: WatchlistItem) => {
+    setPendingDeleteTicker(stock.symbol); // Opens the confirm modal
+  };
 
+  const handleConfirmRemove = async () => {
+    if (!pendingDeleteTicker) return;
     try {
-      const response = await fetch(`/api/user/watchlist?stockId=${stock.symbol}`, {
+      const response = await fetch(`/api/user/watchlist?stockId=${pendingDeleteTicker}`, {
         method: 'DELETE',
       });
 
@@ -91,12 +94,17 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
         throw new Error('Failed to remove from watchlist');
       }
 
-      setWatchlist(watchlist.filter(s => s.stock_id !== stock.stock_id));
+      setWatchlist(watchlist.filter(s => s.symbol !== pendingDeleteTicker));
+      setDeleteError(null);
+      fetchWatchlist(); // Refresh the watchlist after successful deletion
+      onRefresh?.();
     } catch (err: any) {
-      alert(`Error: ${err.message}`);
+      setDeleteError('Failed to remove from watchlist. Please try again.');
+    } finally {
+      setPendingDeleteTicker(null); // Close modal regardless
     }
   };
-
+  
   const handleModalClose = () => {
     setSelectedStock(null);
     setShowPurchaseModal(false);
@@ -134,7 +142,7 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
             Add to Portfolio
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); handleRemove(row); }}
+            onClick={(e) => { e.stopPropagation(); handleRemoveClick(row); }}
             className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500 transition-colors cursor-pointer font-semibold text-sm"
           >
             Remove
@@ -146,6 +154,13 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
 
   return (
     <>
+      {deleteError && (
+        <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-700 mb-4">
+          {deleteError}
+          <button className="ml-2 underline" onClick={() => setDeleteError(null)}>Dismiss</button>
+        </div>
+      )}
+
       <StockTable<WatchlistItem>
         title="My Watchlist"
         icon="👀"
@@ -159,6 +174,25 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
 
       {showPurchaseModal && selectedStock && (
         <PurchaseFromWatchlistModal stock={selectedStock} onClose={handleModalClose} />
+      )}
+
+      {pendingDeleteTicker && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full shadow-xl">
+            <h3 className="font-semibold text-gray-900 mb-2">Remove from watchlist?</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Remove <strong>{pendingDeleteTicker}</strong> from your watchlist?
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button className="px-4 py-2 text-sm rounded border" onClick={() => setPendingDeleteTicker(null)}>
+                Cancel
+              </button>
+              <button className="px-4 py-2 text-sm rounded bg-red-600 text-white" onClick={handleConfirmRemove}>
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

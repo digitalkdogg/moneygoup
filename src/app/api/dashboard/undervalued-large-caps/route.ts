@@ -2,13 +2,22 @@ import { createLogger } from '@/utils/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import YahooFinance from 'yahoo-finance2';
 import { checkOrigin } from '@/utils/originCheck';
+import { getServerSession } from 'next-auth'; // Add this import
+import { authOptions } from '@/lib/auth'; // Add this import
 
 const logger = createLogger('api/dashboard/undervalued-large-caps');
 const yahooFinance = new YahooFinance();
+
+// NOTE: This endpoint requires authentication.
 export async function GET(request: NextRequest) {
   const originCheckResponse = checkOrigin(request);
   if (originCheckResponse) {
     return originCheckResponse;
+  }
+
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
   try {
     const undervalued = await yahooFinance.screener("undervalued_large_caps");

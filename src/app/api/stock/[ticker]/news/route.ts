@@ -4,10 +4,13 @@ import Sentiment from 'sentiment';
 import { createLogger } from '@/utils/logger';
 import { checkOrigin } from '@/utils/originCheck';
 import YahooFinance from 'yahoo-finance2'; // Import YahooFinance
+import { getServerSession } from 'next-auth'; // Add this import
+import { authOptions } from '@/lib/auth'; // Add this import
 
 const logger = createLogger('api/stock/[ticker]/news');
 const yahooFinance = new YahooFinance(); // Initialize YahooFinance
 
+// NOTE: This endpoint requires authentication.
 export async function GET(
   request: NextRequest,
   { params }: { params: { ticker: string } }
@@ -15,6 +18,11 @@ export async function GET(
   const originCheckResponse = checkOrigin(request);
   if (originCheckResponse) {
     return originCheckResponse;
+  }
+
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
 
   // Normalize input to array

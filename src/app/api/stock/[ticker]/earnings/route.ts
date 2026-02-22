@@ -3,16 +3,24 @@ import { createLogger } from '@/utils/logger';
 import { checkOrigin } from '@/utils/originCheck';
 import YahooFinance from 'yahoo-finance2';
 import { createErrorResponse } from '@/utils/errorResponse';
+import { getServerSession } from 'next-auth'; // Add this import
+import { authOptions } from '@/lib/auth'; // Add this import
 
 const logger = createLogger('api/stock/[ticker]/earnings');
 
 // Declare yahooFinance outside to potentially reuse, but initialize inside GET for testing
 let yahooFinanceInstance: InstanceType<typeof YahooFinance> | null = null;
 
+// NOTE: This endpoint requires authentication.
 export async function GET(request: NextRequest, { params }: { params: { ticker: string } }) {
   const originCheckResponse = checkOrigin(request);
   if (originCheckResponse) {
     return originCheckResponse;
+  }
+
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
 
   const { ticker } = params;
@@ -23,7 +31,6 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
 
   // Initialize yahooFinance if it hasn't been already
   if (!yahooFinanceInstance) {
-    logger.info("Initializing yahooFinance instance within GET function.");
     yahooFinanceInstance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
   }
 
@@ -31,7 +38,6 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
     const quoteSummary = await yahooFinanceInstance.quoteSummary(ticker, { modules: ['earnings'] });
 
     const earningsData = quoteSummary.earnings;
-    logger.info("Raw earnings data for debugging:", earningsData);
 
     if (!earningsData || (!earningsData.financialsChart && !earningsData.earningsChart)) {
       return NextResponse.json({

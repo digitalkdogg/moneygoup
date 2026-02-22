@@ -13,44 +13,56 @@ const yahooFinance = new YahooFinance();
 const logger = createLogger('api/stock/[ticker]');
 
 async function fetchCompanyNameFromSec(ticker: string): Promise<string | null> {
-  // Check cache first
-  const cachedData = secCompanyCache.get('sec_tickers');
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5_000); // 5-second timeout
 
-  let secCompanyData = cachedData;
+  try {
+    // Check cache first
+    const cachedData = secCompanyCache.get('sec_tickers');
 
-  if (!secCompanyData) {
-    try {
-      const res = await fetch('https://www.sec.gov/files/company_tickers.json');
+    let secCompanyData = cachedData;
+
+    if (!secCompanyData) {
+      const res = await fetch('https://www.sec.gov/files/company_tickers.json', {
+        signal: controller.signal,
+      });
+
       if (!res.ok) {
-        console.error('Failed to fetch company_tickers.json from SEC:', res.status, res.statusText);
+        logger.warn(`Failed to fetch company_tickers.json from SEC: ${res.status} ${res.statusText}`, { ticker });
         return null;
       }
       secCompanyData = await res.json();
       if (!secCompanyData) {
-        console.error('SEC company_tickers.json is empty or invalid');
+        logger.warn('SEC company_tickers.json is empty or invalid', { ticker });
         return null;
       }
       // Cache for 24 hours (default for secCompanyCache)
       secCompanyCache.set('sec_tickers', secCompanyData);
-    } catch (error) {
-      console.error('Error fetching or parsing company_tickers.json from SEC:', error);
-      return null;
     }
-  }
 
-  if (secCompanyData) {
-    // The SEC JSON is an object with keys "0", "1", "2", ...
-    // Each value is an object { cik_str, ticker, title }
-    for (const key in secCompanyData) {
-      if (Object.prototype.hasOwnProperty.call(secCompanyData, key)) {
-        const company = secCompanyData[key];
-        if (company.ticker === ticker) {
-          return company.title;
+    if (secCompanyData) {
+      // The SEC JSON is an object with keys "0", "1", "2", ...
+      // Each value is an object { cik_str, ticker, title }
+      for (const key in secCompanyData) {
+        if (Object.prototype.hasOwnProperty.call(secCompanyData, key)) {
+          const company = secCompanyData[key];
+          if (company.ticker === ticker) {
+            return company.title;
+          }
         }
       }
     }
+    return null;
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      logger.warn('SEC ticker fetch timed out — proceeding without company name', { ticker });
+      return null;
+    }
+    logger.error('Error fetching or parsing company_tickers.json from SEC:', { error: err, ticker });
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return null;
 }
 
 async function fetchFromDatabase(ticker: string) {
@@ -243,9 +255,15 @@ async function fetchFromExternalAPIs(tickers: string | string[]) {
 
 
 // The new GET handler, modified from get/route.ts
+// NOTE: This endpoint requires authentication.
 export async function GET(request: NextRequest, { params }: { params: { ticker: string } }) {
   const originCheckResponse = checkOrigin(request)
   if (originCheckResponse) return originCheckResponse
+
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+  }
 
   const tickerString = params.ticker.toUpperCase()
   const tickerArray = tickerString.split(',').map(t => t.trim())
@@ -254,12 +272,12 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
 
   try {
     // 1. Fetch historical data for all tickers in a single call
-    const histAllTickersPromise = fetch(`${origin}/api/stock/${tickerString}/historical/1y`);
+    const histAllTickersPromise = fetch(`${origin}/api/stock/${tickerString}/historical/1y`, { headers: { 'Cookie': request.headers.get('Cookie') || '' } });
     const histAllTickersRes = await histAllTickersPromise;
     const histAllTickersJson = histAllTickersRes.ok ? await histAllTickersRes.json() : { historicalData: {}, error: `Failed to fetch historical for all tickers: ${histAllTickersRes.status}` };
 
     // 2. Fetch news data for all tickers in a single call
-    const newsAllTickersPromise = fetch(`${origin}/api/stock/${tickerString}/news`);
+    const newsAllTickersPromise = fetch(`${origin}/api/stock/${tickerString}/news`, { headers: { 'Cookie': request.headers.get('Cookie') || '' } });
     const newsAllTickersRes = await newsAllTickersPromise;
     const newsAllTickersJson = newsAllTickersRes.ok ? await newsAllTickersRes.json() : { articles: {}, error: `Failed to fetch news for all tickers: ${newsAllTickersRes.status}` };
 

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import YahooFinance from 'yahoo-finance2';
 import { createLogger } from '@/utils/logger';
 import { checkOrigin } from '@/utils/originCheck';
+import { getServerSession } from 'next-auth'; // Add this import
+import { authOptions } from '@/lib/auth'; // Add this import
 
 const logger = createLogger('api/dashboard/recommended-stocks');
 const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
@@ -22,10 +24,16 @@ interface RecommendedStocksResponse {
   insiderActivity: RecommendedStock[];
 }
 
+// NOTE: This endpoint requires authentication.
 export async function GET(request: NextRequest) {
   const originCheckResponse = checkOrigin(request);
   if (originCheckResponse) {
     return originCheckResponse;
+  }
+
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
 
   try {
@@ -80,7 +88,7 @@ export async function GET(request: NextRequest) {
           };
         } catch (error) {
           console.error(`Failed to fetch data for ${stock.symbol}:`, error instanceof Error ? error.message : String(error));
-          return null;
+          throw error; // Re-throw the error to be caught by the outer block
         }
       })
     );

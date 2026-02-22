@@ -3,6 +3,8 @@ import { executeRawQuery } from '@/utils/databaseHelper'
 import YahooFinance from 'yahoo-finance2';
 import { createErrorResponse } from '@/utils/errorResponse';
 import { checkOrigin } from '@/utils/originCheck';
+import { getServerSession } from 'next-auth'; // Add this import
+import { authOptions } from '@/lib/auth'; // Add this import
 
 const yahooFinance = new YahooFinance();
 
@@ -155,6 +157,7 @@ async function fetchFromExternalAPIs(tickers: string | string[], startDate: stri
   }
 }
 
+// NOTE: This endpoint requires authentication.
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ ticker: string; period: string }> }
@@ -162,6 +165,11 @@ export async function GET(
   const originCheckResponse = checkOrigin(request);
   if (originCheckResponse) {
     return originCheckResponse;
+  }
+
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
 
   const resolvedParams = await params;

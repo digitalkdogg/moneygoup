@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server';
 import nlp from 'compromise';
 import Sentiment from 'sentiment';
 import { getNews } from './getNews';
+import { getServerSession } from 'next-auth'; // Add this import
+import { authOptions } from '@/lib/auth'; // Add this import
 
 const sentiment = new Sentiment();
 
@@ -36,7 +38,13 @@ const industries = {
     'Biotech': ['biotech', 'pharmaceutical'],
 };
 
+// NOTE: This endpoint requires authentication.
 export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+  }
+
     try {
         const newsResponse = await getNews();
         if (!newsResponse.ok) {
