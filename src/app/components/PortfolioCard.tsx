@@ -1,17 +1,6 @@
 // src/app/components/PortfolioCard.tsx
 import { formatNumber, formatCurrency } from '@/utils/formatters'
-
-interface PortfolioItem {
-  id?: number;
-  stock_id: number;
-  symbol: string;
-  company_name: string;
-  shares: number;
-  purchase_price: number;
-  initial_purchase_date?: string;
-  last_transaction_date?: string;
-  current_price: number | null; // Added current_price
-}
+import type { PortfolioItem } from '@/types/portfolio'; // Added this import
 
 interface PortfolioCardProps {
   stock: PortfolioItem;
@@ -33,8 +22,8 @@ export default function PortfolioCard({ stock, onBuyMore, onSell }: PortfolioCar
     }
   };
 
-  const positionValue = stock.current_price !== null 
-    ? stock.shares * stock.current_price 
+  const positionValue = stock.regularMarketPrice !== null 
+    ? stock.shares * stock.regularMarketPrice
     : parseFloat(stock.shares as any) * parseFloat(stock.purchase_price as any); // Fallback
 
   return (
@@ -58,7 +47,7 @@ export default function PortfolioCard({ stock, onBuyMore, onSell }: PortfolioCar
         <div className="flex justify-between">
           <span className="text-xs text-gray-600">Current Price:</span>
           <span className="text-sm font-semibold text-blue-600">
-            {stock.current_price !== null ? formatCurrency(stock.current_price) : 'N/A'}
+            {stock.regularMarketPrice !== null ? formatCurrency(stock.regularMarketPrice) : 'N/A'}
           </span>
         </div>
         <div className="flex justify-between">

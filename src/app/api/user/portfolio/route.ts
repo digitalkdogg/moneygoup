@@ -93,10 +93,10 @@ export async function GET(request: NextRequest) {
              }
           }
           
-          return { ...item, current_price: currentPrice, prev_close: prevClose };
+          return { ...item, regularMarketPrice: currentPrice, prev_close: prevClose };
         } catch (priceError) {
           logger.error(`Error fetching data for ${item.symbol}:`, priceError as Error);
-          return { ...item, current_price: null, prev_close: null };
+          return { ...item, regularMarketPrice: null, prev_close: null };
         }
       })
     );

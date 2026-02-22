@@ -445,7 +445,7 @@ def predict_with_weighted_analysis(ticker, historical_data_input, stock_metrics_
 
             result = {
                 "ticker": ticker,
-                "current_price": round(current_price, 2),
+                "regularMarketPrice": round(current_price, 2),
                 "predicted_change_range": [
                     round(max(baseline_prediction - mae, -max_range) - current_price, 2),
                     round(min(baseline_prediction + mae, max_range) - current_price, 2)
@@ -505,7 +505,7 @@ def predict_with_weighted_analysis(ticker, historical_data_input, stock_metrics_
 
         result = {
             "ticker": ticker,
-            "current_price": round(current_price, 2),
+            "regularMarketPrice": round(current_price, 2),
             "predicted_change_range": [round(predicted_change_lower, 2), round(predicted_change_upper, 2)],
             "accuracy_metrics": {
                 "model": { "mae": round(mae, 2), "rmse": round(rmse, 2) }

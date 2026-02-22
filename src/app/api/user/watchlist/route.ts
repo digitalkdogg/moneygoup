@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
         us.shares,
         us.purchase_price,
         us.is_purchased,
-        s.price AS current_price
+        s.price AS regularMarketPrice
       FROM user_stocks us
       JOIN stocks s ON us.stock_id = s.id
       WHERE us.user_id = ? AND us.is_purchased = 0

@@ -142,7 +142,7 @@ export default function Dashboard() {
         ...item,
         name: item.company_name, // Map company_name to name for StockTableRow compatibility
         shares: typeof item.shares === 'string' ? parseFloat(item.shares) : item.shares,
-        regularMarketPrice: typeof item.current_price === 'number' ? item.current_price : 0,
+        regularMarketPrice: typeof item.regularMarketPrice === 'number' ? item.regularMarketPrice : 0,
         prev_close: typeof item.prev_close === 'number' ? item.prev_close : null,
       }));
       setPortfolio(fetchedPortfolio);

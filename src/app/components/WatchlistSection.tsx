@@ -60,7 +60,7 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
       setWatchlist(data.watchlist.map((item: any) => ({
         ...item,
         name: item.company_name, // Map company_name to name for StockTableRow compatibility
-        regularMarketPrice: item.current_price !== null ? parseFloat(item.current_price) : 0, // Default to 0 instead of null
+        regularMarketPrice: item.regularMarketPrice !== null ? parseFloat(item.regularMarketPrice) : 0, // Default to 0 instead of null
         ma6_month: item.ma6_month !== null ? parseFloat(item.ma6_month) : 0 // Default to 0 instead of null
       })) || []);
     } catch (err: any) {

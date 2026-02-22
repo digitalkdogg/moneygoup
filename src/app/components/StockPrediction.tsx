@@ -26,7 +26,7 @@ interface StockPredictionProps {
 
 interface TfPredictionResult {
     ticker: string;
-    current_price: number;
+    regularMarketPrice: number;
     predicted_change_range: [number, number]; // Changed to single predicted_change_range
     accuracy_metrics: {
         neural_network?: {
@@ -141,7 +141,7 @@ export default function StockPrediction({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="p-4 bg-gray-50 rounded-lg">
                       <p className="text-sm text-gray-600 mb-3">Current Price</p>
-                      <p className="text-2xl font-bold text-gray-800 mb-4">{formatCurrency(tfPrediction.current_price)}</p>
+                      <p className="text-2xl font-bold text-gray-800 mb-4">{formatCurrency(tfPrediction.regularMarketPrice)}</p>
 
                       {/* Influential Metrics Section */}
                       <div className="space-y-2 text-xs">
@@ -185,7 +185,7 @@ export default function StockPrediction({
                                       </span>
                                   </div>
                                   <p className="text-gray-500 text-xs mt-1">
-                                      SMA20: {formatCurrency(sma20, 2)} {sma20 > tfPrediction.current_price ? '(Above)' : '(Below)'} Price
+                                      SMA20: {formatCurrency(sma20, 2)} {sma20 > tfPrediction.regularMarketPrice ? '(Above)' : '(Below)'} Price
                                   </p>
                               </div>
                           )}
@@ -228,23 +228,23 @@ export default function StockPrediction({
                               <p className="text-sm font-semibold text-gray-700 mb-2">Predicted Price Outlook</p>
                               {/* Calculate actual predicted prices */}
                               {(() => {
-                                  const predictedLowPrice = tfPrediction.current_price + tfPrediction.predicted_change_range[0];
-                                  const predictedHighPrice = tfPrediction.current_price + tfPrediction.predicted_change_range[1];
+                                  const predictedLowPrice = tfPrediction.regularMarketPrice + tfPrediction.predicted_change_range[0];
+                                  const predictedHighPrice = tfPrediction.regularMarketPrice + tfPrediction.predicted_change_range[1];
                                   const predictedAveragePrice = (predictedLowPrice + predictedHighPrice) / 2;
 
                                   return (
                                       <div className="grid grid-cols-3 gap-2 text-left">
                                           <div>
                                               <p className="text-xs text-gray-500">Low</p>
-                                              <p className={`text-lg font-bold ${predictedLowPrice >= tfPrediction.current_price ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(predictedLowPrice)}</p>
+                                              <p className={`text-lg font-bold ${predictedLowPrice >= tfPrediction.regularMarketPrice ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(predictedLowPrice)}</p>
                                           </div>
                                           <div>
                                               <p className="text-xs text-gray-500">Average</p>
                                               {(() => {
-                                                  const percentChange = ((predictedAveragePrice - tfPrediction.current_price) / tfPrediction.current_price) * 100;
+                                                  const percentChange = ((predictedAveragePrice - tfPrediction.regularMarketPrice) / tfPrediction.regularMarketPrice) * 100;
                                                   const textColor = percentChange >= 0 ? 'text-green-600' : 'text-red-600';
                                                   return (
-                                                      <p className={`text-lg font-bold ${predictedAveragePrice >= tfPrediction.current_price ? 'text-green-600' : 'text-red-600'}`}>
+                                                      <p className={`text-lg font-bold ${predictedAveragePrice >= tfPrediction.regularMarketPrice ? 'text-green-600' : 'text-red-600'}`}>
                                                           {formatCurrency(predictedAveragePrice)}{' '}
                                                           <span className={`text-sm ${textColor}`}>
                                                               ({percentChange >= 0 ? '+' : ''}{formatNumber(percentChange, 2)}%)
@@ -255,7 +255,7 @@ export default function StockPrediction({
                                           </div>
                                           <div>
                                               <p className="text-xs text-gray-500">High</p>
-                                              <p className={`text-lg font-bold ${predictedHighPrice >= tfPrediction.current_price ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(predictedHighPrice)}</p>
+                                              <p className={`text-lg font-bold ${predictedHighPrice >= tfPrediction.regularMarketPrice ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(predictedHighPrice)}</p>
                                           </div>
                                       </div>
                                   );
@@ -264,13 +264,13 @@ export default function StockPrediction({
                       )}
                       
                       {/* Accuracy Metrics (now with more robust conditional rendering) */}
-                      {tfPrediction.current_price > 0 && (tfPrediction.accuracy_metrics?.neural_network || tfPrediction.accuracy_metrics?.model) && (
+                      {tfPrediction.regularMarketPrice > 0 && (tfPrediction.accuracy_metrics?.neural_network || tfPrediction.accuracy_metrics?.model) && (
                           (() => {
                               const metrics = tfPrediction.accuracy_metrics.neural_network || tfPrediction.accuracy_metrics.model;
-                              if (!metrics || tfPrediction.current_price === 0) {
+                              if (!metrics || tfPrediction.regularMarketPrice === 0) {
                                   return null; // Should not happen often with outer check, but good for type safety
                               }
-                              const errorRate = (metrics.mae / tfPrediction.current_price) * 100;
+                              const errorRate = (metrics.mae / tfPrediction.regularMarketPrice) * 100;
                               const accuracy = Math.max(0, 100 - errorRate);
                               return (
                                   <div className="mt-4 pt-3 border-t border-blue-200">

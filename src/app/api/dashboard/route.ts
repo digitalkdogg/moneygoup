@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
         is_owned: holding.is_owned,
         // Yahoo Finance data
         company_name: yahooData?.companyName || 'N/A',
-        current_price: yahooData?.price || 0,
+        regularMarketPrice: yahooData?.price || 0,
         daily_change: yahooData?.daily_change || 0,
         pe_ratio: yahooData?.trailingPE || null,
         pb_ratio: yahooData?.priceToBook || null,
@@ -189,7 +189,7 @@ export async function GET(request: NextRequest) {
         marketCap  // Pass parsed values
       );
 
-      const currentPrice = parseFloat(stock.current_price || '0');
+      const currentPrice = parseFloat(stock.regularMarketPrice || '0');
       const shares = parseFloat(stock.shares);
       const purchasePrice = parseFloat(stock.purchase_price || '0');
       const daily_change = stock.daily_change ? parseFloat(stock.daily_change) : null;
