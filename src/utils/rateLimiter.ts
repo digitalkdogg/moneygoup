@@ -85,3 +85,15 @@ export const loginLimiter = new RateLimiter({ limit: 10, windowMs: 15 * 60 * 100
 
 /** 5 prediction attempts per user per minute */
 export const predictionLimiter = new RateLimiter({ limit: 5, windowMs: 60 * 1000 });
+
+/** 30 requests per IP per minute for stock data endpoints */
+export const stockDataLimiter = new RateLimiter({ limit: 30, windowMs: 60 * 1000 });
+
+/** 20 requests per IP per minute for news endpoints */
+export const newsLimiter = new RateLimiter({ limit: 20, windowMs: 60 * 1000 });
+
+/** 15 requests per IP per minute for quote endpoints */
+export const quoteLimiter = new RateLimiter({ limit: 15, windowMs: 60 * 1000 });
+
+/** 10 requests per IP per minute for historical data endpoints */
+export const historicalLimiter = new RateLimiter({ limit: 10, windowMs: 60 * 1000 });

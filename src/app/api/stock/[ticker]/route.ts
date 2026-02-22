@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { executeRawQuery, transaction } from '@/utils/databaseHelper'
-import { createErrorResponse, unauthorizedResponse, forbiddenResponse } from '@/utils/errorResponse';
+import { createErrorResponse, unauthorizedResponse, forbiddenResponse, validationErrorResponse } from '@/utils/errorResponse';
 import { secCompanyCache } from '@/utils/cache';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -8,6 +8,10 @@ import { checkOrigin } from '@/utils/originCheck';
 import { calculateTechnicalIndicators } from '@/utils/technicalIndicators';
 import { createLogger } from '@/utils/logger';
 import { fetchYahooStockSummary } from '@/utils/yahooFinanceHelper'; // Import the new helper function
+import { tickerSchema } from '@/utils/validationSchemas';
+import { stockDataLimiter } from '@/utils/rateLimiter';
+import { checkRateLimit } from '@/utils/rateLimitMiddleware';
+import { z } from 'zod';
 
 const logger = createLogger('api/stock/[ticker]');
 
@@ -253,24 +257,40 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
   const originCheckResponse = checkOrigin(request)
   if (originCheckResponse) return originCheckResponse
 
+  // Check rate limit (per-IP)
+  const rateLimitResponse = checkRateLimit(request, stockDataLimiter, 'stock-data');
+  if (rateLimitResponse) return rateLimitResponse;
+
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
 
-  const tickerString = params.ticker.toUpperCase()
-  const tickerArray = tickerString.split(',').map(t => t.trim())
+  // Validate ticker parameter
+  try {
+    var validatedTicker = tickerSchema.parse(params.ticker);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      const message = error.issues && error.issues.length > 0 
+        ? error.issues[0].message 
+        : 'Invalid ticker';
+      return validationErrorResponse(message);
+    }
+    return validationErrorResponse('Invalid ticker format');
+  }
+
+  const tickerArray = validatedTicker.split(',').map(t => t.trim())
 
   const origin = request.nextUrl?.origin || ''
 
   try {
     // 1. Fetch historical data for all tickers in a single call
-    const histAllTickersPromise = fetch(`${origin}/api/stock/${tickerString}/historical/1y`, { headers: { 'Cookie': request.headers.get('Cookie') || '' } });
+    const histAllTickersPromise = fetch(`${origin}/api/stock/${validatedTicker}/historical/1y`, { headers: { 'Cookie': request.headers.get('Cookie') || '' } });
     const histAllTickersRes = await histAllTickersPromise;
     const histAllTickersJson = histAllTickersRes.ok ? await histAllTickersRes.json() : { historicalData: {}, error: `Failed to fetch historical for all tickers: ${histAllTickersRes.status}` };
 
     // 2. Fetch news data for all tickers in a single call
-    const newsAllTickersPromise = fetch(`${origin}/api/stock/${tickerString}/news`, { headers: { 'Cookie': request.headers.get('Cookie') || '' } });
+    const newsAllTickersPromise = fetch(`${origin}/api/stock/${validatedTicker}/news`, { headers: { 'Cookie': request.headers.get('Cookie') || '' } });
     const newsAllTickersRes = await newsAllTickersPromise;
     const newsAllTickersJson = newsAllTickersRes.ok ? await newsAllTickersRes.json() : { articles: {}, error: `Failed to fetch news for all tickers: ${newsAllTickersRes.status}` };
 

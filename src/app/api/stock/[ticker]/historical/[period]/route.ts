@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { executeRawQuery } from '@/utils/databaseHelper'
 import YahooFinance from 'yahoo-finance2';
-import { createErrorResponse } from '@/utils/errorResponse';
+import { createErrorResponse, validationErrorResponse } from '@/utils/errorResponse';
 import { checkOrigin } from '@/utils/originCheck';
 import { getServerSession } from 'next-auth'; // Add this import
 import { authOptions } from '@/lib/auth'; // Add this import
+import { tickerSchema, periodSchema } from '@/utils/validationSchemas';
+import { historicalLimiter } from '@/utils/rateLimiter';
+import { checkRateLimit } from '@/utils/rateLimitMiddleware';
+import { z } from 'zod';
 
 const yahooFinance = new YahooFinance();
 
@@ -167,6 +171,10 @@ export async function GET(
     return originCheckResponse;
   }
 
+  // Check rate limit (per-IP)
+  const rateLimitResponse = checkRateLimit(request, historicalLimiter, 'historical');
+  if (rateLimitResponse) return rateLimitResponse;
+
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
@@ -174,20 +182,53 @@ export async function GET(
 
   const resolvedParams = await params;
 
-  const ticker = resolvedParams.ticker.toUpperCase();
-
-  const period = resolvedParams.period;
+  // Validate ticker and period using schemas
+  try {
+    var validatedTicker = tickerSchema.parse(resolvedParams.ticker);
+    var validatedPeriod = periodSchema.parse(resolvedParams.period);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      const message = error.issues && error.issues.length > 0 
+        ? error.issues[0].message 
+        : 'Invalid parameters';
+      return validationErrorResponse(message);
+    }
+    return validationErrorResponse('Invalid parameters');
+  }
 
   const source = request.nextUrl.searchParams.get('source')
 
-  const days = getDays(period)
+  const getDays = (period: string): number => {
+    switch (period) {
+      case '1d':
+        return 1;
+      case '5d':
+        return 5;
+      case '1mo':
+        return 30;
+      case '3mo':
+        return 90;
+      case '6mo':
+        return 180;
+      case '1y':
+        return 365;
+      case '5y':
+        return 1825;
+      case 'max':
+        return 10950; // ~30 years
+      default:
+        return 365;
+    }
+  }
+
+  const days = getDays(validatedPeriod)
 
   const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
   try {
     if (source === 'dashboard') {
       // Use database for dashboard requests
-      const { historicalData, source: dataSource, errors } = await fetchFromDatabase(ticker, startDate)
+      const { historicalData, source: dataSource, errors } = await fetchFromDatabase(validatedTicker, startDate)
       
       const response: any = { historicalData, source: dataSource };
       if (errors) {
@@ -197,7 +238,7 @@ export async function GET(
       return Response.json(response)
     } else {
       // Use external APIs for direct search requests
-      const { historicalData, source: dataSource, errors } = await fetchFromExternalAPIs(ticker, startDate)
+      const { historicalData, source: dataSource, errors } = await fetchFromExternalAPIs(validatedTicker, startDate)
       
       const response: any = { historicalData, source: dataSource };
       if (errors) {

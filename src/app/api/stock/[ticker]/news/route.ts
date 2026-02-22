@@ -6,6 +6,11 @@ import { checkOrigin } from '@/utils/originCheck';
 import YahooFinance from 'yahoo-finance2'; // Import YahooFinance
 import { getServerSession } from 'next-auth'; // Add this import
 import { authOptions } from '@/lib/auth'; // Add this import
+import { tickerSchema } from '@/utils/validationSchemas';
+import { validationErrorResponse } from '@/utils/errorResponse';
+import { newsLimiter } from '@/utils/rateLimiter';
+import { checkRateLimit } from '@/utils/rateLimitMiddleware';
+import { z } from 'zod';
 
 const logger = createLogger('api/stock/[ticker]/news');
 const yahooFinance = new YahooFinance(); // Initialize YahooFinance
@@ -20,14 +25,29 @@ export async function GET(
     return originCheckResponse;
   }
 
+  // Check rate limit (per-IP)
+  const rateLimitResponse = checkRateLimit(request, newsLimiter, 'news');
+  if (rateLimitResponse) return rateLimitResponse;
+
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
 
-  // Normalize input to array
-  const tickerString = params.ticker.toUpperCase();
-  const tickerArray = tickerString.split(',').map(t => t.trim());
+  // Validate and normalize ticker input
+  try {
+    var validatedTicker = tickerSchema.parse(params.ticker);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      const message = error.issues && error.issues.length > 0 
+        ? error.issues[0].message 
+        : 'Invalid ticker';
+      return validationErrorResponse(message);
+    }
+    return validationErrorResponse('Invalid ticker format');
+  }
+
+  const tickerArray = validatedTicker.split(',').map(t => t.trim());
 
   try {
     const sentiment = new Sentiment();

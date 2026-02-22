@@ -5,6 +5,8 @@ import YahooFinance from 'yahoo-finance2';
 import { createErrorResponse, validationErrorResponse } from '@/utils/errorResponse';
 import { getServerSession } from 'next-auth'; // Add this import
 import { authOptions } from '@/lib/auth'; // Add this import
+import { tickerSchema } from '@/utils/validationSchemas';
+import { z } from 'zod';
 
 const logger = createLogger('api/stock/[ticker]/earnings');
 
@@ -23,10 +25,17 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
 
-  const { ticker } = params;
-
-  if (!ticker) {
-    return validationErrorResponse('Ticker is required');
+  // Validate ticker
+  try {
+    var validatedTicker = tickerSchema.parse(params.ticker);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      const message = error.issues && error.issues.length > 0 
+        ? error.issues[0].message 
+        : 'Invalid ticker';
+      return validationErrorResponse(message);
+    }
+    return validationErrorResponse('Invalid ticker format');
   }
 
   // Initialize yahooFinance if it hasn't been already
@@ -35,7 +44,7 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
   }
 
   try {
-    const quoteSummary = await yahooFinanceInstance.quoteSummary(ticker, { modules: ['earnings'] });
+    const quoteSummary = await yahooFinanceInstance.quoteSummary(validatedTicker, { modules: ['earnings'] });
 
     const earningsData = quoteSummary.earnings;
 
@@ -169,7 +178,7 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
 
   } catch (error: unknown) {
     const err = error instanceof Error ? error : new Error(String(error));
-    logger.error(`Error fetching earnings data for ${ticker}:`, err);
-    return createErrorResponse(err, `Error fetching earnings data for ${ticker}`, { status: 500 });
+    logger.error(`Error fetching earnings data for ${validatedTicker}:`, err);
+    return createErrorResponse(err, `Error fetching earnings data for ${validatedTicker}`, { status: 500 });
   }
 }

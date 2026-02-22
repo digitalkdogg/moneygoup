@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { checkOrigin } from '@/utils/originCheck';
-import { unauthorizedResponse, createErrorResponse } from '@/utils/errorResponse';
+import { unauthorizedResponse, createErrorResponse, validationErrorResponse } from '@/utils/errorResponse';
 import { createLogger } from '@/utils/logger';
 import { predictionSemaphore } from '@/utils/predictionQueue';
 import { spawn } from 'child_process';
@@ -11,6 +11,8 @@ import { writeFileSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
+import { tickerSchema } from '@/utils/validationSchemas';
+import { z } from 'zod';
 
 const logger = createLogger('api/stock/predict/tensorflow');
 
@@ -85,19 +87,25 @@ export async function POST(
 
   const userId = session.user.email;
 
-  // 3. Validate ticker
-  const { ticker } = params;
-  const tickerRegex = /^[A-Z0-9.^]{1,10}$/;
-  if (!tickerRegex.test(ticker)) {
-    return NextResponse.json({ message: 'Invalid ticker symbol' }, { status: 400 });
+  // 3. Validate ticker using schema
+  try {
+    var validatedTicker = tickerSchema.parse(params.ticker);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      const message = error.issues && error.issues.length > 0 
+        ? error.issues[0].message 
+        : 'Invalid ticker';
+      return validationErrorResponse(message);
+    }
+    return validationErrorResponse('Invalid ticker format');
   }
 
   // 4. Per-user+ticker rate limit
-  const cooldownKey = `${userId}-${ticker}`;
+  const cooldownKey = `${userId}-${validatedTicker}`;
   if (isOnCooldown(cooldownKey)) {
     const retryAfterMs = COOLDOWN_MS - (Date.now() - (tickerCooldown.get(cooldownKey) ?? 0));
     return NextResponse.json(
-      { message: `Please wait ${Math.ceil(retryAfterMs / 1000)} seconds before requesting another prediction for ${ticker}.` },
+      { message: `Please wait ${Math.ceil(retryAfterMs / 1000)} seconds before requesting another prediction for ${validatedTicker}.` },
       { status: 429 }
     );
   }
@@ -127,11 +135,11 @@ export async function POST(
 
     // Python script CLI signature (predict_weighted_analysis.py argparse):
     //   python3 predict_weighted_analysis.py <ticker> --input_file <path>
-    const result = await runPythonPrediction(ticker, tempFile);
+    const result = await runPythonPrediction(validatedTicker, tempFile);
     return NextResponse.json(result);
   } catch (error) {
     logger.error('Prediction failed', {
-      ticker,
+      ticker: validatedTicker,
       error: error instanceof Error ? error : String(error),
     });
     return createErrorResponse(error, 'Prediction failed', { status: 500 });
