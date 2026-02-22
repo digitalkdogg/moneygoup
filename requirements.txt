@@ -1,6 +1,4 @@
-tensorflow
 yfinance
 scikit-learn
 numpy
 pandas
-shap
