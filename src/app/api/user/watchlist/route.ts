@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { validate } from '@/utils/validation';
 import { addStockSchema, AddStockInput } from '@/app/api/user/watchlist/schema';
 import { executeRawQuery, insert, upsert } from '@/utils/databaseHelper';
-import { createErrorResponse } from '@/utils/errorResponse';
+import { createErrorResponse, unauthorizedResponse, validationErrorResponse, notFoundResponse } from '@/utils/errorResponse';
 import { createLogger } from '@/utils/logger';
 import { checkOrigin } from '@/utils/originCheck';
 
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
 
   if (!session || !session.user || !session.user.id) {
-    return new NextResponse(JSON.stringify({ message: 'Unauthorized' }), { status: 401 });
+    return unauthorizedResponse();
   }
 
   const userId = session.user.id;
@@ -75,7 +75,7 @@ export const POST = validate(addStockSchema)(
     const session = await getServerSession(authOptions);
 
     if (!session || !session.user || !session.user.id) {
-      return new NextResponse(JSON.stringify({ message: 'Unauthorized' }), { status: 401 });
+      return unauthorizedResponse();
     }
 
     const userId = session.user.id;
@@ -128,7 +128,7 @@ export async function DELETE(request: NextRequest) {
   const session = await getServerSession(authOptions);
 
   if (!session || !session.user || !session.user.id) {
-    return new NextResponse(JSON.stringify({ message: 'Unauthorized' }), { status: 401 });
+    return unauthorizedResponse();
   }
 
   const userId = session.user.id;
@@ -136,7 +136,7 @@ export async function DELETE(request: NextRequest) {
   const ticker = searchParams.get('stockId'); // Assuming stockId is passed as ticker symbol
 
   if (!ticker) {
-    return new NextResponse(JSON.stringify({ message: 'Stock ticker is required' }), { status: 400 });
+    return validationErrorResponse('Stock ticker is required');
   }
 
   try {
@@ -148,7 +148,7 @@ export async function DELETE(request: NextRequest) {
       stockId = existingStocks[0].id;
     } else {
       // If stock not found in main stocks table, it can't be on watchlist either
-      return new NextResponse(JSON.stringify({ message: 'Stock not found' }), { status: 404 });
+      return notFoundResponse('Stock not found');
     }
 
     // 2. Delete from user_stocks where is_purchased = 0

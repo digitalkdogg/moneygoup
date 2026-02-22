@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { executeRawQuery } from '@/utils/databaseHelper';
 import { checkOrigin } from '@/utils/originCheck';
 import { calculateTechnicalIndicators, HistoricalData } from '@/utils/technicalIndicators';
-import { createErrorResponse } from '@/utils/errorResponse';
+import { createErrorResponse, unauthorizedResponse } from '@/utils/errorResponse';
 
 interface DailyPriceRow {
   stock_id: number;
@@ -28,14 +28,14 @@ export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
 
   if (!session) {
-    return new NextResponse(JSON.stringify({ message: 'Unauthorized' }), { status: 401 });
+    return unauthorizedResponse();
   }
 
   try {
     const userId = session.user?.id; // Use optional chaining to safely access id
     if (!userId) {
       logger.error('Session user ID is undefined or null for an authenticated session.');
-      return new NextResponse(JSON.stringify({ message: 'Unauthorized: User ID missing or invalid from session.' }), { status: 401 });
+      return unauthorizedResponse('Unauthorized: User ID missing or invalid from session.');
     }
 
 

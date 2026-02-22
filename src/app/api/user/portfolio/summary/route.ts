@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { executeRawQuery } from '@/utils/databaseHelper';
-import { createErrorResponse } from '@/utils/errorResponse';
+import { createErrorResponse, unauthorizedResponse } from '@/utils/errorResponse';
 import { createLogger } from '@/utils/logger';
 import { checkOrigin } from '@/utils/originCheck';
 
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
 
   if (!session || !session.user || !session.user.id) {
-    return new NextResponse(JSON.stringify({ message: 'Unauthorized' }), { status: 401 });
+    return unauthorizedResponse();
   }
 
   const userId = session.user.id;

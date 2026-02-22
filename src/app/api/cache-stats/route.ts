@@ -1,8 +1,10 @@
 import { createLogger } from '@/utils/logger';
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { secCompanyCache, stockDataCache, technicalIndicatorsCache } from '@/utils/cache';
 import { getServerSession } from 'next-auth'; // Add this import
 import { authOptions } from '@/lib/auth'; // Add this import
+import { checkOrigin } from '@/utils/originCheck'; // Add this import
+import { unauthorizedResponse, forbiddenResponse } from '@/utils/errorResponse'; // Add this import
 
 const logger = createLogger('api/cache-stats');
 
@@ -11,15 +13,19 @@ const logger = createLogger('api/cache-stats');
  * Returns information about current cache usage and expiration times
  * Useful for monitoring and debugging cache behavior
  */
-export async function GET() {
+export async function GET(request: NextRequest) { // Add NextRequest type
+  const originCheckResponse = checkOrigin(request as any);
+  if (originCheckResponse) {
+    return originCheckResponse;
+  }
   // Add authentication check
   const session = await getServerSession(authOptions);
   if (!session || !session.user || !session.user.id) {
-    return new NextResponse(JSON.stringify({ message: 'Unauthorized' }), { status: 401 });
+    return unauthorizedResponse();
   }
 
   // Add authorization check (placeholder for admin role, currently denies all)
-  return new NextResponse(JSON.stringify({ message: 'Forbidden: This action requires administrative privileges.' }), { status: 403 });
+  return forbiddenResponse('Forbidden: This action requires administrative privileges.');
 
 
 }
@@ -28,15 +34,19 @@ export async function GET() {
  * Clear all caches
  * Useful for maintenance or resetting stale data
  */
-export async function DELETE() {
+export async function DELETE(request: NextRequest) { // Add NextRequest type
+  const originCheckResponse = checkOrigin(request as any);
+  if (originCheckResponse) {
+    return originCheckResponse;
+  }
   // Add authentication check
   const session = await getServerSession(authOptions);
   if (!session || !session.user || !session.user.id) {
-    return new NextResponse(JSON.stringify({ message: 'Unauthorized' }), { status: 401 });
+    return unauthorizedResponse();
   }
 
   // Add authorization check (placeholder for admin role, currently denies all)
-  return new NextResponse(JSON.stringify({ message: 'Forbidden: This action requires administrative privileges.' }), { status: 403 });
+  return forbiddenResponse('Forbidden: This action requires administrative privileges.');
 
 
 }

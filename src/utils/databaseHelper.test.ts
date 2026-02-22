@@ -38,3 +38,21 @@ describe('executeStaticQuery', () => {
     ).rejects.not.toThrow('Possible SQL injection');
   });
 });
+
+describe('Database Name Sanitization', () => {
+  it('throws for invalid table names', async () => {
+    // Dynamically import insert to avoid issues with test setup if insert is not fully mocked
+    const { insert } = await import('./databaseHelper');
+    await expect(
+      insert("users; DROP TABLE users--", { username: "test" })
+    ).rejects.toThrow('Invalid or disallowed table name: users; DROP TABLE users--');
+  });
+
+  it('throws for invalid column names', async () => {
+    const { insert } = await import('./databaseHelper');
+    await expect(
+      insert("users", { "user;name": "test" })
+    ).rejects.toThrow('Invalid column name: user;name');
+  });
+});
+

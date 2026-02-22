@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createLogger } from '@/utils/logger';
 import { checkOrigin } from '@/utils/originCheck';
 import YahooFinance from 'yahoo-finance2';
-import { createErrorResponse } from '@/utils/errorResponse';
+import { createErrorResponse, validationErrorResponse } from '@/utils/errorResponse';
 import { getServerSession } from 'next-auth'; // Add this import
 import { authOptions } from '@/lib/auth'; // Add this import
 
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
   const { ticker } = params;
 
   if (!ticker) {
-    return new NextResponse(JSON.stringify({ message: 'Ticker is required' }), { status: 400 });
+    return validationErrorResponse('Ticker is required');
   }
 
   // Initialize yahooFinance if it hasn't been already

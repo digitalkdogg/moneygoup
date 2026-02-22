@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { executeRawQuery, transaction } from '@/utils/databaseHelper'
 import YahooFinance from 'yahoo-finance2';
-import { createErrorResponse } from '@/utils/errorResponse';
+import { createErrorResponse, unauthorizedResponse, forbiddenResponse } from '@/utils/errorResponse';
 import { secCompanyCache } from '@/utils/cache';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -219,7 +219,7 @@ async function fetchFromExternalAPIs(tickers: string | string[]) {
             ...summary.defaultKeyStatistics, // Added defaultKeyStatistics
         };
 
-        logger.info(`Raw priceToBook for ${ticker} (after defaultKeyStatistics): ${data.priceToBook}`); // Debug line
+
 
 
 
@@ -379,7 +379,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { ticke
   // Add authentication check
   const session = await getServerSession(authOptions);
   if (!session || !session.user || !session.user.id) {
-    return new NextResponse(JSON.stringify({ message: 'Unauthorized' }), { status: 401 });
+    return unauthorizedResponse();
   }
 
   // Add authorization check
@@ -387,5 +387,5 @@ export async function DELETE(request: NextRequest, { params }: { params: { ticke
   // For now, we will forbid this action for all regular authenticated users.
   // If an admin role system is implemented, this check would be adjusted to
   // allow only users with 'admin' role.
-  return new NextResponse(JSON.stringify({ message: 'Forbidden: This action requires administrative privileges.' }), { status: 403 });
+  return forbiddenResponse('Forbidden: This action requires administrative privileges.');
 }

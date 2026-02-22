@@ -82,3 +82,6 @@ export const registerLimiter = new RateLimiter({ limit: 5, windowMs: 15 * 60 * 1
 
 /** 10 login attempts per IP per 15 minutes */
 export const loginLimiter = new RateLimiter({ limit: 10, windowMs: 15 * 60 * 1000 });
+
+/** 5 prediction attempts per user per minute */
+export const predictionLimiter = new RateLimiter({ limit: 5, windowMs: 60 * 1000 });

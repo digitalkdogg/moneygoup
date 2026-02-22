@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { executeRawQuery } from '@/utils/databaseHelper';
-import { createErrorResponse } from '@/utils/errorResponse';
+import { createErrorResponse, unauthorizedResponse } from '@/utils/errorResponse';
 import { createLogger } from '@/utils/logger';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { z } from 'zod'; // Add this import
 import { validate } from '@/utils/validation'; // Add this import
+import { checkOrigin } from '@/utils/originCheck'; // Add this import
 
 const logger = createLogger('api/user/stocks');
 
@@ -19,11 +20,15 @@ const purchaseStockSchema = z.object({
 export const POST = validate(purchaseStockSchema)(
 
   async (request: Request, data: z.infer<typeof purchaseStockSchema>) => {
+    const originCheckResponse = checkOrigin(request as any); // Cast to any as NextRequest might not be directly compatible
+    if (originCheckResponse) {
+      return originCheckResponse;
+    }
     try {
       const session = await getServerSession(authOptions);
 
       if (!session) {
-        return new NextResponse(JSON.stringify({ message: 'Unauthorized' }), { status: 401 });
+        return unauthorizedResponse();
       }
 
       // `data` now contains the validated fields

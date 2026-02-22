@@ -4,7 +4,7 @@ import { createLogger } from '@/utils/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import { executeRawQuery } from '@/utils/databaseHelper';
 import { checkOrigin } from '@/utils/originCheck';
-import { createErrorResponse } from '@/utils/errorResponse';
+import { createErrorResponse, unauthorizedResponse } from '@/utils/errorResponse';
 import YahooFinance from 'yahoo-finance2';
 
 const logger = createLogger('api/dashboard/get');
@@ -19,14 +19,14 @@ export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
 
   if (!session) {
-    return new NextResponse(JSON.stringify({ message: 'Unauthorized' }), { status: 401 });
+    return unauthorizedResponse();
   }
 
   try {
     const userId = session.user?.id;
     if (!userId) {
       logger.error('Session user ID is undefined or null for an authenticated session.');
-      return new NextResponse(JSON.stringify({ message: 'Unauthorized: User ID missing or invalid from session.' }), { status: 401 });
+      return unauthorizedResponse('Unauthorized: User ID missing or invalid from session.');
     }
 
     // 1. Fetch all stock symbols the user is tracking

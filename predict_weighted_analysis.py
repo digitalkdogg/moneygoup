@@ -184,7 +184,11 @@ def predict_with_weighted_analysis(ticker, historical_data_input, stock_metrics_
         if not historical_data_input:
             raise ValueError("No historical data provided.")
 
-        earnings_beat_streak_val = 0 # Initialize earnings_beat_streak_val
+        earnings_beat_streak_val = calculate_earnings_beat_streak(
+            historical_earnings_input
+        )
+
+
 
         stock_data = pd.DataFrame(historical_data_input)
         stock_data.rename(columns={'close': 'Close', 'open': 'Open', 'high': 'High', 'low': 'Low', 'volume': 'Volume'}, inplace=True)
@@ -272,7 +276,8 @@ def predict_with_weighted_analysis(ticker, historical_data_input, stock_metrics_
         is_high_volatility = max_daily_volatility > 5.0 or avg_daily_volatility > 2.5
         is_growth_stock = growth_rate > 2.0 and is_uptrend
 
-        if is_growth_stock and avg_daily_volatility < 3.5:
+        # Override: For stable growth stocks, don't classify as high volatility unless max_daily_volatility is also high
+        if is_growth_stock and avg_daily_volatility < 3.5 and max_daily_volatility < 5.0:
             is_high_volatility = False
 
         # Add fundamental data
@@ -300,6 +305,7 @@ def predict_with_weighted_analysis(ticker, historical_data_input, stock_metrics_
             else:
                 news_sentiment_score_val = 0
         stock_data['NewsSentiment'] = news_sentiment_score_val
+
 
         # Add earnings beat streak as a feature
         stock_data['EarningsBeatStreak'] = earnings_beat_streak_val
@@ -443,6 +449,7 @@ def predict_with_weighted_analysis(ticker, historical_data_input, stock_metrics_
 
             max_range = current_price * 0.15 if is_growth_stock else current_price * 0.12
 
+            print(f"DEBUG: is_growth_stock={is_growth_stock}, is_high_volatility={is_high_volatility}, time_step={time_step}") # TEMP: for verification
             result = {
                 "ticker": ticker,
                 "regularMarketPrice": round(current_price, 2),

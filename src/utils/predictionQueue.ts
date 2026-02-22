@@ -25,7 +25,7 @@ export class AsyncSemaphore {
   }
 
   isFull(): boolean {
-    return this.running >= this.max && this.queue.length > 0;
+    return this.running >= this.max;
   }
 }
 

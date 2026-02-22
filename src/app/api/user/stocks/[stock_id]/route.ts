@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { remove, update, executeRawQuery } from '@/utils/databaseHelper'; // Add executeRawQuery
-import { createErrorResponse } from '@/utils/errorResponse';
+import { createErrorResponse, unauthorizedResponse } from '@/utils/errorResponse';
 import { createLogger } from '@/utils/logger';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { z } from 'zod';
 import { validate } from '@/utils/validation';
+import { checkOrigin } from '@/utils/originCheck'; // Add this import
 
 const logger = createLogger('api/user/stocks/[stock_id]');
 
@@ -19,10 +20,14 @@ const tradeSchema = z.object({
 // PATCH: Buy more shares or sell shares
 export const PATCH = validate(tradeSchema)(
   async (request: Request, data: z.infer<typeof tradeSchema>, ctx?: { params?: any }) => {
+    const originCheckResponse = checkOrigin(request as any);
+    if (originCheckResponse) {
+      return originCheckResponse;
+    }
     const session = await getServerSession(authOptions);
 
     if (!session) {
-      return new NextResponse(JSON.stringify({ message: 'Unauthorized' }), { status: 401 });
+      return unauthorizedResponse();
     }
 
     try {
@@ -118,7 +123,8 @@ export const PATCH = validate(tradeSchema)(
         await executeRawQuery(
           `UPDATE user_stocks 
            SET shares = 0, 
-               is_active = 0, 
+               is_active = 1,
+               is_purchased = 0, 
                last_transaction_date = NOW()
            WHERE user_id = ? AND stock_id = ? AND is_purchased = 1`,
           [userId, stockId]
@@ -149,10 +155,14 @@ export async function PUT(
   request: Request,
   { params }: { params: { stock_id: string } }
 ) {
+  const originCheckResponse = checkOrigin(request as any);
+  if (originCheckResponse) {
+    return originCheckResponse;
+  }
   const session = await getServerSession(authOptions);
 
   if (!session) {
-    return new NextResponse(JSON.stringify({ message: 'Unauthorized' }), { status: 401 });
+    return unauthorizedResponse();
   }
 
   try {

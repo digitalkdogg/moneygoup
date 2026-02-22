@@ -32,7 +32,7 @@ export async function GET(
   }
 
   try {
-    logger.info(`Fetching real-time quote for ticker: ${ticker}`);
+
 
     const yahooFinanceModule = await import('yahoo-finance2');
     // Assuming yahooFinanceModule.default is the YahooFinance constructor

@@ -64,11 +64,15 @@ export default function StockPrediction({
   const [tfLoading, setTfLoading] = useState(false)
   const [tfError, setTfError] = useState<string | null>(null)
   const [showMetricAnalysis, setShowMetricAnalysis] = useState(false); // New state for accordion
+  const [cooldownRemaining, setCooldownRemaining] = useState<number>(0); // State for cooldown
+  const [lastPredictionTimestamp, setLastPredictionTimestamp] = useState<number>(0); // Timestamp of last successful prediction
 
 
   const generateTfPrediction = async () => {
     setTfLoading(true);
     setTfError(null);
+    setCooldownRemaining(0); // Reset cooldown on new attempt
+
     try {
       const response = await fetch(`/api/stock/${ticker}/predict/tensorflow`, {
         method: 'POST',
@@ -92,12 +96,26 @@ export default function StockPrediction({
       });
       
       if (!response.ok) {
-        try {
-            const result = await response.json();
-            throw new Error(result.message || 'Failed to generate TF prediction');
-        } catch (e) {
-            const text = await response.text();
-            throw new Error(`Failed to generate TF prediction. Server responded with: ${text}`);
+        if (response.status === 429) {
+          const retryAfter = response.headers.get('Retry-After');
+          if (retryAfter) {
+            const retryAfterMs = parseInt(retryAfter, 10) * 1000;
+            setCooldownRemaining(retryAfterMs);
+            // Start a timer to clear the cooldown
+            const timerId = setTimeout(() => setCooldownRemaining(0), retryAfterMs);
+            // Optionally, clear the timer if the component unmounts or a new prediction is attempted
+            // This would require storing timerId in state or a ref
+          }
+          const result = await response.json();
+          throw new Error(result.message || 'Too many requests');
+        } else {
+          try {
+              const result = await response.json();
+              throw new Error(result.message || 'Failed to generate TF prediction');
+          } catch (e) {
+              const text = await response.text();
+              throw new Error(`Failed to generate TF prediction. Server responded with: ${text}`);
+          }
         }
       }
 
@@ -106,6 +124,7 @@ export default function StockPrediction({
         throw new Error(result.error);
       }
       setTfPrediction(result);
+      setLastPredictionTimestamp(Date.now()); // Set timestamp on successful prediction
     } catch (err) {
       setTfError(
         err instanceof Error ? err.message : 'An unknown error occurred'
@@ -128,10 +147,10 @@ export default function StockPrediction({
       <div className="flex space-x-4">
           <button
             onClick={generateTfPrediction}
-            disabled={tfLoading}
+            disabled={tfLoading || cooldownRemaining > 0}
             className="bg-green-700 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-800 cursor-pointer transition-colors disabled:bg-gray-400"
           >
-            {tfLoading ? 'Generating...' : 'Generate Prediction'}
+            {tfLoading ? 'Generating...' : cooldownRemaining > 0 ? `Retry in ${Math.ceil(cooldownRemaining / 1000)}s` : 'Generate Prediction'}
           </button>
       </div>
       {tfError && <p className="text-red-500 mt-4">{tfError}</p>}

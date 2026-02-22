@@ -2,6 +2,34 @@
 import { getDbConnection } from './db';
 import mysql from 'mysql2/promise';
 
+// Define a set of allowed table names to prevent SQL injection
+const ALLOWED_TABLES = new Set([
+  'stocks', 'user_stocks', 'users', 'stocksdailyprice', 'news', 'user_stock_news'
+]);
+
+/**
+ * Asserts that the provided table name is valid and allowed.
+ * Throws an error if the table name is not in the ALLOWED_TABLES set.
+ * @param tableName The table name to validate.
+ */
+function assertValidTable(tableName: string): void {
+  if (!ALLOWED_TABLES.has(tableName)) {
+    throw new Error(`Invalid or disallowed table name: ${tableName}`);
+  }
+}
+
+/**
+ * Asserts that the provided column name is valid.
+ * Throws an error if the column name does not match the expected regex pattern.
+ * @param columnName The column name to validate.
+ */
+function assertValidColumnName(columnName: string): void {
+  const columnNameRegex = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+  if (!columnNameRegex.test(columnName)) {
+    throw new Error(`Invalid column name: ${columnName}`);
+  }
+}
+
 /**
  * Executes a database operation within a try-finally block to ensure connection release.
  * @param operation The database operation to execute with the connection.
@@ -28,6 +56,8 @@ async function executeDbOperation<T>(operation: (connection: mysql.PoolConnectio
  * @returns The insert ID of the new record.
  */
 export async function insert(tableName: string, data: Record<string, any>): Promise<number> {
+  assertValidTable(tableName);
+  Object.keys(data).forEach(assertValidColumnName);
   return executeDbOperation(async (connection) => {
     const columns = Object.keys(data).join(', ');
     const placeholders = Object.keys(data).map(() => '?').join(', ');
@@ -47,6 +77,9 @@ export async function insert(tableName: string, data: Record<string, any>): Prom
  * @returns The insert ID of the new record or 0 if an update occurred.
  */
 export async function upsert(tableName: string, data: Record<string, any>, uniqueKeys: string[]): Promise<number | void> {
+  assertValidTable(tableName);
+  Object.keys(data).forEach(assertValidColumnName);
+  uniqueKeys.forEach(assertValidColumnName);
   return executeDbOperation(async (connection) => {
     const columns = Object.keys(data).join(', ');
     const placeholders = Object.keys(data).map(() => '?').join(', ');
@@ -83,6 +116,9 @@ export async function upsert(tableName: string, data: Record<string, any>, uniqu
  * @returns The number of affected rows.
  */
 export async function update(tableName: string, data: Record<string, any>, conditions: Record<string, any>): Promise<number> {
+  assertValidTable(tableName);
+  Object.keys(data).forEach(assertValidColumnName);
+  Object.keys(conditions).forEach(assertValidColumnName);
   return executeDbOperation(async (connection) => {
     const setClause = Object.keys(data).map(key => `${key} = ?`).join(', ');
     const whereClause = Object.keys(conditions).map(key => `${key} = ?`).join(' AND ');
@@ -103,6 +139,15 @@ export async function update(tableName: string, data: Record<string, any>, condi
  * @returns An array of selected records.
  */
 export async function select(tableName: string, conditions?: Record<string, any>, orderBy?: string, limit?: number): Promise<any[]> {
+  assertValidTable(tableName);
+  if (conditions) {
+    Object.keys(conditions).forEach(assertValidColumnName);
+  }
+  if (orderBy) {
+    // Basic validation for orderBy, assuming single column name
+    // This will only check the first word if it contains ASC/DESC
+    assertValidColumnName(orderBy.split(' ')[0]); 
+  }
   return executeDbOperation(async (connection) => {
     let query = `SELECT * FROM ${tableName}`;
     const values: any[] = [];
@@ -134,6 +179,8 @@ export async function select(tableName: string, conditions?: Record<string, any>
  * @returns The number of affected rows.
  */
 export async function remove(tableName: string, conditions: Record<string, any>): Promise<number> {
+  assertValidTable(tableName);
+  Object.keys(conditions).forEach(assertValidColumnName);
   return executeDbOperation(async (connection) => {
     const whereClause = Object.keys(conditions).map(key => `${key} = ?`).join(' AND ');
     const values = Object.values(conditions);

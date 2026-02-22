@@ -1,10 +1,12 @@
 
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import nlp from 'compromise';
 import Sentiment from 'sentiment';
 import { getNews } from './getNews';
 import { getServerSession } from 'next-auth'; // Add this import
 import { authOptions } from '@/lib/auth'; // Add this import
+import { checkOrigin } from '@/utils/originCheck'; // Add this import
+import { createErrorResponse, unauthorizedResponse } from '@/utils/errorResponse'; // Add this import
 
 const sentiment = new Sentiment();
 
@@ -39,7 +41,11 @@ const industries = {
 };
 
 // NOTE: This endpoint requires authentication.
-export async function GET() {
+export async function GET(request: NextRequest) { // Add NextRequest type
+  const originCheckResponse = checkOrigin(request as any);
+  if (originCheckResponse) {
+    return originCheckResponse;
+  }
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
@@ -118,10 +124,6 @@ export async function GET() {
 
     } catch (error) {
         console.error(error);
-        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
-        return new NextResponse(JSON.stringify({ message: 'Failed to analyze news.', error: errorMessage }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' },
-        });
+        return createErrorResponse(error, 'Failed to analyze news.', { status: 500 });
     }
 }

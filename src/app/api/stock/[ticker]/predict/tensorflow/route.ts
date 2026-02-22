@@ -7,8 +7,13 @@ import { predictionSemaphore } from '@/utils/predictionQueue';
 import { createLogger } from '@/utils/logger';
 import { getServerSession } from 'next-auth'; // Add this import
 import { authOptions } from '@/lib/auth'; // Add this import
+import { predictionLimiter } from '@/utils/rateLimiter'; // Add this import
 
 const logger = createLogger('api/stock/[ticker]/predict/tensorflow');
+
+// Optional: Per-ticker cooldown (30 seconds)
+const tickerCooldown = new Map<string, number>();
+const COOLDOWN_MS = 30 * 1000; // 30 seconds
 
 // NOTE: This endpoint requires authentication.
 export async function POST( // Changed GET to POST
@@ -21,6 +26,30 @@ export async function POST( // Changed GET to POST
   if (!session) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
+
+  // --- Rate Limiting for Prediction Endpoint ---
+  const userId = session.user.id;
+  const { allowed, resetInMs } = predictionLimiter.check(userId);
+
+  if (!allowed) {
+    return NextResponse.json(
+      { message: `Too many prediction requests. Please try again in ${Math.ceil(resetInMs / 1000)} seconds.` },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil(resetInMs / 1000)) } }
+    );
+  }
+
+  // --- Per-ticker Cooldown ---
+  const lastPredictionTime = tickerCooldown.get(`${userId}-${ticker}`);
+  const now = Date.now();
+
+  if (lastPredictionTime && (now - lastPredictionTime < COOLDOWN_MS)) {
+    const remainingCooldown = COOLDOWN_MS - (now - lastPredictionTime);
+    return NextResponse.json(
+      { message: `Please wait ${Math.ceil(remainingCooldown / 1000)} seconds before predicting ${ticker} again.` },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil(remainingCooldown / 1000)) } }
+    );
+  }
+  tickerCooldown.set(`${userId}-${ticker}`, now);
 
   if (!ticker) {
     return NextResponse.json({ message: 'Ticker is required' }, { status: 400 })
