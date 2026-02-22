@@ -6,6 +6,7 @@ import { executeRawQuery } from '@/utils/databaseHelper';
 import { checkOrigin } from '@/utils/originCheck';
 import { calculateTechnicalIndicators, HistoricalData } from '@/utils/technicalIndicators';
 import { createErrorResponse, unauthorizedResponse } from '@/utils/errorResponse';
+import { fetchYahooQuotesForSymbols } from '@/utils/yahooFinanceHelper'; // Import the new utility
 
 interface DailyPriceRow {
   stock_id: number;
@@ -57,22 +58,11 @@ export async function GET(request: NextRequest) {
     // Extract symbols for batch Yahoo Finance query
     const symbols = userHoldingsResult.map(holding => holding.symbol);
 
-    let yahooFinanceData = [];
-    if (symbols.length > 0) {
-      // Internal call to the new API endpoint to get batch Yahoo Finance data
-      const yahooApiUrl = `${request.nextUrl.origin}/api/dashboard/get`;
-      const yahooApiResponse = await fetch(yahooApiUrl, {
-        headers: {
-          'Cookie': request.headers.get('Cookie') || '', // Forward cookies for session validation
-        },
-      });
+    // Create stockIdMap for the utility function
+    const stockIdMap = new Map<string, number>(userHoldingsResult.map(holding => [holding.symbol, holding.id]));
 
-      if (!yahooApiResponse.ok) {
-        const errorBody = await yahooApiResponse.json();
-        throw new Error(`Failed to fetch Yahoo Finance data: ${errorBody.error || yahooApiResponse.statusText}`);
-      }
-      yahooFinanceData = await yahooApiResponse.json();
-    }
+    // Use the new utility function to fetch Yahoo Finance data
+    const yahooFinanceData = await fetchYahooQuotesForSymbols(symbols, stockIdMap);
 
     // Map Yahoo Finance data for easy lookup
     const yahooDataMap = new Map<number, any>();

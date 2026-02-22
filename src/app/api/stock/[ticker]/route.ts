@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { executeRawQuery, transaction } from '@/utils/databaseHelper'
-import YahooFinance from 'yahoo-finance2';
 import { createErrorResponse, unauthorizedResponse, forbiddenResponse } from '@/utils/errorResponse';
 import { secCompanyCache } from '@/utils/cache';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { checkOrigin } from '@/utils/originCheck';
-import { calculateTechnicalIndicators } from '@/utils/technicalIndicators'; // Added this import
+import { calculateTechnicalIndicators } from '@/utils/technicalIndicators';
 import { createLogger } from '@/utils/logger';
+import { fetchYahooStockSummary } from '@/utils/yahooFinanceHelper'; // Import the new helper function
 
-const yahooFinance = new YahooFinance();
 const logger = createLogger('api/stock/[ticker]');
 
 async function fetchCompanyNameFromSec(ticker: string): Promise<string | null> {
@@ -206,9 +205,7 @@ async function fetchFromExternalAPIs(tickers: string | string[]) {
     // Fetch all tickers in one call using quote with multiple symbols
     const yahooPromises = tickerArray.map(async (ticker) => {
       try {
-        const summary = await yahooFinance.quoteSummary(ticker, {
-          modules: ["assetProfile", "price", "summaryDetail", "quoteType", "financialData", "defaultKeyStatistics"], // Added defaultKeyStatistics
-        });
+        const summary = await fetchYahooStockSummary(ticker); // Use the helper function
 
         const data = {
             ...summary.assetProfile,
@@ -216,12 +213,8 @@ async function fetchFromExternalAPIs(tickers: string | string[]) {
             ...summary.summaryDetail,
             ...summary.quoteType,
             ...summary.financialData,
-            ...summary.defaultKeyStatistics, // Added defaultKeyStatistics
+            ...summary.defaultKeyStatistics,
         };
-
-
-
-
 
         if (!data || !data.symbol) {
           throw new Error(`StockNotFoundError: ${ticker}`);

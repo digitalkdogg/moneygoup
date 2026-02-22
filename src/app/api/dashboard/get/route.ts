@@ -5,10 +5,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { executeRawQuery } from '@/utils/databaseHelper';
 import { checkOrigin } from '@/utils/originCheck';
 import { createErrorResponse, unauthorizedResponse } from '@/utils/errorResponse';
-import YahooFinance from 'yahoo-finance2';
+import { fetchYahooQuotesForSymbols } from '@/utils/yahooFinanceHelper';
 
 const logger = createLogger('api/dashboard/get');
-const yahooFinance = new YahooFinance();
 
 export async function GET(request: NextRequest) {
   const originCheckResponse = checkOrigin(request);
@@ -44,26 +43,7 @@ export async function GET(request: NextRequest) {
     const symbols = userStocks.map(stock => stock.symbol);
     const stockIdMap = new Map<string, number>(userStocks.map(stock => [stock.symbol, stock.stock_id]));
 
-
-    if (symbols.length === 0) {
-      return NextResponse.json([]); // No stocks to fetch
-    }
-
-    // 2. Fetch data for all symbols from Yahoo Finance in one batch call
-    const yahooFinanceData = await yahooFinance.quote(symbols);
-
-    // 3. Map the Yahoo Finance data back to include the stock_id and other relevant info
-    const combinedData = yahooFinanceData.map(data => ({
-      stock_id: stockIdMap.get(data.symbol || '') || null, // Map back the stock_id
-      symbol: data.symbol,
-      companyName: data.longName || data.shortName || 'N/A',
-      price: data.regularMarketPrice || null,
-      daily_change: data.regularMarketChange || null,
-      marketCap: data.marketCap || null,
-      trailingPE: data.trailingPE || null,
-      priceToBook: data.priceToBook || null,
-      // You can add more fields from yahooFinanceData as needed
-    }));
+    const combinedData = await fetchYahooQuotesForSymbols(symbols, stockIdMap);
 
     return NextResponse.json(combinedData);
 
