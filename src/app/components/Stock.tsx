@@ -87,6 +87,7 @@ export default function Stock({
   const [watchlistSuccess, setWatchlistSuccess] = useState<string | null>(null)
   const [watchlistError, setWatchlistError] = useState<string | null>(null)
   const [watchlistStatus, setWatchlistStatus] = useState<Record<string, boolean>>({})
+  const [portfolioStatus, setPortfolioStatus] = useState<Record<string, boolean>>({})
   const [earningsData, setEarningsData] = useState<EarningsData | null>(null);
   const [showFullSummary, setShowFullSummary] = useState(false); // State for showing full summary
   const TRUNCATE_LENGTH = 300; // Define truncation length
@@ -133,23 +134,30 @@ export default function Stock({
       if (isSingleTicker) {
         const watchlistRes = await fetch(`/api/dashboard/on?ticker=${primaryTicker}`);
         if (watchlistRes.ok) {
-          const { isOnWatchlist } = await watchlistRes.json();
-          setWatchlistStatus({ [primaryTicker]: isOnWatchlist });
+          const { onWatchlist, onPortfolio } = await watchlistRes.json();
+          // If stock is in portfolio, treat it as on watchlist
+          const effectiveWatchlistStatus = onWatchlist || onPortfolio;
+          setWatchlistStatus({ [primaryTicker]: effectiveWatchlistStatus });
+          setPortfolioStatus({ [primaryTicker]: onPortfolio });
         } else {
           logger.error('Failed to fetch single stock watchlist status');
           setWatchlistStatus({ [primaryTicker]: false });
+          setPortfolioStatus({ [primaryTicker]: false });
         }
       } else {
         const watchlistCheckRes = await fetch('/api/user/watchlist');
         if (watchlistCheckRes.ok) {
           const watchlistData = await watchlistCheckRes.json();
           const statusMap: Record<string, boolean> = {};
+          const portfolioMap: Record<string, boolean> = {};
           tickerArray.forEach(t => {
             statusMap[t] = watchlistData.watchlist.some(
               (item: any) => item.symbol?.trim().toUpperCase() === t
             );
+            portfolioMap[t] = false; // Portfolio status not needed for multi-ticker comparison
           });
           setWatchlistStatus(statusMap);
+          setPortfolioStatus(portfolioMap);
         } else {
           logger.error('Failed to fetch user watchlist for multiple tickers');
           const emptyStatus: Record<string, boolean> = {};
@@ -157,6 +165,7 @@ export default function Stock({
             emptyStatus[t] = false;
           });
           setWatchlistStatus(emptyStatus);
+          setPortfolioStatus(emptyStatus);
         }
       }
 
@@ -293,13 +302,22 @@ export default function Stock({
   }, [ticker])
 
   const handleWatchlistToggle = async (tickerToToggle: string) => {
+    // Store previous state for rollback
+    const previousWatchlistStatus = watchlistStatus[tickerToToggle];
+    
     setAddingToWatchlist(true)
     setWatchlistSuccess(null)
     setWatchlistError(null)
 
+    // Optimistic UI update
+    setWatchlistStatus(prev => ({
+      ...prev,
+      [tickerToToggle]: !prev[tickerToToggle]
+    }))
+
     try {
       let res
-      if (watchlistStatus[tickerToToggle]) {
+      if (previousWatchlistStatus) {
         // Remove from watchlist
         res = await fetch(`/api/user/watchlist?stockId=${tickerToToggle}`, {
           method: 'DELETE',
@@ -323,14 +341,20 @@ export default function Stock({
 
       if (res.ok) {
         setWatchlistSuccess(data.message)
+      } else {
+        // Rollback on error
         setWatchlistStatus(prev => ({
           ...prev,
-          [tickerToToggle]: !prev[tickerToToggle]
+          [tickerToToggle]: previousWatchlistStatus
         }))
-      } else {
         setWatchlistError(data.message || 'Failed to update watchlist.')
       }
     } catch (err: unknown) {
+      // Rollback on error
+      setWatchlistStatus(prev => ({
+        ...prev,
+        [tickerToToggle]: previousWatchlistStatus
+      }))
       const error = err instanceof Error ? err : new Error('Network connection failed')
       setWatchlistError(error.message)
     } finally {
@@ -400,20 +424,31 @@ export default function Stock({
             <h1 className="text-3xl font-bold text-gray-800">
               {stockData.name} ({stockData.symbol})
             </h1>
-            {/* Watchlist Status/Button */}
-            {watchlistStatus[primaryTicker] ? (
-              <span className="text-green-600 font-semibold px-3 py-1 bg-green-50 rounded-full">
-                On Watchlist
-              </span>
-            ) : (
-              <button
-                onClick={() => handleWatchlistToggle(primaryTicker)}
-                disabled={addingToWatchlist}
-                className="px-4 py-2 rounded-md text-white bg-green-700 hover:bg-green-800 disabled:opacity-50"
-              >
-                {addingToWatchlist ? 'Adding...' : 'Add to Watchlist'}
-              </button>
-            )}
+            {/* Watchlist Status/Button and Portfolio Badge */}
+            <div className="flex gap-3 items-center">
+              {portfolioStatus[primaryTicker] ? (
+                <div className="px-3 py-2 bg-gray-100 border border-gray-300 rounded-md text-gray-700 font-medium flex items-center gap-2">
+                  <span>📊</span>
+                  <span>In Portfolio</span>
+                </div>
+              ) : watchlistStatus[primaryTicker] ? (
+                <button
+                  onClick={() => handleWatchlistToggle(primaryTicker)}
+                  disabled={addingToWatchlist}
+                  className="px-4 py-2 rounded-md text-white bg-green-700 hover:bg-green-800 disabled:opacity-50 border border-green-700"
+                >
+                  {addingToWatchlist ? 'Updating...' : 'Remove from Watchlist'}
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleWatchlistToggle(primaryTicker)}
+                  disabled={addingToWatchlist}
+                  className="px-4 py-2 rounded-md text-white bg-green-700 hover:bg-green-800 disabled:opacity-50"
+                >
+                  {addingToWatchlist ? 'Adding...' : 'Add to Watchlist'}
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Company Description */}
@@ -622,19 +657,30 @@ export default function Stock({
                   <h2 className="text-2xl font-bold text-gray-800">
                     {stockData.name} ({stockData.symbol})
                   </h2>
-                  {watchlistStatus[t] ? (
-                    <span className="text-green-600 font-semibold px-3 py-1 bg-green-50 rounded-full">
-                      On Watchlist
-                    </span>
-                  ) : (
-                    <button
-                      onClick={() => handleWatchlistToggle(t)}
-                      disabled={addingToWatchlist}
-                      className="px-4 py-2 rounded-md text-white bg-green-700 hover:bg-green-800 disabled:opacity-50"
-                    >
-                      {addingToWatchlist ? 'Adding...' : 'Add to Watchlist'}
-                    </button>
-                  )}
+                  <div className="flex gap-3 items-center">
+                    {portfolioStatus[t] ? (
+                      <div className="px-3 py-2 bg-gray-100 border border-gray-300 rounded-md text-gray-700 font-medium flex items-center gap-2">
+                        <span>📊</span>
+                        <span>In Portfolio</span>
+                      </div>
+                    ) : watchlistStatus[t] ? (
+                      <button
+                        onClick={() => handleWatchlistToggle(t)}
+                        disabled={addingToWatchlist}
+                        className="px-4 py-2 rounded-md text-white bg-green-700 hover:bg-green-800 disabled:opacity-50 border border-green-700"
+                      >
+                        {addingToWatchlist ? 'Updating...' : 'Remove from Watchlist'}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleWatchlistToggle(t)}
+                        disabled={addingToWatchlist}
+                        className="px-4 py-2 rounded-md text-white bg-green-700 hover:bg-green-800 disabled:opacity-50"
+                      >
+                        {addingToWatchlist ? 'Adding...' : 'Add to Watchlist'}
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

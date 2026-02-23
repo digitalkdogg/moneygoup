@@ -27,19 +27,24 @@ export async function GET(request: NextRequest) {
 
   try {
     const query = `
-      SELECT EXISTS (
-        SELECT 1
-        FROM user_stocks us
-        JOIN stocks s ON us.stock_id = s.id
-        WHERE us.user_id = ? AND s.symbol = ?
-      ) AS isOnWatchlist;
+      SELECT 
+        MAX(CASE WHEN us.is_purchased = 0 THEN 1 ELSE 0 END) AS onWatchlist,
+        MAX(CASE WHEN us.is_purchased = 1 THEN 1 ELSE 0 END) AS onPortfolio
+      FROM user_stocks us
+      JOIN stocks s ON us.stock_id = s.id
+      WHERE us.user_id = ? AND s.symbol = ?;
     `;
     const [rows] = await executeRawQuery(query, [userId, normalizedTicker]);
     
-    // The result is an array of RowDataPacket, and the EXISTS returns 0 or 1
-    const isOnWatchlist = (rows as any[])[0]?.isOnWatchlist === 1;
+    const result = (rows as any[])[0] || { onWatchlist: 0, onPortfolio: 0 };
+    const onWatchlist = result.onWatchlist === 1;
+    const onPortfolio = result.onPortfolio === 1;
 
-    return NextResponse.json({ ticker: normalizedTicker, isOnWatchlist });
+    return NextResponse.json({ 
+      ticker: normalizedTicker, 
+      onWatchlist, 
+      onPortfolio 
+    });
 
   } catch (error) {
     console.error('Error checking watchlist status:', error);
