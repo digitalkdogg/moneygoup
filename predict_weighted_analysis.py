@@ -449,7 +449,7 @@ def predict_with_weighted_analysis(ticker, historical_data_input, stock_metrics_
 
             max_range = current_price * 0.15 if is_growth_stock else current_price * 0.12
 
-            print(f"DEBUG: is_growth_stock={is_growth_stock}, is_high_volatility={is_high_volatility}, time_step={time_step}") # TEMP: for verification
+            print(f"DEBUG: is_growth_stock={is_growth_stock}, is_high_volatility={is_high_volatility}, time_step={time_step}", file=sys.stderr) # TEMP: for verification
             result = {
                 "ticker": ticker,
                 "regularMarketPrice": round(current_price, 2),
