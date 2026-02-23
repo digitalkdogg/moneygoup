@@ -10,6 +10,7 @@ import PortfolioSection from './PortfolioSection';
 import PortfolioSummary from './PortfolioSummary'; // NEW: Import PortfolioSummary
 import { formatNumber, formatCurrency as formatUtilityCurrency } from '@/utils/formatters'; // Import formatters
 import { PortfolioItem } from '@/types/portfolio'; // NEW: Import PortfolioItem
+import GrowthPicksSection from './GrowthPicksSection';
 
 interface StockData {
   symbol?: string
@@ -397,6 +398,8 @@ export default function Dashboard() {
           <WatchlistSection onRefresh={() => {
             // Optional: refresh other data if needed
           }} />
+
+          <GrowthPicksSection />
 
           {/* Undervalued Large Caps Section */}
           <StockTable<UndervaluedLargeCap>
