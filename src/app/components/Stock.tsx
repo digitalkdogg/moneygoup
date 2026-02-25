@@ -536,22 +536,19 @@ export default function Stock({
         )}
 
         {/* 1-Year Price Prediction */}
-        {historical && historical.length > 0 && (
-          <StockPrediction
-            ticker={primaryTicker}
-            currentPrice={currentPrice}
-            historicalData={historical}
-            peRatio={stockData?.peRatio}
-            pbRatio={stockData?.pbRatio}
-            marketCap={stockData?.marketCap}
-            sma20={indicators?.sma20 ?? undefined}
-            sma50={indicators?.sma50 ?? undefined}
-            rsi={indicators?.rsi14 ?? undefined}
-            momentum={indicators?.momentum ?? undefined}
-            newsArticles={news}
-            historicalEarnings={earningsData?.historicalEarnings || []}
-          />
-        )}
+        <StockPrediction
+          ticker={primaryTicker}
+          currentPrice={currentPrice}
+          peRatio={stockData?.peRatio}
+          pbRatio={stockData?.pbRatio}
+          marketCap={stockData?.marketCap}
+          sma20={indicators?.sma20 ?? undefined}
+          sma50={indicators?.sma50 ?? undefined}
+          rsi={indicators?.rsi14 ?? undefined}
+          momentum={indicators?.momentum ?? undefined}
+          newsArticles={news}
+          historicalEarnings={earningsData?.historicalEarnings || []}
+        />
 
         {/* Technical Indicators */}
         {indicators && (
@@ -709,21 +706,18 @@ export default function Stock({
               )}
 
               {/* Prediction */}
-              {historical && historical.length > 0 && (
-                <StockPrediction
-                  ticker={t}
-                  currentPrice={currentPrice}
-                  historicalData={historical}
-                  peRatio={stockData?.peRatio}
-                  pbRatio={stockData?.pbRatio}
-                  marketCap={stockData?.marketCap}
-                  sma20={indicators?.sma20 ?? undefined}
-                  sma50={indicators?.sma50 ?? undefined}
-                  rsi={indicators?.rsi14 ?? undefined}
-                  momentum={indicators?.momentum ?? undefined}
-                  newsArticles={news}
-                />
-              )}
+              <StockPrediction
+                ticker={t}
+                currentPrice={currentPrice}
+                peRatio={stockData?.peRatio}
+                pbRatio={stockData?.pbRatio}
+                marketCap={stockData?.marketCap}
+                sma20={indicators?.sma20 ?? undefined}
+                sma50={indicators?.sma50 ?? undefined}
+                rsi={indicators?.rsi14 ?? undefined}
+                momentum={indicators?.momentum ?? undefined}
+                newsArticles={news}
+              />
 
               {/* Indicators */}
               {indicators && (

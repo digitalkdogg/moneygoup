@@ -110,7 +110,29 @@ export async function POST(
     );
   }
 
-  // 5. Concurrency limit — check before acquiring the slot
+  // 5. Parse and validate body before checking concurrency
+  let body: any;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ message: 'Invalid JSON body' }, { status: 400 });
+  }
+
+  // Validate historicalData presence and minimum depth (504 rows ≈ 2 years)
+  if (!body.historicalData || !Array.isArray(body.historicalData) || body.historicalData.length === 0) {
+    return NextResponse.json({ message: 'historicalData is required and must be a non-empty array' }, { status: 400 });
+  }
+  if (body.historicalData.length < 504) {
+    return NextResponse.json(
+      { message: `Insufficient historical data: ${body.historicalData.length} days provided, minimum 504 required (~2 years).` },
+      { status: 400 }
+    );
+  }
+  if (!body.stockMetrics || typeof body.stockMetrics !== 'object') {
+    return NextResponse.json({ message: 'stockMetrics is required' }, { status: 400 });
+  }
+
+  // 6. Concurrency limit — check before acquiring the slot
   if (predictionSemaphore.isFull()) {
     return NextResponse.json(
       { message: 'Prediction service is busy. Please try again in a moment.' },
@@ -118,16 +140,14 @@ export async function POST(
     );
   }
 
-  // 6. Record cooldown before spawning (prevents double-submit races)
+  // 7. Record cooldown before spawning (prevents double-submit races)
   setCooldown(cooldownKey);
 
-  // 7. Acquire semaphore slot, run prediction, release on completion
+  // 8. Acquire semaphore slot, run prediction, release on completion
   const tempFile = join(tmpdir(), `tf_prediction_input_${randomUUID()}.json`);
 
   await predictionSemaphore.acquire();
   try {
-    const body = await request.json();
-
     // Write input data to temp file.
     // Ticker is NOT included in the JSON — the Python script reads it from
     // the CLI positional argument, not from the file.

@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { formatNumber, formatCurrency } from '@/utils/formatters'
 
+// ---------------------------------------------------------------------------
+// Props — historicalData removed; data is fetched internally via /data route
+// ---------------------------------------------------------------------------
 interface StockPredictionProps {
   ticker: string
   currentPrice: number
-  historicalData: Array<{ close: number }> | null
   peRatio?: number
   pbRatio?: number
   marketCap?: number
@@ -14,42 +16,237 @@ interface StockPredictionProps {
   sma50?: number
   rsi?: number
   momentum?: number
-  newsArticles?: Array<{ title?: string; description?: string; content?: string; sentiment_score?: number }>
+  newsArticles?: Array<{
+    title?: string
+    description?: string
+    content?: string
+    sentiment_score?: number
+    publishedAt?: string
+    article_type?: string
+  }>
   historicalEarnings?: Array<{
-    date: string;
-    revenue: number | null;
-    earnings: number | null;
-    epsActual: number | null;
-    epsEstimate: number | null;
-  }>;
+    date: string
+    revenue: number | null
+    earnings: number | null
+    epsActual: number | null
+    epsEstimate: number | null
+  }>
 }
 
-interface TfPredictionResult {
-    ticker: string;
-    regularMarketPrice: number;
-    predicted_change_range: [number, number]; // Changed to single predicted_change_range
-    accuracy_metrics: {
-        neural_network?: {
-            mae: number;
-            rmse: number;
-        };
-        model?: {
-            mae: number;
-            rmse: number;
-        };
-    };
-    stock_type?: string;
-    growth_rate_20d?: number;
-    is_uptrend?: number; // Changed to number as per Python script output
-    model_status?: string;
-    note?: string; // Added note field from Python script
-    metric_analysis?: any; // Added metric_analysis field for detailed insights
+// ---------------------------------------------------------------------------
+// Response types
+// ---------------------------------------------------------------------------
+interface TrajectoryPoint {
+  month: string
+  predicted_price: number
+  lower_bound: number
+  upper_bound: number
 }
 
+interface PredictionResult {
+  ticker: string
+  regularMarketPrice: number
+  predicted_price_6m: number
+  predicted_price_1y: number
+  predicted_change_pct_6m: number
+  predicted_change_pct_1y: number
+  confidence_score_6m: number
+  confidence_score_1y: number
+  high_uncertainty: boolean
+  predicted_change_range: [number, number]
+  monthly_trajectory: TrajectoryPoint[]
+  accuracy_metrics: {
+    model?: { mae: number; rmse: number; cv_mae?: number }
+    neural_network?: { mae: number; rmse: number }
+  }
+  stock_type?: string
+  growth_rate_20d?: number
+  is_uptrend?: number
+  model_status?: string
+  note?: string
+  data_quality?: {
+    historyDays: number
+    historyYears: number
+    fundamentalsComplete: boolean
+    analystDataAvailable: boolean
+    imputedFields: string[]
+  }
+  metric_analysis?: any
+}
+
+interface DataQuality {
+  historyDays: number
+  historyYears: number
+  fundamentalsComplete: boolean
+  analystDataAvailable: boolean
+  macroDataAvailable: boolean
+  imputedFields: string[]
+}
+
+// ---------------------------------------------------------------------------
+// Confidence badge
+// ---------------------------------------------------------------------------
+const CONFIDENCE_TOOLTIP =
+  'Score is based on: data depth (25 pts), cross-validation error (40 pts), feature completeness (20 pts), analyst coverage (15 pts).'
+
+function ConfidenceBadge({ score }: { score: number }) {
+  if (score >= 66) {
+    return (
+      <span
+        title={CONFIDENCE_TOOLTIP}
+        className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full border bg-green-50 text-green-700 border-green-300 cursor-help"
+      >
+        High Confidence · {score}
+      </span>
+    )
+  }
+  if (score >= 41) {
+    return (
+      <span
+        title={CONFIDENCE_TOOLTIP}
+        className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-300 cursor-help"
+      >
+        Medium Confidence · {score}
+      </span>
+    )
+  }
+  return (
+    <span
+      title={CONFIDENCE_TOOLTIP}
+      className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full border bg-red-50 text-red-700 border-red-300 cursor-help"
+    >
+      Low Confidence · {score}
+    </span>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// SVG Trajectory Chart
+// ---------------------------------------------------------------------------
+function TrajectoryChart({
+  trajectory,
+  currentPrice,
+}: {
+  trajectory: TrajectoryPoint[]
+  currentPrice: number
+}) {
+  if (!trajectory || trajectory.length === 0) return null
+
+  const W = 700
+  const H = 260
+  const PAD = { top: 20, right: 24, bottom: 40, left: 64 }
+  const chartW = W - PAD.left - PAD.right
+  const chartH = H - PAD.top - PAD.bottom
+
+  const allPrices = [
+    currentPrice,
+    ...trajectory.map(t => t.predicted_price),
+    ...trajectory.map(t => t.lower_bound),
+    ...trajectory.map(t => t.upper_bound),
+  ]
+  const minP = Math.min(...allPrices) * 0.98
+  const maxP = Math.max(...allPrices) * 1.02
+
+  const xScale = (i: number) => PAD.left + (i / (trajectory.length - 1)) * chartW
+  const yScale = (p: number) => PAD.top + chartH - ((p - minP) / (maxP - minP)) * chartH
+
+  const linePath = trajectory
+    .map((t, i) => `${i === 0 ? 'M' : 'L'} ${xScale(i).toFixed(1)} ${yScale(t.predicted_price).toFixed(1)}`)
+    .join(' ')
+
+  const bandPath =
+    trajectory.map((t, i) => `${i === 0 ? 'M' : 'L'} ${xScale(i).toFixed(1)} ${yScale(t.upper_bound).toFixed(1)}`).join(' ') +
+    ' ' +
+    trajectory.map((t, i) => `L ${xScale(trajectory.length - 1 - i).toFixed(1)} ${yScale(trajectory[trajectory.length - 1 - i].lower_bound).toFixed(1)}`).join(' ') +
+    ' Z'
+
+  const currentY  = yScale(currentPrice)
+  const dividerX  = xScale(5)  // between month 6 and 7 (index 5 = 6th point)
+  const m6Idx     = 5
+  const m12Idx    = 11
+  const m6X       = xScale(m6Idx)
+  const m12X      = xScale(m12Idx)
+  const m6Y       = yScale(trajectory[m6Idx]?.predicted_price ?? currentPrice)
+  const m12Y      = yScale(trajectory[m12Idx]?.predicted_price ?? currentPrice)
+
+  const yTicks = Array.from({ length: 4 }, (_, i) => minP + (i / 3) * (maxP - minP))
+
+  return (
+    <div className="w-full overflow-x-auto mt-6">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-full" style={{ minWidth: 340 }}>
+        <defs>
+          <clipPath id="chart-clip">
+            <rect x={PAD.left} y={PAD.top} width={chartW} height={chartH} />
+          </clipPath>
+        </defs>
+
+        {/* Confidence band */}
+        <path d={bandPath} fill="#2563EB" fillOpacity="0.10" clipPath="url(#chart-clip)" />
+
+        {/* Current price dashed line */}
+        <line
+          x1={PAD.left} x2={PAD.left + chartW}
+          y1={currentY}  y2={currentY}
+          stroke="#9CA3AF" strokeWidth="1" strokeDasharray="5 3"
+        />
+        <text x={PAD.left + 4} y={currentY - 4} fontSize="10" fill="#6B7280">Current</text>
+
+        {/* Month-6 divider */}
+        <line
+          x1={dividerX} x2={dividerX}
+          y1={PAD.top}   y2={PAD.top + chartH}
+          stroke="#9CA3AF" strokeWidth="1" strokeDasharray="4 3"
+        />
+        <text x={PAD.left + 4}  y={PAD.top + 12} fontSize="9" fill="#6B7280">Primary Forecast</text>
+        <text x={dividerX + 4}  y={PAD.top + 12} fontSize="9" fill="#6B7280">Extended Outlook</text>
+
+        {/* Price line */}
+        <path d={linePath} fill="none" stroke="#2563EB" strokeWidth="2" clipPath="url(#chart-clip)" />
+
+        {/* Month 6 dot */}
+        <circle cx={m6X} cy={m6Y} r="5" fill="#2563EB" />
+
+        {/* Month 12 dot */}
+        <circle cx={m12X} cy={m12Y} r="5" fill="#7C3AED" />
+
+        {/* Y-axis ticks */}
+        {yTicks.map((p, i) => (
+          <g key={i}>
+            <line x1={PAD.left - 4} x2={PAD.left} y1={yScale(p)} y2={yScale(p)} stroke="#D1D5DB" />
+            <text x={PAD.left - 6} y={yScale(p) + 4} fontSize="10" fill="#6B7280" textAnchor="end">
+              {formatCurrency(p)}
+            </text>
+          </g>
+        ))}
+
+        {/* X-axis labels — every 3rd */}
+        {trajectory.map((t, i) => {
+          if (i % 3 !== 0) return null
+          return (
+            <text
+              key={i}
+              x={xScale(i)} y={H - 8}
+              fontSize="9" fill="#6B7280" textAnchor="middle"
+            >
+              {t.month}
+            </text>
+          )
+        })}
+
+        {/* Axes */}
+        <line x1={PAD.left} x2={PAD.left}           y1={PAD.top} y2={PAD.top + chartH} stroke="#D1D5DB" />
+        <line x1={PAD.left} x2={PAD.left + chartW}  y1={PAD.top + chartH} y2={PAD.top + chartH} stroke="#D1D5DB" />
+      </svg>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 export default function StockPrediction({
   ticker,
   currentPrice,
-  historicalData,
   peRatio,
   pbRatio,
   marketCap,
@@ -60,317 +257,346 @@ export default function StockPrediction({
   newsArticles,
   historicalEarnings,
 }: StockPredictionProps) {
-  const [tfPrediction, setTfPrediction] = useState<TfPredictionResult | null>(null)
-  const [tfLoading, setTfLoading] = useState(false)
-  const [tfError, setTfError] = useState<string | null>(null)
-  const [showMetricAnalysis, setShowMetricAnalysis] = useState(false); // New state for accordion
-  const [cooldownRemaining, setCooldownRemaining] = useState<number>(0); // State for cooldown
-  const [lastPredictionTimestamp, setLastPredictionTimestamp] = useState<number>(0); // Timestamp of last successful prediction
+  const [step, setStep]               = useState<'idle' | 'fetching' | 'predicting' | 'done'>('idle')
+  const [prediction, setPrediction]   = useState<PredictionResult | null>(null)
+  const [dataQuality, setDataQuality] = useState<DataQuality | null>(null)
+  const [error, setError]             = useState<string | null>(null)
+  const [cooldown, setCooldown]       = useState(0)
+  const [showMetrics, setShowMetrics] = useState(false)
+  const [bannerDismissed, setBannerDismissed] = useState(false)
 
+  const loading = step === 'fetching' || step === 'predicting'
 
-  const generateTfPrediction = async () => {
-    setTfLoading(true);
-    setTfError(null);
-    setCooldownRemaining(0); // Reset cooldown on new attempt
+  const generate = async () => {
+    setError(null)
+    setPrediction(null)
+    setDataQuality(null)
+    setBannerDismissed(false)
+    setCooldown(0)
 
+    // ---- Step 1: fetch enriched data payload ----
+    setStep('fetching')
+    let dataPayload: any
     try {
-      const response = await fetch(`/api/stock/${ticker}/predict/tensorflow`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          historicalData,
-          stockMetrics: {
-            peRatio,
-            pbRatio,
-            marketCap,
-            sma20,
-            sma50,
-            rsi,
-            momentum,
-          },
-          newsArticles,
-          historicalEarnings, // Pass historical earnings data
-        }),
-      });
-      
-      if (!response.ok) {
-        if (response.status === 429) {
-          const retryAfter = response.headers.get('Retry-After');
-          if (retryAfter) {
-            const retryAfterMs = parseInt(retryAfter, 10) * 1000;
-            setCooldownRemaining(retryAfterMs);
-            // Start a timer to clear the cooldown
-            const timerId = setTimeout(() => setCooldownRemaining(0), retryAfterMs);
-            // Optionally, clear the timer if the component unmounts or a new prediction is attempted
-            // This would require storing timerId in state or a ref
-          }
-          const result = await response.json();
-          throw new Error(result.message || 'Too many requests');
-        } else {
-          try {
-              const result = await response.json();
-              throw new Error(result.message || 'Failed to generate TF prediction');
-          } catch (e) {
-              const text = await response.text();
-              throw new Error(`Failed to generate TF prediction. Server responded with: ${text}`);
-          }
-        }
+      const res = await fetch(`/api/stock/${ticker}/data`)
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.message || `Data fetch failed (${res.status})`)
+      }
+      dataPayload = await res.json()
+      setDataQuality(dataPayload.dataQuality ?? null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch stock data')
+      setStep('idle')
+      return
+    }
+
+    // ---- Step 2: run LSTM prediction ----
+    setStep('predicting')
+    try {
+      // Merge client-side news + fallback earnings
+      const payload = {
+        ...dataPayload,
+        newsArticles: newsArticles ?? [],
+        historicalEarnings:
+          dataPayload.historicalEarnings?.length > 0
+            ? dataPayload.historicalEarnings
+            : (historicalEarnings ?? []),
       }
 
-      const result = await response.json();
-      if (result.error) {
-        throw new Error(result.error);
+      const res = await fetch(`/api/stock/${ticker}/predict/tensorflow`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(payload),
+      })
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        if (res.status === 429) {
+          // Parse wait time from message
+          const match = body.message?.match(/(\d+)\s*second/)
+          const waitMs = match ? parseInt(match[1]) * 1000 : 30_000
+          setCooldown(waitMs)
+          const interval = setInterval(() => {
+            setCooldown(prev => {
+              if (prev <= 1000) { clearInterval(interval); return 0 }
+              return prev - 1000
+            })
+          }, 1000)
+        }
+        throw new Error(body.message || `Prediction failed (${res.status})`)
       }
-      setTfPrediction(result);
-      setLastPredictionTimestamp(Date.now()); // Set timestamp on successful prediction
+
+      const result = await res.json()
+      if (result.error) throw new Error(result.error)
+      setPrediction(result)
+      setStep('done')
     } catch (err) {
-      setTfError(
-        err instanceof Error ? err.message : 'An unknown error occurred'
-      );
-    } finally {
-      setTfLoading(false);
+      setError(err instanceof Error ? err.message : 'An unknown error occurred')
+      setStep('idle')
     }
   }
 
+  const btnLabel =
+    step === 'fetching'   ? 'Fetching 5-year data...' :
+    step === 'predicting' ? 'Running LSTM model...' :
+    cooldown > 0          ? `Retry in ${Math.ceil(cooldown / 1000)}s` :
+                            'Generate Prediction'
 
+  const dq = dataQuality
+  const showDqWarnings = dq && (dq.historyYears < 5 || !dq.fundamentalsComplete || !dq.analystDataAvailable)
 
   return (
     <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
-      <h2 className="text-2xl font-semibold text-gray-800 mb-4">
-        📊 AI-Powered Price Prediction
-      </h2>
+      <h2 className="text-2xl font-semibold text-gray-800 mb-4">📊 AI-Powered Price Prediction</h2>
       <p className="text-gray-600 mb-4">
-        Click the button to generate an AI-powered price prediction for {ticker}.
+        Click the button to generate a 6-month and 12-month price prediction for {ticker} using an LSTM neural network.
       </p>
-      <div className="flex space-x-4">
-          <button
-            onClick={generateTfPrediction}
-            disabled={tfLoading || cooldownRemaining > 0}
-            className="bg-green-700 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-800 cursor-pointer transition-colors disabled:bg-gray-400"
-          >
-            {tfLoading ? 'Generating...' : cooldownRemaining > 0 ? `Retry in ${Math.ceil(cooldownRemaining / 1000)}s` : 'Generate Prediction'}
-          </button>
-      </div>
-      {tfError && <p className="text-red-500 mt-4">{tfError}</p>}
-      {tfPrediction && (
-          <div className="mt-8">
-              <h3 className="text-xl font-semibold text-gray-800 mb-4">Prediction Results</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="p-4 bg-gray-50 rounded-lg">
-                      <p className="text-sm text-gray-600 mb-3">Current Price</p>
-                      <p className="text-2xl font-bold text-gray-800 mb-4">{formatCurrency(tfPrediction.regularMarketPrice)}</p>
 
-                      {/* Influential Metrics Section */}
-                      <div className="space-y-2 text-xs">
-                          {/* RSI */}
-                          {rsi !== undefined && (
-                              <div className="pb-2 border-b border-gray-300">
-                                  <div className="flex justify-between items-center">
-                                      <span className="text-gray-600">RSI (14)</span>
-                                      <span className={`font-semibold ${rsi > 70 ? 'text-red-600' : rsi < 30 ? 'text-green-600' : 'text-gray-700'}`}>
-                                          {formatNumber(rsi, 1)}
-                                      </span>
-                                  </div>
-                                  <p className="text-gray-500 text-xs mt-1">
-                                      {rsi > 70 ? '🔴 Overbought' : rsi < 30 ? '🟢 Oversold' : '⚪ Neutral'}
-                                  </p>
-                              </div>
-                          )}
+      {/* Data quality warnings (shown after Step 1 completes) */}
+      {showDqWarnings && (
+        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 space-y-1">
+          {dq!.historyYears < 5 && (
+            <p>⚠️ Only {dq!.historyYears.toFixed(1)} years of history available (5 preferred). Predictions may be less reliable.</p>
+          )}
+          {!dq!.fundamentalsComplete && (
+            <p>⚠️ Some fundamental metrics were imputed from sector medians: {dq!.imputedFields.join(', ')}.</p>
+          )}
+          {!dq!.analystDataAvailable && (
+            <p>⚠️ No analyst consensus data available for this ticker.</p>
+          )}
+        </div>
+      )}
 
-                          {/* Momentum */}
-                          {momentum !== undefined && (
-                              <div className="pb-2 border-b border-gray-300">
-                                  <div className="flex justify-between items-center">
-                                      <span className="text-gray-600">Momentum</span>
-                                      <span className={`font-semibold ${Math.abs(momentum) > 2 ? momentum > 0 ? 'text-green-600' : 'text-red-600' : 'text-gray-700'}`}>
-                                          {formatNumber(momentum, 2)}
-                                      </span>
-                                  </div>
-                                  <p className="text-gray-500 text-xs mt-1">
-                                      {Math.abs(momentum) > 2 ? momentum > 0 ? '🚀 Strong Upward' : '📉 Strong Downward' : '➡️ Neutral'}
-                                  </p>
-                              </div>
-                          )}
+      <button
+        onClick={generate}
+        disabled={loading || cooldown > 0}
+        className="bg-green-700 text-white font-semibold py-2 px-5 rounded-lg hover:bg-green-800 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+      >
+        {btnLabel}
+      </button>
 
-                          {/* SMA Comparison */}
-                          {sma20 !== undefined && sma50 !== undefined && (
-                              <div className="pb-2 border-b border-gray-300">
-                                  <div className="flex justify-between items-center">
-                                      <span className="text-gray-600">SMA Trend</span>
-                                      <span className={`font-semibold ${sma20 > sma50 ? 'text-green-600' : 'text-red-600'}`}>
-                                          {sma20 > sma50 ? 'Bullish' : 'Bearish'}
-                                      </span>
-                                  </div>
-                                  <p className="text-gray-500 text-xs mt-1">
-                                      SMA20: {formatCurrency(sma20, 2)} {sma20 > tfPrediction.regularMarketPrice ? '(Above)' : '(Below)'} Price
-                                  </p>
-                              </div>
-                          )}
+      {error && <p className="text-red-500 mt-4 text-sm">{error}</p>}
 
-                          {/* P/E Ratio */}
-                          {peRatio !== undefined && peRatio > 0 && (
-                              <div className="pb-2 border-b border-gray-300">
-                                  <div className="flex justify-between items-center">
-                                      <span className="text-gray-600">P/E Ratio</span>
-                                      <span className={`font-semibold ${peRatio < 15 ? 'text-green-600' : peRatio > 25 ? 'text-red-600' : 'text-gray-700'}`}>
-                                          {formatNumber(peRatio, 1)}
-                                      </span>
-                                  </div>
-                                  <p className="text-gray-500 text-xs mt-1">
-                                      {peRatio < 15 ? '💰 Undervalued' : peRatio > 25 ? '⚠️ Overvalued' : '⚪ Fair Value'}
-                                  </p>
-                              </div>
-                          )}
+      {prediction && (
+        <div className="mt-8">
+          {/* High-uncertainty banner */}
+          {prediction.high_uncertainty && !bannerDismissed && (
+            <div className="flex items-start justify-between mb-4 p-3 bg-yellow-50 border border-yellow-300 rounded-lg text-sm text-yellow-800">
+              <p>
+                ⚠️ <strong>This prediction carries high uncertainty.</strong> The predicted change exceeds ±60%.
+                Treat this as a directional signal only, not a price target.
+              </p>
+              <button
+                onClick={() => setBannerDismissed(true)}
+                className="ml-3 text-yellow-600 hover:text-yellow-800 font-bold shrink-0"
+                aria-label="Dismiss"
+              >
+                ✕
+              </button>
+            </div>
+          )}
 
-                          {/* Stock Type from Prediction */}
-                          {tfPrediction.stock_type && (
-                              <div>
-                                  <div className="flex justify-between items-center">
-                                      <span className="text-gray-600">Stock Type</span>
-                                      <span className="font-semibold text-gray-700 capitalize">
-                                          {tfPrediction.stock_type.replace(/_/g, ' ')}
-                                      </span>
-                                  </div>
-                              </div>
-                          )}
-                      </div>
-                  </div>
-                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-
-                      
-
-
-                      {tfPrediction.predicted_change_range && (
-                          <div className="mb-4">
-                              <p className="text-sm font-semibold text-gray-700 mb-2">Predicted Price Outlook</p>
-                              {/* Calculate actual predicted prices */}
-                              {(() => {
-                                  const predictedLowPrice = tfPrediction.regularMarketPrice + tfPrediction.predicted_change_range[0];
-                                  const predictedHighPrice = tfPrediction.regularMarketPrice + tfPrediction.predicted_change_range[1];
-                                  const predictedAveragePrice = (predictedLowPrice + predictedHighPrice) / 2;
-
-                                  return (
-                                      <div className="grid grid-cols-3 gap-2 text-left">
-                                          <div>
-                                              <p className="text-xs text-gray-500">Low</p>
-                                              <p className={`text-lg font-bold ${predictedLowPrice >= tfPrediction.regularMarketPrice ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(predictedLowPrice)}</p>
-                                          </div>
-                                          <div>
-                                              <p className="text-xs text-gray-500">Average</p>
-                                              {(() => {
-                                                  const percentChange = ((predictedAveragePrice - tfPrediction.regularMarketPrice) / tfPrediction.regularMarketPrice) * 100;
-                                                  const textColor = percentChange >= 0 ? 'text-green-600' : 'text-red-600';
-                                                  return (
-                                                      <p className={`text-lg font-bold ${predictedAveragePrice >= tfPrediction.regularMarketPrice ? 'text-green-600' : 'text-red-600'}`}>
-                                                          {formatCurrency(predictedAveragePrice)}{' '}
-                                                          <span className={`text-sm ${textColor}`}>
-                                                              ({percentChange >= 0 ? '+' : ''}{formatNumber(percentChange, 2)}%)
-                                                          </span>
-                                                      </p>
-                                                  );
-                                              })()}
-                                          </div>
-                                          <div>
-                                              <p className="text-xs text-gray-500">High</p>
-                                              <p className={`text-lg font-bold ${predictedHighPrice >= tfPrediction.regularMarketPrice ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(predictedHighPrice)}</p>
-                                          </div>
-                                      </div>
-                                  );
-                              })()}
-                          </div>
-                      )}
-                      
-                      {/* Accuracy Metrics (now with more robust conditional rendering) */}
-                      {tfPrediction.regularMarketPrice > 0 && (tfPrediction.accuracy_metrics?.neural_network || tfPrediction.accuracy_metrics?.model) && (
-                          (() => {
-                              const metrics = tfPrediction.accuracy_metrics.neural_network || tfPrediction.accuracy_metrics.model;
-                              if (!metrics || tfPrediction.regularMarketPrice === 0) {
-                                  return null; // Should not happen often with outer check, but good for type safety
-                              }
-                              const errorRate = (metrics.mae / tfPrediction.regularMarketPrice) * 100;
-                              const accuracy = Math.max(0, 100 - errorRate);
-                              return (
-                                  <div className="mt-4 pt-3 border-t border-blue-200">
-                                      <div className="grid grid-cols-2 gap-3">
-                                          <div>
-                                              <p className="text-xs text-gray-600 mb-1">Model Accuracy</p>
-                                              <p className={`text-lg font-bold ${accuracy >= 85 ? 'text-green-600' : accuracy >= 70 ? 'text-yellow-600' : 'text-red-600'}`}>
-                                                  {formatNumber(accuracy, 1)}%
-                                              </p>
-                                          </div>
-                                          <div>
-                                              <p className="text-xs text-gray-600 mb-1">Error Rate (MAE)</p>
-                                              <p className="text-lg font-bold text-gray-700">
-                                                  ±{formatNumber(errorRate, 2)}%
-                                              </p>
-                                          </div>
-                                      </div>
-                                      <p className="text-xs text-gray-500 mt-2">
-                                          MAE: {formatCurrency(metrics.mae, 2)} | RMSE: {metrics.rmse != null ? formatNumber(metrics.rmse, 2) : 'N/A'}
-                                      </p>
-                                      {tfPrediction.model_status && (
-                                          <p className="text-xs text-amber-600 mt-2">
-                                              {tfPrediction.model_status === 'fallback_baseline_model' ? '⚠️ Using fallback baseline model' : ''}
-                                          </p>
-                                      )}
-                                      {tfPrediction.note && (
-                                          <p className="text-xs text-blue-600 mt-2">
-                                              Note: {tfPrediction.note}
-                                          </p>
-                                      )}
-                                  </div>
-                              );
-                          })()
-                      )}
-                  </div>
-               </div>
-
-              {/* Metric Analysis from Backend as Accordion */}
-              {tfPrediction.metric_analysis && (
-                  <div className="mt-8">
-                      <button
-                          className="w-full text-left p-4 bg-gray-50 rounded-t-lg border border-gray-200 flex justify-between items-center focus:outline-none"
-                          onClick={() => setShowMetricAnalysis(!showMetricAnalysis)}
-                      >
-                          <h4 className="text-lg font-semibold text-gray-800">Detailed Metric Analysis</h4>
-                          <span>{showMetricAnalysis ? '▲' : '▼'}</span>
-                      </button>
-                      {showMetricAnalysis && (
-                          <div className="p-4 bg-gray-50 rounded-b-lg border border-gray-200 border-t-0">
-                              {Object.entries(tfPrediction.metric_analysis).map(([key, value]: [string, any]) => {
-                                  // Skip total_metric_impact and impact_classification for individual display
-                                  if (key === "total_metric_impact" || key === "impact_classification") {
-                                      return null;
-                                  }
-                                  return (
-                                      <div key={key} className="mb-4 pb-2 border-b border-gray-200 last:border-b-0">
-                                          <p className="text-md font-semibold text-gray-700 mb-1 capitalize">{key.replace(/_/g, ' ')}</p>
-                                          <div className="text-sm text-gray-600 pl-2">
-                                              {Object.entries(value).map(([metricKey, metricValue]: [string, any]) => (
-                                                  <p key={metricKey}>
-                                                      <span className="font-medium capitalize">{metricKey.replace(/_/g, ' ')}:</span>{' '}
-                                                      {typeof metricValue === 'boolean' ? (metricValue ? 'Yes' : 'No') : 
-                                                       (typeof metricValue === 'number' ? formatNumber(metricValue, 4) : metricValue)}
-                                                  </p>
-                                              ))}
-                                          </div>
-                                      </div>
-                                  );
-                              })}
-                              {/* Display total_metric_impact and impact_classification separately at the end */}
-                              {tfPrediction.metric_analysis.total_metric_impact !== undefined && (
-                                  <div className="mt-4 pt-2 border-t border-gray-200">
-                                      <p className="text-md font-semibold text-gray-700">Overall Impact Score: <span className="font-bold text-blue-600">{formatNumber(tfPrediction.metric_analysis.total_metric_impact, 4)}</span></p>
-                                      <p className="text-md font-semibold text-gray-700">Classification: <span className="font-bold text-purple-600 capitalize">{tfPrediction.metric_analysis.impact_classification.replace(/_/g, ' ')}</span></p>
-                                  </div>
-                              )}
-                          </div>
-                      )}
-                  </div>
+          {/* ---- Dual-horizon headline cards ---- */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            {/* 6-month card */}
+            <div className="p-5 bg-blue-50 rounded-xl border border-blue-200">
+              <p className="text-xs font-semibold text-blue-500 uppercase tracking-wide mb-2">6-Month Price Target</p>
+              <p className="text-3xl font-bold text-blue-800 mb-1">
+                {formatCurrency(prediction.predicted_price_6m)}
+              </p>
+              <p className={`text-sm font-semibold mb-3 ${prediction.predicted_change_pct_6m >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {prediction.predicted_change_pct_6m >= 0 ? '+' : ''}{formatNumber(prediction.predicted_change_pct_6m, 2)}% from current
+              </p>
+              <ConfidenceBadge score={prediction.confidence_score_6m} />
+              {prediction.monthly_trajectory?.[5] && (
+                <p className="text-xs text-blue-600 mt-3">
+                  Range: {formatCurrency(prediction.monthly_trajectory[5].lower_bound)} – {formatCurrency(prediction.monthly_trajectory[5].upper_bound)}
+                </p>
               )}
+            </div>
+
+            {/* 12-month card */}
+            <div className="p-5 bg-purple-50 rounded-xl border border-purple-200">
+              <p className="text-xs font-semibold text-purple-500 uppercase tracking-wide mb-2">Long-Term Outlook (12 months)</p>
+              <p className="text-3xl font-bold text-purple-800 mb-1">
+                {formatCurrency(prediction.predicted_price_1y)}
+              </p>
+              <p className={`text-sm font-semibold mb-3 ${prediction.predicted_change_pct_1y >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {prediction.predicted_change_pct_1y >= 0 ? '+' : ''}{formatNumber(prediction.predicted_change_pct_1y, 2)}% from current
+              </p>
+              <ConfidenceBadge score={prediction.confidence_score_1y} />
+              {prediction.monthly_trajectory?.[11] && (
+                <p className="text-xs text-purple-600 mt-3">
+                  Range: {formatCurrency(prediction.monthly_trajectory[11].lower_bound)} – {formatCurrency(prediction.monthly_trajectory[11].upper_bound)}
+                </p>
+              )}
+              <p className="text-xs text-gray-400 mt-2 italic">Wider uncertainty — treat as directional guidance</p>
+            </div>
           </div>
+
+          {/* ---- 18-month SVG trajectory chart ---- */}
+          {prediction.monthly_trajectory?.length > 0 && (
+            <TrajectoryChart
+              trajectory={prediction.monthly_trajectory}
+              currentPrice={prediction.regularMarketPrice}
+            />
+          )}
+
+          {/* ---- Sidebar metrics + model performance ---- */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+            {/* Left: key metrics */}
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-600 mb-1">Current Price</p>
+              <p className="text-2xl font-bold text-gray-800 mb-4">{formatCurrency(prediction.regularMarketPrice)}</p>
+              <div className="space-y-2 text-xs">
+                {rsi !== undefined && (
+                  <div className="pb-2 border-b border-gray-200">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">RSI (14)</span>
+                      <span className={`font-semibold ${rsi > 70 ? 'text-red-600' : rsi < 30 ? 'text-green-600' : 'text-gray-700'}`}>
+                        {formatNumber(rsi, 1)}
+                      </span>
+                    </div>
+                    <p className="text-gray-400 mt-0.5">{rsi > 70 ? '🔴 Overbought' : rsi < 30 ? '🟢 Oversold' : '⚪ Neutral'}</p>
+                  </div>
+                )}
+                {momentum !== undefined && (
+                  <div className="pb-2 border-b border-gray-200">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Momentum</span>
+                      <span className={`font-semibold ${Math.abs(momentum) > 2 ? momentum > 0 ? 'text-green-600' : 'text-red-600' : 'text-gray-700'}`}>
+                        {formatNumber(momentum, 2)}
+                      </span>
+                    </div>
+                    <p className="text-gray-400 mt-0.5">{Math.abs(momentum) > 2 ? momentum > 0 ? '🚀 Strong Upward' : '📉 Strong Downward' : '➡️ Neutral'}</p>
+                  </div>
+                )}
+                {sma20 !== undefined && sma50 !== undefined && (
+                  <div className="pb-2 border-b border-gray-200">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">SMA Trend</span>
+                      <span className={`font-semibold ${sma20 > sma50 ? 'text-green-600' : 'text-red-600'}`}>
+                        {sma20 > sma50 ? 'Bullish' : 'Bearish'}
+                      </span>
+                    </div>
+                    <p className="text-gray-400 mt-0.5">SMA20: {formatCurrency(sma20)} {sma20 > prediction.regularMarketPrice ? '(Above)' : '(Below)'} Price</p>
+                  </div>
+                )}
+                {peRatio !== undefined && peRatio > 0 && (
+                  <div className="pb-2 border-b border-gray-200">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">P/E Ratio</span>
+                      <span className={`font-semibold ${peRatio < 15 ? 'text-green-600' : peRatio > 25 ? 'text-red-600' : 'text-gray-700'}`}>
+                        {formatNumber(peRatio, 1)}
+                      </span>
+                    </div>
+                    <p className="text-gray-400 mt-0.5">{peRatio < 15 ? '💰 Undervalued' : peRatio > 25 ? '⚠️ Overvalued' : '⚪ Fair Value'}</p>
+                  </div>
+                )}
+                {prediction.stock_type && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Stock Type</span>
+                    <span className="font-semibold text-gray-700 capitalize">{prediction.stock_type.replace(/_/g, ' ')}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right: model performance */}
+            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+              {(() => {
+                const m = prediction.accuracy_metrics?.model ?? prediction.accuracy_metrics?.neural_network
+                if (!m || prediction.regularMarketPrice === 0) return null
+                const errRate = (m.mae / prediction.regularMarketPrice) * 100
+                const accuracy = Math.max(0, 100 - errRate)
+                return (
+                  <>
+                    <p className="text-sm font-semibold text-gray-700 mb-3">Model Performance</p>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Accuracy</p>
+                        <p className={`text-lg font-bold ${accuracy >= 85 ? 'text-green-600' : accuracy >= 70 ? 'text-yellow-600' : 'text-red-600'}`}>
+                          {formatNumber(accuracy, 1)}%
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Error Rate (MAE)</p>
+                        <p className="text-lg font-bold text-gray-700">±{formatNumber(errRate, 2)}%</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-2">
+                      MAE: {formatCurrency(m.mae)} | RMSE: {m.rmse != null ? formatNumber(m.rmse, 2) : 'N/A'}
+                      {(m as any).cv_mae != null && ` | CV-MAE: ${formatCurrency((m as any).cv_mae)}`}
+                    </p>
+                    {prediction.model_status === 'fallback_baseline_model' && (
+                      <p className="text-xs text-amber-600 mt-2">⚠️ Using fallback baseline model</p>
+                    )}
+                    {prediction.note && (
+                      <p className="text-xs text-blue-600 mt-1">Note: {prediction.note}</p>
+                    )}
+                    {prediction.data_quality && (
+                      <div className="mt-3 pt-2 border-t border-blue-200 text-xs text-gray-500 space-y-0.5">
+                        <p>History: {prediction.data_quality.historyYears.toFixed(1)} years ({prediction.data_quality.historyDays} days)</p>
+                        {prediction.data_quality.imputedFields.length > 0 && (
+                          <p>Imputed: {prediction.data_quality.imputedFields.join(', ')}</p>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )
+              })()}
+            </div>
+          </div>
+
+          {/* ---- Detailed Metric Analysis (accordion) ---- */}
+          {prediction.metric_analysis && (
+            <div className="mt-6">
+              <button
+                className="w-full text-left p-4 bg-gray-50 rounded-t-lg border border-gray-200 flex justify-between items-center focus:outline-none"
+                onClick={() => setShowMetrics(!showMetrics)}
+              >
+                <h4 className="text-lg font-semibold text-gray-800">Detailed Metric Analysis</h4>
+                <span className="text-gray-500">{showMetrics ? '▲' : '▼'}</span>
+              </button>
+              {showMetrics && (
+                <div className="p-4 bg-gray-50 rounded-b-lg border border-gray-200 border-t-0">
+                  {Object.entries(prediction.metric_analysis).map(([key, value]: [string, any]) => {
+                    if (key === 'total_metric_impact' || key === 'impact_classification') return null
+                    return (
+                      <div key={key} className="mb-4 pb-2 border-b border-gray-200 last:border-b-0">
+                        <p className="text-sm font-semibold text-gray-700 mb-1 capitalize">{key.replace(/_/g, ' ')}</p>
+                        <div className="text-xs text-gray-600 pl-2 space-y-0.5">
+                          {Object.entries(value).map(([mk, mv]: [string, any]) => (
+                            <p key={mk}>
+                              <span className="font-medium capitalize">{mk.replace(/_/g, ' ')}:</span>{' '}
+                              {typeof mv === 'boolean' ? (mv ? 'Yes' : 'No') :
+                               typeof mv === 'number' ? formatNumber(mv, 4) : String(mv)}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
+                  {prediction.metric_analysis.total_metric_impact !== undefined && (
+                    <div className="mt-3 pt-2 border-t border-gray-200">
+                      <p className="text-sm font-semibold text-gray-700">
+                        Overall Impact Score:{' '}
+                        <span className="text-blue-600">{formatNumber(prediction.metric_analysis.total_metric_impact, 4)}</span>
+                      </p>
+                      <p className="text-sm font-semibold text-gray-700">
+                        Classification:{' '}
+                        <span className="text-purple-600 capitalize">
+                          {prediction.metric_analysis.impact_classification.replace(/_/g, ' ')}
+                        </span>
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       )}
     </div>
   )
