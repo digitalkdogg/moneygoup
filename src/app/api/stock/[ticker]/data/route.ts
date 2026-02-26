@@ -192,7 +192,7 @@ export async function GET(
   try {
     // ---- 1. Fetch OHLCV (5 years) ----
     const { historicalData, historyDays } = await fetchOhlcv(validatedTicker);
-    const historyYears = Math.round((historyDays / 252) * 100) / 100;
+    const historyYears = Math.round((historyDays / 252) * 10) / 10;
 
     // ---- 2. Fetch fundamentals + analyst targets (single quoteSummary call) ----
     const summary = await yahooFinance.quoteSummary(validatedTicker, {

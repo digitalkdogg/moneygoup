@@ -60,10 +60,12 @@ export default function TechnicalIndicatorsDisplay({
             <tbody>
               {/* MA Crossover */}
               <tr className="border-b border-gray-200 hover:bg-gray-50">
-                <td className="py-3 px-4 font-semibold text-gray-800">MA Crossover (20/50)</td>
+                <td className="py-3 px-4">
+                  <div className="font-semibold text-gray-800">MA Crossover (20/50)</div>
+                </td>
                 <td className={`text-center py-3 px-4 font-bold text-lg ${
-                  indicators.scoreBreakdown.maScore > 0 ? 'text-green-600' : 
-                  indicators.scoreBreakdown.maScore < 0 ? 'text-red-600' : 
+                  indicators.scoreBreakdown.maScore > 0 ? 'text-green-600' :
+                  indicators.scoreBreakdown.maScore < 0 ? 'text-red-600' :
                   'text-gray-600'
                 }`}>
                   {indicators.scoreBreakdown.maScore > 0 ? '+' : ''}{formatNumber(indicators.scoreBreakdown.maScore, 0, true)}
@@ -73,10 +75,12 @@ export default function TechnicalIndicatorsDisplay({
 
               {/* RSI */}
               <tr className="border-b border-gray-200 hover:bg-gray-50">
-                <td className="py-3 px-4 font-semibold text-gray-800">RSI (14)</td>
+                <td className="py-3 px-4">
+                  <div className="font-semibold text-gray-800">RSI (14)</div>
+                </td>
                 <td className={`text-center py-3 px-4 font-bold text-lg ${
-                  indicators.scoreBreakdown.rsiScore > 0 ? 'text-green-600' : 
-                  indicators.scoreBreakdown.rsiScore < 0 ? 'text-red-600' : 
+                  indicators.scoreBreakdown.rsiScore > 0 ? 'text-green-600' :
+                  indicators.scoreBreakdown.rsiScore < 0 ? 'text-red-600' :
                   'text-gray-600'
                 }`}>
                   {indicators.scoreBreakdown.rsiScore > 0 ? '+' : ''}{formatNumber(indicators.scoreBreakdown.rsiScore, 0, true)}
@@ -86,10 +90,12 @@ export default function TechnicalIndicatorsDisplay({
 
               {/* Momentum */}
               <tr className="border-b border-gray-200 hover:bg-gray-50">
-                <td className="py-3 px-4 font-semibold text-gray-800">Momentum (10d)</td>
+                <td className="py-3 px-4">
+                  <div className="font-semibold text-gray-800">Momentum (10d)</div>
+                </td>
                 <td className={`text-center py-3 px-4 font-bold text-lg ${
-                  indicators.scoreBreakdown.momentumScore > 0 ? 'text-green-600' : 
-                  indicators.scoreBreakdown.momentumScore < 0 ? 'text-red-600' : 
+                  indicators.scoreBreakdown.momentumScore > 0 ? 'text-green-600' :
+                  indicators.scoreBreakdown.momentumScore < 0 ? 'text-red-600' :
                   'text-gray-600'
                 }`}>
                   {indicators.scoreBreakdown.momentumScore > 0 ? '+' : ''}{formatNumber(indicators.scoreBreakdown.momentumScore, 0, true)}
@@ -99,23 +105,27 @@ export default function TechnicalIndicatorsDisplay({
 
               {/* Price vs MA50 */}
               <tr className="border-b border-gray-200 hover:bg-gray-50">
-                <td className="py-3 px-4 font-semibold text-gray-800">Price vs SMA(50)</td>
+                <td className="py-3 px-4">
+                  <div className="font-semibold text-gray-800">Price vs SMA (50)</div>
+                </td>
                 <td className={`text-center py-3 px-4 font-bold text-lg ${
-                  indicators.scoreBreakdown.priceScore > 0 ? 'text-green-600' : 
-                  indicators.scoreBreakdown.priceScore < 0 ? 'text-red-600' : 
+                  indicators.scoreBreakdown.priceScore > 0 ? 'text-green-600' :
+                  indicators.scoreBreakdown.priceScore < 0 ? 'text-red-600' :
                   'text-gray-600'
                 }`}>
                   {indicators.scoreBreakdown.priceScore > 0 ? '+' : ''}{formatNumber(indicators.scoreBreakdown.priceScore, 0, true)}
                 </td>
                 <td className="py-3 px-4 text-gray-700">{indicators.scoreBreakdown.priceReason}</td>
               </tr>
-              
+
               {/* Volatility */}
               <tr className="border-b border-gray-200 hover:bg-gray-50">
-                <td className="py-3 px-4 font-semibold text-gray-800">Volatility ({indicators.volatility || 'N/A'})</td>
+                <td className="py-3 px-4">
+                  <div className="font-semibold text-gray-800">Volatility ({indicators.volatility || 'N/A'})</div>
+                </td>
                 <td className={`text-center py-3 px-4 font-bold text-lg ${
-                  indicators.scoreBreakdown.volatilityScore > 0 ? 'text-green-600' : 
-                  indicators.scoreBreakdown.volatilityScore < 0 ? 'text-red-600' : 
+                  indicators.scoreBreakdown.volatilityScore > 0 ? 'text-green-600' :
+                  indicators.scoreBreakdown.volatilityScore < 0 ? 'text-red-600' :
                   'text-gray-600'
                 }`}>
                   {indicators.scoreBreakdown.volatilityScore > 0 ? '+' : ''}{formatNumber(indicators.scoreBreakdown.volatilityScore, 0, true)}
@@ -125,10 +135,12 @@ export default function TechnicalIndicatorsDisplay({
 
               {/* News Sentiment */}
               <tr className="border-b border-gray-200 hover:bg-gray-50">
-                <td className="py-3 px-4 font-semibold text-gray-800">News Sentiment</td>
+                <td className="py-3 px-4">
+                  <div className="font-semibold text-gray-800">News Sentiment</div>
+                </td>
                 <td className={`text-center py-3 px-4 font-bold text-lg ${
-                  indicators.scoreBreakdown.newsScore > 0 ? 'text-green-600' : 
-                  indicators.scoreBreakdown.newsScore < 0 ? 'text-red-600' : 
+                  indicators.scoreBreakdown.newsScore > 0 ? 'text-green-600' :
+                  indicators.scoreBreakdown.newsScore < 0 ? 'text-red-600' :
                   'text-gray-600'
                 }`}>
                   {indicators.scoreBreakdown.newsScore > 0 ? '+' : ''}{formatNumber(indicators.scoreBreakdown.newsScore, 0, true)}
@@ -138,10 +150,12 @@ export default function TechnicalIndicatorsDisplay({
 
               {/* Core Metrics (PE, PB, Market Cap) */}
               <tr className="border-b-2 border-gray-300 hover:bg-gray-50">
-                <td className="py-3 px-4 font-semibold text-gray-800">Core Metrics (PE, PB, MC)</td>
+                <td className="py-3 px-4">
+                  <div className="font-semibold text-gray-800">Core Metrics (PE, PB, MC)</div>
+                </td>
                 <td className={`text-center py-3 px-4 font-bold text-lg ${
-                  indicators.scoreBreakdown.coreMetricsScore > 0 ? 'text-green-600' : 
-                  indicators.scoreBreakdown.coreMetricsScore < 0 ? 'text-red-600' : 
+                  indicators.scoreBreakdown.coreMetricsScore > 0 ? 'text-green-600' :
+                  indicators.scoreBreakdown.coreMetricsScore < 0 ? 'text-red-600' :
                   'text-gray-600'
                 }`}>
                   {indicators.scoreBreakdown.coreMetricsScore > 0 ? '+' : ''}{formatNumber(indicators.scoreBreakdown.coreMetricsScore, 0, true)}
@@ -181,7 +195,7 @@ export default function TechnicalIndicatorsDisplay({
           <div className="text-2xl font-bold text-gray-800">
             {indicators.sma20 !== null ? formatNumber(indicators.sma20, 2) : 'N/A'}
           </div>
-          <div className="text-xs text-gray-600 mt-2">20-day Avg</div>
+          <div className="text-xs text-gray-600 mt-2">20-day Simple Moving Average — short-term trend reference. Price above this level suggests near-term bullish momentum.</div>
         </div>
 
         {/* SMA 50 */}
@@ -190,7 +204,7 @@ export default function TechnicalIndicatorsDisplay({
           <div className="text-2xl font-bold text-gray-800">
             {indicators.sma50 !== null ? formatNumber(indicators.sma50, 2) : 'N/A'}
           </div>
-          <div className="text-xs text-gray-600 mt-2">50-day Avg</div>
+          <div className="text-xs text-gray-600 mt-2">50-day Simple Moving Average — medium-term trend benchmark. Widely watched by institutional investors as a key support/resistance level.</div>
         </div>
 
         {/* RSI */}
@@ -202,17 +216,17 @@ export default function TechnicalIndicatorsDisplay({
           <div className="text-xs text-gray-600 mt-2">
             {indicators.rsi14 !== null
               ? indicators.rsi14 > 70
-                ? '⚠️ Overbought'
+                ? '⚠️ Overbought — stock may be due for a pullback'
                 : indicators.rsi14 < 30
-                ? '✅ Oversold'
-                : '➡️ Neutral'
+                ? '✅ Oversold — potential buying opportunity'
+                : '➡️ Neutral zone (30–70)'
               : 'N/A'}
           </div>
         </div>
 
         {/* Momentum */}
         <div className="bg-white p-5 rounded-lg shadow-md border-l-4 border-green-500 hover:shadow-lg transition">
-          <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Momentum</div>
+          <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Momentum (10d)</div>
           <div className={`text-2xl font-bold ${
             indicators.momentum !== null && indicators.momentum > 0
               ? 'text-green-600'
@@ -225,8 +239,8 @@ export default function TechnicalIndicatorsDisplay({
           <div className="text-xs text-gray-600 mt-2">
             {indicators.momentum !== null
               ? indicators.momentum > 0
-                ? '📈 Bullish'
-                : '📉 Bearish'
+                ? '📈 Bullish — price accelerating upward'
+                : '📉 Bearish — price losing ground'
               : 'N/A'}
           </div>
         </div>
@@ -235,22 +249,38 @@ export default function TechnicalIndicatorsDisplay({
       {/* Educational Info */}
       <div className="bg-white rounded-lg p-6 border border-gray-300">
         <h5 className="text-lg font-bold text-gray-800 mb-4">📚 Indicator Guide</h5>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-700">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-sm text-gray-700">
           <div>
-            <p className="font-semibold text-gray-800">SMA (Simple Moving Average)</p>
-            <p className="mt-1">20 {'>'} 50 = Bullish trend. 20 {'<'} 50 = Bearish trend. Price above 50-SMA = Uptrend support.</p>
+            <p className="font-semibold text-gray-800">SMA — Simple Moving Average</p>
+            <p className="mt-1">Smooths out daily price noise by averaging closing prices over a set period. The <strong>SMA-20</strong> reflects short-term sentiment; the <strong>SMA-50</strong> tracks medium-term trend. When SMA-20 crosses above SMA-50 it is called a "golden cross" — a bullish signal. The reverse (SMA-20 dropping below SMA-50) is a "death cross" — bearish. Institutional funds often buy or sell at these levels, making them self-fulfilling.</p>
           </div>
           <div>
-            <p className="font-semibold text-gray-800">RSI (Relative Strength Index)</p>
-            <p className="mt-1">{'<'}30 = Oversold (buying opportunity). {'>'}70 = Overbought (selling pressure). 40-60 = Neutral.</p>
+            <p className="font-semibold text-gray-800">RSI — Relative Strength Index</p>
+            <p className="mt-1">A 0–100 momentum oscillator calculated over 14 days. It compares average gains to average losses. <strong>Above 70</strong>: the stock has rallied hard and buyers may be exhausted — a pullback is more likely. <strong>Below 30</strong>: the stock has been beaten down and sellers may be exhausted — a bounce is more likely. RSI divergence (price makes a new high but RSI does not) is an early warning of a reversal.</p>
           </div>
           <div>
             <p className="font-semibold text-gray-800">Momentum</p>
-            <p className="mt-1">Positive = Price rising faster (bullish). Negative = Price falling (bearish). Measures rate of change.</p>
+            <p className="mt-1">Measures the raw price change over the past 10 days (current price minus price 10 days ago). A large positive value means the stock is in a strong uptrend with buying pressure behind it. A large negative value means sellers are dominating. Momentum tends to persist — rising stocks often keep rising and falling stocks keep falling — until a catalyst reverses the trend.</p>
+          </div>
+          <div>
+            <p className="font-semibold text-gray-800">P/E Ratio — Price-to-Earnings</p>
+            <p className="mt-1">How many dollars investors pay for each $1 of annual earnings. A <strong>high P/E</strong> (e.g., 40+) suggests investors expect strong future growth but the stock is pricier relative to current profits. A <strong>low P/E</strong> (e.g., under 15) may indicate undervaluation or slow growth expectations. Compare P/E to industry peers and the company's historical average for context.</p>
+          </div>
+          <div>
+            <p className="font-semibold text-gray-800">P/B Ratio — Price-to-Book</p>
+            <p className="mt-1">Compares the stock price to the company's net assets (total assets minus liabilities). A <strong>P/B below 1.0</strong> means you are buying the stock for less than the book value of its assets — often a value signal. A <strong>high P/B</strong> is common in asset-light businesses (software, services) where earnings power exceeds physical assets. Especially useful for evaluating banks and industrial companies.</p>
+          </div>
+          <div>
+            <p className="font-semibold text-gray-800">Volatility</p>
+            <p className="mt-1">Measures how much the stock price moves day-to-day. <strong>High volatility</strong> means larger swings — more profit potential but more risk. <strong>Low volatility</strong> stocks move predictably and are often preferred by conservative investors. Volatility typically spikes around earnings releases, major news events, or broader market sell-offs. It directly affects options pricing.</p>
+          </div>
+          <div>
+            <p className="font-semibold text-gray-800">News Sentiment</p>
+            <p className="mt-1">Analyzes the tone of recent headlines. Markets often react faster to news than to fundamentals. <strong>Positive sentiment</strong> (analyst upgrades, revenue beats, new products) can create buying pressure even if fundamentals have not changed yet. <strong>Negative sentiment</strong> (regulatory problems, CEO resignations, missed guidance) often precedes sharp sell-offs. Sentiment is a short-term signal — use alongside fundamentals.</p>
           </div>
           <div>
             <p className="font-semibold text-gray-800">Trading Signal</p>
-            <p className="mt-1">Composite signal combining all indicators. Base real decisions on multiple factors and do your own research!</p>
+            <p className="mt-1">A composite score combining all seven metrics above. Scores of +4 or higher generate a <strong>BUY</strong> signal; -4 or lower generate a <strong>SELL</strong>; everything in between is <strong>HOLD</strong>. No single indicator is reliable alone — the combined score aims to reduce false signals. Always do your own research and consider your personal risk tolerance before acting.</p>
           </div>
         </div>
       </div>

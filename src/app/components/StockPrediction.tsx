@@ -344,7 +344,7 @@ export default function StockPrediction({
                             'Generate Prediction'
 
   const dq = dataQuality
-  const showDqWarnings = dq && (dq.historyYears < 5 || !dq.fundamentalsComplete || !dq.analystDataAvailable)
+  const showDqWarnings = dq && (dq.historyYears < 4.9 || !dq.fundamentalsComplete || !dq.analystDataAvailable)
 
   return (
     <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
@@ -356,7 +356,7 @@ export default function StockPrediction({
       {/* Data quality warnings (shown after Step 1 completes) */}
       {showDqWarnings && (
         <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 space-y-1">
-          {dq!.historyYears < 5 && (
+          {dq!.historyYears < 4.9 && (
             <p>⚠️ Only {dq!.historyYears.toFixed(1)} years of history available (5 preferred). Predictions may be less reliable.</p>
           )}
           {!dq!.fundamentalsComplete && (
@@ -563,10 +563,29 @@ export default function StockPrediction({
                 <div className="p-4 bg-gray-50 rounded-b-lg border border-gray-200 border-t-0">
                   {Object.entries(prediction.metric_analysis).map(([key, value]: [string, any]) => {
                     if (key === 'total_metric_impact' || key === 'impact_classification') return null
+
+                    const metricDescriptions: Record<string, string> = {
+                      rsi: 'Relative Strength Index (14-day) — a momentum oscillator on a 0–100 scale. Above 70 signals the stock is overbought (selling pressure likely); below 30 signals oversold (potential buying opportunity). The model reduces its price target when RSI is overbought and raises it when oversold.',
+                      moving_averages: 'SMA-20 / EMA-50 trend — compares the 20-day simple moving average to the 50-day exponential moving average. When SMA-20 is above EMA-50 it is a bullish "golden cross" trend; below is bearish. The model weights this heavily as it reflects medium-term institutional buying or selling pressure.',
+                      volume: 'Volume conviction — compares today\'s trading volume to the 20-day average. High volume on an up day confirms strong buyer interest and lends credibility to the move. Low volume means the price move has weak participation and may not sustain. Volume spikes often precede or confirm trend changes.',
+                      macd: 'Moving Average Convergence/Divergence — measures the gap between a 12-day and 26-day exponential moving average, smoothed by a 9-day signal line. When the MACD line crosses above the signal line it is a bullish crossover; crossing below is bearish. It captures momentum shifts before they fully show in price.',
+                      stochastic: 'Stochastic Oscillator (14-day) — compares the closing price to its trading range over 14 days, giving a 0–100 reading. Above 80 = overbought, below 20 = oversold. It works best in range-bound markets to spot reversals, and is used alongside RSI to confirm momentum signals.',
+                      atr: 'Average True Range (14-day) — measures average daily price swings to quantify volatility. A rising ATR means the stock is making larger moves each day (higher risk/reward). The model uses ATR to set the confidence bands around the prediction — wider bands for volatile stocks.',
+                      bollinger_bands: 'Bollinger Bands (20-day, 2 std dev) — a volatility envelope around the 20-day moving average. Price touching the upper band can signal overbought conditions; touching the lower band can signal oversold. When the bands squeeze (narrow), it often precedes a sharp price breakout in either direction.',
+                      growth_and_trend: '20-day price growth rate and trend direction — measures raw price momentum over the last 20 trading days and classifies whether the stock is in an uptrend. Strong positive growth in an uptrend is the single largest positive input to the model\'s impact score (+8%). A downtrend subtracts the same amount.',
+                      sentiment: 'News sentiment score derived from recent headlines. Ranges from -1 (very negative) to +1 (very positive). Positive news flow (earnings beats, upgrades, new products) tends to attract buyers and lift the price. Negative news (lawsuits, misses, leadership changes) does the reverse. The model applies this as a short-term multiplier.',
+                      fundamentals: 'Core valuation metrics used as baseline context. P/E ratio shows how much the market pays per dollar of earnings (high = growth premium, low = value or distress). P/B ratio compares price to net assets (below 1.0 often signals undervaluation). Market cap determines the size tier, which affects risk and liquidity in the model.',
+                    }
+
+                    const description = metricDescriptions[key]
+
                     return (
-                      <div key={key} className="mb-4 pb-2 border-b border-gray-200 last:border-b-0">
-                        <p className="text-sm font-semibold text-gray-700 mb-1 capitalize">{key.replace(/_/g, ' ')}</p>
-                        <div className="text-xs text-gray-600 pl-2 space-y-0.5">
+                      <div key={key} className="mb-4 pb-4 border-b border-gray-200 last:border-b-0">
+                        <p className="text-sm font-semibold text-gray-800 mb-1 capitalize">{key.replace(/_/g, ' ')}</p>
+                        {description && (
+                          <p className="text-xs text-gray-500 mb-2 leading-relaxed">{description}</p>
+                        )}
+                        <div className="text-xs text-gray-600 pl-2 space-y-0.5 bg-white rounded p-2 border border-gray-100">
                           {Object.entries(value).map(([mk, mv]: [string, any]) => (
                             <p key={mk}>
                               <span className="font-medium capitalize">{mk.replace(/_/g, ' ')}:</span>{' '}
@@ -580,6 +599,7 @@ export default function StockPrediction({
                   })}
                   {prediction.metric_analysis.total_metric_impact !== undefined && (
                     <div className="mt-3 pt-2 border-t border-gray-200">
+                      <p className="text-sm text-gray-500 mb-2">The overall impact score is the sum of all metric signals. It adjusts the model's raw LSTM output up or down before generating the final price target. Scores above +0.08 are classified as very bullish; below -0.08 as very bearish.</p>
                       <p className="text-sm font-semibold text-gray-700">
                         Overall Impact Score:{' '}
                         <span className="text-blue-600">{formatNumber(prediction.metric_analysis.total_metric_impact, 4)}</span>
