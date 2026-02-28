@@ -5,7 +5,9 @@ import mysql.connector
 from datetime import datetime
 from dotenv import load_dotenv
 
-# Load .env.local for database credentials and API secret
+# Load environment variables: .env.production takes precedence, then .env.local
+if os.path.exists('.env.production'):
+    load_dotenv('.env.production')
 load_dotenv('.env.local')
 
 DB_HOST = os.getenv('DB_HOST', 'localhost')
