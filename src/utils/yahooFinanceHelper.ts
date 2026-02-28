@@ -26,7 +26,7 @@ export async function fetchYahooQuotesForSymbols(
   return combinedData;
 }
 
-export async function getYahooStockSummary(ticker: string) {
+export async function fetchYahooStockSummary(ticker: string) {
   const summary = await yahooFinance.quoteSummary(ticker, {
     modules: ["assetProfile", "price", "summaryDetail", "quoteType", "financialData", "defaultKeyStatistics", "incomeStatementHistory", "earningsTrend"],
   });
@@ -35,7 +35,7 @@ export async function getYahooStockSummary(ticker: string) {
 
 export async function getYahooScreener(screenerName: string) {
   try {
-    return await yahooFinance.screener(screenerName);
+    return await (yahooFinance.screener as any)(screenerName);
   } catch (error) {
     console.error(`Error fetching screener ${screenerName}:`, error);
     return { quotes: [] };

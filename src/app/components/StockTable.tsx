@@ -6,7 +6,7 @@ import { ReactNode } from 'react';
 export interface StockTableRow {
   symbol: string;
   name?: string;
-  regularMarketPrice: number;
+  regularMarketPrice?: number;
   marketCap?: number | null;
   metric?: string | number;
   metricLabel?: string;
