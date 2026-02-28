@@ -291,7 +291,7 @@ export default function StockPrediction({
       return
     }
 
-    // ---- Step 2: run LSTM prediction ----
+    // ---- Step 2: run MLP prediction ----
     setStep('predicting')
     try {
       // Merge client-side news + fallback earnings
@@ -339,7 +339,7 @@ export default function StockPrediction({
 
   const btnLabel =
     step === 'fetching'   ? 'Fetching 5-year data...' :
-    step === 'predicting' ? 'Running LSTM model...' :
+    step === 'predicting' ? 'Running MLP model...' :
     cooldown > 0          ? `Retry in ${Math.ceil(cooldown / 1000)}s` :
                             'Generate Prediction'
 
@@ -350,7 +350,7 @@ export default function StockPrediction({
     <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
       <h2 className="text-2xl font-semibold text-gray-800 mb-4">📊 AI-Powered Price Prediction</h2>
       <p className="text-gray-600 mb-4">
-        Click the button to generate a 6-month and 12-month price prediction for {ticker} using an LSTM neural network.
+        Click the button to generate a 6-month and 12-month price prediction for {ticker} using an MLP neural network.
       </p>
 
       {/* Data quality warnings (shown after Step 1 completes) */}
@@ -599,7 +599,7 @@ export default function StockPrediction({
                   })}
                   {prediction.metric_analysis.total_metric_impact !== undefined && (
                     <div className="mt-3 pt-2 border-t border-gray-200">
-                      <p className="text-sm text-gray-500 mb-2">The overall impact score is the sum of all metric signals. It adjusts the model's raw LSTM output up or down before generating the final price target. Scores above +0.08 are classified as very bullish; below -0.08 as very bearish.</p>
+                      <p className="text-sm text-gray-500 mb-2">The overall impact score is the sum of all metric signals. It adjusts the model's raw MLP output up or down before generating the final price target. Scores above +0.08 are classified as very bullish; below -0.08 as very bearish.</p>
                       <p className="text-sm font-semibold text-gray-700">
                         Overall Impact Score:{' '}
                         <span className="text-blue-600">{formatNumber(prediction.metric_analysis.total_metric_impact, 4)}</span>
