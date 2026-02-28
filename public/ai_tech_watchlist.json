@@ -1,0 +1,27 @@
+
+[
+  {
+    "ticker": "RCAT",
+    "name": "Red Cat Holdings Inc.",
+    "sub_sector": "Robotics & Automation",
+    "rationale": "Specialized drone technology for defense and industrial use; strong revenue growth."
+  },
+  {
+    "ticker": "BBAI",
+    "name": "BigBear.ai Holdings, Inc.",
+    "sub_sector": "Artificial Intelligence",
+    "rationale": "AI-powered decision support for national security and manufacturing."
+  },
+  {
+    "ticker": "SOUN",
+    "name": "SoundHound AI, Inc.",
+    "sub_sector": "Artificial Intelligence",
+    "rationale": "Voice AI and conversational intelligence platform with growing automotive and restaurant partnerships."
+  },
+  {
+    "ticker": "PROG",
+    "name": "Procept BioRobotics Corporation",
+    "sub_sector": "Robotics & Automation",
+    "rationale": "Surgical robotics company with high-growth medical platform."
+  }
+]

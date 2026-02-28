@@ -26,9 +26,19 @@ export async function fetchYahooQuotesForSymbols(
   return combinedData;
 }
 
-export async function fetchYahooStockSummary(ticker: string) {
+export async function getYahooStockSummary(ticker: string) {
   const summary = await yahooFinance.quoteSummary(ticker, {
-    modules: ["assetProfile", "price", "summaryDetail", "quoteType", "financialData", "defaultKeyStatistics"],
+    modules: ["assetProfile", "price", "summaryDetail", "quoteType", "financialData", "defaultKeyStatistics", "incomeStatementHistory", "earningsTrend"],
   });
   return summary;
 }
+
+export async function getYahooScreener(screenerName: string) {
+  try {
+    return await yahooFinance.screener(screenerName);
+  } catch (error) {
+    console.error(`Error fetching screener ${screenerName}:`, error);
+    return { quotes: [] };
+  }
+}
+

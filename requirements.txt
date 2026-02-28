@@ -2,3 +2,6 @@ scikit-learn
 numpy
 pandas
 scipy
+requests
+mysql-connector-python
+python-dotenv

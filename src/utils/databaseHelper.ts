@@ -13,6 +13,8 @@ const ALLOWED_TABLES = new Set([
   'stocksdailyprice',
   'news',
   'user_stock_news',
+  'recommended_stocks',
+  'recommended_markets',
 ]);
 
 /**
