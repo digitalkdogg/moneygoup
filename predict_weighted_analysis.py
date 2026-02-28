@@ -1,5 +1,17 @@
 """
-predict_weighted_analysis.py — LSTM-based stock price prediction.
+predict_weighted_analysis.py — MLP-based stock price prediction (v3).
+
+Improvements over v2:
+  1. Lag features      — Close_lag_5/10/20, Volume_lag_5: explicit past-price
+                         inputs so the MLP can learn temporal relationships.
+  2. Short-term ROC    — ROC_5d, ROC_20d, Return_1d/5d/20d: short-window
+                         momentum signals the MLP would otherwise miss.
+  3. Trend context     — PriceToHigh/Low_20d, EMA slopes, VolumePriceTrend:
+                         breakout/breakdown awareness and trend strength.
+  4. Rolling stats     — RollingMean/Std/Skew/Sharpe_20d: compressed recent
+                         return history for richer momentum context.
+  MLP hidden layers widened (128→64→32) to handle the expanded feature set.
+  MC noise now scales per-feature to recent volatility for better intervals.
 
 CONSTRAINT: This script must NOT import yfinance, requests, urllib, httpx,
 or any HTTP/network library. All data arrives via --input_file JSON.
@@ -27,15 +39,7 @@ import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import mean_absolute_error, mean_squared_error
-
-os_module = __import__('os')
-os_module.environ.setdefault('TF_CPP_MIN_LOG_LEVEL', '3')
-os_module.environ.setdefault('TF_ENABLE_ONEDNN_OPTS', '0')
-
-import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Dropout
-from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+from sklearn.neural_network import MLPRegressor
 
 warnings.filterwarnings('ignore')
 
@@ -43,7 +47,6 @@ warnings.filterwarnings('ignore')
 SEED = 42
 random.seed(SEED)
 np.random.seed(SEED)
-tf.random.set_seed(SEED)
 
 SEQ_LEN    = 60    # 60 trading-day lookback window
 N_EPOCHS   = 60    # cap; EarlyStopping fires well before this on most tickers
@@ -167,6 +170,20 @@ FEATURE_COLUMNS = [
     'NewsSentiment', 'EarningsBeatStreak',
     # Calendar
     'Month_Sin', 'Month_Cos', 'EarningsSeason',
+    # ── Improvement 1: Lag features ──────────────────────────────────────────
+    'Close_lag_5', 'Close_lag_10', 'Close_lag_20',
+    'Volume_lag_5',
+    # ── Improvement 2: Short-term ROC ────────────────────────────────────────
+    'ROC_5d', 'ROC_20d',
+    'Return_1d', 'Return_5d', 'Return_20d',
+    # ── Improvement 3: Price relative to rolling high/low ────────────────────
+    'PriceToHigh_20d', 'PriceToLow_20d',
+    'PriceToHigh_5d',
+    'VolumePriceTrend',
+    'EMA_Slope_10', 'EMA_Slope_20',
+    # ── Improvement 4: Rolling return statistics ─────────────────────────────
+    'RollingMean_20d', 'RollingStd_20d',
+    'RollingSkew_20d', 'RollingSharpe_20d',
 ]
 
 
@@ -324,6 +341,56 @@ def build_features(df, stock_metrics, macro_data, news_sentiment, earnings_beat_
     f['Month_Cos']     = np.cos(2 * np.pi * months / 12)
     f['EarningsSeason'] = np.isin(months, [1, 4, 7, 10]).astype(float)
 
+    # ── Improvement 1: Lag features ──────────────────────────────────────────
+    # Explicitly hand the MLP past price/volume values so it can learn
+    # how recent history relates to the current reading.
+    close_s  = pd.Series(close)
+    volume_s = pd.Series(volume)
+    f['Close_lag_5']  = close_s.shift(5).values
+    f['Close_lag_10'] = close_s.shift(10).values
+    f['Close_lag_20'] = close_s.shift(20).values
+    f['Volume_lag_5'] = volume_s.shift(5).values
+
+    # ── Improvement 2: Short-term ROC & returns ───────────────────────────────
+    # Short-window rates-of-change capture momentum the MLP would otherwise miss.
+    f['ROC_5d']    = close_s.pct_change(5).values
+    f['ROC_20d']   = close_s.pct_change(20).values
+    f['Return_1d'] = close_s.pct_change(1).values
+    f['Return_5d'] = close_s.pct_change(5).values        # alias for clarity
+    f['Return_20d']= close_s.pct_change(20).values
+
+    # ── Improvement 3: Price vs rolling high/low + volume-price trend ─────────
+    # Tells the model whether the stock is near a breakout, breakdown,
+    # or grinding in the middle of its recent range.
+    roll5_high  = close_s.rolling(5).max()
+    roll20_high = close_s.rolling(20).max()
+    roll20_low  = close_s.rolling(20).min()
+
+    f['PriceToHigh_5d']  = (close_s / (roll5_high  + 1e-9)).values
+    f['PriceToHigh_20d'] = (close_s / (roll20_high + 1e-9)).values
+    f['PriceToLow_20d']  = (close_s / (roll20_low  + 1e-9)).values
+
+    # Volume-price trend: rising price + rising volume = strong momentum
+    daily_ret = close_s.pct_change().fillna(0)
+    f['VolumePriceTrend'] = (daily_ret * volume_s).rolling(10).sum().values
+
+    # EMA slope: direction & steepness of the EMA (not just its level)
+    ema10 = close_s.ewm(span=10, adjust=False).mean()
+    ema20 = close_s.ewm(span=20, adjust=False).mean()
+    f['EMA_Slope_10'] = ema10.diff(3).values   # 3-day change in EMA10
+    f['EMA_Slope_20'] = ema20.diff(3).values   # 3-day change in EMA20
+
+    # ── Improvement 4: Rolling return statistics ──────────────────────────────
+    # Compress recent return history into statistical moments so the MLP
+    # can sense whether momentum is consistent, noisy, or skewed.
+    ret20 = daily_ret.rolling(20)
+    f['RollingMean_20d']   = ret20.mean().values
+    f['RollingStd_20d']    = ret20.std().values
+    f['RollingSkew_20d']   = ret20.apply(lambda x: pd.Series(x).skew(), raw=False).values
+    # Rolling Sharpe: mean daily return / std (annualised implicitly via ratio)
+    rolling_sharpe = ret20.mean() / (ret20.std() + 1e-9)
+    f['RollingSharpe_20d'] = rolling_sharpe.values
+
     # Reorder and fill
     f = f[FEATURE_COLUMNS]
     f = f.ffill().bfill().fillna(0)
@@ -331,31 +398,32 @@ def build_features(df, stock_metrics, macro_data, news_sentiment, earnings_beat_
 
 
 # ============================================================================
-# LSTM MODEL
+# MLP MODEL (sklearn — CPU-portable, no AVX/AVX2 requirement)
 # ============================================================================
-def build_lstm(n_features):
-    # 64→32 units: ~40% fewer parameters than 128→64, trains ~2× faster
-    # with negligible accuracy loss on 5-year daily data.
-    model = Sequential([
-        LSTM(64, return_sequences=True, input_shape=(SEQ_LEN, n_features)),
-        Dropout(0.2),
-        LSTM(32, return_sequences=False),
-        Dropout(0.2),
-        Dense(2),   # [price_6m_scaled, price_1y_scaled]
-    ])
-    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
-                  loss=tf.keras.losses.Huber())
-    return model
+def build_mlp(seed=SEED):
+    # Wider first layer to accommodate the expanded feature set
+    # (original 47 features × SEQ_LEN=60 flattened, now with 16 extra features)
+    return MLPRegressor(
+        hidden_layer_sizes=(128, 64, 32),
+        activation='relu',
+        solver='adam',
+        learning_rate_init=0.001,
+        max_iter=N_EPOCHS,
+        early_stopping=True,
+        validation_fraction=0.1,
+        n_iter_no_change=10,
+        random_state=seed,
+    )
 
 
 def make_sequences(scaled, targets_6m, targets_1y):
     """
-    Build (X, y) sequences of length SEQ_LEN.
+    Build (X, y) sequences of length SEQ_LEN, flattened for sklearn.
     y = [price_6m, price_1y] at the end of each sequence.
     """
     X, Y = [], []
     for i in range(len(scaled) - SEQ_LEN):
-        X.append(scaled[i : i + SEQ_LEN])
+        X.append(scaled[i : i + SEQ_LEN].flatten())
         Y.append([targets_6m[i + SEQ_LEN], targets_1y[i + SEQ_LEN]])
     return np.array(X, dtype=np.float32), np.array(Y, dtype=np.float32)
 
@@ -520,7 +588,7 @@ def predict(ticker, input_data):
     # ---- Feature engineering ----
     feat_df = build_features(df, stock_metrics, macro_data,
                               news_sentiment, earnings_beat_streak, current_price)
-    n_features = len(FEATURE_COLUMNS)
+    n_features = len(FEATURE_COLUMNS)   # automatically reflects the expanded set
     raw = feat_df.values.astype(np.float32)
 
     # ---- Scale features ----
@@ -559,23 +627,12 @@ def predict(ticker, input_data):
     X_hold, Y_hold = X[split_idx:], Y[split_idx:]
 
     # ---- Train final model on full data ----
-    model = build_lstm(n_features)
-    callbacks = [
-        EarlyStopping(patience=10, restore_best_weights=True, monitor='val_loss'),
-        ReduceLROnPlateau(patience=5, factor=0.5, monitor='val_loss'),
-    ]
-    model.fit(
-        X, Y,
-        validation_split=0.1,
-        epochs=N_EPOCHS,
-        batch_size=BATCH_SIZE,
-        verbose=0,
-        callbacks=callbacks,
-    )
+    model = build_mlp()
+    model.fit(X, Y)
 
     # Compute cv_mae from the held-out 20% (no extra model train needed)
     if len(X_hold) > 0:
-        hold_pred = model.predict(X_hold, verbose=0)
+        hold_pred = model.predict(X_hold)
         dummy_pred = np.zeros((len(hold_pred), n_features), dtype=np.float32)
         dummy_pred[:, close_col_idx] = hold_pred[:, 0]
         pred_prices_hold = scaler.inverse_transform(dummy_pred)[:, close_col_idx]
@@ -590,8 +647,8 @@ def predict(ticker, input_data):
     cv_mape = (cv_mae / (current_price + 1e-9)) * 100
 
     # ---- Deterministic 6m / 12m predictions ----
-    last_seq = scaled[-SEQ_LEN:].reshape(1, SEQ_LEN, n_features)
-    pred_scaled = model.predict(last_seq, verbose=0)[0]  # [p6m, p1y]
+    last_seq = scaled[-SEQ_LEN:].flatten().reshape(1, -1)
+    pred_scaled = model.predict(last_seq)[0]  # [p6m, p1y]
 
     def inverse_close(scaled_val):
         dummy = np.zeros((1, n_features), dtype=np.float32)
@@ -614,13 +671,20 @@ def predict(ticker, input_data):
     mc_6m  = []
     mc_12m = []
 
-    # Enable dropout at inference time
-    @tf.function
-    def mc_predict(x):
-        return model(x, training=True)
-
+    # MC uncertainty: perturb the input with Gaussian noise scaled to each
+    # feature's recent standard deviation — more principled than fixed σ=0.01.
+    # This means price features get noise proportional to recent price swings,
+    # volume features get noise proportional to volume variance, etc.
+    feature_stds = scaled[-20:].std(axis=0)   # std over last 20 rows (post-scaling)
+    feature_stds = np.clip(feature_stds, 1e-4, None)  # avoid zero-std features
+    # Tile per-feature stds to match the flattened sequence length (SEQ_LEN × n_features)
+    tiled_stds = np.tile(feature_stds, SEQ_LEN).reshape(1, -1).astype(np.float32)
+    rng = np.random.default_rng(SEED)
     for _ in range(MC_RUNS):
-        p = mc_predict(last_seq).numpy()[0]
+        noise = rng.normal(0, 1, last_seq.shape).astype(np.float32)
+        noise *= (tiled_stds * 0.1)    # scale: 10% of each feature's recent σ
+        noisy = last_seq + noise
+        p = model.predict(noisy)[0]
         mc_6m.append(inverse_close(p[0]))
         mc_12m.append(inverse_close(p[1]))
 

@@ -1,4 +1,4 @@
-yfinance
 scikit-learn
 numpy
 pandas
+scipy
