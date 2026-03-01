@@ -25,6 +25,14 @@ def sync_deepmoney():
     headers = {'x-api-key': INTERNAL_SECRET}
     try:
         response = requests.get(API_URL, headers=headers)
+        
+        # Handle environment variable quote mismatch (common with some docker env loaders)
+        if response.status_code == 401 and INTERNAL_SECRET:
+            if not (INTERNAL_SECRET.startswith('"') and INTERNAL_SECRET.endswith('"')):
+                print("Retrying with quoted secret...")
+                headers = {'x-api-key': f'"{INTERNAL_SECRET}"'}
+                response = requests.get(API_URL, headers=headers)
+        
         response.raise_for_status()
         data = response.json()
     except Exception as e:
