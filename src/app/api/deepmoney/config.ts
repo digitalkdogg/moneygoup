@@ -1,4 +1,3 @@
-
 import tickers from '@/../../public/company_tickers.json';
 
 interface Ticker {
@@ -86,19 +85,39 @@ export const GPS_WEIGHTS = {
 export const AI_TECH_BONUS = {
   PROFILE_C: 8,
   SUB_SECTOR_SENTIMENT: 4,
-  RD_SPEND_HIGH: 3, // >= 20%
+  RD_SPEND_HIGH: 3,   // >= 20%
   FWD_REVENUE_GROWTH: 4, // >= 25%
   ANALYST_UPGRADE: 5,
   PT_RAISED: 4,
   RECENT_IPO: 3,
   KEYWORD_DENSITY: 4,
-  SMALL_CAP: 3 // < $5B
+  SMALL_CAP: 3        // < $5B
 };
 
 export const SCREENER_THRESHOLDS = {
   MARKET_CAP_CEILING: 50 * 1000 * 1000 * 1000, // $50B
-  MARKET_CAP_FLOOR: 150 * 1000 * 1000, // $150M
+  MARKET_CAP_FLOOR: 150 * 1000 * 1000,          // $150M
   REVENUE_GROWTH_FLOOR: 0.15,
   GROSS_MARGIN_FLOOR: 0.40,
   ANALYST_COVERAGE_FLOOR: 2
 };
+
+// ---------------------------------------------------------------------------
+// Company Feed Deep Scan Constants (Stage 2.5)
+// ---------------------------------------------------------------------------
+
+/** Base URL for per-ticker Yahoo Finance RSS headline feeds */
+export const COMPANY_FEED_BASE_URL = 'https://feeds.finance.yahoo.com/rss/2.0/headline?s=';
+
+/**
+ * Maximum number of qualifying Pass-1 tickers we will fetch company-level
+ * feeds for.  Keeps total outbound calls bounded (~15 feeds + ~25 enrichments).
+ */
+export const MAX_COMPANY_FEED_FETCHES = 15;
+
+/**
+ * Sentiment contribution weight applied to companies discovered indirectly
+ * via another ticker's company feed.  Set < 1 to reflect that the association
+ * is second-hand rather than a direct index-level mention.
+ */
+export const CO_MENTION_SENTIMENT_WEIGHT = 0.5;
