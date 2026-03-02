@@ -4,7 +4,7 @@
 function sanitizeForLog(value: unknown): unknown {
   if (typeof value !== 'string') return value;
   return value
-    .replace(/[\\r\\n]/g, ' ')    // Collapse newlines — stops forged log lines
+    .replace(/[\r\n]/g, ' ')    // Collapse newlines — stops forged log lines
     .substring(0, 500);          // Cap length — stacks can be enormous
 }
 

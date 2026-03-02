@@ -1,4 +1,4 @@
-import { AsyncSemaphore } from './predictionQueue';
+import { AsyncSemaphore } from '../predictionQueue';
 
 describe('AsyncSemaphore', () => {
   it('allows up to max concurrent acquisitions', async () => {
