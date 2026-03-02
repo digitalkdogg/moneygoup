@@ -173,16 +173,16 @@ export default function PortfolioSection({ portfolio, onRefresh }: PortfolioSect
       label: 'Actions',
       align: 'center',
       format: (value: any, row: PortfolioItem) => (
-        <span className="space-x-2">
+        <span className="flex items-center justify-center space-x-2">
           <button
             onClick={(e) => { e.stopPropagation(); handleBuyMore(row); }}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold text-sm cursor-pointer" 
+            className="px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-bold text-sm cursor-pointer min-h-[44px] min-w-[80px]" 
           >
             Buy More
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); handleSell(row); }}
-            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500 transition-colors cursor-pointer font-semibold text-sm"
+            className="px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-500 transition-colors cursor-pointer font-bold text-sm min-h-[44px] min-w-[80px]"
           >
             Sell
           </button>
