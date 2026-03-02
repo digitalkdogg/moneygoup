@@ -45,9 +45,6 @@ export default function StockTable<T extends StockTableRow>({
     }
   };
 
-  // Define which columns are essential for mobile view
-  const essentialColumns = ['symbol', 'shares', 'dailyEarnings', 'price', 'purchase_price'];
-
   return (
     <section className="bg-white p-4 md:p-6 rounded-2xl shadow-lg mb-8" id="table">
       <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-4 text-center">
@@ -74,9 +71,7 @@ export default function StockTable<T extends StockTableRow>({
                     <th
                       key={String(column.key)}
                       scope="col"
-                      className={`px-4 md:px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider min-h-[44px] ${
-                        !essentialColumns.includes(String(column.key)) ? 'hidden sm:table-cell' : ''
-                      } ${
+                      className={`px-4 md:px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider min-h-[44px] whitespace-nowrap ${
                         column.align === 'right'
                           ? 'text-right'
                           : column.align === 'center'
@@ -104,8 +99,6 @@ export default function StockTable<T extends StockTableRow>({
                         <td
                           key={String(column.key)}
                           className={`px-4 md:px-6 py-4 md:py-5 whitespace-nowrap text-sm min-h-[44px] ${
-                            !essentialColumns.includes(String(column.key)) ? 'hidden sm:table-cell' : ''
-                          } ${
                             column.align === 'right'
                               ? 'text-right'
                               : column.align === 'center'

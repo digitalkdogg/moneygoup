@@ -1,6 +1,6 @@
 import YahooFinance from 'yahoo-finance2';
 
-const yahooFinance = new YahooFinance();
+export const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
 
 export async function fetchYahooQuotesForSymbols(
   symbols: string[],
@@ -39,6 +39,34 @@ export async function getYahooScreener(screenerName: string) {
   } catch (error) {
     console.error(`Error fetching screener ${screenerName}:`, error);
     return { quotes: [] };
+  }
+}
+
+export async function getTickerSector(ticker: string) {
+  try {
+    const summary = await yahooFinance.quoteSummary(ticker, {
+      modules: ["assetProfile"],
+    });
+    return summary.assetProfile?.sector || null;
+  } catch (error) {
+    console.error(`Error fetching sector for ticker ${ticker}:`, error);
+    return null;
+  }
+}
+
+export async function getSectorStocks(sectorName: string) {
+  try {
+    const result = await (yahooFinance.screener as any)({
+      scrIds: 'most_actives',
+      query: {
+        operator: 'AND',
+        operands: [{ operator: 'EQ', operands: ['sector', sectorName] }]
+      }
+    }, undefined, { validateOptions: false });
+    return result.quotes || [];
+  } catch (error) {
+    console.error(`Error fetching stocks for sector ${sectorName}:`, error);
+    return [];
   }
 }
 
