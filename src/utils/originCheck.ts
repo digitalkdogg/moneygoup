@@ -1,6 +1,8 @@
 // src/utils/originCheck.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { createErrorResponse, unauthorizedResponse } from '@/utils/errorResponse';
+import { createErrorResponse, unauthorizedResponse, forbiddenResponse } from '@/utils/errorResponse';
+
+const MUTATING_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
 
 export function checkOrigin(request: NextRequest): NextResponse | null {
   const allowedOriginsString = process.env.ALLOWED_ORIGINS || process.env.NEXTAUTH_URL;
@@ -17,12 +19,34 @@ export function checkOrigin(request: NextRequest): NextResponse | null {
 
   const allowedOrigins = new Set(allowedOriginsString.split(',').map(o => o.trim()));
   const requestOrigin = request.headers.get('origin');
+  const requestReferer = request.headers.get('referer');
+  const method = request.method.toUpperCase();
 
-  // Server-to-server requests (no Origin header) are allowed through.
-  // Browser requests without a matching origin are rejected.
+  // 1. Validate Origin header if present
   if (requestOrigin && !allowedOrigins.has(requestOrigin)) {
     return unauthorizedResponse('Unauthorized origin');
   }
 
-  return null; // Origin is allowed
+  // 2. Stricter validation for mutating methods (CSRF protection)
+  if (MUTATING_METHODS.includes(method)) {
+    // If Origin is missing, fallback to Referer validation
+    if (!requestOrigin) {
+      if (!requestReferer) {
+        // Both Origin and Referer are missing for a mutating request
+        return forbiddenResponse('Missing Origin/Referer for mutating request');
+      }
+
+      try {
+        const refererUrl = new URL(requestReferer);
+        const refererOrigin = `${refererUrl.protocol}//${refererUrl.host}`;
+        if (!allowedOrigins.has(refererOrigin)) {
+          return unauthorizedResponse('Unauthorized referer origin');
+        }
+      } catch (e) {
+        return forbiddenResponse('Invalid Referer header');
+      }
+    }
+  }
+
+  return null; // Origin/Referer is allowed
 }

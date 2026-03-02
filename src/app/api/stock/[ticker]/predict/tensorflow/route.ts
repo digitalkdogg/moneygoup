@@ -13,6 +13,7 @@ import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { tickerSchema } from '@/utils/validationSchemas';
 import { z } from 'zod';
+import { getClientIP } from '@/utils/rateLimitMiddleware';
 
 const logger = createLogger('api/stock/predict/tensorflow');
 
@@ -85,7 +86,8 @@ export async function POST(
     return unauthorizedResponse('Authentication required');
   }
 
-  const userId = session.user.email;
+  const userId = session.user.email || session.user.id;
+  const ip = getClientIP(request);
 
   // 3. Validate ticker using schema
   try {
@@ -100,8 +102,8 @@ export async function POST(
     return validationErrorResponse('Invalid ticker format');
   }
 
-  // 4. Per-user+ticker rate limit
-  const cooldownKey = `${userId}-${validatedTicker}`;
+  // 4. Per-user+ip+ticker rate limit
+  const cooldownKey = `${userId}-${ip}-${validatedTicker}`;
   if (isOnCooldown(cooldownKey)) {
     const retryAfterMs = COOLDOWN_MS - (Date.now() - (tickerCooldown.get(cooldownKey) ?? 0));
     return NextResponse.json(

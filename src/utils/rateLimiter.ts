@@ -97,3 +97,6 @@ export const quoteLimiter = new RateLimiter({ limit: 15, windowMs: 60 * 1000 });
 
 /** 10 requests per IP per minute for historical data endpoints */
 export const historicalLimiter = new RateLimiter({ limit: 10, windowMs: 60 * 1000 });
+
+/** 2 heavy analysis requests per hour per user/IP */
+export const deepmoneyLimiter = new RateLimiter({ limit: 2, windowMs: 60 * 60 * 1000 });

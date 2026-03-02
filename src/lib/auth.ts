@@ -36,7 +36,7 @@ export const authOptions: NextAuthOptions = {
 
         try {
           const [rows] = await executeRawQuery(
-            'SELECT id, username, password_hash FROM users WHERE username = ?',
+            'SELECT id, username, password_hash, role FROM users WHERE username = ?',
             [credentials.username]
           );
 
@@ -70,6 +70,7 @@ export const authOptions: NextAuthOptions = {
           return {
             id: user.id.toString(),
             name: user.username,
+            role: user.role || 'user',
           };
         } catch (error: unknown) {
           logger.error(
@@ -101,12 +102,14 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.name = user.name;
+        token.role = (user as any).role;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
+        (session.user as any).role = token.role as string;
       }
       return session;
     },

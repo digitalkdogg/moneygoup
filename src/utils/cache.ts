@@ -149,4 +149,6 @@ export const stockDataCache = new Cache<any>(5 * 60 * 1000); // 5 minutes for st
 
 export const technicalIndicatorsCache = new Cache<any>(10 * 60 * 1000); // 10 minutes for indicators
 
+export const deepmoneyCache = new Cache<any>(30 * 60 * 1000); // 30 minutes for deepmoney analysis
+
 export default Cache;

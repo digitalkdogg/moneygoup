@@ -6,6 +6,8 @@ import { createLogger } from '@/utils/logger';
 import { z } from 'zod';
 import mysql from 'mysql2/promise'; // Import mysql types
 import { checkOrigin } from '@/utils/originCheck';
+import { checkRateLimit } from '@/utils/rateLimitMiddleware';
+import { registerLimiter } from '@/utils/rateLimiter';
 
 const logger = createLogger('api/auth/register');
 
@@ -15,36 +17,28 @@ const registerSchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters long').max(100, 'Password cannot exceed 100 characters'),
 });
 
-import { registerLimiter } from '@/utils/rateLimiter';
-
-
 export async function POST(request: NextRequest) {
   const originCheckResponse = checkOrigin(request);
   if (originCheckResponse) {
     return originCheckResponse;
   }
 
-  // Rate limit by IP address
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim()
-    ?? request.headers.get('x-real-ip')
-    ?? 'unknown';
-  const { allowed, remaining, resetInMs } = registerLimiter.check(ip);
-
-  if (!allowed) {
-    return new NextResponse(
-      JSON.stringify({ message: 'Too many registration attempts. Please try again later.' }),
-      {
-        status: 429,
-        headers: {
-          'Retry-After': String(Math.ceil(resetInMs / 1000)),
-          'X-RateLimit-Limit': '5',
-          'X-RateLimit-Remaining': '0',
-        },
-      }
-    );
-  }
-
   try {
+    // Clone request to read body for rate limiting secondary dimension
+    const clonedRequest = request.clone();
+    let usernameForRateLimit: string | undefined;
+    
+    try {
+      const body = await clonedRequest.json();
+      usernameForRateLimit = body.username;
+    } catch (e) {
+      // Body not readable or not JSON, will be handled by schema validation later
+    }
+
+    // Rate limit by IP address + username
+    const rateLimitResponse = checkRateLimit(request, registerLimiter, 'register', usernameForRateLimit);
+    if (rateLimitResponse) return rateLimitResponse;
+
     const body = await request.json();
     const { username, password } = registerSchema.parse(body);
 
