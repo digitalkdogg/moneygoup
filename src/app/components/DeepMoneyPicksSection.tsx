@@ -201,7 +201,7 @@ export default function DeepMoneyPicksSection() {
         <button
           onClick={fetchData}
           disabled={loading}
-          className="px-4 py-2 bg-white border border-gray-200 rounded-xl shadow-sm text-sm text-indigo-600 hover:bg-gray-50 font-bold disabled:opacity-40 transition-all"
+          className="px-4 py-2 bg-white border border-gray-200 rounded-xl shadow-sm text-sm text-green-700 hover:bg-gray-100 font-bold disabled:opacity-40 transition-all"
         >
           {loading ? 'Analyzing...' : '↻ Refresh Analysis'}
         </button>
@@ -238,13 +238,6 @@ export default function DeepMoneyPicksSection() {
         error={error}
         emptyMessage="No market or sector data available."
       />
-      
-      <div className="flex flex-col items-center justify-center space-y-2 py-4">
-          <p className="text-xs text-gray-400 italic">
-              AI Analysis Snapshot: {data?.hot_stocks[0]?.snapshot_date || 'N/A'}
-          </p>
-          <div className="h-1 w-24 bg-gradient-to-r from-transparent via-gray-200 to-transparent rounded-full"></div>
-      </div>
     </div>
   );
 }
