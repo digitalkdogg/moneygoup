@@ -52,47 +52,47 @@ export async function GET(request: NextRequest) {
     const portfolioWithCurrentPrices = await Promise.all(
       (portfolioItems as any[]).map(async (item) => {
         try {
-          const [quoteResult, historicalResult] = await Promise.all([
-            yahooFinanceInstance.quote(item.symbol),
-            yahooFinanceInstance.historical(item.symbol, { 
-                period1: new Date(Date.now() - 86400000 * 3).toISOString().split('T')[0], // 3 days ago
-                period2: new Date().toISOString().split('T')[0] // Today
-            })
-          ]);
-          
+          const quoteResult = await yahooFinanceInstance.quote(item.symbol);
           const currentPrice = (quoteResult as any)?.regularMarketPrice || null;
           let prevClose = null;
 
-          if (historicalResult && historicalResult.length >= 2) {
-            // Find the most recent historical data that is not today's date
-            const today = new Date();
-            today.setHours(0, 0, 0, 0); // Normalize today's date to avoid time comparison issues
+          // Try to get previous close from quote first
+          const quotePrevClose = (quoteResult as any)?.regularMarketPreviousClose;
+          if (quotePrevClose) {
+            prevClose = quotePrevClose;
+          } else {
+            // Fallback to historical data if not available in quote
+            try {
+              const historicalResult = await yahooFinanceInstance.historical(item.symbol, {
+                period1: new Date(Date.now() - 86400000 * 7).toISOString().split('T')[0], // 7 days ago
+                period2: new Date().toISOString().split('T')[0] // Today
+              });
 
-            // Find the data for the previous trading day
-            let previousTradingDayData = null;
-            for (const dataPoint of historicalResult) {
-                const dataPointDate = new Date(dataPoint.date);
-                dataPointDate.setHours(0, 0, 0, 0);
-                // Ensure it's not today's date and that it's a valid trading day
-                if (dataPointDate.getTime() < today.getTime()) {
-                    previousTradingDayData = dataPoint;
+              if (historicalResult && historicalResult.length > 0) {
+                // Find the most recent previous trading day closing price
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                // Sort by date descending (most recent first)
+                const sortedByDate = [...historicalResult].sort((a, b) =>
+                  new Date(b.date).getTime() - new Date(a.date).getTime()
+                );
+
+                // Find the first data point that is before today
+                for (const dataPoint of sortedByDate) {
+                  const dataPointDate = new Date(dataPoint.date);
+                  dataPointDate.setHours(0, 0, 0, 0);
+                  if (dataPointDate.getTime() < today.getTime()) {
+                    prevClose = dataPoint.close;
                     break;
+                  }
                 }
+              }
+            } catch (histError) {
+              logger.warn(`Could not fetch historical data for ${item.symbol}`);
             }
-
-            if (previousTradingDayData) {
-                prevClose = previousTradingDayData.close;
-            }
-
-          } else if (historicalResult && historicalResult.length === 1) {
-             const dataPointDate = new Date(historicalResult[0].date);
-             const today = new Date();
-             today.setHours(0, 0, 0, 0);
-             if (dataPointDate.getTime() < today.getTime()) {
-                 prevClose = historicalResult[0].close;
-             }
           }
-          
+
           return { ...item, regularMarketPrice: currentPrice, prev_close: prevClose };
         } catch (priceError) {
           logger.error(`Error fetching data for ${item.symbol}:`, priceError as Error);
