@@ -26,7 +26,12 @@ jest.mock('@/utils/originCheck', () => ({
 }));
 
 jest.mock('@/utils/errorResponse', () => ({
-  createErrorResponse: jest.fn((error, message) => ({ message, error, status: 500 })),
+  createErrorResponse: jest.fn((error, message) => ({
+    message,
+    error,
+    status: 500,
+    json: () => Promise.resolve({ message, error })
+  })),
   unauthorizedResponse: jest.fn(() => ({ status: 401, json: () => Promise.resolve({ message: 'Unauthorized' }) })),
 }));
 
