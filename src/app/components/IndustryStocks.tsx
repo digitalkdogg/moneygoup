@@ -5,11 +5,11 @@ import { useRouter } from 'next/navigation';
 import StockTable from './StockTable';
 import { formatCurrency, formatNumber } from '@/utils/formatters';
 
-interface SectorStocksProps {
+interface IndustryStocksProps {
   ticker: string;
 }
 
-interface SectorStock {
+interface IndustryStock {
   symbol: string;
   name: string;
   price: number;
@@ -23,28 +23,29 @@ interface SectorStock {
   analystUpside: number;
 }
 
-export default function SectorStocks({ ticker }: SectorStocksProps) {
+export default function IndustryStocks({ ticker }: IndustryStocksProps) {
   const router = useRouter();
-  const [data, setData] = useState<{ sector: string; stocks: SectorStock[] } | null>(null);
+  const [data, setData] = useState<{ industry: string; stocks: IndustryStock[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchSectorStocks() {
+    async function fetchIndustryStocks() {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch(`/api/search/sector/${ticker}`);
+        // Correct API path
+        const response = await fetch(`/api/search/industry/${ticker}`);
         
         if (!response.ok) {
           const errorData = await response.json();
-          throw new Error(errorData.message || 'Failed to fetch sector stocks');
+          throw new Error(errorData.message || 'Failed to fetch industry stocks');
         }
 
         const json = await response.json();
         setData(json);
       } catch (err) {
-        console.error('Error fetching sector stocks:', err);
+        console.error('Error fetching industry stocks:', err);
         setError(err instanceof Error ? err.message : 'An unknown error occurred');
       } finally {
         setLoading(false);
@@ -52,7 +53,7 @@ export default function SectorStocks({ ticker }: SectorStocksProps) {
     }
 
     if (ticker) {
-      fetchSectorStocks();
+      fetchIndustryStocks();
     }
   }, [ticker]);
 
@@ -152,26 +153,26 @@ export default function SectorStocks({ ticker }: SectorStocksProps) {
           <span className="mr-1">←</span> Back
         </button>
         <h1 className="text-3xl font-bold text-gray-900">
-          {data ? `${data.sector} Sector` : 'Sector Search'}
+          {data ? `${data.industry} Industry` : 'Industry Search'}
         </h1>
         <p className="text-gray-600 mt-2">
           {isTicker 
-            ? `Top active stocks in the same sector as ` 
+            ? `Top active stocks in the same industry as ` 
             : `Top active stocks in the `}
           <span className="font-bold">{decodedTicker}</span>
-          {!isTicker && ` sector`}
+          {!isTicker && ` industry`}
         </p>
       </div>
 
       <StockTable
-        title={data ? `${data.sector} Stocks` : 'Sector Stocks'}
+        title={data ? `${data.industry} Stocks` : 'Industry Stocks'}
         icon="📊"
         data={data?.stocks || []}
         columns={columns}
         onRowClick={handleRowClick}
         loading={loading}
         error={error}
-        emptyMessage={`No other stocks found in the ${data?.sector || 'same'} sector.`}
+        emptyMessage={`No other stocks found in the ${data?.industry || 'same'} industry.`}
       />
     </div>
   );

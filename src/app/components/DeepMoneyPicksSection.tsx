@@ -234,7 +234,7 @@ export default function DeepMoneyPicksSection() {
         icon="🌍"
         data={data?.combined_markets || []}
         columns={marketColumns}
-        onRowClick={(symbol) => router.push(`/search/sector/${symbol}`)}
+        onRowClick={(symbol) => router.push(`/search/industry/${symbol}`)}
         loading={loading}
         error={error}
         emptyMessage="No market or sector data available."

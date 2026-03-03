@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { checkOrigin } from '@/utils/originCheck';
-import { createErrorResponse, unauthorizedResponse, notFoundResponse } from '@/utils/errorResponse';
-import { getTickerSector, getSectorStocks, yahooFinance } from '@/utils/yahooFinanceHelper';
-import { sanitizeTicker } from '@/utils/sanitize';
+import { createErrorResponse, unauthorizedResponse } from '@/utils/errorResponse';
+import { yahooFinance } from '@/utils/yahooFinanceHelper';
+import { categorizeByTaxonomy, getCategoryStrategy, getCategoryKeywords } from '@/utils/industryTaxonomy';
 
 export async function GET(
   request: NextRequest,
@@ -25,59 +25,102 @@ export async function GET(
     const rawInput = params.ticker;
     const decodedInput = decodeURIComponent(rawInput);
     
-    // 4. Resolve sector
-    let sector = null;
-    let resolvedTicker = null;
+    // 4. Resolve Category using Taxonomy
+    // First, search for the term to get some context
+    const searchRes = await yahooFinance.search(decodedInput, { quotesCount: 10 });
+    const topEquities = searchRes.quotes.filter(q => q.quoteType === 'EQUITY');
 
-    // Try input as a direct ticker
-    const sanitizedTicker = sanitizeTicker(decodedInput);
-    if (sanitizedTicker && sanitizedTicker.length <= 10) {
-      sector = await getTickerSector(sanitizedTicker);
-      if (sector) resolvedTicker = sanitizedTicker;
-    }
+    let category = null;
+    let resolvedTitle = decodedInput;
 
-    // If not found as ticker, search for the term
-    if (!sector) {
-      const searchRes = await yahooFinance.search(decodedInput);
-      const firstEquity = searchRes.quotes.find(q => q.quoteType === 'EQUITY');
-      if (firstEquity && (firstEquity as any).symbol) {
-        sector = await getTickerSector((firstEquity as any).symbol);
-        if (sector) resolvedTicker = (firstEquity as any).symbol;
+    if (topEquities.length > 0) {
+      // Fetch profile of the best match to categorize
+      const bestMatch = topEquities[0];
+      try {
+        const summary = await yahooFinance.quoteSummary(bestMatch.symbol, { 
+          modules: ['assetProfile'] 
+        });
+        
+        const profile = summary.assetProfile || {};
+        const combinedText = `
+          ${bestMatch.symbol} 
+          ${bestMatch.shortName || ''} 
+          ${profile.industry || ''} 
+          ${profile.sector || ''} 
+          ${profile.longBusinessSummary || ''}
+        `;
+        
+        category = categorizeByTaxonomy(combinedText);
+      } catch (err) {
+        console.error(`Error fetching profile for ${bestMatch.symbol}:`, err);
       }
     }
 
-    // If still no sector
-    if (!sector) {
+    // If still no category, try to categorize the input string itself
+    if (!category) {
+      category = categorizeByTaxonomy(decodedInput);
+    }
+
+    // 5. Execute Strategy based on Category
+    let targetSymbols: string[] = [];
+    
+    if (category) {
+      const strategy = getCategoryStrategy(category);
+      const keywords = getCategoryKeywords(category);
+      resolvedTitle = strategy.title;
+
+      console.log(`\n[Industry Search] Identified Category: "${category}"`);
+
+      if (strategy.screenerId) {
+        console.log(`[Industry Search] CALLING SCREENER: yahooFinance.screener({ scrIds: "${strategy.screenerId}", count: 50 })`);
+        const screenerRes = await yahooFinance.screener({ scrIds: strategy.screenerId as any, count: 50 });
+        targetSymbols = (screenerRes.quotes || []).map(q => q.symbol);
+      } else {
+        // B. Use Taxonomy Keywords for Individual Parallel Searches
+        const searchKeywords = keywords.slice(0, 8); // Use top 8 keywords to stay within reasonable limits
+        console.log(`[Industry Search] Parallel searching ${searchKeywords.length} keywords: ${searchKeywords.join(', ')}`);
+        
+        const searchPromises = searchKeywords.map(kw => {
+          console.log(`[Industry Search] CALLING: yahooFinance.search("${kw}", { quotesCount: 5 })`);
+          return yahooFinance.search(kw, { quotesCount: 5 });
+        });
+
+        const allResults = await Promise.all(searchPromises);
+        
+        // Flatten all results and extract equity symbols
+        targetSymbols = allResults.flatMap(res => 
+          (res.quotes || [])
+            .filter(q => q.quoteType === 'EQUITY')
+            .map(q => q.symbol)
+        );
+      }
+    }
+
+    // Fallback: If no category or no symbols found yet, use search results from original term
+    if (targetSymbols.length === 0) {
+      targetSymbols = topEquities.map(e => e.symbol);
+    }
+
+    if (targetSymbols.length === 0) {
       return NextResponse.json({ 
         input: decodedInput, 
-        sector: 'Unknown', 
+        industry: resolvedTitle, 
         stocks: [],
-        message: `No specific sector found for "${decodedInput}".`
+        message: `No specific matches found for "${decodedInput}".`
       });
     }
 
-    // 5. Get stocks in that sector
-    const rawQuotes = await getSectorStocks(sector);
-    
     // 6. Get detailed quotes for scoring
-    const symbols = (rawQuotes || []).slice(0, 30).map((q: any) => q.symbol);
-    
-    // Ensure the resolved ticker is included in symbols to be scored
-    if (resolvedTicker && !symbols.includes(resolvedTicker)) {
-      symbols.push(resolvedTicker);
-    }
+    // Deduplicate and slice
+    const uniqueSymbols = Array.from(new Set(targetSymbols)).slice(0, 40);
+    const detailedQuotesRaw = await (yahooFinance as any).quote(uniqueSymbols, {}, { validateOptions: false });
 
-    if (!symbols || symbols.length === 0) {
-      return NextResponse.json({ input: decodedInput, sector, stocks: [] });
-    }
-
-    // Use yahooFinance from helper (instantiated)
-    // Cast to any for quote to avoid potential type issues with bulk symbols in some versions
-    const detailedQuotes = await (yahooFinance as any).quote(symbols, {}, { validateOptions: false });
+    // Filter by price < $300
+    const detailedQuotes = detailedQuotesRaw.filter((q: any) => q.regularMarketPrice < 300);
+    console.log(`[Industry Search] Filtered ${detailedQuotesRaw.length} stocks down to ${detailedQuotes.length} with price < $300`);
 
     // 7. Compute Heat Scores
     const scoredCompanies = detailedQuotes.map((q: any) => {
-      // Signals
       const priceChangePct = q.regularMarketChangePercent || 0;
       const volumeRatio = q.averageDailyVolume3Month > 0 
         ? (q.regularMarketVolume || 0) / q.averageDailyVolume3Month 
@@ -152,16 +195,15 @@ export async function GET(
     });
 
     finalCompanies.sort((a: any, b: any) => b.heatScore - a.heatScore);
-    const top10 = finalCompanies.slice(0, 10);
-
+    
     return NextResponse.json({
       input: decodedInput,
-      sector,
-      stocks: top10
+      industry: resolvedTitle,
+      stocks: finalCompanies.slice(0, 10)
     });
 
   } catch (error) {
-    console.error('Error in sector search API:', error);
+    console.error('Error in taxonomy keyword search API:', error);
     return createErrorResponse(
       error,
       'Internal Server Error'
