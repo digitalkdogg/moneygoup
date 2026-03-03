@@ -37,11 +37,11 @@ export async function GET(
       // Fetch profile of the best match to categorize
       const bestMatch = topEquities[0];
       try {
-        const summary = await yahooFinance.quoteSummary(bestMatch.symbol, { 
+        const summary = await yahooFinance.quoteSummary(bestMatch.symbol as string, { 
           modules: ['assetProfile'] 
         });
         
-        const profile = summary.assetProfile || {};
+        const profile: any = summary.assetProfile || {};
         const combinedText = `
           ${bestMatch.symbol} 
           ${bestMatch.shortName || ''} 
@@ -91,14 +91,14 @@ export async function GET(
         targetSymbols = allResults.flatMap(res => 
           (res.quotes || [])
             .filter(q => q.quoteType === 'EQUITY')
-            .map(q => q.symbol)
+            .map(q => q.symbol as string)
         );
       }
     }
 
     // Fallback: If no category or no symbols found yet, use search results from original term
     if (targetSymbols.length === 0) {
-      targetSymbols = topEquities.map(e => e.symbol);
+      targetSymbols = topEquities.map(e => e.symbol as string);
     }
 
     if (targetSymbols.length === 0) {
