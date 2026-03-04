@@ -1,24 +1,84 @@
+
+
+deepmoney_requirements_final.txt
+txt
+
+Can you give me a new document from this one I attached.  I want you to update the document to include a plan to discover hot ETF's that are less then $400.  The plan needs to include updating the database to store those ETF's.
+
+7:50 PM
+
+Viewed 2 files
+Viewed 2 files
+Now I have everything I need. Let me build the updated document.
+
+
+Ran 4 commands, edited 2 files, created a file
+Ran 4 commands, edited 2 files, created a file
+Here's your updated DeepMoney API v2.1 requirements document. The major additions are:
+
+Section 9 — Hot ETF Discovery Module (fully new), which includes:
+
+A $400/share hard price gate for all ETFs
+Three discovery strategies: News Signal Alignment, Dynamic ETF Screener, and Thematic ETF Mapping (with a watchlist covering AI, semis, cloud, cybersecurity, etc.)
+An ETF GPS Scoring Model (52-week return, momentum, liquidity, expense ratio, news alignment) with a qualifying threshold of 55/100
+A complete database persistence plan (Section 9.5) with:
+Two new tables: hot_etfs and etf_cycle_summary
+Indexes for common query patterns
+An upsert strategy keyed on (ticker, snapshot_date)
+A migration script spec and a retention policy
+The API response schema (Section 8) was also updated to show the new hot_etfs array, and ETF.com/ETFdb.com was added to the external data sources table.
+
+Deepmoney requirements v2.1
+Document · DOCX 
+Good but give me a text document instead
+
+7:56 PM
+
+Read the generated docx content to extract text
+Read the generated docx content to extract text
+I'll use pandoc to extract the text cleanly from the docx file.
+
+
+Ran 2 commands
+Ran 2 commands
+Looks great. Here's your plain text version:
+
+
+Presented file
+Presented file
+Same content as before, now as a plain .txt file with all the ETF discovery module additions intact.
+
+Deepmoney requirements v2.1
+TXT 
+
+
+
+
+
+Claude is AI and can make mistakes. Please double-check responses.
+Deepmoney requirements v2.1 · TXT
+Copy
+
 DeepMoney API
 
-Smart Stock Discovery Engine
+Smart Stock & ETF Discovery Engine
 
 Requirements & Upgrade Specification
 
-Version 2.0 | February 2026 | Includes AI / Tech Stock Discovery Module
+Version 2.1 | March 2026 | Includes Hot ETF Discovery Module
 
-Revision Note
+  Revision Note
 
-This document supersedes both the initial v2.0 draft and the first
-AI/Tech revision. All original requirements are retained. The primary
-change in this revision is the replacement of the static AI/Tech Curated
-Watchlist (Section 6.2) with a Dynamic Discovery Screener. This redesign
-addresses the core concern that a static watchlist of well-known names
-(NVDA, PLTR, etc.) would simply resurface large-cap stocks already
-visible to any investor — defeating the purpose of discovery. The new
-approach is signal-driven, market-cap-bounded, and biased toward
-emerging and under-the-radar opportunities.
+  This document supersedes both the initial v2.0 draft and the first
+  AI/Tech revision. All original requirements are retained. Version 2.1
+  introduces a new Hot ETF Discovery Module (Section 9) to complement
+  the existing stock discovery pipeline. The ETF module identifies
+  trending exchange-traded funds priced under $400/share and persists
+  discoveries to a dedicated database schema. This revision also adds
+  ETF-specific fields to the API response schema and an ETF data source
+  table in the external data sources section.
 
-1.  Overview
+1. Overview
 
 The current DeepMoney API performs basic NLP-based entity extraction and
 keyword sentiment analysis on news articles to surface trending stocks
@@ -27,20 +87,27 @@ Engine that identifies stocks with strong 1-year growth potential,
 priced under $150/share, with a verifiable track record of growth or
 demonstrated stability.
 
-This revision extends the scope to include a dedicated AI and Technology
-Stock Discovery Module with a core design principle: the engine must
-surface stocks that investors are unlikely to already know about.
-Large-cap household names (NVDA, MSFT, PLTR, AAPL) may appear via the
-general news pipeline if they are genuinely trending, but the AI/Tech
-module is explicitly designed to find emerging, under-the-radar, and
-newly-relevant opportunities in the AI and technology space.
+Version 2.1 extends this engine to include a Hot ETF Discovery Module.
+This module discovers trending exchange-traded funds priced under
+$400/share, scores them using an ETF-specific GPS model, and persists
+qualifying ETFs to a dedicated database. The ETF module runs in parallel
+with the stock pipeline and surfaces both thematic and sector-based
+opportunities investors may be overlooking.
 
-2.  Goals & Success Criteria
+This revision also extends the scope of the existing AI and Technology
+Stock Discovery Module, which retains its core design principle: the
+engine must surface stocks that investors are unlikely to already know
+about.
+
+2. Goals & Success Criteria
 
 2.1 Primary Goals
 
 -   Surface stocks under $150/share with strong 1-year forward growth
     potential.
+
+-   Discover hot ETFs priced under $400/share with momentum and thematic
+    relevance.
 
 -   Distinguish true growth stocks from noise by combining news signals
     with fundamental financial data.
@@ -48,44 +115,54 @@ newly-relevant opportunities in the AI and technology space.
 -   Identify both established growth stocks and up-and-coming stable
     stocks across all sectors.
 
--   Discovery principle: Proactively surface emerging AI/Tech stocks
-    that are not yet on most investors’ radar — explicitly avoiding
-    over-indexing on large-cap names.
+-   Discovery principle: Proactively surface emerging AI/Tech stocks not
+    yet on most investors' radar — explicitly avoiding over-indexing on
+    large-cap names.
 
--   Reduce false positives through multi-dimensional GPS scoring.
+-   Reduce false positives through multi-dimensional GPS scoring for
+    both stocks and ETFs.
+
+-   Persist all qualifying ETF discoveries to the database for trend
+    tracking and historical analysis.
 
 2.2 Success Criteria
 
-  ---------------------------------------------------------------------
-  Metric                   Target                  Notes
-  ------------------------ ----------------------- --------------------
-  Stock price filter       100% — no results over  Hard gate
-  accuracy                 $150/share              
+  -----------------------------------------------------------------------
+  Metric                          Target                 Notes
+  ------------------------------- ---------------------- ----------------
+  Stock price filter accuracy     100% — no results over Hard gate
+                                  $150/share             
 
-  Precision of growth      ≥ 70% positive 1-yr     All sectors
-  candidates               performance in          
-                           backtesting             
+  ETF price filter accuracy       100% — no results over Hard gate
+                                  $400/share             
 
-  AI/Tech discovered       ≥ 5 qualifying          Must meet Profile A,
-  stocks                   candidates per cycle    B, or C
-                           when available          
+  Precision of growth candidates  ≥ 70% positive 1-yr    All sectors
+                                  performance in         
+                                  backtesting            
 
-  Large-cap dominance rate < 20% of                Discovery quality
-                           hot_ai_tech_stocks      guard
-                           results from market     
-                           cap > $50B              
+  AI/Tech discovered stocks       ≥ 5 qualifying         Must meet
+                                  candidates per cycle   Profile A, B, or
+                                  when available         C
 
-  AI/Tech false positive   < 30% of returned       Quality threshold
-  rate                     AI/Tech stocks fail     
-                           growth classification   
+  Hot ETFs discovered per cycle   ≥ 3 qualifying ETFs    Must meet ETF
+                                  per cycle when         Profile criteria
+                                  available              
 
-  API response time        < 3 seconds for full    Including screener
-                           analysis cycle          
+  Large-cap dominance rate        < 20% of               Discovery
+                                  hot_ai_tech_stocks     quality guard
+                                  results from market    
+                                  cap > $50B             
 
-  Uptime / reliability     99.5% availability      
-  ---------------------------------------------------------------------
+  ETF database write success rate ≥ 99%                  Persistence
+                                                         reliability
 
-3.  Current State & Limitations
+  API response time               < 3 seconds for full   Including
+                                  analysis cycle         screener
+
+  Uptime / reliability            99.5% availability     
+  -----------------------------------------------------------------------
+
+3. Current State & Limitations
 
 The current implementation has the following known limitations that this
 upgrade will address:
@@ -104,11 +181,17 @@ upgrade will address:
 -   No AI/Tech vertical awareness — the API cannot proactively find
     relevant stocks in fast-moving technology verticals.
 
+-   No ETF discovery — the API is entirely stock-focused and does not
+    surface exchange-traded funds.
+
+-   No database persistence — discovered assets are not stored for
+    historical analysis or trend tracking.
+
 -   Bias toward large, well-covered companies — stocks with the most
     news coverage score highest, which naturally advantages mega-cap
     names regardless of growth potential.
 
-4.  Stock Universe & Growth Classification
+4. Stock Universe & Growth Classification
 
 All stocks — regardless of how they are discovered — must pass the same
 price filter and be classified into one of the following growth profiles
@@ -146,9 +229,7 @@ Profile B — Up-and-Coming Stable Stock
 
 -   Current price < $150/share.
 
-Profile C — AI/Tech Hyper-Growth Stock
-
-NEW PROFILE
+Profile C — AI/Tech Hyper-Growth Stock [NEW PROFILE]
 
 A third classification for AI and technology companies that relaxes
 profitability requirements in recognition that high-growth tech
@@ -167,62 +248,49 @@ companies commonly reinvest aggressively in R&D.
 
 -   Current price < $150/share.
 
-5.  Fundamental Financial Data Requirements
+5. Fundamental Financial Data Requirements
 
-  ---------------------------------------------------------------------
-  Data Point          Source            Purpose             Status
-  ------------------- ----------------- ------------------- -----------
-  Current price       Polygon.io /      Price filter        Retained
-                      Yahoo Finance     (<$150)             
+  -------------------------------------------------------------------------
+  Data Point            Source          Purpose               Status
+  --------------------- --------------- --------------------- -------------
+  Current price         Yahoo Finance   Price filter (<$150)  Updated
 
-  Revenue growth      FMP Financials    Growth track record Retained
-  (YoY, 3yr)          API                                   
+  Revenue growth (YoY,  Yahoo Finance   Growth track record   Updated
+  3yr)                                                        
 
-  EPS growth (YoY)    FMP Financials    Profitability trend Retained
-                      API                                   
+  EPS growth (YoY)      Yahoo Finance   Profitability trend   Updated
 
-  P/E & PEG ratio     FMP Ratios API    Valuation check     Retained
+  P/E & PEG ratio       Yahoo Finance   Valuation check       Updated
 
-  52-week price       Polygon.io /      Historical momentum Retained
-  performance         Yahoo Finance                         
+  52-week price         Yahoo Finance   Historical momentum   Updated
+  performance                                                 
 
-  Analyst 1-yr price  FMP Analyst API   Forward growth      Retained
-  target                                proxy               
+  Analyst 1-yr price    Yahoo Finance   Forward growth proxy  Updated
+  target                                                      
 
-  Market cap          Market data API   Classification +    Updated
-                                        discovery cap       
+  Market cap            Yahoo Finance   Classification +      Updated
+                                        discovery cap         
 
-  Gross margin %      FMP Financials    Profile C           New
-                      API               qualification       
+  Gross margin %        Yahoo Finance   Profile C             Updated
+                                        qualification         
 
-  R&D spend % of      FMP Financials    AI/Tech investment  New
-  revenue             API               signal              
+  R&D spend % of        Yahoo Finance   AI/Tech investment    Updated
+  revenue                               signal                
 
-  Fwd revenue         FMP Analyst API   Forward growth      New
-  estimate (1yr)                        potential           
+  Fwd revenue estimate  Yahoo Finance   Forward growth        Updated
+  (1yr)                                 potential             
 
-  Sector / industry   FMP Company       AI/Tech             New
-  tag                 Profile API       classification      
-                                        routing             
+  Sector / industry tag Yahoo Finance   AI/Tech               Updated
+                                        classification        
+                                        routing               
+  -------------------------------------------------------------------------
 
-  Analyst             FMP API           Discovery signal    New
-  upgrade/downgrade                     for screener        
-  recency                                                   
-  ---------------------------------------------------------------------
-
-6.  AI / Technology Stock Discovery Module
-
-NEW MODULE
+6. AI / Technology Stock Discovery Module [NEW MODULE]
 
 This module runs in parallel with the news-driven ticker pipeline and
-uses three complementary discovery strategies: an AI/Tech keyword signal
-layer, a Dynamic Discovery Screener that queries financial APIs for
-qualifying stocks from a broad universe, and a curated Emerging Player
-Watchlist scoped exclusively to small and mid-cap companies not yet on
-most investors’ radar. Large-cap household names (NVDA, MSFT, PLTR) are
-not excluded — they may still appear via the news pipeline — but receive
-a GPS penalty that systematically deprioritizes them in favor of less
-well-known opportunities.
+uses four complementary discovery strategies: an AI/Tech keyword signal
+layer, a Dynamic Discovery Screener, a Company Feed Deep Scan for
+co-mention discovery, and a curated Emerging Player Watchlist.
 
 6.1 Discovery Strategy A — AI/Tech Keyword Signal Layer
 
@@ -231,528 +299,558 @@ keyword taxonomy. When an article triggers a keyword match, all resolved
 tickers from that article receive an AI/Tech Signal Bonus in GPS scoring
 (Section 7.2). Sub-sector sentiment is tracked independently.
 
-  ---------------------------------------------------------------------
+  -----------------------------------------------------------------------
   Sub-Sector         Keywords & Phrases
-  ------------------ --------------------------------------------------
+  ------------------ ----------------------------------------------------
   Artificial         artificial intelligence, AI model, large language
   Intelligence       model, LLM, generative AI, AI chip, inference,
-                     foundation model, AI infrastructure, neural
-                     network, machine learning, deep learning, AI
-                     agent, agentic AI, RAG, vector database
+                     foundation model, AI infrastructure, neural network,
+                     machine learning, deep learning, AI agent, agentic
+                     AI, RAG, vector database
 
   Semiconductors     semiconductor, chip, GPU, TPU, NPU, wafer, fab,
                      advanced packaging, HBM, memory bandwidth, chip
-                     design, EDA, foundry, chip shortage, AI
-                     accelerator
+                     design, EDA, foundry, chip shortage, AI accelerator
 
   Cloud & SaaS       cloud computing, SaaS, software as a service,
                      hyperscaler, cloud revenue, ARR, net revenue
                      retention, NRR, cloud migration, data center,
                      platform
 
-  Cybersecurity      cybersecurity, zero trust, endpoint security,
-                     threat detection, SIEM, SOC, ransomware, identity
-                     security, cloud security, firewall, vulnerability
-                     management
+  Cybersecurity      cybersecurity, zero trust, endpoint security, threat
+                     detection, SIEM, SOC, ransomware, identity security,
+                     cloud security, firewall, vulnerability management
 
-  Data               data infrastructure, data pipeline, ETL, data
-  Infrastructure     lake, data warehouse, observability, MLOps, vector
-                     store, GPU cluster, AI training infrastructure
+  Data               data infrastructure, data pipeline, ETL, data lake,
+  Infrastructure     data warehouse, observability, MLOps, vector store,
+                     GPU cluster, AI training infrastructure
 
   Robotics &         robotics, autonomous, automation, computer vision,
-  Automation         edge AI, physical AI, humanoid robot, industrial
-                     AI, drone, autonomous vehicle
-  ---------------------------------------------------------------------
+  Automation         edge AI, physical AI, humanoid robot, industrial AI,
+                     drone, autonomous vehicle
+  -----------------------------------------------------------------------
 
-6.2 Discovery Strategy B — Dynamic AI/Tech Screener
+6.2 Discovery Strategy B — Dynamic AI/Tech Screener [REDESIGNED]
 
-REDESIGNED
+The engine uses a Dynamic Discovery Screener that leverages Yahoo
+Finance screener presets (e.g., growth_technology_stocks,
+undervalued_growth_stocks) combined with custom post-filtering to
+identify qualifying AI/Tech stocks.
 
-Rather than a static watchlist of well-known tickers, the engine uses a
-Dynamic Discovery Screener that queries financial data APIs each cycle
-to identify qualifying AI/Tech stocks that pass all discovery filters.
-This approach is signal-driven and self-updating — it finds what is
-relevant now rather than what was relevant when the list was last
-edited.
+  ------------------------------------------------------------------------
+  Filter          Criterion                Purpose
+  --------------- ------------------------ -------------------------------
+  1. Price cap    Current price <          Aligns with platform-wide price
+                  $150/share               gate
 
-Design rationale: A static watchlist seeded with large-cap names (NVDA,
-PLTR, DDOG, CRWD) would dominate results every cycle regardless of
-current conditions, because those companies have the strongest
-fundamentals and most news coverage by definition. The screener instead
-discovers from the bottom up — filtering a broad universe down to
-genuinely interesting, under-the-radar candidates.
+  2. Market cap   Market cap < $50B        Excludes mega-caps — no NVDA,
+  ceiling                                  MSFT, GOOGL, META, AAPL
 
-Screener Universe
+  3. Market cap   Market cap > $150M       Filters out micro-caps with
+  floor                                    liquidity and data quality risk
 
-The screener operates against a broad universe of publicly traded US
-equities tagged with an AI or technology sector classification by the
-data provider (FMP Company Profile sector field). This universe is
-re-fetched weekly and cached; individual stock data within it is fetched
-on-demand per cycle.
+  4. Revenue      Revenue growth ≥ 15% in  Baseline growth signal
+  growth          most recent fiscal year  
 
-Screener Filter Chain
+  5. Gross margin Gross margin ≥ 40%       Minimum scalability threshold
+                                           for tech business models
+  ------------------------------------------------------------------------
 
-Stocks in the universe are passed through the following filter chain in
-order. A stock must pass all filters to advance.
+6.3 Discovery Strategy C — Company Feed Deep Scan (Pass 2) [NEW]
 
-  ----------------------------------------------------------------------
-  Filter     Criterion               Purpose
-  ---------- ----------------------- -----------------------------------
-  1. Price   Current price <         Aligns with platform-wide price
-  cap        $150/share              gate
+For the top trending tickers identified in the initial news pass, the
+engine performs a deep scan of the company's individual Yahoo Finance
+RSS headline feed.
 
-  2. Market  Market cap < $50B       Excludes mega-caps — no NVDA, MSFT,
-  cap                                GOOGL, META, AAPL
-  ceiling                            
+-   Purpose: To discover co-mentioned companies that may be flying under
+    the radar of general news indices.
 
-  3. Market  Market cap > $150M      Filters out micro-caps with
-  cap floor                          liquidity and data quality risk
+-   Weighted Sentiment: Co-mentioned stocks receive sentiment scores
+    weighted by CO_MENTION_SENTIMENT_WEIGHT (0.5) to reflect the
+    indirect nature of the mention.
 
-  4. Sector  Sector = Technology, or Scope to relevant universe
-  tag        sub-industry matches    
-             AI/Tech taxonomy        
+-   Throughput: Bounded to the top 15 trending tickers per cycle to
+    ensure performance.
 
-  5. Revenue Revenue growth ≥ 15% in Baseline growth signal
-  growth     most recent fiscal year 
+6.4 Discovery Strategy D — Emerging Player Watchlist [REINSTATED —
+SCOPED]
 
-  6. Gross   Gross margin ≥ 40%      Minimum scalability threshold for
-  margin                             tech business models
+A curated watchlist of small and mid-cap companies (market cap < $10B)
+maintained as ai_tech_watchlist.json.
 
-  7. Analyst ≥ 2 analysts covering   Filters out stocks with no credible
-  coverage   the stock with a price  forward view
-             target on file          
-  ----------------------------------------------------------------------
+Scope constraint: The watchlist must NEVER contain mega-cap stocks. If a
+company's market cap exceeds $10B, it is automatically skipped.
 
-Discovery Signals — Bias Toward Emerging Opportunities
-
-After passing the filter chain, remaining stocks are scored on discovery
-signals that specifically reward recency and momentum — favoring stocks
-that are newly relevant rather than established leaders.
-
-  ---------------------------------------------------------------------
-  Signal                Positive Indicator         Weight in Discovery
-                                                   Rank
-  --------------------- -------------------------- --------------------
-  Analyst upgrade       Upgraded by ≥ 1 analyst in High
-  recency               the last 30 days           
-
-  Price target raise    Consensus price target     High
-                        raised ≥ 10% in last 60    
-                        days                       
-
-  Revenue acceleration  Most recent quarter        Medium
-                        revenue growth higher than 
-                        prior quarter              
-
-  Recent AI/Tech        Company mentioned in an    Medium
-  keyword hit           article triggering AI/Tech 
-                        keywords this cycle        
-
-  IPO / listing recency Listed within the last 24  Medium — bonus for
-                        months                     new entrants
-
-  Low analyst coverage  Covered by 2–5 analysts    Low — discovery
-                        only (under-the-radar)     bonus
-
-  Sector pivot signal   AI/SaaS revenue grew as %  High — new AI
-                        of total in last 2         adopters
-                        quarters                   
-  ---------------------------------------------------------------------
-
-The discovery signals are intentionally biased toward recency and
-momentum rather than size. A $500M company that just received its first
-analyst upgrade and reported 40% revenue growth will rank above a $40B
-company with the same fundamentals but no new signals.
-
-Screener Output
-
--   The screener returns up to 10 candidate tickers per cycle after
-    applying all filters and ranking by discovery signals.
-
--   These candidates are passed into the shared fundamental enrichment
-    pipeline (Stage 4) and must still qualify under Profile A, B, or C
-    to appear in results.
-
--   The screener runs once per API cycle and results are cached for 30
-    minutes to avoid hammering financial data APIs on concurrent
-    requests.
-
--   If the screener returns fewer than 3 candidates in a cycle (e.g.,
-    market holiday, data outage), the engine logs a warning and returns
-    whatever is available without erroring.
-
-Screener Scope
-
--   The screener does not give preferential treatment to any ticker by
-    name. NVDA and a $300M AI startup are evaluated on identical
-    criteria.
-
--   No ticker is guaranteed to appear in screener results — inclusion is
-    earned each cycle based on current signals.
-
-6.3 Discovery Strategy C — Emerging Player Watchlist
-
-REINSTATED — SCOPED
-
-A curated watchlist is maintained as a JSON config file
-(ai_tech_watchlist.json) and scanned each cycle. Unlike a broad static
-list, this watchlist is strictly scoped: it contains only small and
-mid-cap companies (market cap < $10B) that the team believes are
-emerging players worth monitoring — companies that are unlikely to
-surface consistently via news or the screener alone due to limited
-analyst coverage or low news volume.
-
-Scope constraint: The watchlist must NEVER contain mega-cap or
-well-known large-cap stocks. If a company’s market cap exceeds $10B at
-time of scan, it is automatically skipped and flagged for removal from
-the list. The watchlist is for discovery — not for tracking stocks
-already on every investor’s radar.
-
-Watchlist Entry Requirements
-
--   Each entry must include: ticker symbol, company name, AI/Tech
-    sub-sector tag, and a brief rationale note explaining why it was
-    added.
-
--   At time of addition, the company must have market cap < $10B and
-    current price < $150/share.
-
--   Analyst coverage of 5 or fewer analysts preferred — the watchlist
-    targets stocks most investors haven’t found yet.
-
--   Entries where market cap has grown above $10B are auto-flagged for
-    human review and removal in the next monthly update.
-
-Example Watchlist Categories
-
-  ---------------------------------------------------------------------
-  Category           Example Characteristics      Why Watchlist vs.
-                                                  Screener
-  ------------------ ---------------------------- ---------------------
-  Recent AI-pivot    Traditional company that     May not yet show in
-  companies          added a genuine AI product   sector screener if
-                     line in last 12 months;      primary SIC code is
-                     revenue from AI segment      non-tech
-                     growing                      
-
-  Under-covered AI   Market cap $150M–$2B, 2–4    Screener may miss due
-  small caps         analysts, genuine AI/ML      to low keyword hit
-                     product, limited news volume rate in news cycle
-
-  Recent IPOs (< 24  AI/Tech company listed       Insufficient
-  months)            within last 2 years with     historical data for
-                     growing ARR or hardware      screener’s revenue
-                     revenue                      growth filters
-
-  Sector             Companies building           May not carry an AI
-  infrastructure     picks-and-shovels for AI     sector tag from data
-  plays              adoption: cooling, power,    providers despite
-                     specialized hardware         direct exposure
-  ---------------------------------------------------------------------
-
-Watchlist Pipeline Behavior
-
--   Watchlist tickers are passed through the same price filter →
-    fundamental enrichment → growth classification → GPS scoring
-    pipeline as all other tickers.
-
--   Watchlist tickers receive the same Emerging Player GPS bonus as
-    screener-discovered tickers (see Section 7.2).
-
--   A watchlist ticker that fails growth classification (Profile A, B,
-    or C) is excluded from results for that cycle — being on the
-    watchlist does not guarantee inclusion.
-
--   The watchlist is reviewed and updated monthly by the engineering or
-    product team.
-
-6.4 AI/Tech Sub-Sector Sentiment Tracking
-
-The API tracks sentiment independently for each AI/Tech sub-sector
-defined in Section 6.1, producing a hot_ai_sectors response field
-alongside hot_markets.
-
--   Sub-sector sentiment uses the same sentiment.analyze() method as
-    existing industry sentiment.
-
--   Only articles triggering at least one keyword from a sub-sector
-    contribute to that sub-sector’s score.
-
--   Top 2 AI/Tech sub-sectors by average sentiment are returned in
-    hot_ai_sectors.
-
--   Sub-sector sentiment feeds as an input signal into the AI/Tech GPS
-    bonus (Section 7.2).
-
-7.  Multi-Factor GPS Scoring Engine
-
-All qualifying candidate stocks receive a composite Growth Potential
-Score (GPS) between 0 and 100, used to rank and return the top results.
-The engine includes an AI/Tech Signal Bonus layer for emerging
-technology stocks and a Large-Cap Penalty that deprioritizes well-known
-mega-cap names without fully excluding them.
+7. Multi-Factor GPS Scoring Engine
 
 7.1 Base Score Components (All Stocks)
 
-  ----------------------------------------------------------------------
-  Score Component      Weight   Calculation
-  -------------------- -------- ----------------------------------------
-  Analyst Upside %     25%      Scaled: 0% upside = 0pts, ≥30% = 100pts
+  ------------------------------------------------------------------------
+  Score Component             Weight    Calculation
+  --------------------------- --------- ----------------------------------
+  Analyst Upside %            25%       Scaled: 0% upside = 0pts, ≥30% =
+                                        100pts
 
-  Revenue Growth       20%      Scaled: 0% growth = 0pts, ≥30% = 100pts
-  (trailing)                    
+  Revenue Growth (trailing)   20%       Scaled: 0% growth = 0pts, ≥30% =
+                                        100pts
 
-  EPS Growth           15%      Scaled: negative = 0pts, ≥25% = 100pts
-  (trailing)                    
+  EPS Growth (trailing)       15%       Scaled: negative = 0pts, ≥25% =
+                                        100pts
 
-  52-Week Price        15%      Scaled: negative = 0pts, ≥20% return =
-  Momentum                      100pts
+  52-Week Price Momentum      15%       Scaled: negative = 0pts, ≥20%
+                                        return = 100pts
 
-  News Mention         15%      Normalized count of news mentions in
-  Frequency                     cycle
+  News Mention Frequency      15%       Normalized count of news mentions
+                                        in cycle
 
-  News Sentiment Score 10%      Average sentiment from current article
-                                cycle
-  ----------------------------------------------------------------------
+  News Sentiment Score        10%       Average sentiment from current
+                                        article cycle
+  ------------------------------------------------------------------------
 
 7.2 AI/Tech Signal Bonus
 
-NEW
-
-Stocks classified under Profile C or discovered via the AI/Tech Screener
-receive an additive bonus capped so no stock exceeds GPS 100. Mega-cap
-stocks (market cap > $50B) are ineligible for the bonus even if they
-meet other criteria.
-
-  ---------------------------------------------------------------------
-  Bonus Condition             Points      Notes
-                              Added       
-  --------------------------- ----------- -----------------------------
-  Stock classified as Profile +8 pts      Applied once
-  C (AI/Tech Hyper-Growth)                
-
-  Sub-sector sentiment        +4 pts      Per matching sub-sector
-  positive this cycle                     
-
-  R&D spend ≥ 20% of revenue  +3 pts      High innovation investment
-                                          signal
-
-  Forward revenue estimate ≥  +4 pts      Strong analyst forward
-  25% growth                              conviction
-
-  Analyst upgrade in last 30  +5 pts      Recency signal — newly
-  days                                    relevant
-
-  Price target raised ≥ 10%   +4 pts      Analyst conviction increasing
-  in last 60 days                         
-
-  Listed within last 24       +3 pts      Emerging company bonus
-  months (recent IPO)                     
-
-  Keyword density ≥ 5 AI/Tech +4 pts      High news signal
-  hits across cycle articles              concentration
-
-  Market cap < $5B (small-cap +3 pts      Rewards under-the-radar
-  bonus)                                  discovery
-  ---------------------------------------------------------------------
-
-Bonus weights are externalized in the scoring config file and can be
-tuned independently of base GPS weights without a code redeployment.
-
-7.4 Result Set Composition
-
-UPDATED
-
   ------------------------------------------------------------------------
-  Response Field       Contents                   Max Items Status
-  -------------------- -------------------------- --------- --------------
-  hot_stocks           Top stocks by GPS across   5         Updated (was
-                       all sectors and profiles             4)
+  Bonus Condition                   Points Added Notes
+  --------------------------------- ------------ -------------------------
+  Stock classified as Profile C     +8 pts       Applied once
+  (AI/Tech Hyper-Growth)                         
 
-  hot_ai_tech_stocks   Top AI/Tech stocks by GPS  3         New
-                       — screener + keyword                 
-                       pipeline only                        
+  Sub-sector sentiment positive     +4 pts       Per matching sub-sector
+  this cycle                                     
 
-  hot_markets          Top broad industry sectors 2         Retained
-                       by average sentiment                 
+  R&D spend ≥ 20% of revenue        +3 pts       High innovation
+                                                 investment signal
 
-  hot_ai_sectors       Top AI/Tech sub-sectors by 2         New
-                       sentiment score                      
+  Keyword density ≥ 5 AI/Tech hits  +4 pts       High news signal
+  across cycle articles                          concentration
+
+  Market cap < $5B (small-cap       +3 pts       Rewards under-the-radar
+  bonus)                                         discovery
   ------------------------------------------------------------------------
 
-hot_ai_tech_stocks surfaces only screener-discovered and
-keyword-triggered stocks. A stock cannot appear here solely because it
-was well-known and happened to be mentioned in the news.
+8. Updated API Response Schema
 
-8.  Updated API Response Schema
+The response schema is extended to include a new hot_etfs array
+alongside the existing stock and market results:
 
-UPDATED
+  {
 
-{ “hot_stocks”: [ { “ticker”: “RCAT”, “company_name”: “Red Cat Holdings
-Inc.”, “current_price”: 11.42, “gps_score”: 88.7, “classification”:
-“ai_tech_hyper_growth”, “sub_sector”: “Robotics & Automation”,
-“analyst_upside_pct”: 34.1, “revenue_growth_yoy”: 41.2,
-“gross_margin_pct”: 52.3, “rd_spend_pct”: 18.1, “market_cap_m”: 420,
-“mention_count”: 6, “discovery_source”: “screener+keyword”,
-“analyst_upgrade_days_ago”: 14 } ], “hot_ai_tech_stocks”: [ … ],
-“hot_markets”: [ … ], “hot_ai_sectors”: [ { “sub_sector”: “Robotics &
-Automation”, “average_sentiment”: 4.1, “article_count”: 9 } ] }
+  "hot_stocks": [
 
-9.  Improved Ticker Resolution
+  {
 
--   Integrate a dedicated company-to-ticker resolution service (OpenFIGI
-    or FMP /search).
+  "ticker": "RCAT",
 
--   Cache resolved ticker mappings for 24 hours.
+  "company_name": "Red Cat Holdings Inc.",
 
--   Handle AI/Tech-specific aliases — e.g., ‘Google DeepMind’ → GOOGL
-    (but note GOOGL will be filtered out by the market cap ceiling in
-    the screener).
+  "current_price": 11.42,
 
--   Gracefully skip unresolvable or private company names (e.g., OpenAI,
-    Anthropic, xAI) — log a skip event, do not error.
+  "gps_score": 88.7,
 
--   Support disambiguation — prefer higher market-cap entity when a name
-    matches multiple tickers.
+  "classification": "ai_tech_hyper_growth",
 
--   Fall back to NLP-based matching only when the resolution service
-    returns no result.
+  "sub_sectors": ["Robotics & Automation"],
 
-10. Caching & Performance
+  "analyst_upside_pct": 34.1,
 
--   Fundamental data per ticker cached for minimum 1 hour.
+  "revenue_growth_yoy": 41.2,
 
--   News article fetching and NLP processing must complete within 1.5
-    seconds.
+  "gross_margin_pct": 52.3,
 
--   Financial data enrichment must complete within 1.5 seconds for up to
-    20 candidate tickers in parallel.
+  "rd_spend_pct": 18.1,
 
--   Updated: The Dynamic Screener universe (broad sector ticker list) is
-    cached for 7 days and refreshed weekly.
+  "market_cap_m": 420.0,
 
--   New: Per-cycle screener results (filtered candidates) are cached for
-    30 minutes to protect downstream API rate limits.
+  "mention_count": 6,
 
--   Redis cache or equivalent for all price, fundamentals, and
-    resolution caching.
+  "co_mentioned_with": ["PLTR"],
 
-11. Non-Functional Requirements
+  "discovery_source": "screener+keyword",
 
-11.1 Security
+  "snapshot_date": "2026-03-03"
 
--   All external API keys stored as environment variables — never
-    hardcoded.
+  }
 
--   Existing NextAuth session check and checkOrigin() middleware
-    preserved.
+  ],
 
--   Rate limiting applied to prevent abuse of downstream financial data
-    APIs.
+  "hot_ai_tech_stocks": [ ... ],
 
-11.2 Observability
+  "hot_markets": [ ... ],
 
--   Log GPS score breakdown including AI/Tech bonus breakdown per
-    returned ticker.
+  "hot_ai_sectors": [ ... ],
 
--   Log discovery_source for every result (news, screener, or both).
+  "hot_etfs": [
 
--   Track and alert if large-cap stocks (market cap > $50B) appear in
-    hot_ai_tech_stocks — this indicates a logic regression.
+  {
 
--   Emit structured logs with ticker, classification, sub-sector,
-    latencies, and cache hit/miss ratios.
+  "ticker": "AIRR",
 
--   /health endpoint validates connectivity to all downstream APIs.
+  "etf_name": "First Trust RBA American Industrial Renaissance ETF",
 
-11.3 Maintainability
+  "current_price": 62.14,
 
--   DataProvider interface abstracts all financial data fetching —
-    sources swappable without logic changes.
+  "etf_gps_score": 81.3,
 
--   Scoring weights and AI/Tech bonus values externalized to config /
-    env vars.
+  "theme": "AI Infrastructure",
 
--   AI/Tech keyword taxonomy stored in JSON config — editable without
-    code change.
+  "aum_m": 980.0,
 
--   Screener filter thresholds (market cap ceiling, revenue growth
-    floor, gross margin floor) stored in config — tunable without
-    redeployment.
+  "expense_ratio_pct": 0.70,
 
--   All new modules must have unit tests with ≥ 80% code coverage.
+  "52wk_return_pct": 28.4,
 
-12. Recommended External Data Sources
+  "momentum_score": 79.0,
 
-  ----------------------------------------------------------------------
-  Provider          Use Case                Free Tier    Status
-  ----------------- ----------------------- ------------ ---------------
-  Yahoo Finance     Price, fundamentals,    Yes —        Retained
-  (yfinance)        52-week data            unlimited    
+  "avg_daily_volume": 145000,
 
-  Financial         Revenue/EPS, analyst    Yes — 250    Updated
-  Modeling Prep     targets, sector tags,   req/day      
-                    R&D, screener endpoint               
+  "holdings_overlap_with_hot_stocks": ["RCAT", "AIOT"],
 
-  Polygon.io        Real-time & delayed     Yes — 5      Retained
-                    price quotes            calls/min    
+  "discovery_source": "etf_screener+news_signal",
 
-  OpenFIGI          Company name to ticker  Yes — 25     Retained
-                    resolution              req/min      
+  "snapshot_date": "2026-03-03"
 
-  Alpha Vantage     Fallback earnings       Yes — 25     Retained
-                    estimates               req/day      
-  ----------------------------------------------------------------------
+  }
 
-13. Phased Rollout Plan
+  ]
 
-  ----------------------------------------------------------------------
-  Phase   Scope                                Est. Effort  Status
-  ------- ------------------------------------ ------------ ------------
-  Phase 1 Improved ticker resolution + hard    3–5 days     Retained
-          price filter                                      
+  }
 
-  Phase 2 Financial data integration (price,   5–7 days     Updated
-          revenue, EPS, analyst targets, gross              
-          margin, R&D, sector tags)                         
+9. Hot ETF Discovery Module [NEW MODULE]
 
-  Phase 3 Growth classification — Profiles A,  5–7 days     Updated
-          B, and C                                          
+  This is a new module introduced in v2.1. It runs in parallel with the
+  existing stock and AI/Tech discovery pipelines. All ETF discoveries
+  that pass scoring thresholds are persisted to the database (see
+  Section 9.5).
 
-  Phase 4 AI/Tech Keyword Taxonomy +           3–4 days     New
-          Sub-Sector Sentiment Tracking                     
+9.1 Module Overview
 
-  Phase 5 Dynamic Discovery Screener —         5–7 days     Redesigned
-          universe fetch, filter chain,                     
-          discovery signal ranking                          
+The Hot ETF Discovery Module identifies exchange-traded funds with
+strong recent price momentum, growing news coverage, and thematic
+alignment with currently trending market sectors. ETFs are scored using
+an ETF-specific GPS model that weights momentum, liquidity, and thematic
+relevance. All qualifying ETFs are stored in a dedicated database table
+for historical analysis and trend tracking.
 
-  Phase 6 GPS scoring engine + AI/Tech Signal  4–5 days     Updated
-          Bonus + updated response schema                   
+Key design constraints:
 
-  Phase 7 Caching layer + rate limiting +      3–4 days     Updated
-          /health endpoint + observability                  
+-   Price gate: Only ETFs priced under $400/share are considered.
 
-  Phase 8 Testing, backtesting, and large-cap  4–6 days     Updated
-          dominance regression testing                      
-  ----------------------------------------------------------------------
+-   Liquidity gate: Only ETFs with average daily volume > 50,000 shares
+    are considered.
 
-14. Out of Scope (v2.0)
+-   AUM floor: Only ETFs with AUM > $50M to ensure sufficient liquidity
+    and viability.
 
--   Short selling or bearish stock signals.
+-   No leverage: Leveraged and inverse ETFs are excluded by default
+    (configurable via INCLUDE_LEVERAGED_ETFS env var).
 
--   Options or derivatives data.
+9.2 ETF Price Filter (Hard Gate)
 
--   User-customizable watchlists or portfolio tracking (planned for
-    v3.0).
+-   Any ETF at or above $400/share is excluded before scoring.
+    Configurable via ETF_PRICE_FILTER_MAX env var.
 
--   Real-time streaming / WebSocket price updates.
+-   Price check occurs immediately after ETF ticker resolution, before
+    any enrichment calls.
 
--   International (non-US) equities.
+-   The $400 ceiling is intentionally generous relative to the stock
+    filter to accommodate the naturally higher per-share prices of many
+    broad-market ETFs.
 
--   Private company or pre-IPO AI/Tech companies — gracefully skipped if
-    encountered by the NLP pipeline.
+9.3 ETF Discovery Strategies
 
--   A manually maintained static ticker list — intentionally excluded
-    from this design.
+Strategy A — News Signal Alignment
 
-End of Document — DeepMoney API v2.0 Requirements
+The AI/Tech keyword taxonomy from Section 6.1 is extended to also tag
+ETFs that hold significant exposure to trending sub-sectors. When an
+ETF's top holdings overlap with stocks appearing in trending news, the
+ETF receives a News Signal Bonus in ETF GPS scoring.
+
+-   ETFs are matched to news signals via their top-10 holdings list
+    (sourced from Yahoo Finance ETF profile).
+
+-   Overlap threshold: ≥ 2 of the ETF's top-10 holdings must appear in
+    the current cycle's trending tickers.
+
+-   Signal bonus applied per matching trending holding (capped at +10
+    pts).
+
+Strategy B — ETF Dynamic Screener
+
+Yahoo Finance ETF screener presets (e.g., most_actives, day_gainers) are
+queried each cycle and post-filtered using the ETF filter chain below.
+
+  ------------------------------------------------------------------------
+  Filter          Criterion                 Purpose
+  --------------- ------------------------- ------------------------------
+  1. Price cap    Current price <           Hard gate — aligns with
+                  $400/share                ETF_PRICE_FILTER_MAX
+
+  2. Volume floor Avg daily volume > 50,000 Liquidity minimum
+                  shares                    
+
+  3. AUM floor    AUM > $50M                Fund viability threshold
+
+  4. No leverage  Exclude leveraged &       Reduces volatility risk
+                  inverse funds             (configurable)
+
+  5. 52-week      52-week return ≥ 5%       Baseline momentum signal
+  return                                    
+
+  6. Expense      Expense ratio ≤ 1.5%      Cost efficiency filter
+  ratio ceiling                             
+  ------------------------------------------------------------------------
+
+Strategy C — Thematic ETF Mapping
+
+A curated thematic ETF watchlist (etf_theme_watchlist.json) maps known
+thematic ETFs to their primary exposure theme. During each cycle,
+watchlist ETFs that satisfy the filter chain above are eligible for
+scoring. The watchlist covers the following themes:
+
+  ------------------------------------------------------------------------
+  Theme               Example Tickers    Mapped AI/Tech Sub-Sectors
+  ------------------- ------------------ ---------------------------------
+  Artificial          BOTZ, ROBO, IRBO,  Artificial Intelligence, Robotics
+  Intelligence        AIQ                & Automation
+
+  Semiconductors      SOXX, SMH, USD,    Semiconductors
+                      XSD                
+
+  Cloud & SaaS        SKYY, WCLD, BUG,   Cloud & SaaS, Cybersecurity
+                      IGV                
+
+  Cybersecurity       HACK, CIBR, BUG,   Cybersecurity
+                      IHAK               
+
+  Clean Energy & Tech ICLN, QCLN, TAN,   Data Infrastructure
+                      FAN                
+
+  Broad Technology    XLK, VGT, QQQ,     All sub-sectors
+                      FTEC               
+
+  Small/Mid Cap       IJR, IWM, VBK,     Cross-sector discovery
+  Growth              SCHA               
+  ------------------------------------------------------------------------
+
+9.4 ETF GPS Scoring Model
+
+ETFs are scored using a separate GPS model tuned for fund-level
+characteristics. The model does not use stock-level fundamentals
+(revenue growth, EPS) but instead focuses on momentum, liquidity, cost
+efficiency, and thematic alignment.
+
+  ------------------------------------------------------------------------
+  Score Component             Weight    Calculation
+  --------------------------- --------- ----------------------------------
+  52-Week Price Return        30%       Scaled: ≤0% = 0pts, ≥30% return =
+                                        100pts
+
+  Thematic News Signal        25%       Normalized score from Strategy A
+  Alignment                             overlap count
+
+  Momentum Score (3-month     20%       Scaled: ≤0% = 0pts, ≥15% = 100pts
+  return)                               
+
+  Volume / Liquidity Score    15%       Normalized avg daily volume vs
+                                        universe median
+
+  Expense Ratio Efficiency    10%       Scaled: ≥1.5% = 0pts, ≤0.05% =
+                                        100pts
+  ------------------------------------------------------------------------
+
+ETF GPS Bonuses:
+
+  ------------------------------------------------------------------------
+  Bonus Condition                   Points Added Notes
+  --------------------------------- ------------ -------------------------
+  ≥ 3 holdings in current           +8 pts       Strong stock-to-ETF
+  hot_stocks list                                signal alignment
+
+  Thematic ETF mapped to trending   +5 pts       Applied once per matching
+  AI/Tech sub-sector                             theme
+
+  52-week return ≥ 25%              +4 pts       High momentum signal
+
+  AUM < $500M (under-the-radar ETF  +3 pts       Rewards discovery of
+  bonus)                                         smaller thematic funds
+  ------------------------------------------------------------------------
+
+Minimum qualifying ETF GPS score: 55 out of 100. ETFs below this
+threshold are not surfaced in the API response and are not persisted to
+the database.
+
+9.5 Database Storage — ETF Persistence Plan
+
+  All qualifying ETFs (ETF GPS score ≥ 55) discovered during each cycle
+  must be persisted to the database. This enables trend tracking,
+  historical backtesting, and cycle-over-cycle performance analysis.
+
+9.5.1 New Database Tables
+
+Two new tables are added to the DeepMoney database schema to support ETF
+persistence:
+
+Table: hot_etfs
+
+Primary storage for all qualifying ETF snapshots, written once per
+discovery cycle.
+
+  -----------------------------------------------------------------------------
+  Column              Type            Nullable   Description
+  ------------------- --------------- ---------- ------------------------------
+  id                  BIGSERIAL       No         Auto-incrementing row ID
+                      PRIMARY KEY                
+
+  ticker              VARCHAR(20)     No         ETF ticker symbol (e.g., BOTZ)
+
+  etf_name            VARCHAR(255)    No         Full fund name
+
+  snapshot_date       DATE            No         Date of discovery cycle (UTC)
+
+  current_price       NUMERIC(10,2)   No         Per-share price at time of
+                                                 snapshot
+
+  etf_gps_score       NUMERIC(5,1)    No         Composite ETF GPS score
+                                                 (0–100)
+
+  theme               VARCHAR(100)    Yes        Primary thematic category
+                                                 (e.g., Artificial
+                                                 Intelligence)
+
+  aum_m               NUMERIC(12,2)   Yes        Assets under management in
+                                                 millions USD
+
+  expense_ratio_pct   NUMERIC(5,3)    Yes        Annual expense ratio as
+                                                 percentage
+
+  52wk_return_pct     NUMERIC(7,2)    Yes        52-week price return (%)
+
+  3mo_return_pct      NUMERIC(7,2)    Yes        3-month price return (%)
+
+  avg_daily_volume    BIGINT          Yes        Average daily trading volume
+                                                 (shares)
+
+  momentum_score      NUMERIC(5,1)    Yes        Momentum sub-score (0–100)
+
+  news_signal_score   NUMERIC(5,1)    Yes        Thematic news alignment
+                                                 sub-score (0–100)
+
+  holdings_overlap    TEXT[]          Yes        Array of hot stock tickers in
+                                                 ETF top-10 holdings
+
+  discovery_source    VARCHAR(100)    Yes        Source strategy (e.g.,
+                                                 etf_screener, theme_watchlist)
+
+  is_leveraged        BOOLEAN         No         True if leveraged or inverse
+                                                 fund
+
+  created_at          TIMESTAMPTZ     No         Row insert timestamp (UTC)
+  -----------------------------------------------------------------------------
+
+Table: etf_cycle_summary
+
+Aggregate metadata written once per discovery cycle to support
+monitoring and trend analysis.
+
+  --------------------------------------------------------------------------
+  Column              Type            Nullable   Description
+  ------------------- --------------- ---------- ---------------------------
+  id                  BIGSERIAL       No         Auto-incrementing row ID
+                      PRIMARY KEY                
+
+  cycle_date          DATE            No         Date of this discovery
+                                                 cycle (UTC)
+
+  etfs_evaluated      INTEGER         No         Total ETFs evaluated before
+                                                 filtering
+
+  etfs_qualified      INTEGER         No         ETFs that met all filters
+                                                 and score threshold
+
+  etfs_persisted      INTEGER         No         ETFs successfully written
+                                                 to hot_etfs table
+
+  avg_etf_gps_score   NUMERIC(5,1)    Yes        Average GPS score of
+                                                 persisted ETFs
+
+  top_theme           VARCHAR(100)    Yes        Theme with highest average
+                                                 GPS score this cycle
+
+  cycle_duration_ms   INTEGER         Yes        ETF module runtime in
+                                                 milliseconds
+
+  errors              TEXT            Yes        Any non-fatal errors
+                                                 encountered during the
+                                                 cycle
+
+  created_at          TIMESTAMPTZ     No         Row insert timestamp (UTC)
+  --------------------------------------------------------------------------
+
+9.5.2 Indexes
+
+The following indexes are created on hot_etfs to support common query
+patterns:
+
+  ----------------------------------------------------------------------------
+  Index Name                   Columns             Purpose
+  ---------------------------- ------------------- ---------------------------
+  idx_hot_etfs_snapshot_date   snapshot_date DESC  Date-range queries for
+                                                   recent cycles
+
+  idx_hot_etfs_ticker_date     ticker,             Per-ETF history lookups
+                               snapshot_date DESC  
+
+  idx_hot_etfs_theme           theme,              Theme-based filtering and
+                               snapshot_date DESC  trending
+
+  idx_hot_etfs_gps_score       etf_gps_score DESC  Leaderboard and top-N
+                                                   queries
+  ----------------------------------------------------------------------------
+
+9.5.3 Persistence Logic
+
+The ETF persistence workflow follows these steps each discovery cycle:
+
+-   Step 1 — Discover: Run all three ETF discovery strategies (Sections
+    9.3 A–C) and consolidate candidates.
+
+-   Step 2 — Filter: Apply the ETF filter chain (Section 9.3 B). Discard
+    non-qualifying ETFs.
+
+-   Step 3 — Score: Compute ETF GPS score for each remaining candidate.
+
+-   Step 4 — Threshold: Discard ETFs with ETF GPS score < 55.
+
+-   Step 5 — Upsert: For each qualifying ETF, perform an upsert into
+    hot_etfs keyed on (ticker, snapshot_date). This prevents duplicate
+    rows if the cycle is re-run on the same date.
+
+-   Step 6 — Summarize: Write one row to etf_cycle_summary with
+    aggregate cycle metadata.
+
+-   Step 7 — Return: Include qualifying ETFs in the hot_etfs array of
+    the API response.
+
+10. Recommended External Data Sources
+
+  -------------------------------------------------------------------------
+  Provider            Use Case                    Free Tier   Status
+  ------------------- --------------------------- ----------- -------------
+  Yahoo Finance       Primary driver for price,   Yes —       Primary
+  (yfinance)          fundamentals, screener, RSS unlimited   
+                      feeds, ETF profiles &                   
+                      holdings                                
+
+  Polygon.io          Fallback real-time price    Yes — 5     Retained
+                      quotes for stocks and ETFs  calls/min   
+
+  OpenFIGI            Company & ETF name to       Yes — 25    Retained
+                      ticker resolution           req/min     
+
+  ETF.com / ETFdb.com ETF theme classification,   Limited     New — ETF
+                      holdings data, and expense              Module
+                      ratio verification                      
+                      (supplemental)                          
+  -------------------------------------------------------------------------
+
+End of Document — DeepMoney API v2.1 Requirements
