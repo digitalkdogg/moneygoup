@@ -20,7 +20,6 @@ interface IndustryStock {
   heatScore: number;
   volumeRatio: number;
   fiftyTwoWeekPosition: number;
-  analystUpside: number;
 }
 
 export default function IndustryStocks({ ticker }: IndustryStocksProps) {
@@ -35,7 +34,7 @@ export default function IndustryStocks({ ticker }: IndustryStocksProps) {
         setLoading(true);
         setError(null);
         // Correct API path
-        const response = await fetch(`/api/search/industry/${ticker}`);
+        const response = await fetch(`/api/stock/${ticker}/industry`);
         
         if (!response.ok) {
           const errorData = await response.json();
@@ -116,16 +115,6 @@ export default function IndustryStocks({ ticker }: IndustryStocksProps) {
       }
     },
     {
-      key: 'analystUpside',
-      label: 'Analyst Upside',
-      align: 'right' as const,
-      format: (val: number) => (
-        <span className={val > 0 ? 'text-green-600' : 'text-gray-500'}>
-          {val > 0 ? '+' : ''}{val.toFixed(1)}%
-        </span>
-      )
-    },
-    {
       key: 'fiftyTwoWeekPosition',
       label: '52W Range',
       align: 'center' as const,
@@ -140,7 +129,7 @@ export default function IndustryStocks({ ticker }: IndustryStocksProps) {
     }
   ];
 
-  const decodedTicker = decodeURIComponent(ticker);
+  const decodedTicker = decodeURIComponent(ticker).replace(/_/g, ' ');
   const isTicker = decodedTicker.length <= 5 && !decodedTicker.includes(' ');
 
   return (

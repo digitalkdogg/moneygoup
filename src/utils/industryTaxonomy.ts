@@ -1,123 +1,300 @@
-export const INDUSTRY_TAXONOMY = {
-  "industries": {
-    "technology": [
-      "tech", "computer", "software", "hardware", "ai", "engineer", "developer",
-      "programming", "coding", "cloud", "data", "cybersecurity", "network", "IT",
-      "machine learning", "automation", "digital", "startup", "saas", "platform",
-      "app", "mobile", "web", "devops", "algorithm", "database", "infrastructure",
-      "semiconductor", "electronics"
+/**
+ * Industry Taxonomy
+ *
+ * Each industry has two arrays:
+ *  - `triggers`: words/phrases a user might type that should resolve to this industry
+ *  - `keywords`: terms used to search Yahoo Finance for stocks in this industry
+ *
+ * This separation means searching "insurance" correctly maps to the "finance" industry
+ * and then searches all finance keywords on Yahoo Finance.
+ */
+export const INDUSTRY_TAXONOMY: Record<string, {
+  triggers: string[];
+  keywords: string[];
+  screenerHint?: string;
+}> = {
+  technology: {
+    triggers: [
+      "tech", "technology", "software", "hardware", "computer", "ai", "artificial intelligence",
+      "machine learning", "ml", "deep learning", "saas", "cloud", "devops", "cybersecurity",
+      "semiconductor", "chip", "electronics", "developer", "programming", "coding", "startup",
+      "platform", "app", "mobile", "web", "algorithm", "database", "infrastructure", "digital",
+      "network", "IT", "information technology", "automation", "data", "big data", "iot",
+      "internet of things", "quantum", "blockchain", "open source", "api", "microservices"
     ],
-    "healthcare": [
-      "medical", "health", "hospital", "clinic", "doctor", "nurse", "patient",
-      "pharmacy", "pharmaceutical", "biotech", "surgery", "therapy", "diagnosis",
-      "wellness", "mental health", "dentist", "pediatric", "oncology", "radiology",
-      "insurance", "telehealth", "laboratory", "research", "clinical"
+    keywords: [
+      "tech stocks", "software companies", "cloud computing", "semiconductor stocks",
+      "AI stocks", "cybersecurity stocks", "SaaS companies", "hardware companies",
+      "internet companies", "data analytics stocks"
     ],
-    "finance": [
-      "banking", "investment", "accounting", "insurance", "fintech", "trading",
-      "wealth", "mortgage", "loan", "credit", "equity", "hedge fund", "audit",
-      "tax", "budget", "portfolio", "asset", "capital", "revenue", "financial",
-      "stock", "bond", "crypto", "wallet", "payment", "compliance", "risk"
+    screenerHint: "growth_technology_stocks"
+  },
+
+  healthcare: {
+    triggers: [
+      "health", "healthcare", "medical", "hospital", "clinic", "doctor", "nurse", "patient",
+      "pharmacy", "pharmaceutical", "pharma", "biotech", "biotechnology", "surgery", "therapy",
+      "diagnosis", "wellness", "mental health", "dentist", "pediatric", "oncology", "radiology",
+      "telehealth", "laboratory", "lab", "clinical", "drug", "medicine", "vaccine", "genomics",
+      "medtech", "life sciences", "diagnostics", "nursing", "physician", "treatment", "FDA"
     ],
-    "education": [
-      "school", "university", "college", "teaching", "learning", "curriculum",
-      "student", "professor", "academic", "edtech", "tutoring", "training",
-      "certification", "degree", "research", "campus", "online learning", "k-12",
-      "literacy", "stem", "scholarship", "admissions", "classroom", "elearning"
+    keywords: [
+      "healthcare stocks", "pharmaceutical companies", "biotech stocks", "medical device companies",
+      "hospital stocks", "drug companies", "life sciences stocks", "telehealth stocks",
+      "genomics stocks", "health insurance stocks"
+    ]
+  },
+
+  finance: {
+    triggers: [
+      "finance", "financial", "banking", "bank", "investment", "investing", "accounting",
+      "insurance", "insurer", "fintech", "trading", "wealth", "mortgage", "loan", "credit",
+      "equity", "hedge fund", "hedge", "audit", "tax", "budget", "portfolio", "asset",
+      "capital", "revenue", "stock market", "bond", "crypto", "cryptocurrency", "wallet",
+      "payment", "payments", "compliance", "risk", "brokerage", "broker", "lender", "lending",
+      "underwriting", "actuarial", "annuity", "pension", "fund", "ETF", "mutual fund",
+      "private equity", "venture capital", "VC", "IPO", "securities", "derivatives", "forex",
+      "money", "monetary", "liquidity", "yield", "interest rate", "Fed", "central bank"
     ],
-    "retail": [
-      "store", "ecommerce", "shopping", "merchandise", "inventory", "supply chain",
+    keywords: [
+      "banking stocks", "investment banks", "insurance companies", "fintech stocks",
+      "asset management firms", "credit card companies", "mortgage companies",
+      "brokerage firms", "payment processing stocks", "hedge funds"
+    ]
+  },
+
+  education: {
+    triggers: [
+      "education", "school", "university", "college", "teaching", "learning", "curriculum",
+      "student", "professor", "academic", "edtech", "tutoring", "training", "certification",
+      "degree", "campus", "online learning", "k-12", "literacy", "stem", "scholarship",
+      "admissions", "classroom", "elearning", "e-learning", "mooc", "course", "instruction",
+      "pedagogy", "higher education", "vocational", "trade school"
+    ],
+    keywords: [
+      "education stocks", "edtech companies", "online learning stocks", "university stocks",
+      "tutoring companies", "e-learning stocks", "vocational training stocks"
+    ]
+  },
+
+  retail: {
+    triggers: [
+      "retail", "store", "ecommerce", "e-commerce", "shopping", "merchandise", "inventory",
       "wholesale", "consumer", "brand", "product", "sales", "checkout", "customer",
-      "marketplace", "fashion", "clothing", "grocery", "discount", "loyalty",
-      "fulfillment", "distribution", "retail", "point of sale", "catalog"
+      "marketplace", "fashion", "clothing", "apparel", "grocery", "discount", "loyalty",
+      "fulfillment", "distribution", "point of sale", "catalog", "DTC", "direct to consumer",
+      "luxury goods", "department store", "supermarket", "subscription box", "dropshipping"
     ],
-    "real_estate": [
-      "property", "housing", "mortgage", "agent", "broker", "lease", "rent",
-      "commercial", "residential", "development", "construction", "appraisal",
-      "investment", "landlord", "tenant", "listing", "closing", "escrow", "zoning",
-      "HOA", "condo", "apartment", "land", "renovation", "flip"
+    keywords: [
+      "retail stocks", "ecommerce stocks", "consumer goods companies", "fashion stocks",
+      "grocery stocks", "luxury goods companies", "department store stocks",
+      "marketplace companies", "DTC brands", "wholesale companies"
+    ]
+  },
+
+  real_estate: {
+    triggers: [
+      "real estate", "property", "housing", "mortgage", "agent", "broker", "lease", "rent",
+      "rental", "commercial real estate", "residential", "development", "construction",
+      "appraisal", "landlord", "tenant", "listing", "closing", "escrow", "zoning",
+      "HOA", "condo", "apartment", "land", "renovation", "flip", "REIT", "proptech",
+      "homebuilder", "property management", "multifamily", "office space", "retail space"
     ],
-    "manufacturing": [
-      "factory", "production", "assembly", "supply chain", "logistics", "quality control",
-      "engineering", "machining", "automation", "robotics", "plant", "operations",
-      "fabrication", "materials", "inventory", "lean", "six sigma", "ISO", "warehouse",
-      "distribution", "procurement", "equipment", "industrial", "steel", "chemical"
+    keywords: [
+      "REIT stocks", "real estate stocks", "homebuilder stocks", "property companies",
+      "real estate investment trusts", "commercial real estate stocks",
+      "residential real estate companies", "proptech stocks"
+    ]
+  },
+
+  manufacturing: {
+    triggers: [
+      "manufacturing", "factory", "production", "assembly", "supply chain", "logistics",
+      "quality control", "machining", "robotics", "plant", "operations", "fabrication",
+      "materials", "lean", "six sigma", "ISO", "warehouse", "procurement", "equipment",
+      "industrial", "steel", "chemical", "plastics", "textiles", "automotive parts",
+      "aerospace parts", "3D printing", "additive manufacturing", "CNC", "OEM"
     ],
-    "hospitality": [
-      "hotel", "restaurant", "travel", "tourism", "lodging", "resort", "catering",
-      "chef", "cuisine", "guest", "reservation", "booking", "airline", "cruise",
-      "event", "banquet", "concierge", "housekeeping", "front desk", "spa", "bar",
-      "hospitality", "food service", "venue", "vacation"
+    keywords: [
+      "manufacturing stocks", "industrial companies", "robotics stocks", "steel companies",
+      "chemical companies", "automotive manufacturing stocks", "aerospace manufacturing stocks",
+      "3D printing stocks", "industrial equipment stocks"
+    ]
+  },
+
+  hospitality: {
+    triggers: [
+      "hospitality", "hotel", "restaurant", "travel", "tourism", "lodging", "resort",
+      "catering", "chef", "cuisine", "guest", "reservation", "booking", "airline",
+      "cruise", "event", "banquet", "concierge", "housekeeping", "spa", "bar",
+      "food service", "venue", "vacation", "Airbnb", "short term rental", "motel",
+      "theme park", "attraction", "food and beverage", "F&B", "quick service", "fast food"
     ],
-    "media_and_entertainment": [
-      "film", "music", "television", "streaming", "publishing", "journalism",
-      "advertising", "marketing", "content", "social media", "podcast", "gaming",
-      "animation", "production", "broadcast", "news", "radio", "influencer", "PR",
-      "creative", "studio", "artist", "director", "writer", "editor"
+    keywords: [
+      "hotel stocks", "airline stocks", "cruise stocks", "restaurant stocks",
+      "travel stocks", "resort stocks", "tourism companies", "food service stocks",
+      "theme park stocks", "short term rental stocks"
+    ]
+  },
+
+  media_and_entertainment: {
+    triggers: [
+      "media", "entertainment", "film", "movie", "music", "television", "TV", "streaming",
+      "publishing", "journalism", "advertising", "marketing", "content", "social media",
+      "podcast", "gaming", "video game", "animation", "production", "broadcast", "news",
+      "radio", "influencer", "PR", "creative", "studio", "artist", "director", "writer",
+      "editor", "OTT", "digital media", "esports", "sports media", "record label"
     ],
-    "agriculture": [
-      "farming", "crop", "livestock", "harvest", "irrigation", "agtech", "soil",
-      "organic", "seed", "fertilizer", "equipment", "rural", "food production",
+    keywords: [
+      "streaming stocks", "gaming stocks", "media companies", "entertainment stocks",
+      "advertising stocks", "social media stocks", "music stocks", "publishing companies",
+      "esports stocks", "broadcast companies"
+    ]
+  },
+
+  agriculture: {
+    triggers: [
+      "agriculture", "farming", "farm", "crop", "livestock", "harvest", "irrigation",
+      "agtech", "soil", "organic", "seed", "fertilizer", "rural", "food production",
       "dairy", "poultry", "aquaculture", "forestry", "agribusiness", "sustainability",
-      "greenhouse", "pesticide", "yield", "plantation", "ranching"
+      "greenhouse", "pesticide", "yield", "plantation", "ranching", "cattle", "grain",
+      "corn", "wheat", "soybean", "food supply", "precision agriculture"
     ],
-    "energy": [
-      "oil", "gas", "renewable", "solar", "wind", "nuclear", "electric", "grid",
-      "utility", "petroleum", "coal", "battery", "power plant", "sustainability",
-      "carbon", "emissions", "drilling", "pipeline", "refinery", "green energy",
-      "hydropower", "geothermal", "biofuel", "energy storage", "transmission"
+    keywords: [
+      "agriculture stocks", "farming companies", "agtech stocks", "fertilizer companies",
+      "seed companies", "livestock companies", "food production stocks",
+      "precision agriculture stocks", "forestry stocks"
+    ]
+  },
+
+  energy: {
+    triggers: [
+      "energy", "oil", "gas", "oil and gas", "renewable", "solar", "wind", "nuclear",
+      "electric", "grid", "utility", "utilities", "petroleum", "coal", "battery",
+      "power plant", "carbon", "emissions", "drilling", "pipeline", "refinery",
+      "green energy", "clean energy", "hydropower", "geothermal", "biofuel",
+      "energy storage", "transmission", "LNG", "fracking", "upstream", "downstream",
+      "midstream", "EV charging", "hydrogen", "fuel cell", "decarbonization"
     ],
-    "transportation_and_logistics": [
-      "shipping", "freight", "trucking", "airline", "rail", "supply chain", "warehouse",
-      "delivery", "fleet", "driver", "cargo", "port", "customs", "route", "last mile",
-      "3PL", "courier", "dispatch", "logistics", "transit", "import", "export",
-      "container", "fulfillment", "autonomous vehicles"
+    keywords: [
+      "oil and gas stocks", "renewable energy stocks", "solar stocks", "wind energy stocks",
+      "utility stocks", "nuclear energy stocks", "battery storage stocks",
+      "clean energy stocks", "pipeline companies", "hydrogen stocks"
+    ]
+  },
+
+  transportation_and_logistics: {
+    triggers: [
+      "transportation", "logistics", "shipping", "freight", "trucking", "airline",
+      "rail", "supply chain", "delivery", "fleet", "driver", "cargo", "port",
+      "customs", "route", "last mile", "3PL", "courier", "dispatch", "transit",
+      "import", "export", "container", "autonomous vehicles", "self-driving",
+      "ride sharing", "rideshare", "Uber", "Lyft", "gig economy", "drone delivery",
+      "ocean freight", "air freight", "intermodal"
     ],
-    "legal": [
-      "law", "attorney", "lawyer", "court", "litigation", "compliance", "contract",
-      "regulation", "intellectual property", "corporate law", "paralegal", "judge",
-      "firm", "counsel", "mediation", "arbitration", "criminal", "civil", "patent",
-      "trademark", "tax law", "immigration", "real estate law", "defense"
+    keywords: [
+      "logistics stocks", "trucking stocks", "shipping stocks", "airline stocks",
+      "freight companies", "supply chain stocks", "delivery companies",
+      "rail stocks", "autonomous vehicle stocks", "rideshare stocks"
+    ]
+  },
+
+  legal: {
+    triggers: [
+      "legal", "law", "attorney", "lawyer", "court", "litigation", "compliance",
+      "contract", "regulation", "intellectual property", "IP", "corporate law",
+      "paralegal", "judge", "firm", "law firm", "counsel", "mediation", "arbitration",
+      "criminal", "civil", "patent", "trademark", "copyright", "tax law",
+      "immigration", "real estate law", "defense", "legaltech", "legal tech"
     ],
-    "government_and_public_sector": [
-      "government", "policy", "public", "federal", "state", "municipal", "defense",
-      "military", "nonprofit", "agency", "regulation", "administration", "legislation",
-      "civil service", "public safety", "social services", "infrastructure", "grant",
-      "election", "diplomacy", "tax", "budget", "city planning"
+    keywords: [
+      "legal services stocks", "legaltech companies", "compliance stocks",
+      "law firm stocks", "intellectual property companies"
+    ]
+  },
+
+  gold: {
+    triggers: [
+      "gold", "gold mining", "gold stocks", "gold ETF", "bullion", "gold bullion",
+      "precious metals", "gold futures", "gold price", "gold investment",
+      "gold producer", "gold miner", "junior gold", "senior gold", "royalty gold",
+      "streaming gold", "gold royalty", "gold exploration", "gold reserves",
+      "safe haven", "store of value", "spot gold", "gold bar", "gold coin",
+      "XAU", "GLD", "IAU", "gold fund", "gold trust"
     ],
-    "construction": [
-      "building", "contractor", "architecture", "engineering", "blueprint",
-      "project management", "site", "permit", "HVAC", "plumbing", "electrical",
-      "concrete", "steel", "carpentry", "renovation", "demolition", "commercial",
-      "residential", "subcontractor", "inspection", "safety", "zoning", "materials", "crane"
-    ], 
-    "Cybersecurity": [
-      "Networking",
-      "Network Security",
-      "Cloud",
-      "Cloud Security",
-      "Cloud Computing",
-      "Threat Intelligence",
-      "Data Security"
+    keywords: [
+      "gold mining stocks", "gold producer companies", "precious metals stocks",
+      "gold royalty companies", "gold streaming stocks", "junior gold miners",
+      "gold ETF holdings", "gold exploration stocks"
+    ]
+  },
+
+  government_and_public_sector: {
+    triggers: [
+      "government", "government contractor", "public sector", "policy", "federal",
+      "state", "municipal", "defense", "military", "nonprofit", "agency", "regulation",
+      "administration", "legislation", "civil service", "public safety", "social services",
+      "infrastructure", "grant", "election", "diplomacy", "city planning", "GovTech",
+      "defense contractor", "aerospace defense", "intelligence", "homeland security"
+    ],
+    keywords: [
+      "defense stocks", "government contractor stocks", "aerospace defense companies",
+      "public sector technology stocks", "homeland security stocks",
+      "military technology stocks", "intelligence companies"
+    ]
+  },
+
+  construction: {
+    triggers: [
+      "construction", "building", "contractor", "architecture", "engineering",
+      "blueprint", "project management", "site", "permit", "HVAC", "plumbing",
+      "electrical", "concrete", "steel", "carpentry", "renovation", "demolition",
+      "commercial construction", "residential construction", "subcontractor",
+      "inspection", "safety", "zoning", "materials", "crane", "infrastructure",
+      "civil engineering", "structural engineering", "green building", "LEED"
+    ],
+    keywords: [
+      "construction stocks", "homebuilder stocks", "building materials stocks",
+      "infrastructure stocks", "engineering companies", "HVAC stocks",
+      "architecture firms", "civil engineering stocks"
+    ]
+  },
+
+  cybersecurity: {
+    triggers: [
+      "cybersecurity", "cyber security", "security", "network security", "cloud security",
+      "threat intelligence", "data security", "information security", "infosec",
+      "zero trust", "firewall", "endpoint security", "SIEM", "SOC", "vulnerability",
+      "penetration testing", "pentest", "ransomware", "malware", "phishing",
+      "identity management", "IAM", "privileged access", "encryption", "CISO",
+      "compliance security", "DLP", "XDR", "MDR", "zero day"
+    ],
+    keywords: [
+      "cybersecurity stocks", "network security companies", "cloud security stocks",
+      "endpoint security stocks", "identity management stocks", "threat intelligence companies",
+      "zero trust security stocks", "SIEM companies", "managed security stocks"
     ]
   }
 };
 
 /**
- * Categorizes a string of text into one of the taxonomy buckets based on keyword density.
+ * Resolves a user's search term to an industry using exact word boundary matching only.
+ * e.g. "insurance" → "finance", "solar" → "energy", "ransomware" → "cybersecurity"
+ * Will NOT match partial words — "solar" will not match "solarium".
  */
 export function categorizeByTaxonomy(text: string): string | null {
   if (!text) return null;
-  const normalizedText = text.toLowerCase();
-  
-  let bestMatch = null;
+  const normalizedText = text.toLowerCase().trim();
+
+  let bestMatch: string | null = null;
   let maxScore = 0;
 
-  for (const [industry, keywords] of Object.entries(INDUSTRY_TAXONOMY.industries)) {
+  for (const [industry, { triggers }] of Object.entries(INDUSTRY_TAXONOMY)) {
     let score = 0;
-    for (const keyword of keywords) {
-      // Use regex for word boundary matching to avoid partial matches like "ai" in "mail"
-      const regex = new RegExp(`\\b${keyword.toLowerCase()}\\b`, 'g');
+
+    for (const trigger of triggers) {
+      const escapedTrigger = trigger.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`\\b${escapedTrigger}\\b`, 'gi');
       const matches = normalizedText.match(regex);
       if (matches) {
         score += matches.length;
@@ -134,38 +311,45 @@ export function categorizeByTaxonomy(text: string): string | null {
 }
 
 /**
- * Gets the full list of keywords for a category.
+ * Returns the Yahoo Finance search keywords for a given industry.
+ * These are what get sent to yahooFinance.search().
  */
 export function getCategoryKeywords(category: string): string[] {
-  return (INDUSTRY_TAXONOMY.industries as any)[category] || [];
+  return INDUSTRY_TAXONOMY[category]?.keywords || [];
 }
 
 /**
- * Maps our internal taxonomy categories to Yahoo Finance screener IDs or search hints.
+ * Returns strategy info for a category including optional screener ID and display title.
  */
-export function getCategoryStrategy(category: string): { 
-  screenerId?: string; 
-  searchHint?: string; 
+export function getCategoryStrategy(category: string): {
+  screenerId?: string;
   title: string;
-  yahooSector?: string;
 } {
-  const strategies: Record<string, any> = {
-    technology: { screenerId: 'growth_technology_stocks', title: 'Technology', yahooSector: 'Technology' },
-    healthcare: { title: 'Healthcare', yahooSector: 'Healthcare' },
-    finance: { title: 'Finance', yahooSector: 'Financial Services' },
-    education: { searchHint: 'Education stocks', title: 'Education' },
-    retail: { title: 'Retail', yahooSector: 'Consumer Cyclical' },
-    real_estate: { title: 'Real Estate', yahooSector: 'Real Estate' },
-    manufacturing: { title: 'Manufacturing', yahooSector: 'Industrials' },
-    hospitality: { searchHint: 'Travel and Hospitality stocks', title: 'Hospitality' },
-    media_and_entertainment: { title: 'Media & Entertainment', yahooSector: 'Communication Services' },
-    agriculture: { searchHint: 'Agriculture stocks', title: 'Agriculture' },
-    energy: { title: 'Energy', yahooSector: 'Energy' },
-    transportation_and_logistics: { searchHint: 'Logistics stocks', title: 'Transportation' },
-    legal: { searchHint: 'Legal services stocks', title: 'Legal' },
-    government_and_public_sector: { searchHint: 'Government contractors stocks', title: 'Government' },
-    construction: { searchHint: 'Construction stocks', title: 'Construction' },
+  const titleMap: Record<string, string> = {
+    technology: 'Technology',
+    healthcare: 'Healthcare',
+    finance: 'Finance',
+    education: 'Education',
+    retail: 'Retail',
+    real_estate: 'Real Estate',
+    manufacturing: 'Manufacturing',
+    hospitality: 'Hospitality & Travel',
+    media_and_entertainment: 'Media & Entertainment',
+    agriculture: 'Agriculture',
+    energy: 'Energy',
+    transportation_and_logistics: 'Transportation & Logistics',
+    legal: 'Legal',
+    government_and_public_sector: 'Government & Defense',
+    construction: 'Construction',
+    cybersecurity: 'Cybersecurity',
   };
 
-  return strategies[category] || { title: category.replace(/_/g, ' ') };
+  const screenerMap: Record<string, string> = {
+    technology: 'growth_technology_stocks',
+  };
+
+  return {
+    title: titleMap[category] ?? category.replace(/_/g, ' '),
+    screenerId: screenerMap[category],
+  };
 }
