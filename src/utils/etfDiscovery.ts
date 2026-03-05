@@ -152,7 +152,7 @@ export async function performETFDiscovery(
 
       // Strategy A: News Signal Alignment (Holdings overlap)
       const holdings = summary.topHoldings?.holdings || [];
-      const holdingsTickers = holdings.map(h => h.symbol).filter(Boolean) as string[];
+      const holdingsTickers = holdings.map((h: any) => h.symbol).filter(Boolean) as string[];
       
       const newsOverlap = holdingsTickers.filter(t => newsTickerSet.has(t));
       const hotStocksOverlap = holdingsTickers.filter(t => hotStockTickers.has(t));

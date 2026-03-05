@@ -35,10 +35,31 @@ interface RecommendedMarket {
   snapshot_date: string;
 }
 
+interface RecommendedETF {
+  id: number;
+  ticker: string;
+  symbol: string; // Map ticker to symbol for StockTable
+  etf_name: string;
+  snapshot_date: string;
+  current_price: number;
+  etf_gps_score: number;
+  theme: string;
+  aum_m: number;
+  expense_ratio_pct: number;
+  "52wk_return_pct": number;
+  "3mo_return_pct": number;
+  avg_daily_volume: number;
+  momentum_score: number;
+  news_signal_score: number;
+  discovery_source: string;
+  is_leveraged: boolean;
+}
+
 interface DeepMoneyData {
   hot_stocks: RecommendedStock[];
   hot_ai_tech_stocks: RecommendedStock[];
   combined_markets: RecommendedMarket[];
+  hot_etfs: RecommendedETF[];
 }
 
 const stockColumns = [
@@ -142,6 +163,80 @@ const marketColumns = [
     }
 ];
 
+const etfColumns = [
+  {
+    key: 'symbol',
+    label: 'ETF',
+    align: 'left' as const,
+    format: (value: string, row: any) => (
+      <div>
+        <span className="font-bold text-gray-900">{value}</span>
+        <p className="text-xs text-gray-500 truncate max-w-[200px]">{row.etf_name}</p>
+      </div>
+    ),
+  },
+  {
+    key: 'current_price',
+    label: 'Price',
+    align: 'right' as const,
+    format: (value: any) => <span className="font-semibold text-gray-800">{formatCurrency(value, 2)}</span>,
+  },
+  {
+    key: 'etf_gps_score',
+    label: 'GPS Score',
+    align: 'center' as const,
+    format: (value: any) => {
+      const num = typeof value === 'string' ? parseFloat(value) : value;
+      const color = num >= 70 ? 'text-emerald-600' : num >= 50 ? 'text-green-500' : 'text-yellow-600';
+      return <span className={`font-bold ${color}`}>{formatNumber(num, 1)}/100</span>;
+    },
+  },
+  {
+    key: '52wk_return_pct',
+    label: 'Past 52WK',
+    align: 'right' as const,
+    format: (value: any) => {
+      const num = typeof value === 'string' ? parseFloat(value) : value;
+      const color = num >= 0 ? 'text-green-600' : 'text-rose-600';
+      return <span className={`font-medium ${color}`}>{num >= 0 ? '+' : ''}{formatNumber(num, 1)}%</span>;
+    },
+  },
+  {
+    key: 'expense_ratio_pct',
+    label: 'Expense',
+    align: 'right' as const,
+    format: (value: any) => {
+      const num = typeof value === 'string' ? parseFloat(value) : value;
+      let color = 'text-gray-600';
+      if (num < 0.20) color = 'text-emerald-600 font-semibold';
+      else if (num >= 0.80) color = 'text-rose-600 font-semibold';
+      return <span className={color}>{formatNumber(num, 2)}%</span>;
+    },
+  },
+  {
+    key: 'theme',
+    label: 'Theme',
+    align: 'left' as const,
+    format: (value: string) => <span className="text-xs font-medium text-gray-500">{value}</span>,
+  },
+  {
+    key: 'news_signal_score',
+    label: 'News Signal',
+    align: 'center' as const,
+    format: (value: any) => {
+      const num = typeof value === 'string' ? parseFloat(value) : value;
+      return (
+        <div className="w-16 bg-gray-100 rounded-full h-1.5 overflow-hidden mx-auto">
+          <div 
+            className="bg-indigo-500 h-full" 
+            style={{ width: `${Math.min(100, Math.max(0, num))}%` }}
+          />
+        </div>
+      );
+    },
+  },
+];
+
 export default function DeepMoneyPicksSection() {
   const router = useRouter();
   const [data, setData] = useState<DeepMoneyData | null>(null);
@@ -170,10 +265,13 @@ export default function DeepMoneyPicksSection() {
         ...(json.hot_ai_sectors || []).map((s: any) => ({ ...s, symbol: s.name }))
       ];
 
+      const hot_etfs = (json.hot_etfs || []).map((e: any) => ({ ...e, symbol: e.ticker }));
+
       setData({
         hot_stocks,
         hot_ai_tech_stocks,
-        combined_markets
+        combined_markets,
+        hot_etfs
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -238,6 +336,17 @@ export default function DeepMoneyPicksSection() {
         loading={loading}
         error={error}
         emptyMessage="No market or sector data available."
+      />
+
+      <StockTable
+        title="Hot ETFs Under $300"
+        icon="🧺"
+        data={data?.hot_etfs || []}
+        columns={etfColumns}
+        onRowClick={(symbol) => router.push(`/search/${symbol}`)}
+        loading={loading}
+        error={error}
+        emptyMessage="No hot ETFs matching your criteria found today."
       />
     </div>
   );
