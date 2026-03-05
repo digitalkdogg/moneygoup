@@ -121,3 +121,41 @@ export const MAX_COMPANY_FEED_FETCHES = 15;
  * is second-hand rather than a direct index-level mention.
  */
 export const CO_MENTION_SENTIMENT_WEIGHT = 0.5;
+
+// ---------------------------------------------------------------------------
+// ETF Module Constants (Section 9)
+// ---------------------------------------------------------------------------
+
+export const ETF_PRICE_FILTER_MAX = 300;
+export const ETF_VOLUME_FLOOR = 50000;
+export const ETF_AUM_FLOOR = 50e6; // $50M
+
+export const ETF_GPS_WEIGHTS = {
+  FIFTY_TWO_WEEK_RETURN: 0.30,
+  THEMATIC_NEWS_SIGNAL: 0.25,
+  MOMENTUM_3MO: 0.20,
+  LIQUIDITY: 0.15,
+  EXPENSE_RATIO: 0.10
+};
+
+export const ETF_GPS_BONUS = {
+  HOT_STOCKS_OVERLAP: 8,      // >= 3 holdings in current hot_stocks list
+  TRENDING_THEME: 5,         // Thematic ETF mapped to trending sub-sector
+  HIGH_MOMENTUM: 4,          // 52-week return >= 25%
+  UNDER_THE_RADAR: 3         // AUM < $500M
+};
+
+export const ETF_GPS_THRESHOLD = 40;
+
+export const THEME_TO_SUB_SECTORS: { [theme: string]: string[] } = {
+  'Artificial Intelligence': ['Artificial Intelligence', 'Robotics & Automation'],
+  'Semiconductors': ['Semiconductors'],
+  'Cloud & SaaS': ['Cloud & SaaS', 'Cybersecurity'],
+  'Cybersecurity': ['Cybersecurity'],
+  'Clean Energy & Tech': ['Data Infrastructure'],
+  'Broad Technology': [
+    'Artificial Intelligence', 'Semiconductors', 'Cloud & SaaS',
+    'Cybersecurity', 'Data Infrastructure', 'Robotics & Automation'
+  ],
+  'Small/Mid Cap Growth': [] // Generic
+};

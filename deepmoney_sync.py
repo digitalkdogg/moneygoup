@@ -1,4 +1,5 @@
 
+import json
 import os
 import requests
 import mysql.connector
@@ -86,7 +87,7 @@ def sync_deepmoney():
                     s['market_cap_m'], s['mention_count'], s['discovery_source'], today
                 ))
 
-        # 4. Process Markets/Sectors
+        # 5. Process Markets/Sectors
         market_mappings = [
             {'key': 'hot_markets', 'type': 'hot_markets', 'name_field': 'industry', 'count_field': 'count'},
             {'key': 'hot_ai_sectors', 'type': 'hot_ai_sectors', 'name_field': 'sub_sector', 'count_field': 'article_count'}
@@ -106,6 +107,32 @@ def sync_deepmoney():
                     mapping['type'], item[mapping['name_field']], 
                     item['average_sentiment'], item[mapping['count_field']], today
                 ))
+
+        # 6. Process ETFs
+        print("Processing hot ETFs...")
+        etfs = data.get('hot_etfs', [])
+        for e in etfs:
+            upsert_query = """
+            INSERT INTO hot_etfs 
+            (ticker, etf_name, snapshot_date, current_price, etf_gps_score, theme, 
+             aum_m, expense_ratio_pct, 52wk_return_pct, 3mo_return_pct, avg_daily_volume, 
+             momentum_score, news_signal_score, discovery_source, is_leveraged)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE 
+            etf_name=VALUES(etf_name), current_price=VALUES(current_price), 
+            etf_gps_score=VALUES(etf_gps_score), theme=VALUES(theme), aum_m=VALUES(aum_m), 
+            expense_ratio_pct=VALUES(expense_ratio_pct), 52wk_return_pct=VALUES(52wk_return_pct), 
+            3mo_return_pct=VALUES(3mo_return_pct), avg_daily_volume=VALUES(avg_daily_volume), 
+            momentum_score=VALUES(momentum_score), news_signal_score=VALUES(news_signal_score), 
+            discovery_source=VALUES(discovery_source), is_leveraged=VALUES(is_leveraged)
+            """
+            cursor.execute(upsert_query, (
+                e['ticker'], e['etf_name'], e['snapshot_date'], e['current_price'], 
+                e['etf_gps_score'], e['theme'], e['aum_m'], e['expense_ratio_pct'], 
+                e['fiftyTwoWk_return_pct'], e['threeMo_return_pct'], e['avg_daily_volume'], 
+                e['momentum_score'], e['news_signal_score'], 
+                e['discovery_source'], 1 if e['is_leveraged'] else 0
+            ))
 
         conn.commit()
         print(f"[{datetime.now()}] Sync completed successfully.")

@@ -2,6 +2,7 @@ import nlp from 'compromise';
 import Sentiment from 'sentiment';
 import { getNews } from './getNews';
 import { fetchYahooStockSummary, getYahooScreener } from '@/utils/yahooFinanceHelper';
+import { performETFDiscovery } from '@/utils/etfDiscovery';
 import watchlist from '@/../../public/ai_tech_watchlist.json';
 import {
   AI_TECH_TAXONOMY,
@@ -479,10 +480,18 @@ export async function performDeepAnalysis() {
     .sort((a, b) => b.average_sentiment - a.average_sentiment)
     .slice(0, 2);
 
+  // -------------------------------------------------------------------------
+  // Stage 5: ETF Discovery Module (Section 9)
+  // -------------------------------------------------------------------------
+  const trendingSubSectors = hot_ai_sectors.map(s => s.sub_sector);
+  const allTrendingTickers = Object.keys(tickerMentions); // All tickers mentioned in today's news
+  const hot_etfs = await performETFDiscovery(hot_stocks, trendingSubSectors, allTrendingTickers);
+
   return {
     hot_stocks,
     hot_ai_tech_stocks,
     hot_markets,
-    hot_ai_sectors
+    hot_ai_sectors,
+    hot_etfs
   };
 }
