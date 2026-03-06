@@ -1,7 +1,7 @@
 import * as tf from '@tensorflow/tfjs';
 import { calculateAnnualizedVolatility } from './volatility';
 interface StockMetrics {
-  close: number;
+  close?: number;
   regularMarketPrice?: number;
   volume?: number;
   peRatio?: number;
@@ -11,8 +11,6 @@ interface StockMetrics {
   sma50?: number;
   rsi?: number;
   momentum?: number;
-}
-
   volatility?: number;
 }
 
@@ -351,17 +349,7 @@ function linearRegression(prices: number[]): number {
 
 export async function predictStockPrice(
   historicalData: Array<{ close: number }>,
-  stockMetrics?: {
-    peRatio?: number;
-    pbRatio?: number;
-    marketCap?: number;
-    volume?: number;
-    sma20?: number;
-    sma50?: number;
-    rsi?: number;
-    momentum?: number;
-    volatility?: number;
-  },
+  stockMetrics?: StockMetrics,
   newsArticles?: Array<{ title?: string; description?: string; content?: string }>
 ): Promise<PredictionResult> {
   if (!historicalData || historicalData.length < 5) {
