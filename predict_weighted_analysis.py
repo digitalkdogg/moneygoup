@@ -572,7 +572,8 @@ def predict(ticker, input_data):
     if len(df) < 504:
         raise ValueError(f"Insufficient data: {len(df)} rows, need ≥ 504.")
 
-    current_price = float(df['Close'].iloc[-1])
+    # Current price anchor for all % change calculations
+    current_price = float(stock_metrics.get('regularMarketPrice') or df['Close'].iloc[-1])
 
     # Basic stock characteristics (kept for legacy metric_analysis + stock_type)
     close_arr      = df['Close'].values

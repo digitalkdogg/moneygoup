@@ -1,8 +1,8 @@
 import * as tf from '@tensorflow/tfjs';
 import { calculateAnnualizedVolatility } from './volatility';
-
 interface StockMetrics {
   close: number;
+  regularMarketPrice?: number;
   volume?: number;
   peRatio?: number;
   pbRatio?: number;
@@ -11,6 +11,8 @@ interface StockMetrics {
   sma50?: number;
   rsi?: number;
   momentum?: number;
+}
+
   volatility?: number;
 }
 
@@ -367,7 +369,7 @@ export async function predictStockPrice(
   }
 
   const prices = historicalData.map(d => d.close);
-  const currentPrice = prices[prices.length - 1];
+  const currentPrice = stockMetrics?.regularMarketPrice || prices[prices.length - 1];
   const metricsUsed: string[] = ['Historical Price'];
 
   // Calculate volatility if not provided

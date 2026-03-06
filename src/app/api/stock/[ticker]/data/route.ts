@@ -236,6 +236,7 @@ export async function GET(
     const recommendationMean  = safeNum(finData.recommendationMean);
 
     const stockMetrics = {
+      regularMarketPrice: safeNum(price.regularMarketPrice),
       peRatio,
       pbRatio,
       marketCap:          safeNum(price.marketCap  ?? detail.marketCap),
