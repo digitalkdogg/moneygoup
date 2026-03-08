@@ -115,6 +115,9 @@ export const MARKETBEAT_FEED_URL = 'https://www.marketbeat.com/feed/';
 /** The Street RSS feed — editorial financial news */
 export const THESTREET_FEED_URL = 'https://www.thestreet.com/.rss/feed/a4a58455-5a41-4dfa-899c-86c49b653ed8.xml';
 
+/** Motley Fool RSS feed — investment analysis and stock picks */
+export const MOTLEYFOOL_FEED_URL = 'https://www.fool.com/a/feeds/partner/googlechromefollow?apikey=5e092c1f-c5f9-4428-9219-908a47d2e2de';
+
 /**
  * Sentiment weight multiplier for MarketBeat articles.
  * Not wired in v1 — document now, implement in v2 once baseline scoring is measured.
@@ -127,6 +130,12 @@ export const MARKETBEAT_SENTIMENT_WEIGHT = 1.2;
  * Suggested range: 1.1–1.2.
  */
 export const THESTREET_SENTIMENT_WEIGHT = 1.1;
+
+/**
+ * Sentiment weight multiplier for Motley Fool articles.
+ * Suggested range: 1.1–1.2.
+ */
+export const MOTLEYFOOL_SENTIMENT_WEIGHT = 1.1;
 
 /**
  * Maximum number of qualifying Pass-1 tickers we will fetch company-level
