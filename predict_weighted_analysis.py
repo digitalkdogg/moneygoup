@@ -461,7 +461,7 @@ def confidence_score(cv_mape, history_years, imputed_fields, analyst_count):
 # ============================================================================
 # LEGACY METRIC ANALYSIS (kept for backward compat)
 # ============================================================================
-def metric_analysis(df, stock_metrics, news_sentiment, growth_rate, is_uptrend, earnings_beat_streak):
+def metric_analysis(df, stock_metrics, news_sentiment, growth_rate, is_uptrend, earnings_beat_streak, external_tech_score=0.0):
     current_price = df['Close'].iloc[-1]
     rsi       = df['RSI_14'].iloc[-1] if 'RSI_14' in df.columns else 50.0
     sma20_val = df['SMA_20'].iloc[-1]  if 'SMA_20'  in df.columns else current_price
@@ -477,12 +477,20 @@ def metric_analysis(df, stock_metrics, news_sentiment, growth_rate, is_uptrend, 
     vol_ratio = cur_vol / avg_vol if avg_vol > 0 else 1.0
 
     total_impact = 0.0
-    if rsi > 70:   total_impact -= 0.03
-    elif rsi < 30: total_impact += 0.03
-    if is_uptrend: total_impact += 0.08
-    else:          total_impact -= 0.08
-    total_impact += (growth_rate / 100) * 0.05
-    total_impact += news_sentiment * 0.04
+    # Internal heuristics (dampened to prevent double-counting with external_tech_score)
+    if rsi > 75:   total_impact -= 0.01
+    elif rsi < 25: total_impact += 0.01
+
+    if is_uptrend: total_impact += 0.02
+    else:          total_impact -= 0.02
+
+    total_impact += (growth_rate / 100) * 0.02
+    total_impact += news_sentiment * 0.01
+    
+    # ── External Technical Indicator Influence ──
+    # The higher the number the more influence it should have.
+    # Scaled such that a max buy (+14) adds ~3.5% and max sell (-14) removes ~3.5%.
+    total_impact += external_tech_score * 0.0025
 
     return {
         "rsi": {
@@ -538,6 +546,11 @@ def metric_analysis(df, stock_metrics, news_sentiment, growth_rate, is_uptrend, 
             "market_cap": safe(stock_metrics.get('marketCap')),
             "description": "Core valuation",
         },
+        "external_indicator_score": {
+            "value": round(float(external_tech_score), 2),
+            "impact": round(float(external_tech_score * 0.0025), 4),
+            "description": "External indicator score (total score from frontend)",
+        },
         "total_metric_impact":   round(float(total_impact), 4),
         "impact_classification": (
             "very_bullish" if total_impact > 0.08 else
@@ -559,6 +572,8 @@ def predict(ticker, input_data):
     news_articles      = input_data.get('newsArticles', [])
     historical_earnings = input_data.get('historicalEarnings', [])
     data_quality       = input_data.get('dataQuality', {})
+    # External technical score from the frontend/technical indicators section
+    external_tech_score = safe(input_data.get('technicalScore'), 0.0)
 
     if not historical_data:
         raise ValueError("No historical data provided.")
@@ -647,6 +662,16 @@ def predict(ticker, input_data):
         cv_mae = float(current_price * 0.05)
     cv_mape = (cv_mae / (current_price + 1e-9)) * 100
 
+    # ---- Legacy metric analysis ----
+    m_analysis = metric_analysis(feat_df, stock_metrics, news_sentiment,
+                                  growth_rate, is_uptrend, earnings_beat_streak, external_tech_score)
+
+    # ── Final Price Adjustment ──
+    # We apply the total_impact as a final multiplier to the MLP output.
+    # This allows the heuristics (RSI, News, Technical Score) to nudge the 
+    # sophisticated neural network result.
+    impact_multiplier = 1.0 + m_analysis['total_metric_impact']
+
     # ---- Deterministic 6m / 12m predictions ----
     last_seq = scaled[-SEQ_LEN:].flatten().reshape(1, -1)
     pred_scaled = model.predict(last_seq)[0]  # [p6m, p1y]
@@ -656,8 +681,8 @@ def predict(ticker, input_data):
         dummy[0, close_col_idx] = float(scaled_val)
         return float(scaler.inverse_transform(dummy)[0, close_col_idx])
 
-    predicted_price_6m = inverse_close(pred_scaled[0])
-    predicted_price_1y = inverse_close(pred_scaled[1])
+    predicted_price_6m = inverse_close(pred_scaled[0]) * impact_multiplier
+    predicted_price_1y = inverse_close(pred_scaled[1]) * impact_multiplier
 
     # ---- Monte Carlo Dropout — 18-month trajectory ----
     WAYPOINTS = list(range(21, 379, 21))  # t+21, t+42, ... t+378 (18 months)
@@ -686,8 +711,8 @@ def predict(ticker, input_data):
         noise *= (tiled_stds * 0.1)    # scale: 10% of each feature's recent σ
         noisy = last_seq + noise
         p = model.predict(noisy)[0]
-        mc_6m.append(inverse_close(p[0]))
-        mc_12m.append(inverse_close(p[1]))
+        mc_6m.append(inverse_close(p[0]) * impact_multiplier)
+        mc_12m.append(inverse_close(p[1]) * impact_multiplier)
 
     mc_6m  = np.array(mc_6m)
     mc_12m = np.array(mc_12m)
@@ -757,10 +782,6 @@ def predict(ticker, input_data):
 
     pct_6m  = round((predicted_price_6m  - current_price) / (current_price + 1e-9) * 100, 2)
     pct_12m = round((predicted_price_1y  - current_price) / (current_price + 1e-9) * 100, 2)
-
-    # ---- Legacy metric analysis ----
-    m_analysis = metric_analysis(feat_df, stock_metrics, news_sentiment,
-                                  growth_rate, is_uptrend, earnings_beat_streak)
 
     result = {
         "ticker":                str(ticker).upper().strip(),

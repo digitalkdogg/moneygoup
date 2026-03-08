@@ -546,6 +546,7 @@ export default function Stock({
           sma50={indicators?.sma50 ?? undefined}
           rsi={indicators?.rsi14 ?? undefined}
           momentum={indicators?.momentum ?? undefined}
+          technicalScore={indicators?.scoreBreakdown?.totalScore}
           newsArticles={news}
           historicalEarnings={earningsData?.historicalEarnings || []}
         />
@@ -716,6 +717,7 @@ export default function Stock({
                 sma50={indicators?.sma50 ?? undefined}
                 rsi={indicators?.rsi14 ?? undefined}
                 momentum={indicators?.momentum ?? undefined}
+                technicalScore={indicators?.scoreBreakdown?.totalScore}
                 newsArticles={news}
               />
 

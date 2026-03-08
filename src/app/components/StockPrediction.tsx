@@ -16,6 +16,7 @@ interface StockPredictionProps {
   sma50?: number
   rsi?: number
   momentum?: number
+  technicalScore?: number
   newsArticles?: Array<{
     title?: string
     description?: string
@@ -254,6 +255,7 @@ export default function StockPrediction({
   sma50,
   rsi,
   momentum,
+  technicalScore,
   newsArticles,
   historicalEarnings,
 }: StockPredictionProps) {
@@ -294,10 +296,11 @@ export default function StockPrediction({
     // ---- Step 2: run MLP prediction ----
     setStep('predicting')
     try {
-      // Merge client-side news + fallback earnings
+      // Merge client-side news + fallback earnings + technicalScore
       const payload = {
         ...dataPayload,
         newsArticles: newsArticles ?? [],
+        technicalScore: technicalScore,
         historicalEarnings:
           dataPayload.historicalEarnings?.length > 0
             ? dataPayload.historicalEarnings
