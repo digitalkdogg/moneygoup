@@ -251,12 +251,11 @@ export async function performDeepAnalysis() {
   const aiSubSectorStats: { [key: string]: { score: number; count: number } } = {};
 
   for (const article of articles) {
-    const text = (article.title + ' ' + (article.content || '')).toLowerCase();
-    const doc = nlp(text);
-    const organizations: string[] = doc.organizations().out('array');
+    // FIX: use description as fallback — MarketBeat has no content field
+    const text = (article.title + ' ' + (article.content || article.description || '')).toLowerCase();
     const sentimentResult = sentiment.analyze(text);
 
-    // Track AI Sub-sectors
+    // Sub-sector and industry detection — unchanged, runs for ALL articles
     const foundSubSectors = new Set<string>();
     let keywordCount = 0;
     for (const [subSector, keywords] of Object.entries(AI_TECH_TAXONOMY)) {
@@ -269,34 +268,40 @@ export async function performDeepAnalysis() {
       }
     }
 
-    // Resolve Organizations to Tickers
-    for (const org of organizations) {
-      const ticker = resolveTicker(org);
-      if (ticker) {
-        if (!tickerMentions[ticker]) {
-          tickerMentions[ticker] = {
-            count: 0,
-            sentiment: 0,
-            subSectors: new Set(),
-            keywords: 0,
-            coMentionedWith: new Set(),
-            fromCompanyFeed: false
-          };
-        }
-        tickerMentions[ticker].count++;
-        tickerMentions[ticker].sentiment += sentimentResult.score;
-        foundSubSectors.forEach(s => tickerMentions[ticker].subSectors.add(s));
-        tickerMentions[ticker].keywords += keywordCount;
-      }
-    }
-
-    // Track Broad Industries
     for (const [industry, keywords] of Object.entries(BROAD_INDUSTRIES)) {
       if (keywords.some(k => text.includes(k))) {
         if (!industryStats[industry]) industryStats[industry] = { score: 0, count: 0 };
         industryStats[industry].score += sentimentResult.score;
         industryStats[industry].count++;
       }
+    }
+
+    // Ticker resolution — branched by source
+    const hasExplicitTickers = article.explicitTickers && article.explicitTickers.length > 0;
+
+    const tickers: string[] = hasExplicitTickers
+      ? article.explicitTickers  // MarketBeat: use category tags directly, skip NLP
+      : nlp(text).organizations().out('array').map(resolveTicker).filter(Boolean) as string[];
+
+    // Multi-ticker inflation guard: fractional credit when many tickers share one article
+    const mentionIncrement = tickers.length > 1 ? 1 / tickers.length : 1;
+
+    for (const ticker of tickers) {
+      if (!ticker) continue;
+      if (!tickerMentions[ticker]) {
+        tickerMentions[ticker] = {
+          count: 0,
+          sentiment: 0,
+          subSectors: new Set(),
+          keywords: 0,
+          coMentionedWith: new Set(),
+          fromCompanyFeed: false
+        };
+      }
+      tickerMentions[ticker].count += mentionIncrement; // fractional for multi-ticker articles
+      tickerMentions[ticker].sentiment += sentimentResult.score;
+      foundSubSectors.forEach(s => tickerMentions[ticker].subSectors.add(s));
+      tickerMentions[ticker].keywords += keywordCount;
     }
   }
 

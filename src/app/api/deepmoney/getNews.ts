@@ -1,42 +1,117 @@
 import { NextResponse } from 'next/server';
 import { XMLParser } from 'fast-xml-parser';
+import { MARKETBEAT_FEED_URL } from './config';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('api/deepmoney/getNews');
 
 const feeds = [
   'https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EDJI',
   'https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EGSPC',
-  'https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EIXIC'
+  'https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EIXIC',
+  MARKETBEAT_FEED_URL
 ];
 
+const isMarketBeatFeed = (feedUrl: string): boolean =>
+  feedUrl.includes('marketbeat.com');
+
+const parseCategories = (item: any): string[] => {
+  const raw = item.category;
+  if (!raw) return [];
+  const cats: string[] = Array.isArray(raw) ? raw : [raw];
+  return cats
+    .map((c: string) => (c.includes(':') ? c.split(':')[1] : c))
+    .filter((t: string) => t && t.length >= 1 && t.length <= 6); // guard against malformed values
+};
+
 export async function getNews() {
-  const parser = new XMLParser();
+  const parser = new XMLParser({ htmlEntities: true });
   let allItems: any[] = [];
   const errors: string[] = [];
+  const sourceStats = { yahoo: 0, marketbeat: 0 };
 
   for (const feedUrl of feeds) {
+    const startTime = Date.now();
     try {
       const response = await fetch(feedUrl);
       if (!response.ok) {
-        throw new Error(`Failed to fetch ${feedUrl}: ${response.statusText}`);
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       const xml = await response.text();
       const feed = parser.parse(xml);
+      
       if (feed.rss && feed.rss.channel && feed.rss.channel.item) {
-        allItems = allItems.concat(feed.rss.channel.item);
+        const items = Array.isArray(feed.rss.channel.item) 
+          ? feed.rss.channel.item 
+          : [feed.rss.channel.item];
+        
+        const isMB = isMarketBeatFeed(feedUrl);
+        
+        const enrichedItems = items.map((item: any) => ({
+          ...item,
+          source: isMB ? 'marketbeat' : 'yahoo',
+          explicitTickers: isMB ? parseCategories(item) : [],
+        }));
+
+        allItems = allItems.concat(enrichedItems);
+        
+        if (isMB) {
+          sourceStats.marketbeat += enrichedItems.length;
+        } else {
+          sourceStats.yahoo += enrichedItems.length;
+        }
       }
     } catch (error) {
-      if (error instanceof Error) {
-        errors.push(`Failed to process feed ${feedUrl}: ${error.message}`);
-      } else {
-        errors.push(`Failed to process feed ${feedUrl}: Unknown error`);
-      }
+      const duration = Date.now() - startTime;
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      const domain = new URL(feedUrl).hostname;
+      
+      logger.error('Feed fetch failed', { 
+        feedUrl, 
+        domain,
+        durationMs: duration,
+        error: errorMsg 
+      });
+      errors.push(`Failed to process feed ${feedUrl}: ${errorMsg}`);
     }
   }
 
+  // Deduplicate by guid, fallback to link
+  const seenGuids = new Set<string>();
+  const initialCount = allItems.length;
+  allItems = allItems.filter(item => {
+    const id = item.guid?._text ?? item.guid ?? item.link ?? '';
+    if (seenGuids.has(id)) return false;
+    seenGuids.add(id);
+    return true;
+  });
+
   if (allItems.length === 0 && errors.length > 0) {
-    return NextResponse.json({ message: 'All feeds failed to load.', errors: errors });
+    return NextResponse.json({ message: 'All feeds failed to load.', errors: errors }, { status: 502 });
   }
 
+  // Sort by pubDate descending
   allItems.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
+
+  // Log summary breakdown
+  logger.info('DeepMoney news fetch summary', {
+    ...sourceStats,
+    total: allItems.length,
+    deduped: initialCount - allItems.length,
+    errorCount: errors.length
+  });
+
+  // Check for MarketBeat staleness (AC-07)
+  const mbItems = allItems.filter(i => i.source === 'marketbeat');
+  if (mbItems.length > 0) {
+    const latestMB = new Date(mbItems[0].pubDate).getTime();
+    const stalenessMs = Date.now() - latestMB;
+    if (stalenessMs > 24 * 60 * 60 * 1000) {
+      logger.warn('MarketBeat feed staleness detected', { 
+        stalenessHours: (stalenessMs / (3600 * 1000)).toFixed(1) 
+      });
+    }
+  }
 
   return NextResponse.json({
     items: allItems,

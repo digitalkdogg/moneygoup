@@ -109,6 +109,16 @@ export const SCREENER_THRESHOLDS = {
 /** Base URL for per-ticker Yahoo Finance RSS headline feeds */
 export const COMPANY_FEED_BASE_URL = 'https://feeds.finance.yahoo.com/rss/2.0/headline?s=';
 
+/** MarketBeat editorial RSS feed — analyst-written, ticker-tagged articles */
+export const MARKETBEAT_FEED_URL = 'https://www.marketbeat.com/feed/';
+
+/**
+ * Sentiment weight multiplier for MarketBeat articles.
+ * Not wired in v1 — document now, implement in v2 once baseline scoring is measured.
+ * Suggested range: 1.1–1.3 (analyst-written copy has higher signal than wire headlines).
+ */
+export const MARKETBEAT_SENTIMENT_WEIGHT = 1.2;
+
 /**
  * Maximum number of qualifying Pass-1 tickers we will fetch company-level
  * feeds for.  Keeps total outbound calls bounded (~15 feeds + ~25 enrichments).
