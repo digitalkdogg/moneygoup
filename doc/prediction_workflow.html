@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoneyGoUp Prediction Workflow</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1e40af;
+            --success: #15803d;
+            --warning: #b45309;
+            --bg: #f8fafc;
+            --text: #1e293b;
+            --code-bg: #1e293b;
+            --code-text: #f8fafc;
+            --border: #e2e8f0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background-color: var(--bg);
+            margin: 0;
+            display: flex;
+        }
+        aside {
+            width: 300px;
+            height: 100vh;
+            background: white;
+            border-right: 1px solid var(--border);
+            position: fixed;
+            padding: 2rem;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+        main {
+            margin-left: 300px;
+            padding: 3rem;
+            max-width: 1000px;
+            width: 100%;
+        }
+        h1 { color: var(--primary-dark); border-bottom: 2px solid var(--primary); padding-bottom: 0.5rem; }
+        h2 { color: var(--primary); margin-top: 3rem; display: flex; align-items: center; }
+        h2 span { background: var(--primary); color: white; border-radius: 50%; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; margin-right: 1rem; font-size: 1.1rem; }
+        
+        .step-card {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .component-tag {
+            font-size: 0.75rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            background: #f1f5f9;
+            color: #64748b;
+            margin-bottom: 0.5rem;
+            display: inline-block;
+        }
+        .flow-arrow {
+            text-align: center;
+            font-size: 2rem;
+            color: var(--border);
+            margin: -0.5rem 0;
+        }
+        code {
+            background: #f1f5f9;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-family: ui-monospace, SFMono-Regular, monospace;
+            font-size: 0.9rem;
+        }
+        pre {
+            background: var(--code-bg);
+            color: var(--code-text);
+            padding: 1.2rem;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+        .highlight-box {
+            background: #eff6ff;
+            border-left: 4px solid var(--primary);
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        .nav-link {
+            display: block;
+            padding: 0.6rem 0;
+            color: #64748b;
+            text-decoration: none;
+            font-size: 0.95rem;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .nav-link:hover { color: var(--primary); }
+    </style>
+</head>
+<body>
+    <aside>
+        <h2 style="font-size: 1.2rem; margin-top: 0; border: none;">Workflow Map</h2>
+        <nav>
+            <a href="#step1" class="nav-link">1. User Interaction (UI)</a>
+            <a href="#step2" class="nav-link">2. Data Assembly (Node.js)</a>
+            <a href="#step3" class="nav-link">3. Orchestration (API)</a>
+            <a href="#step4" class="nav-link">4. Feature Engineering (Python)</a>
+            <a href="#step5" class="nav-link">5. MC Inference (TensorFlow)</a>
+            <a href="#step6" class="nav-link">6. Signal Weighting (Final)</a>
+        </nav>
+    </aside>
+
+    <main>
+        <h1>AI Prediction Workflow</h1>
+        <p>This document details the complete end-to-end execution path when a user triggers a price prediction from the Stock Search page.</p>
+
+        <section id="step1">
+            <h2><span>1</span> User Interaction</h2>
+            <div class="step-card">
+                <div class="component-tag">Frontend Component: StockPrediction.tsx</div>
+                <p>The workflow begins when the user clicks <strong>"Generate AI Prediction"</strong> on the stock detail page.</p>
+                <ul>
+                    <li><strong>Inputs:</strong> The component already holds the <code>technicalScore</code> (from Technical Indicators section) and recent <code>newsArticles</code>.</li>
+                    <li><strong>State Change:</strong> UI enters <code>fetching</code> status, showing a progress spinner.</li>
+                </ul>
+            </div>
+        </section>
+
+        <div class="flow-arrow">↓</div>
+
+        <section id="step2">
+            <h2><span>2</span> Enriched Data Assembly</h2>
+            <div class="step-card">
+                <div class="component-tag">Backend Utility: GET /api/stock/[ticker]/data</div>
+                <p>Before predicting, the frontend requests a "Data Payload". This API acts as a high-speed aggregator:</p>
+                <ul>
+                    <li><strong>Historical:</strong> Fetches 5 years of OHLCV data (~1,260 trading days).</li>
+                    <li><strong>Macro:</strong> Parallel fetch of VIX (Volatility Index) and 10Y Treasury Yields.</li>
+                    <li><strong>Sector:</strong> Fetches historical data for the stock's corresponding sector ETF (e.g., XLK for Tech).</li>
+                    <li><strong>Imputation:</strong> If fundamental metrics like PE Ratio are missing, it uses sector-median values.</li>
+                </ul>
+                <div class="highlight-box">
+                    <strong>Why?</strong> The AI model requires consistent, multi-dimensional data. Standardizing it in Node.js keeps the Python script focused solely on math.
+                </div>
+            </div>
+        </section>
+
+        <div class="flow-arrow">↓</div>
+
+        <section id="step3">
+            <h2><span>3</span> Prediction Orchestration</h2>
+            <div class="step-card">
+                <div class="component-tag">Backend Handler: POST /api/stock/[ticker]/predict/tensorflow</div>
+                <p>The frontend merges the assembly data with the user's real-time signals and sends it to the main prediction endpoint.</p>
+                <ul>
+                    <li><strong>Rate Limiting:</strong> Checks a 30-second cooldown per User+Ticker.</li>
+                    <li><strong>Concurrency:</strong> Uses a <code>Semaphore</code> to limit active Python processes (preventing CPU spikes).</li>
+                    <li><strong>Bridging:</strong> Node.js writes the entire payload to a secure temp file and spawns the Python child process.</li>
+                </ul>
+            </div>
+        </section>
+
+        <div class="flow-arrow">↓</div>
+
+        <section id="step4">
+            <h2><span>4</span> Feature Engineering</h2>
+            <div class="step-card">
+                <div class="component-tag">Python Engine: predict_weighted_analysis.py</div>
+                <p>The script loads the pre-trained MLP model and transforms the raw JSON into tensors:</p>
+                <ul>
+                    <li><strong>Lag Features:</strong> Creates rolling windows (t-5, t-10, t-20) for price and volume.</li>
+                    <li><strong>Sentiment:</strong> Aggregates sentiment scores for the last 10 news articles.</li>
+                    <li><strong>Normalization:</strong> Scales all features using <code>StandardScaler</code> to match training distributions.</li>
+                </ul>
+            </div>
+        </section>
+
+        <div class="flow-arrow">↓</div>
+
+        <section id="step5">
+            <h2><span>5</span> Monte Carlo Inference</h2>
+            <div class="step-card">
+                <div class="component-tag">Model: mlp_dual_horizon_v3.h5 (TensorFlow)</div>
+                <p>Instead of a single "guess," the model performs <strong>50 randomized passes</strong> (MC Dropout):</p>
+                <ul>
+                    <li>The model predicts both 6-month and 12-month targets simultaneously.</li>
+                    <li>Gaussian noise is added to the input sequence proportional to recent volatility.</li>
+                    <li><strong>Trajectory:</strong> It builds an 18-month curve by interpolating between the current price and the statistical means of the 50 MC runs.</li>
+                </ul>
+            </div>
+        </section>
+
+        <div class="flow-arrow">↓</div>
+
+        <section id="step6">
+            <h2><span>6</span> Signal Weighting & Final Output</h2>
+            <div class="step-card">
+                <div class="component-tag">Adjustment Logic: metric_analysis()</div>
+                <p>The pure AI result is "nudged" by high-level market heuristics:</p>
+                <ul>
+                    <li><strong>Trend Check:</strong> Stocks in a clear uptrend receive a <strong>+2.0%</strong> bonus.</li>
+                    <li><strong>Technical Influence:</strong> The <code>technicalScore</code> (-14 to +14) is applied at a rate of <strong>0.25% per point</strong>.</li>
+                    <li><strong>Impact Limit:</strong> The combined influence from technical signals is capped at +/- 3.5%.</li>
+                </ul>
+                <div class="highlight-box" style="background: #f0fdf4; border-color: var(--success);">
+                    <strong>Example:</strong> If the model predicts $100 but the Technical Signal is "Strong Buy" (+14), the final output is adjusted to $103.50.
+                </div>
+                <pre><code>{
+  "ticker": "NVDA",
+  "predicted_price_6m": 145.20,
+  "confidence_score_6m": 88,
+  "monthly_trajectory": [...],
+  "metric_analysis": {
+    "external_indicator_score": {
+      "value": 10,
+      "impact": 0.025
+    }
+  }
+}</code></pre>
+            </div>
+        </section>
+
+        <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem;">
+            MoneyGoUp Intelligence System &copy; 2026
+        </footer>
+    </main>
+</body>
+</html>

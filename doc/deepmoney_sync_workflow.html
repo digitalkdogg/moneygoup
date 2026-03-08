@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeepMoney Sync Workflow</title>
+    <style>
+        :root {
+            --primary: #7c3aed;
+            --primary-dark: #5b21b6;
+            --success: #15803d;
+            --warning: #b45309;
+            --bg: #f8fafc;
+            --text: #1e293b;
+            --code-bg: #1e293b;
+            --code-text: #f8fafc;
+            --border: #e2e8f0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background-color: var(--bg);
+            margin: 0;
+            display: flex;
+        }
+        aside {
+            width: 300px;
+            height: 100vh;
+            background: white;
+            border-right: 1px solid var(--border);
+            position: fixed;
+            padding: 2rem;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+        main {
+            margin-left: 300px;
+            padding: 3rem;
+            max-width: 1000px;
+            width: 100%;
+        }
+        h1 { color: var(--primary-dark); border-bottom: 2px solid var(--primary); padding-bottom: 0.5rem; }
+        h2 { color: var(--primary); margin-top: 3rem; display: flex; align-items: center; }
+        h2 span { background: var(--primary); color: white; border-radius: 50%; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; margin-right: 1rem; font-size: 1.1rem; }
+        
+        .step-card {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .component-tag {
+            font-size: 0.75rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            background: #f1f5f9;
+            color: #64748b;
+            margin-bottom: 0.5rem;
+            display: inline-block;
+        }
+        .flow-arrow {
+            text-align: center;
+            font-size: 2rem;
+            color: var(--border);
+            margin: -0.5rem 0;
+        }
+        code {
+            background: #f1f5f9;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-family: ui-monospace, SFMono-Regular, monospace;
+            font-size: 0.9rem;
+        }
+        pre {
+            background: var(--code-bg);
+            color: var(--code-text);
+            padding: 1.2rem;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+        .highlight-box {
+            background: #f5f3ff;
+            border-left: 4px solid var(--primary);
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        .nav-link {
+            display: block;
+            padding: 0.6rem 0;
+            color: #64748b;
+            text-decoration: none;
+            font-size: 0.95rem;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .nav-link:hover { color: var(--primary); }
+    </style>
+</head>
+<body>
+    <aside>
+        <h2 style="font-size: 1.2rem; margin-top: 0; border: none;">DeepMoney Sync</h2>
+        <nav>
+            <a href="#step1" class="nav-link">1. Automation Trigger</a>
+            <a href="#step2" class="nav-link">2. API Authorization</a>
+            <a href="#step3" class="nav-link">3. News & NLP Stage</a>
+            <a href="#step4" class="nav-link">4. Discovery & Deep Scan</a>
+            <a href="#step5" class="nav-link">5. GPS Scoring Model</a>
+            <a href="#step6" class="nav-link">6. Persistence Layer</a>
+        </nav>
+    </aside>
+
+    <main>
+        <h1>DeepMoney Analysis Workflow</h1>
+        <p>This workflow describes the background sync process that generates the "Hot Stocks" and "Trending AI Sectors" displayed on the user dashboard.</p>
+
+        <section id="step1">
+            <h2><span>1</span> Automation Trigger</h2>
+            <div class="step-card">
+                <div class="component-tag">Python Script: deepmoney_sync.py</div>
+                <p>The process starts via a scheduled task (likely cron) executing the sync script.</p>
+                <ul>
+                    <li><strong>Environment:</strong> Loads <code>DEEPMONEY_INTERNAL_SECRET</code> and DB credentials from <code>.env.production</code>.</li>
+                    <li><strong>Action:</strong> Initiates an outbound HTTP GET request to the local API.</li>
+                </ul>
+            </div>
+        </section>
+
+        <div class="flow-arrow">↓</div>
+
+        <section id="step2">
+            <h2><span>2</span> API Authorization</h2>
+            <div class="step-card">
+                <div class="component-tag">Endpoint: GET /api/deepmoney</div>
+                <p>The API validates the internal handshake:</p>
+                <ul>
+                    <li><strong>RBAC:</strong> If no user session is present, it requires an <code>x-api-key</code> matching the internal secret.</li>
+                    <li><strong>Cache Bypass:</strong> While browser users hit a 30-minute cache, the sync script typically forces a fresh analysis if cache is empty or expired.</li>
+                </ul>
+            </div>
+        </section>
+
+        <div class="flow-arrow">↓</div>
+
+        <section id="step3">
+            <h2><span>3</span> News Aggregation & NLP</h2>
+            <div class="step-card">
+                <div class="component-tag">Service: getNews.ts & Stage 1 Analysis</div>
+                <p>The system aggregates and processes financial intelligence in real-time:</p>
+                <ul>
+                    <li><strong>Feeds:</strong> Fetches from Yahoo Finance, MarketBeat, The Street, and Motley Fool.</li>
+                    <li><strong>Fast-Path Tickers:</strong> Uses explicit XML tags from MarketBeat/Fool to resolve tickers instantly.</li>
+                    <li><strong>NLP Path:</strong> Uses <code>compromise</code> (NLP) to extract organizations from Yahoo/TheStreet headlines.</li>
+                    <li><strong>Sentiment:</strong> Scores every headline to calculate <code>avgSentiment</code> per ticker and industry.</li>
+                </ul>
+            </div>
+        </section>
+
+        <div class="flow-arrow">↓</div>
+
+        <section id="step4">
+            <h2><span>4</span> Multi-Stage Discovery</h2>
+            <div class="step-card">
+                <div class="component-tag">Stage 2 & 2.5 Analysis</div>
+                <p>The system expands its search beyond the headlines:</p>
+                <ul>
+                    <li><strong>Screeners:</strong> Hits Yahoo Finance screeners for <code>growth_technology_stocks</code> and <code>undervalued_growth_stocks</code>.</li>
+                    <li><strong>Deep Scan (Pass 2):</strong> For the top-mentioned tickers, the system fetches their <em>specific</em> company feeds to find co-mentioned peers.</li>
+                    <li><strong>Discovery Sources:</strong> Tickers are tagged with their origin (e.g., <code>screener+keyword</code> or <code>company_feed</code>).</li>
+                </ul>
+            </div>
+        </section>
+
+        <div class="flow-arrow">↓</div>
+
+        <section id="step5">
+            <h2><span>5</span> GPS Scoring Model</h2>
+            <div class="step-card">
+                <div class="component-tag">Logic: enrichAndScore()</div>
+                <p>Every candidate is put through a rigorous weighted scoring algorithm (0-100):</p>
+                <div class="highlight-box">
+                    <strong>Weights:</strong> Analyst Upside (30%), Revenue Growth (20%), EPS Growth (15%), Momentum (15%), Mentions (10%), News Sentiment (10%).
+                </div>
+                <ul>
+                    <li><strong>Hard Gates:</strong> Discards stocks with price > $300 or Market Cap outside $300M - $2T range.</li>
+                    <li><strong>AI Bonus:</strong> Extra points for High R&D spend, small-cap status, or AI-taxonomy keyword density.</li>
+                    <li><strong>ETF Discovery:</strong> Final "Hot Stocks" are correlated with thematic ETFs (e.g., BOTZ, SOXX).</li>
+                </ul>
+            </div>
+        </section>
+
+        <div class="flow-arrow">↓</div>
+
+        <section id="step6">
+            <h2><span>6</span> Persistence Layer</h2>
+            <div class="step-card">
+                <div class="component-tag">Database: MySQL (recommended_stocks, hot_etfs)</div>
+                <p>The sync script receives the final JSON and commits it to the database:</p>
+                <ul>
+                    <li><strong>Atomic Refresh:</strong> Clears existing <code>recommended_stocks</code> and <code>recommended_markets</code> to ensure data freshness.</li>
+                    <li><strong>Upsert:</strong> Performs a bulk <code>INSERT ... ON DUPLICATE KEY UPDATE</code> for Stocks, AI Sectors, and ETFs.</li>
+                    <li><strong>Result:</strong> The User Dashboard now shows the new analysis without triggering heavy API calls.</li>
+                </ul>
+            </div>
+        </section>
+
+        <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem;">
+            MoneyGoUp DeepMoney Analytics &copy; 2026
+        </footer>
+    </main>
+</body>
+</html>
