@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoneyGoUp Technical Indicators Guide</title>
+    <style>
+        :root {
+            --primary: #0369a1;
+            --primary-dark: #075985;
+            --buy: #15803d;
+            --sell: #b91c1c;
+            --hold: #64748b;
+            --bg: #f8fafc;
+            --text: #1e293b;
+            --border: #e2e8f0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background-color: var(--bg);
+            margin: 0;
+            display: flex;
+        }
+        aside {
+            width: 300px;
+            height: 100vh;
+            background: white;
+            border-right: 1px solid var(--border);
+            position: fixed;
+            padding: 2rem;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+        main {
+            margin-left: 300px;
+            padding: 3rem;
+            max-width: 1000px;
+            width: 100%;
+        }
+        h1 { color: var(--primary-dark); border-bottom: 2px solid var(--primary); padding-bottom: 0.5rem; }
+        h2 { color: var(--primary); margin-top: 3rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+        
+        .metric-card {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .score-badge {
+            display: inline-block;
+            padding: 0.2rem 0.8rem;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            margin-left: 1rem;
+        }
+        .weight-positive { background: #dcfce7; color: #166534; }
+        .weight-negative { background: #fee2e2; color: #991b1b; }
+        
+        .formula {
+            background: #f1f5f9;
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: "Courier New", Courier, monospace;
+            font-size: 0.95rem;
+            color: #334155;
+            margin: 1rem 0;
+            border-left: 4px solid var(--primary);
+        }
+        .nav-link {
+            display: block;
+            padding: 0.6rem 0;
+            color: #64748b;
+            text-decoration: none;
+            font-size: 0.95rem;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .nav-link:hover { color: var(--primary); }
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 2rem 0;
+        }
+        .summary-table th, .summary-table td {
+            text-align: left;
+            padding: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+        .summary-table th { background: #f8fafc; color: #64748b; font-size: 0.8rem; text-transform: uppercase; }
+    </style>
+</head>
+<body>
+    <aside>
+        <h2 style="font-size: 1.2rem; margin-top: 0; border: none;">Indicator Map</h2>
+        <nav>
+            <a href="#overview" class="nav-link">Scoring Overview</a>
+            <a href="#sma" class="nav-link">Moving Averages (SMA)</a>
+            <a href="#rsi" class="nav-link">Relative Strength Index (RSI)</a>
+            <a href="#momentum" class="nav-link">Momentum & Trends</a>
+            <a href="#fundamentals" class="nav-link">Fundamental Valuation</a>
+            <a href="#news" class="nav-link">Sentiment Analysis</a>
+        </nav>
+    </aside>
+
+    <main>
+        <h1>Technical Indicators & Signals</h1>
+        <p>This guide explains how the "Trading Signal" is calculated on the Stock Search page. The total score is a weighted sum of technical, fundamental, and sentiment metrics.</p>
+
+        <section id="overview">
+            <h2>Scoring Methodology</h2>
+            <p>The total score typically ranges from <strong>-14 to +14</strong>. This score is then mapped to a recommendation:</p>
+            <table class="summary-table">
+                <thead>
+                    <tr>
+                        <th>Score Range</th>
+                        <th>Signal</th>
+                        <th>Color</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Score &ge; 8</td>
+                        <td>Strong Buy</td>
+                        <td style="color: var(--buy); font-weight: bold;">Green</td>
+                    </tr>
+                    <tr>
+                        <td>3 &le; Score < 8</td>
+                        <td>Buy</td>
+                        <td style="color: var(--buy);">Light Green</td>
+                    </tr>
+                    <tr>
+                        <td>-2 < Score < 3</td>
+                        <td>Hold</td>
+                        <td style="color: var(--hold);">Gray</td>
+                    </tr>
+                    <tr>
+                        <td>-7 < Score &le; -2</td>
+                        <td>Sell</td>
+                        <td style="color: var(--sell);">Orange</td>
+                    </tr>
+                    <tr>
+                        <td>Score &le; -7</td>
+                        <td>Strong Sell</td>
+                        <td style="color: var(--sell); font-weight: bold;">Red</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section id="sma">
+            <h2>Moving Averages (SMA)</h2>
+            <div class="metric-card">
+                <h3>SMA 20/50 Crossover <span class="score-badge weight-positive">+2 / -2</span></h3>
+                <p>Measures the relationship between short-term and medium-term price trends.</p>
+                <div class="formula">
+                    SMA(n) = (Price_1 + Price_2 + ... + Price_n) / n
+                </div>
+                <ul>
+                    <li><strong>Bullish (+2):</strong> Current Price > SMA20 AND SMA20 > SMA50.</li>
+                    <li><strong>Bearish (-2):</strong> Current Price < SMA20 AND SMA20 < SMA50.</li>
+                </ul>
+            </div>
+        </section>
+
+        <section id="rsi">
+            <h2>Relative Strength Index (RSI)</h2>
+            <div class="metric-card">
+                <h3>RSI (14-Day) <span class="score-badge weight-positive">+2 / -2</span></h3>
+                <p>A momentum oscillator that measures the speed and change of price movements.</p>
+                <div class="formula">
+                    RSI = 100 - [100 / (1 + (Avg Gain / Avg Loss))]
+                </div>
+                <ul>
+                    <li><strong>Oversold (+2):</strong> RSI < 30 (Suggests the stock is undervalued or due for a bounce).</li>
+                    <li><strong>Overbought (-2):</strong> RSI > 70 (Suggests the stock is overextended or due for a pullback).</li>
+                    <li><strong>Neutral (0):</strong> RSI between 30 and 70.</li>
+                </ul>
+            </div>
+        </section>
+
+        <section id="momentum">
+            <h2>Momentum & Trends</h2>
+            <div class="metric-card">
+                <h3>Price Momentum <span class="score-badge weight-positive">+2 / -2</span></h3>
+                <p>Calculates the rate of change in price over the last 10 trading days.</p>
+                <div class="formula">
+                    Momentum = (Current Price / Price 10 Days Ago) - 1
+                </div>
+                <ul>
+                    <li><strong>Positive (+2):</strong> Momentum > 2% (Recent strong upward move).</li>
+                    <li><strong>Negative (-2):</strong> Momentum < -2% (Recent strong downward move).</li>
+                </ul>
+            </div>
+
+            <div class="metric-card">
+                <h3>Volumetric Trend <span class="score-badge weight-positive">+1 / -1</span></h3>
+                <p>Compares current volume to the 3-month average to confirm trend strength.</p>
+                <ul>
+                    <li><strong>Bullish Confirmation (+1):</strong> Price is UP and Volume > 1.2x Average.</li>
+                    <li><strong>Bearish Confirmation (-1):</strong> Price is DOWN and Volume > 1.2x Average.</li>
+                </ul>
+            </div>
+        </section>
+
+        <section id="fundamentals">
+            <h2>Fundamental Valuation</h2>
+            <div class="metric-card">
+                <h3>P/E Ratio Relative <span class="score-badge weight-positive">+2 / -2</span></h3>
+                <p>Evaluates the stock's valuation relative to its 5-year historical average.</p>
+                <ul>
+                    <li><strong>Value (+2):</strong> Current P/E < 80% of 5yr Mean.</li>
+                    <li><strong>Expensive (-2):</strong> Current P/E > 120% of 5yr Mean.</li>
+                </ul>
+            </div>
+
+            <div class="metric-card">
+                <h3>Market Cap Multiplier <span class="score-badge weight-positive">+1 / 0</span></h3>
+                <p>Small and Mid-cap stocks receive a minor volatility bonus if trending positively.</p>
+                <ul>
+                    <li><strong>Growth Bonus (+1):</strong> Market Cap < $10B AND Trend is Bullish.</li>
+                </ul>
+            </div>
+        </section>
+
+        <section id="news">
+            <h2>Sentiment Analysis</h2>
+            <div class="metric-card">
+                <h3>News Sentiment <span class="score-badge weight-positive">+2 / -2</span></h3>
+                <p>Analyzes the last 20 headlines for positive/negative keywords (NLP).</p>
+                <div class="formula">
+                    Sentiment = (Positive Mentions - Negative Mentions) / Total Mentions
+                </div>
+                <ul>
+                    <li><strong>Bullish News (+2):</strong> Sentiment Score > 0.4.</li>
+                    <li><strong>Bearish News (-2):</strong> Sentiment Score < -0.4.</li>
+                </ul>
+            </div>
+        </section>
+
+        <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem;">
+            MoneyGoUp Financial Engine &copy; 2026
+        </footer>
+    </main>
+</body>
+</html>
