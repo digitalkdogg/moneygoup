@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoneyGoUp API Documentation</title>
+    <style>
+        :root {
+            --primary: #15803d;
+            --primary-dark: #166534;
+            --bg: #f8fafc;
+            --text: #1e293b;
+            --code-bg: #1e293b;
+            --code-text: #f8fafc;
+            --border: #e2e8f0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background-color: var(--bg);
+            margin: 0;
+            display: flex;
+        }
+        aside {
+            width: 280px;
+            height: 100vh;
+            background: white;
+            border-right: 1px solid var(--border);
+            position: fixed;
+            padding: 2rem;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+        main {
+            margin-left: 280px;
+            padding: 3rem;
+            max-width: 900px;
+            width: 100%;
+        }
+        h1 { color: var(--primary-dark); border-bottom: 2px solid var(--primary); padding-bottom: 0.5rem; }
+        h2 { color: var(--primary); margin-top: 3rem; border-bottom: 1px solid var(--border); }
+        h3 { color: #334155; margin-top: 2rem; background: #f1f5f9; padding: 0.5rem 1rem; border-radius: 6px; }
+        .method {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.85rem;
+            margin-right: 0.5rem;
+            text-transform: uppercase;
+        }
+        .get { background: #dcfce7; color: #166534; }
+        .post { background: #dbeafe; color: #1e40af; }
+        .patch { background: #fef3c7; color: #92400e; }
+        .put { background: #e0f2fe; color: #0369a1; }
+        .delete { background: #fee2e2; color: #991b1b; }
+        
+        ul { list-style: none; padding-left: 0; }
+        li { margin-bottom: 0.5rem; }
+        .flow li { position: relative; padding-left: 1.5rem; }
+        .flow li::before { content: "→"; position: absolute; left: 0; color: var(--primary); }
+        
+        code {
+            background: #f1f5f9;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 0.9rem;
+        }
+        pre {
+            background: var(--code-bg);
+            color: var(--code-text);
+            padding: 1.5rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 1rem 0;
+        }
+        pre code { background: transparent; padding: 0; color: inherit; }
+        
+        .nav-link {
+            display: block;
+            padding: 0.5rem 0;
+            color: #64748b;
+            text-decoration: none;
+            font-size: 0.95rem;
+        }
+        .nav-link:hover { color: var(--primary); }
+        .nav-header {
+            font-weight: bold;
+            color: var(--text);
+            margin-top: 1.5rem;
+            display: block;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 0.05em;
+        }
+        @media (max-width: 768px) {
+            aside { display: none; }
+            main { margin-left: 0; padding: 1.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <aside>
+        <h2 style="font-size: 1.2rem; margin-top: 0; border: none;">MoneyGoUp API</h2>
+        <nav>
+            <span class="nav-header">Stock Data</span>
+            <a href="#stock-ticker" class="nav-link">GET /stock/[ticker]</a>
+            <a href="#stock-industry" class="nav-link">GET /stock/[ticker]/industry</a>
+            <a href="#stock-historical" class="nav-link">GET /stock/[ticker]/historical</a>
+            <a href="#stock-earnings" class="nav-link">GET /stock/[ticker]/earnings</a>
+            <a href="#stock-news" class="nav-link">GET /stock/[ticker]/news</a>
+            <a href="#stock-data-enriched" class="nav-link">GET /stock/[ticker]/data</a>
+            
+            <span class="nav-header">Prediction</span>
+            <a href="#prediction" class="nav-link">POST /stock/predict</a>
+            
+            <span class="nav-header">DeepMoney & Dashboard</span>
+            <a href="#deepmoney" class="nav-link">GET /deepmoney</a>
+            <a href="#dashboard" class="nav-link">GET /dashboard</a>
+            <a href="#dashboard-on" class="nav-link">GET /dashboard/on</a>
+            <a href="#dashboard-picks" class="nav-link">Dashboard Lists</a>
+            
+            <span class="nav-header">User Data</span>
+            <a href="#watchlist" class="nav-link">Watchlist APIs</a>
+            <a href="#portfolio" class="nav-link">Portfolio APIs</a>
+            <a href="#trades" class="nav-link">Trade APIs</a>
+            
+            <span class="nav-header">Auth & Utility</span>
+            <a href="#auth" class="nav-link">Auth APIs</a>
+            <a href="#utility" class="nav-link">Utility APIs</a>
+        </nav>
+    </aside>
+
+    <main>
+        <h1>API Documentation</h1>
+        <p>Comprehensive overview of MoneyGoUp API endpoints, logic flows, and testing coverage.</p>
+
+        <section id="stock-data">
+            <h2>1. Stock Data & Analysis</h2>
+            
+            <div id="stock-ticker">
+                <h3><span class="method get">GET</span> /api/stock/[ticker]</h3>
+                <p>Consolidated data hub for stock analysis.</p>
+                <strong>Logic Flow:</strong>
+                <ul class="flow">
+                    <li>Validates ticker(s).</li>
+                    <li>Parallel internal calls to <code>/historical</code> and <code>/news</code>.</li>
+                    <li>Fetches real-time quote/metadata from Yahoo & SEC.</li>
+                    <li>Calculates Technical Indicators (SMA, RSI, Momentum).</li>
+                </ul>
+                <p><strong>Associated Tests:</strong> <code>api_stock_ticker.test.ts</code>, <code>technicalIndicators.test.ts</code></p>
+            </div>
+
+            <div id="stock-industry">
+                <h3><span class="method get">GET</span> /api/stock/[ticker]/industry</h3>
+                <p>Retrieves industry comparisons and peer performance.</p>
+                <p><strong>Associated Tests:</strong> <code>api_stock_ticker_industry.test.ts</code></p>
+            </div>
+
+            <div id="stock-historical">
+                <h3><span class="method get">GET</span> /api/stock/[ticker]/historical/[period]</h3>
+                <p>Fetches historical OHLCV data.</p>
+                <strong>Logic Flow:</strong>
+                <ul class="flow">
+                    <li>Supports periods: 1d, 5d, 1mo, 3mo, 6mo, 1y, 5y, max.</li>
+                    <li>If <code>source=dashboard</code>, reads from Local DB.</li>
+                    <li>Default: Fetches from Yahoo Finance.</li>
+                </ul>
+            </div>
+
+            <div id="stock-earnings">
+                <h3><span class="method get">GET</span> /api/stock/[ticker]/earnings</h3>
+                <p>Retrieves upcoming and historical quarterly earnings data (EPS, Revenue).</p>
+                <strong>Logic Flow:</strong>
+                <ul class="flow">
+                    <li>Calls Yahoo Finance <code>quoteSummary</code> with <code>earnings</code> module.</li>
+                    <li>Normalizes quarterly EPS and financials into a combined timeline.</li>
+                </ul>
+            </div>
+
+            <div id="stock-news">
+                <h3><span class="method get">GET</span> /api/stock/[ticker]/news</h3>
+                <p>Fetches filtered news articles for specific tickers.</p>
+                <strong>Logic Flow:</strong>
+                <ul class="flow">
+                    <li>Fetches Yahoo Finance RSS feed.</li>
+                    <li>Filters articles based on ticker and company name keywords.</li>
+                    <li>Performs sentiment analysis on titles.</li>
+                </ul>
+            </div>
+
+            <div id="stock-data-enriched">
+                <h3><span class="method get">GET</span> /api/stock/[ticker]/data</h3>
+                <p><strong>Internal:</strong> Assembles the complete 5-year data payload for the Prediction Engine.</p>
+                <strong>Logic Flow:</strong>
+                <ul class="flow">
+                    <li>Fetches 5 years of OHLCV data.</li>
+                    <li>Fetches macro series: VIX, 10Y Treasury, and Sector ETFs.</li>
+                    <li>Imputes missing fundamental data using sector medians.</li>
+                    <li>Caches result for 5 minutes.</li>
+                </ul>
+            </div>
+        </section>
+
+        <section id="prediction">
+            <h2>2. Prediction Engine</h2>
+            <div>
+                <h3><span class="method post">POST</span> /api/stock/[ticker]/predict/tensorflow</h3>
+                <p>Generates an AI price prediction using a local MLP neural network.</p>
+                <strong>Logic Flow:</strong>
+                <ul class="flow">
+                    <li>Enforces 30s rate limit per ticker.</li>
+                    <li>Spawns <code>predict_weighted_analysis.py</code>.</li>
+                    <li>Applies 50% weighted influence from technical signals.</li>
+                </ul>
+                <p><strong>Associated Tests:</strong> <code>stockPrediction.test.ts</code>, <code>predictionQueue.test.ts</code></p>
+            </div>
+        </section>
+
+        <section id="deepmoney">
+            <h2>3. DeepMoney & Dashboard</h2>
+            <div>
+                <h3><span class="method get">GET</span> /api/deepmoney</h3>
+                <p>Premium market-wide sentiment analysis.</p>
+                <ul class="flow">
+                    <li>Aggregates Yahoo, MarketBeat, The Street, and Motley Fool.</li>
+                    <li>Discovers "Hot Stocks" via GPS (Global Prediction Score).</li>
+                </ul>
+            </div>
+
+            <div id="dashboard">
+                <h3><span class="method get">GET</span> /api/dashboard</h3>
+                <p>User-specific performance summary and holdings signals.</p>
+                <p><strong>Associated Tests:</strong> <code>api_dashboard.test.ts</code></p>
+            </div>
+
+            <div id="dashboard-on">
+                <h3><span class="method get">GET</span> /api/dashboard/on?ticker=[TICKER]</h3>
+                <p>Quick check to see if a ticker exists in user's watchlist or portfolio.</p>
+                <strong>Logic Flow:</strong>
+                <ul class="flow">
+                    <li>Queries <code>user_stocks</code> for specific ticker.</li>
+                    <li>Returns boolean flags: <code>onWatchlist</code>, <code>onPortfolio</code>.</li>
+                </ul>
+            </div>
+
+            <div id="dashboard-picks">
+                <h3>Dashboard Discovery APIs</h3>
+                <ul>
+                    <li><code>GET /api/dashboard/deepmoney-picks</code>: Latest AI-generated picks from DB.</li>
+                    <li><code>GET /api/dashboard/recommended-stocks</code>: Real-time discovery (Momentum, Breakouts).</li>
+                    <li><code>GET /api/dashboard/undervalued-large-caps</code>: Screener-based value plays.</li>
+                </ul>
+            </div>
+        </section>
+
+        <section id="watchlist">
+            <h2>4. User Portfolio & Watchlist</h2>
+            <div>
+                <h3>Watchlist Management</h3>
+                <ul>
+                    <li><span class="method get">GET</span> <code>/api/user/watchlist</code>: Fetch watchlist with 6mo MA.</li>
+                    <li><span class="method post">POST</span> <code>/api/user/watchlist</code>: Add ticker to watch.</li>
+                    <li><span class="method delete">DELETE</span> <code>/api/user/watchlist?stockId=[ticker]</code>: Remove from watch.</li>
+                </ul>
+                <p><strong>Associated Tests:</strong> <code>api_user_stocks.test.ts</code></p>
+            </div>
+
+            <div id="portfolio">
+                <h3>Portfolio Tracking</h3>
+                <ul>
+                    <li><span class="method get">GET</span> <code>/api/user/portfolio</code>: Active positions with real-time P&L.</li>
+                </ul>
+                <p><strong>Associated Tests:</strong> <code>api_user_portfolio.test.ts</code></p>
+            </div>
+
+            <div id="trades">
+                <h3>Trade Operations</h3>
+                <ul>
+                    <li><span class="method post">POST</span> <code>/api/user/stocks</code>: Log initial purchase.</li>
+                    <li><span class="method patch">PATCH</span> <code>/api/user/stocks/[id]</code>: Update shares (buy/sell).</li>
+                    <li><span class="method put">PUT</span> <code>/api/user/stocks/[id]</code>: "Sell All" (Moves position back to watchlist).</li>
+                </ul>
+                <p><strong>Associated Tests:</strong> <code>api_user_stocks.test.ts</code></p>
+            </div>
+        </section>
+
+        <section id="auth">
+            <h2>5. Authentication</h2>
+            <div>
+                <h3><span class="method post">POST</span> /api/auth/register</h3>
+                <p>Creates new user account.</p>
+                <p><strong>Associated Tests:</strong> <code>api_auth_register.test.ts</code></p>
+            </div>
+        </section>
+
+        <section id="utility">
+            <h2>6. Utility APIs</h2>
+            <div>
+                <h3><span class="method get">GET</span> /api/cache-stats</h3>
+                <p><strong>Admin:</strong> View cache utilization and memory pressure.</p>
+                <p><strong>Associated Tests:</strong> <code>cache.test.ts</code></p>
+            </div>
+        </section>
+
+        <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem;">
+            MoneyGoUp API Documentation &copy; 2026
+        </footer>
+    </main>
+
+    <script>
+        document.querySelectorAll('.nav-link').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                document.querySelector(this.getAttribute('href')).scrollIntoView({
+                    behavior: 'smooth'
+                });
+            });
+        });
+    </script>
+</body>
+</html>
