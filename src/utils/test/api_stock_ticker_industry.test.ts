@@ -1,4 +1,4 @@
-import { GET } from '@/app/api/stock/[ticker]/industry/route'; // Adjusted import path
+import { GET } from '@/app/api/stock_data/[ticker]/industry/route'; // Adjusted import path
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { checkOrigin } from '@/utils/originCheck';
@@ -8,7 +8,7 @@ import { categorizeByTaxonomy, getCategoryStrategy, getCategoryKeywords } from '
 
 // Mock Next.js and utility functions
 jest.mock('next/server', () => ({
-  NextRequest: jest.fn(() => ({ url: 'http://localhost/api/stock/some_ticker/industry' })), // Mock NextRequest constructor
+  NextRequest: jest.fn(() => ({ url: 'http://localhost/api/stock_data/some_ticker/industry' })), // Mock NextRequest constructor
   NextResponse: {
     json: jest.fn((data, options) => ({
       json: () => Promise.resolve(data),
@@ -78,7 +78,7 @@ describe('Industry Search API', () => {
     (getServerSession as jest.Mock).mockResolvedValue(null);
     (checkOrigin as jest.Mock).mockReturnValue(null);
 
-    const request = new NextRequest('http://localhost/api/stock/some_ticker/industry');
+    const request = new NextRequest('http://localhost/api/stock_data/some_ticker/industry');
     const response = await GET(request, { params: { ticker: 'some_ticker' } });
 
     expect(getServerSession).toHaveBeenCalled();
@@ -93,7 +93,7 @@ describe('Industry Search API', () => {
       json: () => Promise.resolve({ message: 'Invalid Origin' })
     });
 
-    const request = new NextRequest('http://localhost/api/stock/some_ticker/industry');
+    const request = new NextRequest('http://localhost/api/stock_data/some_ticker/industry');
     const response = await GET(request, { params: { ticker: 'some_ticker' } });
 
     expect(checkOrigin).toHaveBeenCalledWith(request);
@@ -155,7 +155,7 @@ describe('Industry Search API', () => {
       },
     ]);
 
-    const request = new NextRequest('http://localhost/api/stock/technology/industry');
+    const request = new NextRequest('http://localhost/api/stock_data/technology/industry');
     const response = await GET(request, { params: { ticker: 'technology' } });
 
     expect(response.status).toBe(200);
@@ -183,7 +183,7 @@ describe('Industry Search API', () => {
       }],
     });
 
-    const request = new NextRequest('http://localhost/api/stock/nonexistent/industry');
+    const request = new NextRequest('http://localhost/api/stock_data/nonexistent/industry');
     const response = await GET(request, { params: { ticker: 'nonexistent' } });
 
     expect(response.status).toBe(200);
@@ -226,7 +226,7 @@ describe('Industry Search API', () => {
       },
     ]);
 
-    const request = new NextRequest('http://localhost/api/stock/apple/industry');
+    const request = new NextRequest('http://localhost/api/stock_data/apple/industry');
     const response = await GET(request, { params: { ticker: 'apple' } });
 
     expect(response.status).toBe(200);
@@ -245,7 +245,7 @@ describe('Industry Search API', () => {
     const mockError = new Error('Yahoo Finance search failed');
     (yahooFinance.search as jest.Mock).mockRejectedValue(mockError);
 
-    const request = new NextRequest('http://localhost/api/stock/error_ticker/industry');
+    const request = new NextRequest('http://localhost/api/stock_data/error_ticker/industry');
     const response = await GET(request, { params: { ticker: 'error_ticker' } });
 
     expect(response.status).toBe(500);

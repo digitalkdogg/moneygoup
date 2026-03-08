@@ -34,7 +34,7 @@ export default function IndustryStocks({ ticker }: IndustryStocksProps) {
         setLoading(true);
         setError(null);
         // Correct API path
-        const response = await fetch(`/api/stock/${ticker}/industry`);
+        const response = await fetch(`/api/stock_data/${ticker}/industry`);
         
         if (!response.ok) {
           const errorData = await response.json();

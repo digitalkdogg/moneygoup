@@ -1,4 +1,4 @@
-// GET /api/stock/[ticker]/data
+// GET /api/stock_data/[ticker]/data
 // Fetches the enriched 5-year data payload used by the LSTM prediction pipeline.
 // All data is gathered here (Next.js side) so predict_weighted_analysis.py
 // receives a pre-assembled payload and never makes outbound network calls.

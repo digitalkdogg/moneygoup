@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { GET } from '@/app/api/stock/[ticker]/route';
+import { GET } from '@/app/api/stock_data/[ticker]/route';
 import { getServerSession } from 'next-auth';
 import { checkOrigin } from '@/utils/originCheck';
 import { checkRateLimit } from '@/utils/rateLimitMiddleware';
@@ -23,7 +23,7 @@ jest.mock('@/utils/logger', () => ({
 // Mock global fetch
 global.fetch = jest.fn();
 
-describe('GET /api/stock/[ticker]', () => {
+describe('GET /api/stock_data/[ticker]', () => {
   let mockRequest: any;
 
   beforeEach(() => {
@@ -34,7 +34,7 @@ describe('GET /api/stock/[ticker]', () => {
 
     mockRequest = {
       headers: new Headers(),
-      nextUrl: new URL('http://localhost/api/stock/AAPL'),
+      nextUrl: new URL('http://localhost/api/stock_data/AAPL'),
     } as unknown as NextRequest;
   });
 
@@ -76,7 +76,15 @@ describe('GET /api/stock/[ticker]', () => {
       .mockResolvedValueOnce({
         ok: true,
         json: jest.fn().mockResolvedValue({ articles: { AAPL: [{ sentiment_score: 0.5, pub_date: '2023-01-01' }] } }),
-      }); // News
+      }) // News
+      .mockResolvedValueOnce({
+        ok: true,
+        json: jest.fn().mockResolvedValue({ "0": { ticker: "AAPL", title: "Apple Inc." } }),
+      }) // SEC
+      .mockResolvedValueOnce({
+        ok: true,
+        json: jest.fn().mockResolvedValue({ historicalEarnings: [] }),
+      }); // Earnings
 
     (calculateTechnicalIndicators as jest.Mock).mockReturnValue({ signal: 'BUY' });
 

@@ -20,7 +20,7 @@ CLI:
     python3 predict_weighted_analysis.py <ticker> --input_file <path>
 
 Input (from file):
-    JSON payload as produced by GET /api/stock/[ticker]/data
+    JSON payload as produced by GET /api/stock_data/[ticker]/data
 
 Output (stdout):
     JSON prediction result (see OUTPUT SCHEMA at bottom of file)

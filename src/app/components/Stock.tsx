@@ -169,31 +169,40 @@ export default function Stock({
         }
       }
 
-      // 2. Fetch consolidated data from /api/stock/{ticker}/get (supports multiple tickers)
+      // 2. Fetch consolidated data from /api/stock_data/{ticker}/get (supports multiple tickers)
       try {
-        // Fetch data for each ticker from /api/stock/{ticker}/get
+        // Fetch data for each ticker from /api/stock_data/{ticker}/get
         const fetchPromises = tickerArray.map(async (t) => {
           try {
-            const res = await fetch(`/api/stock/${t}`)
-            if (res.ok) {
-              const data = await res.json()
+            const response = await fetch(`/api/stock_data/${t}`)
+
+            if (response.ok) {
+              const data = await response.json()
+              console.log(`[DEBUG] Raw API response for ${t}:`, data);
+              // If we are in a map loop over tickerArray, and the API returns a keyed object, use data[t]
+              // If it returns the consolidated object directly (single ticker), use data.
+              const consolidated = data[t] || data;
+              console.log(`[DEBUG] Consolidated data for ${t}:`, consolidated);
               return {
                 ticker: t,
-                stock: data.stock || {},
-                news: data.news || {},
-                historical: data.historical || {},
-                indicators: data.indicators || null
+                stock: consolidated.stock || { error: 'Missing stock data' },
+                news: consolidated.news || { articles: [] },
+                historical: consolidated.historical || { historicalData: [] },
+                indicators: consolidated.indicators || null,
+                earnings: consolidated.earnings || null
               }
             } else {
               throw new Error(`Failed to fetch ${t}`)
             }
           } catch (err) {
+            logger.error(`Error fetching data for ${t}:`, { error: err instanceof Error ? err.message : String(err) })
             return {
               ticker: t,
               stock: { error: 'Failed to fetch' },
-              news: { articles: {} },
-              historical: { historicalData: {} },
-              indicators: null
+              news: { articles: [] },
+              historical: { historicalData: [] },
+              indicators: null,
+              earnings: null
             }
           }
         })
@@ -203,87 +212,54 @@ export default function Stock({
         
         results.forEach(result => {
           dataMap[result.ticker] = {
-            stock: result.stock,
-            news: result.news,
-            historical: result.historical,
-            indicators: result.indicators,
-            earnings: null // Initialize earnings to null here
+            stock: result.stock || { error: 'Missing stock data' },
+            news: result.news || { articles: [] },
+            historical: result.historical || { historicalData: [] },
+            indicators: result.indicators || null,
+            earnings: result.earnings || null
           }
         })
         
+        console.log('[DEBUG] Final dataMap keys:', Object.keys(dataMap));
+        console.log('[DEBUG] Primary Ticker:', primaryTicker);
         setStockDataMap(dataMap)
         setApiError(null)
 
-        // Fetch earnings data separately if single ticker
+        // Set earningsData for the single ticker view
         if (isSingleTicker) {
-          try {
-            const earningsRes = await fetch(`/api/stock/${primaryTicker}/earnings`);
-            if (earningsRes.ok) {
-              const earnings = await earningsRes.json();
-              setEarningsData(earnings);
-            } else {
-              logger.error('Failed to fetch earnings data for single ticker');
+          const mainEarnings = results[0]?.earnings;
+          if (mainEarnings) {
+            setEarningsData(mainEarnings);
+          } else {
+            // Fallback fetch for earnings if not in consolidated
+            try {
+              const earningsRes = await fetch(`/api/stock_data/${primaryTicker}/earnings`);
+              if (earningsRes.ok) {
+                const earnings = await earningsRes.json();
+                setEarningsData(earnings);
+              }
+            } catch (err) {
+              logger.warn('Manual earnings fetch fallback failed', { error: err instanceof Error ? err.message : String(err) });
             }
-          } catch (err) {
-            const error = err instanceof Error ? err : new Error(String(err));
-            logger.error('Error fetching earnings data for single ticker:', error);
           }
         }
       } catch (err: unknown) {
-        // Fallback: call individual endpoints
-        logger.warn('Consolidated endpoint failed, falling back to individual endpoints')
-        const dataMap: Record<string, ConsolidatedStockData> = {}
-
-        for (const t of tickerArray) {
-          try {
-            const [stockRes, newsRes, histRes, earningsRes] = await Promise.all([
-              fetch(`/api/stock/${t}`),
-              fetch(`/api/stock/${t}/news`),
-              fetch(`/api/stock/${t}/historical/1y`),
-              fetch(`/api/stock/${t}/earnings`) // Fetch earnings data
-            ])
-
-            const stock = stockRes.ok ? await stockRes.json() : {}
-            const newsJson = newsRes.ok ? await newsRes.json() : {}
-            const histJson = histRes.ok ? await histRes.json() : {}
-            const earningsJson = earningsRes.ok ? await earningsRes.json() : null // Fetch earnings
-
-            // Handle array response from quote endpoint
-            const stockData = Array.isArray(stock) ? stock[0] : stock
-
-            // Extract news articles for this ticker
-            const newsArticles = newsJson.articles?.[t] || newsJson.articles || []
-
-            // Extract historical data for this ticker
-            const historicalData = histJson.historicalData?.[t] || histJson.historicalData || []
-
-            dataMap[t] = {
-              stock: stockData || { error: 'Failed to fetch stock data' },
-              news: { articles: newsArticles, source: newsJson.source },
-              historical: { historicalData, source: histJson.source },
-              indicators: null, // Would need to calculate if needed
-              earnings: earningsJson // Include earnings data
-            }
-          } catch (tickerErr: unknown) {
-            const e = tickerErr instanceof Error ? tickerErr : new Error(String(tickerErr))
-            logger.error(`Failed to fetch data for ${t}:`, e)
-            dataMap[t] = {
-              stock: { error: 'Network error' },
-              news: { articles: [] },
-              historical: { historicalData: [] },
-              indicators: null,
-              earnings: null
-            }
-          }
-        }
-
-        setStockDataMap(dataMap)
+        const error = err instanceof Error ? err : new Error('Failed to process stock data');
+        logger.error('Stock data processing failed:', { error: error.message });
+        
+        setApiError({
+          type: 'stock',
+          ticker: primaryTicker,
+          message: 'Network error while fetching stock data',
+          details: error.message,
+          failedServices: ['API'],
+        })
       }
     } catch (err: unknown) {
       const error =
         err instanceof Error ? err : new Error('Network connection failed')
 
-      logger.error('Stock fetch failed:', error)
+      logger.error('Stock fetch failed:', { error: error.message })
 
       setApiError({
         type: 'stock',
@@ -414,6 +390,7 @@ export default function Stock({
     
     const indicators = data.indicators
 
+    // currentPrice should prefer last, then close, then 0
     const currentPrice = stockData?.last || stockData?.close || 0
 
     return (

@@ -141,7 +141,7 @@
             <h2>1. Stock Data & Analysis</h2>
             
             <div id="stock-ticker">
-                <h3><span class="method get">GET</span> /api/stock/[ticker]</h3>
+                <h3><span class="method get">GET</span> /api/stock_data/[ticker]</h3>
                 <p>Consolidated data hub for stock analysis.</p>
                 <strong>Logic Flow:</strong>
                 <ul class="flow">
@@ -154,13 +154,13 @@
             </div>
 
             <div id="stock-industry">
-                <h3><span class="method get">GET</span> /api/stock/[ticker]/industry</h3>
+                <h3><span class="method get">GET</span> /api/stock_data/[ticker]/industry</h3>
                 <p>Retrieves industry comparisons and peer performance.</p>
                 <p><strong>Associated Tests:</strong> <code>api_stock_ticker_industry.test.ts</code></p>
             </div>
 
             <div id="stock-historical">
-                <h3><span class="method get">GET</span> /api/stock/[ticker]/historical/[period]</h3>
+                <h3><span class="method get">GET</span> /api/stock_data/[ticker]/historical/[period]</h3>
                 <p>Fetches historical OHLCV data.</p>
                 <strong>Logic Flow:</strong>
                 <ul class="flow">
@@ -171,7 +171,7 @@
             </div>
 
             <div id="stock-earnings">
-                <h3><span class="method get">GET</span> /api/stock/[ticker]/earnings</h3>
+                <h3><span class="method get">GET</span> /api/stock_data/[ticker]/earnings</h3>
                 <p>Retrieves upcoming and historical quarterly earnings data (EPS, Revenue).</p>
                 <strong>Logic Flow:</strong>
                 <ul class="flow">
@@ -181,7 +181,7 @@
             </div>
 
             <div id="stock-news">
-                <h3><span class="method get">GET</span> /api/stock/[ticker]/news</h3>
+                <h3><span class="method get">GET</span> /api/stock_data/[ticker]/news</h3>
                 <p>Fetches filtered news articles for specific tickers.</p>
                 <strong>Logic Flow:</strong>
                 <ul class="flow">
@@ -192,7 +192,7 @@
             </div>
 
             <div id="stock-data-enriched">
-                <h3><span class="method get">GET</span> /api/stock/[ticker]/data</h3>
+                <h3><span class="method get">GET</span> /api/stock_data/[ticker]/data</h3>
                 <p><strong>Internal:</strong> Assembles the complete 5-year data payload for the Prediction Engine.</p>
                 <strong>Logic Flow:</strong>
                 <ul class="flow">
@@ -207,7 +207,7 @@
         <section id="prediction">
             <h2>2. Prediction Engine</h2>
             <div>
-                <h3><span class="method post">POST</span> /api/stock/[ticker]/predict/tensorflow</h3>
+                <h3><span class="method post">POST</span> /api/prediction/[ticker]</h3>
                 <p>Generates an AI price prediction using a local MLP neural network.</p>
                 <strong>Logic Flow:</strong>
                 <ul class="flow">

@@ -1,4 +1,4 @@
-// src/app/api/stock/[ticker]/predict/tensorflow/route.ts
+// src/app/api/prediction/[ticker]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -15,7 +15,7 @@ import { tickerSchema } from '@/utils/validationSchemas';
 import { z } from 'zod';
 import { getClientIP } from '@/utils/rateLimitMiddleware';
 
-const logger = createLogger('api/stock/predict/tensorflow');
+const logger = createLogger('api/prediction');
 
 // ---------------------------------------------------------------------------
 // Rate-limiting: track the last prediction time per user+ticker combination.

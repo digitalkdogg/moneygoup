@@ -200,8 +200,8 @@
   <!-- OVERVIEW -->
   <div class="section" id="overview">
     <div class="kv-grid">
-      <div class="kv"><div class="lbl">API Endpoint</div><div class="val" style="font-size:0.78rem; font-family:monospace;">POST /api/stock/[ticker]/predict/tensorflow</div></div>
-      <div class="kv"><div class="lbl">Example URL</div><div class="val" style="font-size:0.76rem; font-family:monospace;">localhost:3001/api/stock/NU/predict/tensorflow</div></div>
+      <div class="kv"><div class="lbl">API Endpoint</div><div class="val" style="font-size:0.78rem; font-family:monospace;">POST /api/prediction/[ticker]</div></div>
+      <div class="kv"><div class="lbl">Example URL</div><div class="val" style="font-size:0.76rem; font-family:monospace;">localhost:3001/api/prediction/NU</div></div>
       <div class="kv"><div class="lbl">Model Type</div><div class="val">MLP Regressor</div></div>
       <div class="kv"><div class="lbl">Architecture</div><div class="val">128 → 64 → 32</div></div>
       <div class="kv"><div class="lbl">Prediction Horizons</div><div class="val">6 months &amp; 1 year</div></div>
@@ -228,7 +228,7 @@
         <div class="sys-arr"><svg width="36" height="24" viewBox="0 0 36 24"><path d="M2 12h28M22 6l8 6-8 6" stroke="#94a3b8" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
         <div class="sys-stage">
           <div class="sys-box api">🌐 Next.js API<small>route.ts · POST handler</small></div>
-          <div class="sys-lbl"><code style="font-size:0.63rem;">/api/stock/[ticker]/predict/tensorflow</code></div>
+          <div class="sys-lbl"><code style="font-size:0.63rem;">/api/prediction/[ticker]</code></div>
         </div>
         <div class="sys-arr"><svg width="36" height="24" viewBox="0 0 36 24"><path d="M2 12h28M22 6l8 6-8 6" stroke="#94a3b8" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
         <div class="sys-stage">
@@ -260,7 +260,7 @@
     <div class="card" style="margin-bottom:18px;">
       <div style="margin-bottom:12px;">
         <span style="background:#dbeafe; color:#1e3a8a; font-weight:700; padding:3px 10px; border-radius:4px; font-size:0.77rem; font-family:monospace; margin-right:10px;">POST</span>
-        <code style="font-size:0.9rem;">http://localhost:3001/api/stock/{ticker}/predict/tensorflow</code>
+        <code style="font-size:0.9rem;">http://localhost:3001/api/prediction/{ticker}</code>
       </div>
       <div style="font-size:0.84rem; color:var(--muted);">Accepts a JSON body with historical price data, stock metrics, macro data, news articles, and earnings history. Returns a full prediction result including 6m/1y price targets, an 18-month trajectory with uncertainty bounds, confidence scores, and technical indicator analysis.</div>
     </div>

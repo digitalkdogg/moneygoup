@@ -134,7 +134,7 @@
         <section id="step2">
             <h2><span>2</span> Enriched Data Assembly</h2>
             <div class="step-card">
-                <div class="component-tag">Backend Utility: GET /api/stock/[ticker]/data</div>
+                <div class="component-tag">Backend Utility: GET /api/stock_data/[ticker]/data</div>
                 <p>Before predicting, the frontend requests a "Data Payload". This API acts as a high-speed aggregator:</p>
                 <ul>
                     <li><strong>Historical:</strong> Fetches 5 years of OHLCV data (~1,260 trading days).</li>
@@ -153,7 +153,7 @@
         <section id="step3">
             <h2><span>3</span> Prediction Orchestration</h2>
             <div class="step-card">
-                <div class="component-tag">Backend Handler: POST /api/stock/[ticker]/predict/tensorflow</div>
+                <div class="component-tag">Backend Handler: POST /api/prediction/[ticker]</div>
                 <p>The frontend merges the assembly data with the user's real-time signals and sends it to the main prediction endpoint.</p>
                 <ul>
                     <li><strong>Rate Limiting:</strong> Checks a 30-second cooldown per User+Ticker.</li>

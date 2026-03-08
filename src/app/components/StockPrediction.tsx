@@ -280,7 +280,7 @@ export default function StockPrediction({
     setStep('fetching')
     let dataPayload: any
     try {
-      const res = await fetch(`/api/stock/${ticker}/data`)
+      const res = await fetch(`/api/stock_data/${ticker}/data`)
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         throw new Error(body.message || `Data fetch failed (${res.status})`)
@@ -307,7 +307,7 @@ export default function StockPrediction({
             : (historicalEarnings ?? []),
       }
 
-      const res = await fetch(`/api/stock/${ticker}/predict/tensorflow`, {
+      const res = await fetch(`/api/prediction/${ticker}`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify(payload),

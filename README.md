@@ -129,11 +129,11 @@ The application exposes various API endpoints to interact with stock data, user 
 *   `GET /api/deepmoney/news`: Fetches market news or news specifically processed for "DeepMoney" insights.
 
 ### Stock Data
-*   `GET /api/stock/[ticker]`: Retrieves comprehensive general information for a specified stock ticker.
-*   `GET /api/stock/[ticker]/historical/[period]`: Accesses historical price and volume data for a given stock ticker over a defined period (e.g., "max", "1y", "5y").
-*   `GET /api/stock/[ticker]/news`: Fetches recent news articles pertinent to the specified stock ticker.
-*   `GET /api/stock/[ticker]/predict/tensorflow`: Provides stock price predictions leveraging a TensorFlow-based machine learning model (or an API route for such models).
-*   `GET /api/stock/quote/[ticker]`: Retrieves real-time or near real-time quote data for a specified stock ticker.
+*   `GET /api/stock_data/[ticker]`: Retrieves comprehensive general information for a specified stock ticker.
+*   `GET /api/stock_data/[ticker]/historical/[period]`: Accesses historical price and volume data for a given stock ticker over a defined period (e.g., "max", "1y", "5y").
+*   `GET /api/stock_data/[ticker]/news`: Fetches recent news articles pertinent to the specified stock ticker.
+*   `GET /api/prediction/[ticker]`: Provides stock price predictions leveraging a TensorFlow-based machine learning model (or an API route for such models).
+*   `GET /api/stock_data/quote/[ticker]`: Retrieves real-time or near real-time quote data for a specified stock ticker.
 
 ### User Management
 *   `GET /api/user/stocks`: Lists all stocks currently being tracked by the authenticated user.

@@ -285,20 +285,25 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
 
   try {
     // 1. Fetch historical data for all tickers in a single call
-    const histAllTickersPromise = fetch(`${origin}/api/stock/${validatedTicker}/historical/1y`, { headers: { 'Cookie': request.headers.get('Cookie') || '' } });
+    const histAllTickersPromise = fetch(`${origin}/api/stock_data/${validatedTicker}/historical/1y`, { headers: { 'Cookie': request.headers.get('Cookie') || '' } });
     const histAllTickersRes = await histAllTickersPromise;
     const histAllTickersJson = histAllTickersRes.ok ? await histAllTickersRes.json() : { historicalData: {}, error: `Failed to fetch historical for all tickers: ${histAllTickersRes.status}` };
 
     // 2. Fetch news data for all tickers in a single call
-    const newsAllTickersPromise = fetch(`${origin}/api/stock/${validatedTicker}/news`, { headers: { 'Cookie': request.headers.get('Cookie') || '' } });
+    const newsAllTickersPromise = fetch(`${origin}/api/stock_data/${validatedTicker}/news`, { headers: { 'Cookie': request.headers.get('Cookie') || '' } });
     const newsAllTickersRes = await newsAllTickersPromise;
     const newsAllTickersJson = newsAllTickersRes.ok ? await newsAllTickersRes.json() : { articles: {}, error: `Failed to fetch news for all tickers: ${newsAllTickersRes.status}` };
+
+    // 3. Fetch earnings data for all tickers in a single call (if possible, else we'll loop)
+    // There is no batch earnings endpoint currently, so we'll fetch them in the map below.
 
     // Fetch data for all tickers in parallel
     const fetchPromises = tickerArray.map(async (ticker) => {
       try {
         const stockDataArray = await fetchFromExternalAPIs(ticker)
-        // Removed individual newsPromise and histPromise, now handled by combined fetches above
+        
+        // Fetch earnings for this ticker
+        const earningsPromise = fetch(`${origin}/api/stock_data/${ticker}/earnings`, { headers: { 'Cookie': request.headers.get('Cookie') || '' } });
 
         // stockDataArray is already an array from fetchFromExternalAPIs, get the first element for single ticker
         const stockData = (stockDataArray && stockDataArray.length > 0) ? stockDataArray[0] : { error: 'Failed to fetch stock' };
@@ -318,6 +323,8 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
           error: histAllTickersJson.error
         };
 
+        const earningsRes = await earningsPromise;
+        const earningsJson = earningsRes.ok ? await earningsRes.json() : null;
 
         // Calculate indicators if all data is available
         let indicators = null;
@@ -337,14 +344,20 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
 
         return {
           ticker,
-          stock: stockJson,
-          news: newsJson,
-          historical: histJson,
-          indicators
+          stock: stockJson || { error: 'Missing stock data' },
+          news: newsJson || { articles: [] },
+          historical: histJson || { historicalData: [] },
+          indicators: indicators || null,
+          earnings: earningsJson || null
         };
       } catch (error) {
         return {
           ticker,
+          stock: { error: 'Failed to fetch' },
+          news: { articles: [] },
+          historical: { historicalData: [] },
+          indicators: null,
+          earnings: null,
           error: `Failed to fetch data for ${ticker}`,
           details: error instanceof Error ? error.message : String(error)
         };
@@ -362,6 +375,7 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
         news: result.news,
         historical: result.historical,
         indicators: result.indicators,
+        earnings: result.earnings,
         ...(result.error && { error: result.error, details: result.details })
       });
     } else {
@@ -373,6 +387,7 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
           news: result.news,
           historical: result.historical,
           indicators: result.indicators,
+          earnings: result.earnings,
           ...(result.error && { error: result.error, details: result.details })
         };
       });
