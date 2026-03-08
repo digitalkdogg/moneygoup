@@ -112,12 +112,21 @@ export const COMPANY_FEED_BASE_URL = 'https://feeds.finance.yahoo.com/rss/2.0/he
 /** MarketBeat editorial RSS feed — analyst-written, ticker-tagged articles */
 export const MARKETBEAT_FEED_URL = 'https://www.marketbeat.com/feed/';
 
+/** The Street RSS feed — editorial financial news */
+export const THESTREET_FEED_URL = 'https://www.thestreet.com/.rss/feed/a4a58455-5a41-4dfa-899c-86c49b653ed8.xml';
+
 /**
  * Sentiment weight multiplier for MarketBeat articles.
  * Not wired in v1 — document now, implement in v2 once baseline scoring is measured.
  * Suggested range: 1.1–1.3 (analyst-written copy has higher signal than wire headlines).
  */
 export const MARKETBEAT_SENTIMENT_WEIGHT = 1.2;
+
+/**
+ * Sentiment weight multiplier for The Street articles.
+ * Suggested range: 1.1–1.2.
+ */
+export const THESTREET_SENTIMENT_WEIGHT = 1.1;
 
 /**
  * Maximum number of qualifying Pass-1 tickers we will fetch company-level

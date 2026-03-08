@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { XMLParser } from 'fast-xml-parser';
-import { MARKETBEAT_FEED_URL } from './config';
+import { MARKETBEAT_FEED_URL, THESTREET_FEED_URL } from './config';
 import { createLogger } from '@/utils/logger';
 
 const logger = createLogger('api/deepmoney/getNews');
@@ -9,11 +9,15 @@ const feeds = [
   'https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EDJI',
   'https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EGSPC',
   'https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EIXIC',
-  MARKETBEAT_FEED_URL
+  MARKETBEAT_FEED_URL,
+  THESTREET_FEED_URL
 ];
 
 const isMarketBeatFeed = (feedUrl: string): boolean =>
   feedUrl.includes('marketbeat.com');
+
+const isTheStreetFeed = (feedUrl: string): boolean =>
+  feedUrl.includes('thestreet.com');
 
 const parseCategories = (item: any): string[] => {
   const raw = item.category;
@@ -28,7 +32,7 @@ export async function getNews() {
   const parser = new XMLParser({ htmlEntities: true });
   let allItems: any[] = [];
   const errors: string[] = [];
-  const sourceStats = { yahoo: 0, marketbeat: 0 };
+  const sourceStats = { yahoo: 0, marketbeat: 0, thestreet: 0 };
 
   for (const feedUrl of feeds) {
     const startTime = Date.now();
@@ -46,10 +50,11 @@ export async function getNews() {
           : [feed.rss.channel.item];
         
         const isMB = isMarketBeatFeed(feedUrl);
+        const isTST = isTheStreetFeed(feedUrl);
         
         const enrichedItems = items.map((item: any) => ({
           ...item,
-          source: isMB ? 'marketbeat' : 'yahoo',
+          source: isMB ? 'marketbeat' : (isTST ? 'thestreet' : 'yahoo'),
           explicitTickers: isMB ? parseCategories(item) : [],
         }));
 
@@ -57,6 +62,8 @@ export async function getNews() {
         
         if (isMB) {
           sourceStats.marketbeat += enrichedItems.length;
+        } else if (isTST) {
+          sourceStats.thestreet += enrichedItems.length;
         } else {
           sourceStats.yahoo += enrichedItems.length;
         }
@@ -101,17 +108,24 @@ export async function getNews() {
     errorCount: errors.length
   });
 
-  // Check for MarketBeat staleness (AC-07)
+  // Check for feed staleness (AC-07)
   const mbItems = allItems.filter(i => i.source === 'marketbeat');
-  if (mbItems.length > 0) {
-    const latestMB = new Date(mbItems[0].pubDate).getTime();
-    const stalenessMs = Date.now() - latestMB;
-    if (stalenessMs > 24 * 60 * 60 * 1000) {
-      logger.warn('MarketBeat feed staleness detected', { 
-        stalenessHours: (stalenessMs / (3600 * 1000)).toFixed(1) 
-      });
+  const tstItems = allItems.filter(i => i.source === 'thestreet');
+
+  [
+    { name: 'MarketBeat', items: mbItems },
+    { name: 'TheStreet', items: tstItems }
+  ].forEach(feed => {
+    if (feed.items.length > 0) {
+      const latest = new Date(feed.items[0].pubDate).getTime();
+      const stalenessMs = Date.now() - latest;
+      if (stalenessMs > 24 * 60 * 60 * 1000) {
+        logger.warn(`${feed.name} feed staleness detected`, { 
+          stalenessHours: (stalenessMs / (3600 * 1000)).toFixed(1) 
+        });
+      }
     }
-  }
+  });
 
   return NextResponse.json({
     items: allItems,
