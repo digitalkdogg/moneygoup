@@ -17,7 +17,7 @@ DB_PASSWORD = os.getenv('DB_PASSWORD')
 DB_DATABASE = os.getenv('DB_DATABASE')
 INTERNAL_SECRET = os.getenv('DEEPMONEY_INTERNAL_SECRET')
 NEXTAUTH_URL = os.getenv('NEXTAUTH_URL', 'http://localhost:3001')
-API_URL = f"{NEXTAUTH_URL}/api/deepmoney"
+API_URL = f"{NEXTAUTH_URL}/api/prediction/deepmoney"
 
 def sync_deepmoney():
     print(f"[{datetime.now()}] Starting DeepMoney sync...")

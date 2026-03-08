@@ -1,9 +1,8 @@
-import { NextResponse } from 'next/server';
 import { XMLParser } from 'fast-xml-parser';
 import { MARKETBEAT_FEED_URL, THESTREET_FEED_URL, MOTLEYFOOL_FEED_URL } from './config';
 import { createLogger } from '@/utils/logger';
 
-const logger = createLogger('api/deepmoney/getNews');
+const logger = createLogger('api/prediction/deepmoney/getNews');
 
 const feeds = [
   'https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EDJI',
@@ -105,7 +104,7 @@ export async function getNews() {
   });
 
   if (allItems.length === 0 && errors.length > 0) {
-    return NextResponse.json({ message: 'All feeds failed to load.', errors: errors }, { status: 502 });
+    throw new Error(`All feeds failed to load: ${errors.join('; ')}`);
   }
 
   // Sort by pubDate descending
@@ -140,8 +139,8 @@ export async function getNews() {
     }
   });
 
-  return NextResponse.json({
+  return {
     items: allItems,
     errors: errors.length > 0 ? errors : undefined,
-  });
+  };
 }

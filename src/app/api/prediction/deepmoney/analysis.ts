@@ -3,7 +3,7 @@ import Sentiment from 'sentiment';
 import { getNews } from './getNews';
 import { fetchYahooStockSummary, getYahooScreener } from '@/utils/yahooFinanceHelper';
 import { performETFDiscovery } from '@/utils/etfDiscovery';
-import watchlist from '@/../../public/ai_tech_watchlist.json';
+import watchlist from '@/../public/ai_tech_watchlist.json';
 import {
   AI_TECH_TAXONOMY,
   BROAD_INDUSTRIES,
@@ -242,8 +242,7 @@ export async function performDeepAnalysis() {
   // -------------------------------------------------------------------------
   // Stage 1: News Analysis — index-level RSS feeds
   // -------------------------------------------------------------------------
-  const newsResponse = await getNews();
-  const newsData = await newsResponse.json();
+  const newsData = await getNews();
   const articles = newsData.items || [];
 
   const tickerMentions: { [key: string]: TickerMention } = {};

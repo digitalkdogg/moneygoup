@@ -11,7 +11,7 @@ import {
   ETF_GPS_BONUS,
   ETF_GPS_THRESHOLD,
   THEME_TO_SUB_SECTORS
-} from '../app/api/deepmoney/config';
+} from '../app/api/prediction/deepmoney/config';
 
 const logger = createLogger('utils/etfDiscovery');
 

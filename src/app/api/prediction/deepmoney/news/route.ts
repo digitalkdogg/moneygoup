@@ -1,4 +1,4 @@
-// src/app/api/deepmoney/news/route.ts
+// src/app/api/prediction/deepmoney/news/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -6,10 +6,10 @@ import { checkOrigin } from '@/utils/originCheck';
 import { unauthorizedResponse } from '@/utils/errorResponse';
 import { createLogger } from '@/utils/logger';
 
-const logger = createLogger('api/deepmoney/news');
+const logger = createLogger('api/prediction/deepmoney/news');
 
 // ---------------------------------------------------------------------------
-// GET /api/deepmoney/news
+// GET /api/prediction/deepmoney/news
 //
 // Returns parsed RSS news items for the requested ticker or topic.
 // Protected: requires a valid session and a same-origin request.

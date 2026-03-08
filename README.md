@@ -125,8 +125,8 @@ The application exposes various API endpoints to interact with stock data, user 
 *   `GET /api/dashboard/undervalued-large-caps`: Identifies and lists undervalued large-capitalization stocks.
 
 ### Deep Money (AI/ML Insights)
-*   `GET /api/deepmoney`: Main endpoint for AI/ML-driven insights, potentially offering advanced analytics.
-*   `GET /api/deepmoney/news`: Fetches market news or news specifically processed for "DeepMoney" insights.
+*   `GET /api/prediction/deepmoney`: Main endpoint for AI/ML-driven insights, potentially offering advanced analytics.
+*   `GET /api/prediction/deepmoney/news`: Fetches market news or news specifically processed for "DeepMoney" insights.
 
 ### Stock Data
 *   `GET /api/stock_data/[ticker]`: Retrieves comprehensive general information for a specified stock ticker.

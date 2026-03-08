@@ -115,10 +115,10 @@
             
             <span class="nav-header">Prediction</span>
             <a href="#prediction" class="nav-link">POST /stock/predict</a>
-            
-            <span class="nav-header">DeepMoney & Dashboard</span>
             <a href="#deepmoney" class="nav-link">GET /deepmoney</a>
-            <a href="#dashboard" class="nav-link">GET /dashboard</a>
+            
+            <span class="nav-header">Dashboard</span>
+            <a href="#dashboard1" class="nav-link">GET /dashboard</a>
             <a href="#dashboard-on" class="nav-link">GET /dashboard/on</a>
             <a href="#dashboard-picks" class="nav-link">Dashboard Lists</a>
             
@@ -204,9 +204,9 @@
             </div>
         </section>
 
-        <section id="prediction">
+        <section>
             <h2>2. Prediction Engine</h2>
-            <div>
+            <div id="prediction">
                 <h3><span class="method post">POST</span> /api/prediction/[ticker]</h3>
                 <p>Generates an AI price prediction using a local MLP neural network.</p>
                 <strong>Logic Flow:</strong>
@@ -217,20 +217,19 @@
                 </ul>
                 <p><strong>Associated Tests:</strong> <code>stockPrediction.test.ts</code>, <code>predictionQueue.test.ts</code></p>
             </div>
-        </section>
-
-        <section id="deepmoney">
-            <h2>3. DeepMoney & Dashboard</h2>
-            <div>
-                <h3><span class="method get">GET</span> /api/deepmoney</h3>
+            <div id = "deepmoney">
+                <h3><span class="method get">GET</span> /api/prediction/deepmoney</h3>
                 <p>Premium market-wide sentiment analysis.</p>
                 <ul class="flow">
                     <li>Aggregates Yahoo, MarketBeat, The Street, and Motley Fool.</li>
                     <li>Discovers "Hot Stocks" via GPS (Global Prediction Score).</li>
                 </ul>
             </div>
+        </section>
 
-            <div id="dashboard">
+        <section id="dashboard">
+            <h2>3. Dashboard</h2>
+            <div id="dashboard1">
                 <h3><span class="method get">GET</span> /api/dashboard</h3>
                 <p>User-specific performance summary and holdings signals.</p>
                 <p><strong>Associated Tests:</strong> <code>api_dashboard.test.ts</code></p>

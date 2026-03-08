@@ -1,4 +1,4 @@
-import tickers from '@/../../public/company_tickers.json';
+import tickers from '@/../public/company_tickers.json';
 
 interface Ticker {
   ticker: string;

@@ -9,7 +9,7 @@ import { deepmoneyLimiter } from '@/utils/rateLimiter';
 import { getClientIP } from '@/utils/rateLimitMiddleware';
 import { createLogger } from '@/utils/logger';
 
-const logger = createLogger('api/deepmoney');
+const logger = createLogger('api/prediction/deepmoney');
 
 // ---------------------------------------------------------------------------
 // Route Handler

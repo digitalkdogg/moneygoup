@@ -1,6 +1,6 @@
-# API Endpoint: /api/deepmoney
+# API Endpoint: /api/prediction/deepmoney
 
-The `/api/deepmoney` endpoint is designed for automated AI and Tech stock discovery, analysis, and scoring. It combines real-time news sentiment with fundamental financial data to identify "hot" stocks and sectors.
+The `/api/prediction/deepmoney` endpoint is designed for automated AI and Tech stock discovery, analysis, and scoring. It combines real-time news sentiment with fundamental financial data to identify "hot" stocks and sectors.
 
 ## 1. Algorithm Overview
 
@@ -138,7 +138,7 @@ The algorithm assigns a classification label based on fundamentals:
 
 ```mermaid
 graph TD
-    Start([GET /api/deepmoney]) --> Auth{Authorized?}
+    Start([GET /api/prediction/deepmoney]) --> Auth{Authorized?}
     Auth -- No --> Unauthorized[401 Unauthorized]
     Auth -- Yes --> S1[Stage 1: News Analysis]
     
