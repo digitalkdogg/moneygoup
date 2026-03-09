@@ -122,6 +122,93 @@ async function fetchCompanyFeedMentions(
 }
 
 // ---------------------------------------------------------------------------
+// Data Fetching Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetches the complete 5-year data payload for the Prediction Engine.
+ * Includes OHLCV, macro series (VIX, 10Y, Sector ETF), and fundamentals.
+ */
+async function fetchCompleteStockData(ticker: string) {
+  const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3001';
+  const url = `${baseUrl}/api/stock_data/${ticker}/data`;
+  
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'x-api-key': process.env.DEEPMONEY_INTERNAL_SECRET || '',
+      },
+      signal: AbortSignal.timeout(15000), // 15s timeout for heavy assembly
+    });
+
+    if (!res.ok) {
+      console.warn(`Complete data fetch failed for ${ticker}: HTTP ${res.status}`);
+      return null;
+    }
+
+    return await res.json();
+  } catch (err) {
+    console.error(`Error fetching complete data for ${ticker}:`, err);
+    return null;
+  }
+}
+
+/**
+ * Fetches ticker-specific news from the internal API.
+ */
+async function fetchTickerNews(ticker: string) {
+  const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3001';
+  const url = `${baseUrl}/api/stock_data/${ticker}/news`;
+  
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'x-api-key': process.env.DEEPMONEY_INTERNAL_SECRET || '',
+      },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!res.ok) {
+      console.warn(`Ticker news fetch failed for ${ticker}: HTTP ${res.status}`);
+      return [];
+    }
+
+    const data = await res.json();
+    return data.articles?.[ticker] || [];
+  } catch (err) {
+    console.error(`Error fetching news for ${ticker}:`, err);
+    return [];
+  }
+}
+
+/**
+ * Fetches quarterly historical earnings data for a ticker.
+ */
+async function fetchTickerEarnings(ticker: string) {
+  const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3001';
+  const url = `${baseUrl}/api/stock_data/${ticker}/earnings`;
+  
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'x-api-key': process.env.DEEPMONEY_INTERNAL_SECRET || '',
+      },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!res.ok) {
+      console.warn(`Ticker earnings fetch failed for ${ticker}: HTTP ${res.status}`);
+      return { upcomingEarnings: null, historicalEarnings: [] };
+    }
+
+    return await res.json();
+  } catch (err) {
+    console.error(`Error fetching earnings for ${ticker}:`, err);
+    return { upcomingEarnings: null, historicalEarnings: [] };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Scoring & Enrichment Logic
 // ---------------------------------------------------------------------------
 
@@ -226,7 +313,24 @@ async function enrichAndScore(
       mention_count: mentions,
       co_mentioned_with: coMentionedWith,   // NEW — populated for Pass-2 discoveries
       discovery_source: 'keyword',           // overwritten by caller
-      snapshot_date: new Date().toISOString().split('T')[0]
+      snapshot_date: new Date().toISOString().split('T')[0],
+      stockMetrics: {
+        peRatio:              stats?.forwardPE || financialData?.forwardPE,
+        pbRatio:              stats?.priceToBook,
+        trailingEps:          stats?.trailingEps,
+        forwardEps:           stats?.forwardEps,
+        revenueGrowth:        financialData?.revenueGrowth,
+        earningsGrowth:       financialData?.earningsGrowth,
+        profitMargins:        financialData?.profitMargins,
+        debtToEquity:         financialData?.debtToEquity,
+        returnOnEquity:       financialData?.returnOnEquity,
+        beta:                 summary.price?.beta,
+        dividendYield:        summary.summaryDetail?.dividendYield,
+        marketCap:            marketCap,
+        analystTargetMean:    financialData?.targetMeanPrice,
+        analystOpinionCount:  financialData?.numberOfAnalystOpinions,
+        recommendationMean:   financialData?.recommendationMean,
+      }
     };
   } catch (e) {
     console.error(`Error enriching ${ticker}:`, e);
@@ -491,9 +595,86 @@ export async function performDeepAnalysis() {
   const allTrendingTickers = Object.keys(tickerMentions); // All tickers mentioned in today's news
   const hot_etfs = await performETFDiscovery(hot_stocks, trendingSubSectors, allTrendingTickers);
 
+  // -------------------------------------------------------------------------
+  // Stage 6: Deep Enrichment (Post-Selection)
+  // -------------------------------------------------------------------------
+  // Fetch complete LSTM-ready data payloads + ticker news for finalists
+  const finalists = [...hot_stocks, ...hot_ai_tech_stocks];
+  const uniqueFinalistTickers = Array.from(new Set(finalists.map(s => s.ticker)));
+
+  console.log(`[DeepMoney] Stage 6: Deep enrichment for ${uniqueFinalistTickers.length} finalists…`);
+  
+  const enrichmentMap: { [ticker: string]: { data: any, news: any[], earnings: any } } = {};
+
+  const enrichmentResults = await Promise.all(
+    uniqueFinalistTickers.map(async (ticker) => {
+      const [data, apiNews, earnings] = await Promise.all([
+        fetchCompleteStockData(ticker),
+        fetchTickerNews(ticker),
+        fetchTickerEarnings(ticker)
+      ]);
+
+      // Stage 1 News Integration: combine index-level mentions with ticker-specific feed
+      // (This avoids re-fetching what we already found in getNews() for this ticker)
+      const stage1News = articles.filter(a => {
+        const text = (a.title + ' ' + (a.content || a.description || '')).toLowerCase();
+        const res = a.explicitTickers 
+          ? a.explicitTickers.includes(ticker)
+          : nlp(text).organizations().out('array').map(resolveTicker).includes(ticker);
+        return res;
+      }).map(a => ({
+        title: a.title,
+        link: a.link,
+        pubDate: a.pubDate,
+        publishedAt: a.pubDate,
+        source: a.source || 'Index Feed',
+        sentiment_score: sentiment.analyze(a.title + ' ' + (a.content || a.description || '')).score
+      }));
+
+      // Deduplicate news by title
+      const seenTitles = new Set(stage1News.map(n => n.title));
+      const filteredApiNews = apiNews.filter((n: any) => !seenTitles.has(n.title));
+      const combinedNews = [...stage1News, ...filteredApiNews].slice(0, 15);
+
+      return { ticker, data, news: combinedNews, earnings };
+    })
+  );
+
+  enrichmentResults.forEach(res => {
+    enrichmentMap[res.ticker] = { data: res.data, news: res.news, earnings: res.earnings };
+  });
+
+  // Attach to final objects — these are the deep payloads for the Python LSTM
+  const finalizeStock = (s: any) => {
+    const enrichment = enrichmentMap[s.ticker];
+    const data = enrichment?.data;
+    const news = enrichment?.news || [];
+    const earnings = enrichment?.earnings;
+
+    return {
+      ...s,
+      // Flattened fields for UI (keep existing for backward compatibility if needed, 
+      // but prompt implies moving them to prediction_input for the Python script)
+      // The prompt asks for a specific shape. I will keep the UI fields at the root 
+      // and add the prediction_input object.
+
+      prediction_input: {
+        historicalData:     data?.historicalData || [],
+        stockMetrics:       data?.stockMetrics || {},
+        macroData:          data?.macroData || {},
+        newsArticles:       news,
+        historicalEarnings: earnings?.historicalEarnings || [],
+        dataQuality:        data?.dataQuality || { historyYears: 0, imputedFields: [] },
+      }
+    };
+  };
+
+  const final_hot_stocks = hot_stocks.map(finalizeStock);
+  const final_hot_ai_tech_stocks = hot_ai_tech_stocks.map(finalizeStock);
+
   return {
-    hot_stocks,
-    hot_ai_tech_stocks,
+    hot_stocks: final_hot_stocks,
+    hot_ai_tech_stocks: final_hot_ai_tech_stocks,
     hot_markets,
     hot_ai_sectors,
     hot_etfs

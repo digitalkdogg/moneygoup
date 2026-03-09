@@ -70,21 +70,26 @@ def sync_deepmoney():
                 INSERT INTO recommended_stocks 
                 (type, ticker, company_name, current_price, gps_score, classification, 
                  analyst_upside_pct, revenue_growth_yoy, gross_margin_pct, rd_spend_pct, 
-                 market_cap_m, mention_count, discovery_source, snapshot_date)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 market_cap_m, mention_count, discovery_source, upcoming_earnings, 
+                 prediction_input, snapshot_date)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE 
                 company_name=VALUES(company_name), current_price=VALUES(current_price),
                 gps_score=VALUES(gps_score), classification=VALUES(classification),
                 analyst_upside_pct=VALUES(analyst_upside_pct), revenue_growth_yoy=VALUES(revenue_growth_yoy),
                 gross_margin_pct=VALUES(gross_margin_pct), rd_spend_pct=VALUES(rd_spend_pct),
                 market_cap_m=VALUES(market_cap_m), mention_count=VALUES(mention_count),
-                discovery_source=VALUES(discovery_source)
+                discovery_source=VALUES(discovery_source), upcoming_earnings=VALUES(upcoming_earnings),
+                prediction_input=VALUES(prediction_input)
                 """
                 cursor.execute(upsert_query, (
                     s_type, s['ticker'], s['company_name'], s['current_price'], 
                     s['gps_score'], s['classification'], s['analyst_upside_pct'], 
                     s['revenue_growth_yoy'], s['gross_margin_pct'], s['rd_spend_pct'], 
-                    s['market_cap_m'], s['mention_count'], s['discovery_source'], today
+                    s['market_cap_m'], s['mention_count'], s['discovery_source'],
+                    s.get('upcoming_earnings'),
+                    json.dumps(s.get('prediction_input')),
+                    today
                 ))
 
         # 5. Process Markets/Sectors

@@ -29,9 +29,15 @@ export async function GET(
   const rateLimitResponse = checkRateLimit(request, newsLimiter, 'news');
   if (rateLimitResponse) return rateLimitResponse;
 
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+  const apiKey = request.headers.get('x-api-key');
+  const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
+  const isInternal = apiKey && apiKey === internalSecret;
+
+  if (!isInternal) {
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    }
   }
 
   // Validate and normalize ticker input
@@ -134,6 +140,7 @@ export async function GET(
             title: item.title,
             link: sanitizedLink,
             pubDate: item.pubDate,
+            publishedAt: item.pubDate, // Python script expects publishedAt
             source: item.source,
             sentiment_score: sentimentResult.score,
           };

@@ -151,4 +151,6 @@ export const technicalIndicatorsCache = new Cache<any>(10 * 60 * 1000); // 10 mi
 
 export const deepmoneyCache = new Cache<any>(30 * 60 * 1000); // 30 minutes for deepmoney analysis
 
+export const macroCache = new Cache<any>(24 * 60 * 60 * 1000); // 24 hours for macro data (VIX, TNX)
+
 export default Cache;

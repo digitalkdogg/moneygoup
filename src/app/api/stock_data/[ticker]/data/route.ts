@@ -12,6 +12,7 @@ import { createLogger } from '@/utils/logger';
 import { tickerSchema } from '@/utils/validationSchemas';
 import { z } from 'zod';
 import YahooFinance from 'yahoo-finance2';
+import { macroCache } from '@/utils/cache';
 
 const logger = createLogger('api/stock/[ticker]/data');
 const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
@@ -112,6 +113,7 @@ function safeNum(v: unknown): number | null {
 // Data fetching helpers
 // ---------------------------------------------------------------------------
 async function fetchOhlcv(ticker: string) {
+  // ... (existing implementation)
   const fiveYearsAgo = new Date(Date.now() - 5 * 365.25 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const today = new Date().toISOString().slice(0, 10);
 
@@ -142,17 +144,27 @@ async function fetchOhlcv(ticker: string) {
 }
 
 async function fetchMacroSeries(sym: string): Promise<{ date: string; close: number }[]> {
+  // Check cache first
+  const cached = macroCache.get(sym);
+  if (cached) return cached;
+
   try {
     const fiveYearsAgo = new Date(Date.now() - 5 * 365.25 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const today = new Date().toISOString().slice(0, 10);
     const rows = await yahooFinance.historical(sym, { period1: fiveYearsAgo, period2: today });
+    
     if (!rows || rows.length === 0) return [];
-    return rows
+    
+    const data = rows
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
       .map(r => ({
         date:  new Date(r.date).toISOString().slice(0, 10),
         close: r.adjClose ?? r.close ?? 0,
       }));
+
+    // Cache the result
+    macroCache.set(sym, data);
+    return data;
   } catch (err) {
     logger.warn(`Failed to fetch macro series ${sym}`, { error: err });
     return [];
@@ -169,8 +181,14 @@ export async function GET(
   const originCheck = checkOrigin(request);
   if (originCheck) return originCheck;
 
-  const session = await getServerSession(authOptions);
-  if (!session?.user) return unauthorizedResponse('Authentication required');
+  const apiKey = request.headers.get('x-api-key');
+  const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
+  const isInternal = apiKey && apiKey === internalSecret;
+
+  if (!isInternal) {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) return unauthorizedResponse('Authentication required');
+  }
 
   let validatedTicker: string;
   try {

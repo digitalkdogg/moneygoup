@@ -70,7 +70,6 @@
             margin: -0.5rem 0;
         }
         code {
-            background: #f1f5f9;
             padding: 0.2rem 0.4rem;
             border-radius: 4px;
             font-family: ui-monospace, SFMono-Regular, monospace;
@@ -109,7 +108,9 @@
             <a href="#step3" class="nav-link">3. News & NLP Stage</a>
             <a href="#step4" class="nav-link">4. Discovery & Deep Scan</a>
             <a href="#step5" class="nav-link">5. GPS Scoring Model</a>
-            <a href="#step6" class="nav-link">6. Persistence Layer</a>
+            <a href="#step6" class="nav-link">6. Deep Enrichment</a>
+            <a href="#step7" class="nav-link">7. LSTM Readiness</a>
+            <a href="#step8" class="nav-link">8. Persistence Layer</a>
         </nav>
     </aside>
 
@@ -185,6 +186,7 @@
                     <strong>Weights:</strong> Analyst Upside (30%), Revenue Growth (20%), EPS Growth (15%), Momentum (15%), Mentions (10%), News Sentiment (10%).
                 </div>
                 <ul>
+                    <li><strong>Expanded Metrics:</strong> Includes P/E, P/B, Debt-to-Equity, ROE, Beta, and Dividend Yield.</li>
                     <li><strong>Hard Gates:</strong> Discards stocks with price > $300 or Market Cap outside $300M - $2T range.</li>
                     <li><strong>AI Bonus:</strong> Extra points for High R&D spend, small-cap status, or AI-taxonomy keyword density.</li>
                     <li><strong>ETF Discovery:</strong> Final "Hot Stocks" are correlated with thematic ETFs (e.g., BOTZ, SOXX).</li>
@@ -195,10 +197,47 @@
         <div class="flow-arrow">↓</div>
 
         <section id="step6">
-            <h2><span>6</span> Persistence Layer</h2>
+            <h2><span>6</span> Deep Enrichment Stage</h2>
+            <div class="step-card">
+                <div class="component-tag">Stage 6 Enrichment</div>
+                <p>The top 5-8 finalists undergo intensive data gathering to prepare for LSTM modeling:</p>
+                <ul>
+                    <li><strong>Complete History:</strong> Calls <code>/api/stock_data/[ticker]/data</code> for 5-year OHLCV and Fundamentals.</li>
+                    <li><strong>Macro Integration:</strong> Injects VIX series, 10Y Treasury yields, and Sector ETF correlations.</li>
+                    <li><strong>Earnings Pulse:</strong> Fetches quarterly Beat/Miss history and upcoming earnings dates.</li>
+                    <li><strong>News Deep Dive:</strong> Aggregates ticker-specific feeds with index-level mentions for high-density sentiment signals.</li>
+                </ul>
+            </div>
+        </section>
+
+        <div class="flow-arrow">↓</div>
+
+        <section id="step7">
+            <h2><span>7</span> LSTM-Ready Payload</h2>
+            <div class="step-card">
+                <div class="component-tag">Schema: prediction_input</div>
+                <p>The API assembles a specialized JSON block for the Python Prediction Engine:</p>
+                <pre><code>"prediction_input": {
+  "historicalData": [...],
+  "stockMetrics": { "peRatio": 25.0, ... },
+  "macroData": { "vix": [...], "treasury10y": [...] },
+  "newsArticles": [{ "sentiment_score": 5, "publishedAt": "..." }],
+  "historicalEarnings": [{ "epsActual": 1.2, "epsEstimate": 1.1 }],
+  "dataQuality": { "historyYears": 4.8, "imputedFields": [] }
+}</code></pre>
+                <div class="highlight-box">
+                    <strong>Advanced Caching:</strong> Macro series (VIX/TNX) are cached for 24 hours via a shared <code>macroCache</code> to minimize redundant external API calls.
+                </div>
+            </div>
+        </section>
+
+        <div class="flow-arrow">↓</div>
+
+        <section id="step8">
+            <h2><span>8</span> Persistence Layer</h2>
             <div class="step-card">
                 <div class="component-tag">Database: MySQL (recommended_stocks, hot_etfs)</div>
-                <p>The sync script receives the final JSON and commits it to the database:</p>
+                <p>The sync script receives the final enriched JSON and commits it to the database:</p>
                 <ul>
                     <li><strong>Atomic Refresh:</strong> Clears existing <code>recommended_stocks</code> and <code>recommended_markets</code> to ensure data freshness.</li>
                     <li><strong>Upsert:</strong> Performs a bulk <code>INSERT ... ON DUPLICATE KEY UPDATE</code> for Stocks, AI Sectors, and ETFs.</li>

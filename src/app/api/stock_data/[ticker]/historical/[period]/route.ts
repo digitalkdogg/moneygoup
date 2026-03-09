@@ -175,9 +175,15 @@ export async function GET(
   const rateLimitResponse = checkRateLimit(request, historicalLimiter, 'historical');
   if (rateLimitResponse) return rateLimitResponse;
 
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+  const apiKey = request.headers.get('x-api-key');
+  const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
+  const isInternal = apiKey && apiKey === internalSecret;
+
+  if (!isInternal) {
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    }
   }
 
   const resolvedParams = await params;
