@@ -36,7 +36,12 @@ export async function GET(request: NextRequest) {
     let allStocks: any[] = [];
     if (stockDate) {
       const [rows] = await executeRawQuery(
-        'SELECT * FROM recommended_stocks WHERE snapshot_date = ? ORDER BY gps_score DESC',
+        `SELECT id, type, ticker, company_name, current_price, gps_score, classification, 
+                analyst_upside_pct, revenue_growth_yoy, gross_margin_pct, rd_spend_pct, 
+                market_cap_m, mention_count, discovery_source, upcoming_earnings, snapshot_date 
+         FROM recommended_stocks 
+         WHERE snapshot_date = ? 
+         ORDER BY gps_score DESC`,
         [stockDate]
       );
       allStocks = rows as any[];
