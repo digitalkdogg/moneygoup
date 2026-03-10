@@ -22,6 +22,8 @@ interface RecommendedStock {
   market_cap_m: number;
   mention_count: number;
   discovery_source: string;
+  trading_signal?: string;
+  trading_signal_score?: number;
   snapshot_date: string;
 }
 
@@ -90,6 +92,23 @@ const stockColumns = [
         const num = typeof value === 'string' ? parseFloat(value) : value;
         const color = num >= 70 ? 'text-emerald-600' : num >= 50 ? 'text-green-500' : 'text-yellow-600';
         return <span className={`font-bold ${color}`}>{formatNumber(num, 1)}/100</span>;
+    }
+  },
+  {
+    key: 'trading_signal',
+    label: 'Signal',
+    align: 'center' as const,
+    format: (value: string, row: any) => {
+      const score = row.trading_signal_score;
+      const color = value === 'BUY' ? 'text-green-600' : value === 'SELL' ? 'text-red-600' : 'text-amber-600';
+      return (
+        <div className="flex flex-col items-center">
+          <span className={`font-bold text-xs ${color}`}>{value || 'N/A'}</span>
+          {score !== undefined && score !== null && (
+            <span className="text-[10px] text-gray-400">Score: {score > 0 ? '+' : ''}{score}</span>
+          )}
+        </div>
+      );
     }
   },
   {
@@ -252,12 +271,12 @@ export default function DeepMoneyPicksSection() {
       const json = await res.json();
       
       // Map ticker to symbol for StockTable compatibility
-      const hot_stocks = (json.hot_stocks || []).map((s: any) => ({ ...s, symbol: s.ticker }));
-      const hot_ai_tech_stocks_raw = (json.hot_ai_tech_stocks || []).map((s: any) => ({ ...s, symbol: s.ticker }));
+      const hot_ai_tech_stocks = (json.hot_ai_tech_stocks || []).map((s: any) => ({ ...s, symbol: s.ticker }));
+      const hot_stocks_raw = (json.hot_stocks || []).map((s: any) => ({ ...s, symbol: s.ticker }));
       
-      // Deduplicate: If in hot_stocks, remove from hot_ai_tech_stocks
-      const hot_stock_tickers = new Set(hot_stocks.map((s: any) => s.ticker));
-      const hot_ai_tech_stocks = hot_ai_tech_stocks_raw.filter((s: any) => !hot_stock_tickers.has(s.ticker));
+      // Deduplicate: If in hot_ai_tech_stocks, remove from hot_stocks
+      const ai_stock_tickers = new Set(hot_ai_tech_stocks.map((s: any) => s.ticker));
+      const hot_stocks = hot_stocks_raw.filter((s: any) => !ai_stock_tickers.has(s.ticker));
 
       // Combine markets and sectors
       const combined_markets = [

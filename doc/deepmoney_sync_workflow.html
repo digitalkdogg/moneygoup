@@ -139,7 +139,8 @@
                 <p>The API validates the internal handshake:</p>
                 <ul>
                     <li><strong>RBAC:</strong> If no user session is present, it requires an <code>x-api-key</code> matching the internal secret.</li>
-                    <li><strong>Cache Bypass:</strong> While browser users hit a 30-minute cache, the sync script typically forces a fresh analysis if cache is empty or expired.</li>
+                    <li><strong>Rate Limit Bypass:</strong> Requests with a valid internal API key bypass standard rate limits.</li>
+                    <li><strong>Force Refresh:</strong> The sync script appends <code>?refresh=true</code> to ignore the 30-minute cache and trigger a fresh analysis.</li>
                 </ul>
             </div>
         </section>
@@ -183,12 +184,13 @@
                 <div class="component-tag">Logic: enrichAndScore()</div>
                 <p>Every candidate is put through a rigorous weighted scoring algorithm (0-100):</p>
                 <div class="highlight-box">
-                    <strong>Weights:</strong> Analyst Upside (30%), Revenue Growth (20%), EPS Growth (15%), Momentum (15%), Mentions (10%), News Sentiment (10%).
+                    <strong>Base Weights (70% Total):</strong> Analyst Upside (25%), Revenue Growth (15%), EPS Growth (10%), Momentum (10%), Mentions (5%), News Sentiment (5%).
                 </div>
                 <ul>
+                    <li><strong>Trading Signal Gate:</strong> Stocks must have a positive <code>tradingSignalScore</code> (> 0) based on technical indicators (SMA, RSI, Momentum) to pass.</li>
                     <li><strong>Expanded Metrics:</strong> Includes P/E, P/B, Debt-to-Equity, ROE, Beta, and Dividend Yield.</li>
-                    <li><strong>Hard Gates:</strong> Discards stocks with price > $300 or Market Cap outside $300M - $2T range.</li>
-                    <li><strong>AI Bonus:</strong> Extra points for High R&D spend, small-cap status, or AI-taxonomy keyword density.</li>
+                    <li><strong>Hard Gates:</strong> Discards stocks with price > $300 or Market Cap > $2T.</li>
+                    <li><strong>AI Bonus (Up to +30 pts):</strong> Extra points for High R&D spend, small-cap status, or AI-taxonomy keyword density.</li>
                     <li><strong>ETF Discovery:</strong> Final "Hot Stocks" are correlated with thematic ETFs (e.g., BOTZ, SOXX).</li>
                 </ul>
             </div>
@@ -223,6 +225,7 @@
   "macroData": { "vix": [...], "treasury10y": [...] },
   "newsArticles": [{ "sentiment_score": 5, "publishedAt": "..." }],
   "historicalEarnings": [{ "epsActual": 1.2, "epsEstimate": 1.1 }],
+  "technicalScore": 6,
   "dataQuality": { "historyYears": 4.8, "imputedFields": [] }
 }</code></pre>
                 <div class="highlight-box">
@@ -240,6 +243,7 @@
                 <p>The sync script receives the final enriched JSON and commits it to the database:</p>
                 <ul>
                     <li><strong>Atomic Refresh:</strong> Clears existing <code>recommended_stocks</code> and <code>recommended_markets</code> to ensure data freshness.</li>
+                    <li><strong>Deep Persistence:</strong> Now saves <code>trading_signal</code>, <code>trading_signal_score</code>, <code>upcoming_earnings</code>, and the full <code>prediction_input</code> JSON block.</li>
                     <li><strong>Upsert:</strong> Performs a bulk <code>INSERT ... ON DUPLICATE KEY UPDATE</code> for Stocks, AI Sectors, and ETFs.</li>
                     <li><strong>Result:</strong> The User Dashboard now shows the new analysis without triggering heavy API calls.</li>
                 </ul>

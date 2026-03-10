@@ -71,15 +71,15 @@ export const BROAD_INDUSTRIES = {
   'Biotech': ['biotech', 'pharmaceutical'],
 };
 
-export const PRICE_FILTER_MAX = 150;
+export const PRICE_FILTER_MAX = 300;
 
 export const GPS_WEIGHTS = {
   ANALYST_UPSIDE: 0.25,
-  REVENUE_GROWTH: 0.20,
-  EPS_GROWTH: 0.15,
-  MOMENTUM: 0.15,
-  MENTIONS: 0.15,
-  SENTIMENT: 0.10
+  REVENUE_GROWTH: 0.15,
+  EPS_GROWTH: 0.10,
+  MOMENTUM: 0.10,
+  MENTIONS: 0.05,
+  SENTIMENT: 0.05
 };
 
 export const AI_TECH_BONUS = {
@@ -95,8 +95,8 @@ export const AI_TECH_BONUS = {
 };
 
 export const SCREENER_THRESHOLDS = {
-  MARKET_CAP_CEILING: 50 * 1000 * 1000 * 1000, // $50B
-  MARKET_CAP_FLOOR: 150 * 1000 * 1000,          // $150M
+  MARKET_CAP_CEILING: 2 * 1000 * 1000 * 1000 * 1000, // $2T
+  MARKET_CAP_FLOOR: 0,                                // No floor
   REVENUE_GROWTH_FLOOR: 0.15,
   GROSS_MARGIN_FLOOR: 0.40,
   ANALYST_COVERAGE_FLOOR: 2

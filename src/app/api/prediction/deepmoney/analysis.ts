@@ -3,6 +3,7 @@ import Sentiment from 'sentiment';
 import { getNews } from './getNews';
 import { fetchYahooStockSummary, getYahooScreener } from '@/utils/yahooFinanceHelper';
 import { performETFDiscovery } from '@/utils/etfDiscovery';
+import { calculateTechnicalIndicators } from '@/utils/technicalIndicators';
 import watchlist from '@/../public/ai_tech_watchlist.json';
 import {
   AI_TECH_TAXONOMY,
@@ -219,10 +220,21 @@ async function enrichAndScore(
   subSectors: string[],
   keywordDensity: number,
   isWatchlist: boolean = false,
-  coMentionedWith: string[] = []
+  coMentionedWith: string[] = [],
+  tickerNewsArticles: { sentiment_score: number; pub_date: string }[] = []
 ) {
   try {
-    const summary = await fetchYahooStockSummary(ticker);
+    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3001';
+    const historicalUrl = `${baseUrl}/api/stock_data/${ticker}/historical/3mo`;
+
+    const [summary, historicalRes] = await Promise.all([
+      fetchYahooStockSummary(ticker),
+      fetch(historicalUrl, {
+        headers: { 'x-api-key': process.env.DEEPMONEY_INTERNAL_SECRET || '' },
+        signal: AbortSignal.timeout(10000)
+      }).then(res => res.ok ? res.json() : null).catch(() => null)
+    ]);
+
     const price = summary.price?.regularMarketPrice;
 
     // 1. Price Filter Hard Gate
@@ -233,16 +245,33 @@ async function enrichAndScore(
     // Market cap hard gates
     if (marketCap < SCREENER_THRESHOLDS.MARKET_CAP_FLOOR || marketCap > SCREENER_THRESHOLDS.MARKET_CAP_CEILING) return null;
 
-    // Watchlist Skip Logic: market cap > $10B
-    if (isWatchlist && marketCap > 10e9) {
-      console.warn(`Watchlist ticker ${ticker} exceeded $10B market cap, skipping.`);
-      return null;
-    }
-
     const financialData = summary.financialData;
     const stats = summary.defaultKeyStatistics;
     const profile = summary.assetProfile;
     const income = summary.incomeStatementHistory?.incomeStatementHistory?.[0];
+
+    // 1.5 Technical Analysis Signal Gate
+    const historicalData = (historicalRes?.historicalData?.[ticker] || []) as any[];
+    const technicalResult = historicalData.length >= 51
+      ? calculateTechnicalIndicators(
+          historicalData,
+          tickerNewsArticles,
+          (financialData?.forwardPE ?? stats?.forwardPE) as number | undefined,
+          stats?.priceToBook as number | undefined,
+          marketCap as number | undefined
+        )
+      : null;
+
+    const tradingSignalScore = technicalResult?.scoreBreakdown.totalScore ?? 0;
+    const tradingSignal = technicalResult?.signal ?? 'HOLD';
+
+    // HARD GATE: discard stocks unless they have a positive trading signal (> 0)
+    if (tradingSignalScore <= 0) {
+      if (ticker === 'CRM' || ticker === 'NDAQ' || ticker === 'VRT') {
+        console.log(`[DeepMoney] Skipping ${ticker}: TechScore=${tradingSignalScore}, Signal=${tradingSignal}. Breakdown: MA=${technicalResult?.scoreBreakdown.maScore}, RSI=${technicalResult?.scoreBreakdown.rsiScore}, Mom=${technicalResult?.scoreBreakdown.momentumScore}, News=${technicalResult?.scoreBreakdown.newsScore}, Core=${technicalResult?.scoreBreakdown.coreMetricsScore}`);
+      }
+      return null;
+    }
 
     const revenueGrowth = financialData?.revenueGrowth || 0;
     const earningsGrowth = financialData?.earningsGrowth || 0;
@@ -297,6 +326,7 @@ async function enrichAndScore(
     }
 
     const finalGps = Math.min(gps + bonus, 100);
+    console.log(`[DeepMoney] Scored ${ticker}: GPS=${finalGps.toFixed(1)}, TechSignal=${tradingSignalScore}`);
 
     return {
       ticker,
@@ -314,6 +344,9 @@ async function enrichAndScore(
       co_mentioned_with: coMentionedWith,   // NEW — populated for Pass-2 discoveries
       discovery_source: 'keyword',           // overwritten by caller
       snapshot_date: new Date().toISOString().split('T')[0],
+      trading_signal: tradingSignal,
+      trading_signal_score: tradingSignalScore,
+      signal_breakdown: technicalResult?.scoreBreakdown ?? null,
       stockMetrics: {
         peRatio:              stats?.forwardPE || financialData?.forwardPE,
         pbRatio:              stats?.priceToBook,
@@ -350,6 +383,7 @@ export async function performDeepAnalysis() {
   const articles = newsData.items || [];
 
   const tickerMentions: { [key: string]: TickerMention } = {};
+  const tickerArticles: { [key: string]: { sentiment_score: number; pub_date: string }[] } = {};
   const industryStats: { [key: string]: { score: number; count: number } } = {};
   const aiSubSectorStats: { [key: string]: { score: number; count: number } } = {};
 
@@ -401,12 +435,22 @@ export async function performDeepAnalysis() {
           fromCompanyFeed: false
         };
       }
+      if (!tickerArticles[ticker]) tickerArticles[ticker] = [];
+
       tickerMentions[ticker].count += mentionIncrement; // fractional for multi-ticker articles
       tickerMentions[ticker].sentiment += sentimentResult.score;
       foundSubSectors.forEach(s => tickerMentions[ticker].subSectors.add(s));
       tickerMentions[ticker].keywords += keywordCount;
+
+      tickerArticles[ticker].push({
+        sentiment_score: sentimentResult.score,
+        pub_date: article.pubDate
+      });
     }
   }
+
+  const newsTickers = Object.keys(tickerMentions);
+  console.log(`[DeepMoney] Stage 1: Discovered ${newsTickers.length} tickers from news: ${newsTickers.join(', ')}`);
 
   // -------------------------------------------------------------------------
   // Stage 2: Dynamic Screener Discovery
@@ -427,6 +471,8 @@ export async function performDeepAnalysis() {
       screenerTickers.add(q.symbol);
     }
   });
+
+  console.log(`[DeepMoney] Stage 2: Discovered ${screenerTickers.size} tickers from screeners: ${Array.from(screenerTickers).join(', ')}`);
 
   // -------------------------------------------------------------------------
   // Stage 2.5: Company Feed Deep Scan (Pass 2)
@@ -517,7 +563,8 @@ export async function performDeepAnalysis() {
         Array.from(m.subSectors),
         m.keywords,
         isW,
-        Array.from(m.coMentionedWith)
+        Array.from(m.coMentionedWith),
+        tickerArticles[ticker] || []
       ).then(r => {
         if (!r) return null;
 
@@ -564,8 +611,7 @@ export async function performDeepAnalysis() {
     .filter(
       r =>
         r.classification === 'ai_tech_hyper_growth' ||
-        r.sub_sectors.length > 0 ||
-        r.discovery_source.includes('screener')
+        r.sub_sectors.length > 0
     )
     .sort((a, b) => b.gps_score - a.gps_score)
     .slice(0, 3);
@@ -664,6 +710,7 @@ export async function performDeepAnalysis() {
         macroData:          data?.macroData || {},
         newsArticles:       news,
         historicalEarnings: earnings?.historicalEarnings || [],
+        technicalScore:     s.trading_signal_score,
         dataQuality:        data?.dataQuality || { historyYears: 0, imputedFields: [] },
       }
     };

@@ -133,9 +133,19 @@
         </nav>
     </aside>
 
-    <main>
         <h1>API Documentation</h1>
         <p>Comprehensive overview of MoneyGoUp API endpoints, logic flows, and testing coverage.</p>
+
+        <section id="auth-overview">
+            <h2>0. Authentication & Rate Limiting</h2>
+            <div class="step-card" style="background: white; border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin: 1.5rem 0;">
+                <p>Most endpoints require a valid user session. However, for internal automation and cross-service calls, the system supports an API Key handshake.</p>
+                <ul>
+                    <li><strong>Header:</strong> <code>x-api-key: [DEEPMONEY_INTERNAL_SECRET]</code></li>
+                    <li><strong>Bypass:</strong> Valid API keys bypass both session requirements and standard IP-based rate limits.</li>
+                </ul>
+            </div>
+        </section>
 
         <section id="stock-data">
             <h2>1. Stock Data & Analysis</h2>
@@ -188,6 +198,7 @@
                     <li>Fetches Yahoo Finance RSS feed.</li>
                     <li>Filters articles based on ticker and company name keywords.</li>
                     <li>Performs sentiment analysis on titles.</li>
+                    <li>Returns <code>publishedAt</code> field for LSTM compatibility.</li>
                 </ul>
             </div>
 
@@ -197,8 +208,9 @@
                 <strong>Logic Flow:</strong>
                 <ul class="flow">
                     <li>Fetches 5 years of OHLCV data.</li>
-                    <li>Fetches macro series: VIX, 10Y Treasury, and Sector ETFs.</li>
+                    <li>Fetches macro series (VIX, 10Y Treasury, Sector ETFs) using 24h <code>macroCache</code>.</li>
                     <li>Imputes missing fundamental data using sector medians.</li>
+                    <li>Calculates <code>dataQuality</code> metadata (historyYears, imputedFields).</li>
                     <li>Caches result for 5 minutes.</li>
                 </ul>
             </div>
@@ -219,10 +231,22 @@
             </div>
             <div id = "deepmoney">
                 <h3><span class="method get">GET</span> /api/prediction/deepmoney</h3>
-                <p>Premium market-wide sentiment analysis.</p>
+                <p>Premium market-wide sentiment and growth analysis.</p>
+                <strong>Query Parameters:</strong>
+                <ul>
+                    <li><code>refresh=true</code>: Optional. Bypasses the 30-minute cache to force a fresh analysis.</li>
+                </ul>
+                <strong>Logic Flow:</strong>
                 <ul class="flow">
                     <li>Aggregates Yahoo, MarketBeat, The Street, and Motley Fool.</li>
-                    <li>Discovers "Hot Stocks" via GPS (Global Prediction Score).</li>
+                    <li>Discovers "Hot Stocks" via GPS (Global Prediction Score).
+                        <ul style="margin-left: 1.5rem; font-size: 0.85rem; color: #64748b;">
+                            <li>• Base Weights (70%): Analyst Upside (25%), Revenue Growth (15%), EPS (10%), Momentum (10%), Mentions (5%), Sentiment (5%).</li>
+                            <li>• AI Bonus (30%): Extra points for R&D, Small-cap, and AI-density.</li>
+                        </ul>
+                    </li>
+                    <li>Enforces a Technical Signal gate (Score > 0).</li>
+                    <li>Enriches top finalists with a complete <code>prediction_input</code> block.</li>
                 </ul>
             </div>
         </section>

@@ -17,7 +17,7 @@ DB_PASSWORD = os.getenv('DB_PASSWORD')
 DB_DATABASE = os.getenv('DB_DATABASE')
 INTERNAL_SECRET = os.getenv('DEEPMONEY_INTERNAL_SECRET')
 NEXTAUTH_URL = os.getenv('NEXTAUTH_URL', 'http://localhost:3001')
-API_URL = f"{NEXTAUTH_URL}/api/prediction/deepmoney"
+API_URL = f"{NEXTAUTH_URL}/api/prediction/deepmoney?refresh=true"
 
 def sync_deepmoney():
     print(f"[{datetime.now()}] Starting DeepMoney sync...")
@@ -33,6 +33,7 @@ def sync_deepmoney():
                 print("Retrying with quoted secret...")
                 headers = {'x-api-key': f'"{INTERNAL_SECRET}"'}
                 response = requests.get(API_URL, headers=headers)
+                print(f"{response}")
         
         response.raise_for_status()
         data = response.json()
@@ -65,21 +66,24 @@ def sync_deepmoney():
         stock_types = ['hot_stocks', 'hot_ai_tech_stocks']
         for s_type in stock_types:
             stocks = data.get(s_type, [])
+            print(f"Processing {s_type} ({len(stocks)} candidates)...")
             for s in stocks:
+                print(f"  > {s['ticker']}")
                 upsert_query = """
                 INSERT INTO recommended_stocks 
                 (type, ticker, company_name, current_price, gps_score, classification, 
                  analyst_upside_pct, revenue_growth_yoy, gross_margin_pct, rd_spend_pct, 
-                 market_cap_m, mention_count, discovery_source, upcoming_earnings, 
-                 prediction_input, snapshot_date)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 market_cap_m, mention_count, discovery_source, trading_signal, 
+                 trading_signal_score, upcoming_earnings, prediction_input, snapshot_date)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE 
                 company_name=VALUES(company_name), current_price=VALUES(current_price),
                 gps_score=VALUES(gps_score), classification=VALUES(classification),
                 analyst_upside_pct=VALUES(analyst_upside_pct), revenue_growth_yoy=VALUES(revenue_growth_yoy),
                 gross_margin_pct=VALUES(gross_margin_pct), rd_spend_pct=VALUES(rd_spend_pct),
                 market_cap_m=VALUES(market_cap_m), mention_count=VALUES(mention_count),
-                discovery_source=VALUES(discovery_source), upcoming_earnings=VALUES(upcoming_earnings),
+                discovery_source=VALUES(discovery_source), trading_signal=VALUES(trading_signal),
+                trading_signal_score=VALUES(trading_signal_score), upcoming_earnings=VALUES(upcoming_earnings),
                 prediction_input=VALUES(prediction_input)
                 """
                 cursor.execute(upsert_query, (
@@ -87,6 +91,8 @@ def sync_deepmoney():
                     s['gps_score'], s['classification'], s['analyst_upside_pct'], 
                     s['revenue_growth_yoy'], s['gross_margin_pct'], s['rd_spend_pct'], 
                     s['market_cap_m'], s['mention_count'], s['discovery_source'],
+                    s.get('trading_signal'),
+                    s.get('trading_signal_score'),
                     s.get('upcoming_earnings'),
                     json.dumps(s.get('prediction_input')),
                     today

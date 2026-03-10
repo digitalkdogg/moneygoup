@@ -57,11 +57,18 @@ export async function GET(request: NextRequest) {
   }
 
   // 3. Caching (Global 30-minute window)
+  const { searchParams } = new URL(request.url);
+  const forceRefresh = searchParams.get('refresh') === 'true';
   const cacheKey = 'global_deep_analysis';
-  const cachedResult = deepmoneyCache.get(cacheKey);
-  if (cachedResult) {
-    logger.info('DeepMoney analysis cache hit', { callerId, authMode });
-    return NextResponse.json(cachedResult);
+
+  if (!forceRefresh) {
+    const cachedResult = deepmoneyCache.get(cacheKey);
+    if (cachedResult) {
+      logger.info('DeepMoney analysis cache hit', { callerId, authMode });
+      return NextResponse.json(cachedResult);
+    }
+  } else {
+    logger.info('DeepMoney force refresh requested', { callerId, authMode });
   }
 
   // 4. Execution & Audit Logging

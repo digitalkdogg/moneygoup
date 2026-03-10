@@ -78,6 +78,13 @@ export function checkRateLimit(
   keyPrefix?: string,
   secondaryId?: string
 ): NextResponse | null {
+  // BYPASS: Internal requests using the secret key are not rate limited
+  const apiKey = request.headers.get('x-api-key');
+  const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
+  if (apiKey && internalSecret && apiKey === internalSecret) {
+    return null;
+  }
+
   const ip = getClientIP(request);
   
   // Use IP + secondaryId if available to prevent bypass by IP rotation
