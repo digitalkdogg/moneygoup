@@ -59,10 +59,17 @@ def sync_deepmoney():
     try:
         # 3. Clear existing data
         print("Clearing existing recommendation data...")
-        cursor.execute("DELETE FROM recommended_stocks")
+        cursor.execute("""
+            DELETE FROM recommended_stocks
+            WHERE type IN (
+                'hot_stocks', 'hot_ai_tech_stocks',
+                'undervalued_large_caps', 'breakout_candidates',
+                'insider_activity', 'analyst_favorites'
+            )
+        """)
         cursor.execute("DELETE FROM recommended_markets")
 
-        # 4. Process Stocks
+        # 4. Process Stocks (hot_stocks, hot_ai_tech_stocks)
         stock_types = ['hot_stocks', 'hot_ai_tech_stocks']
         for s_type in stock_types:
             stocks = data.get(s_type, [])
@@ -70,13 +77,14 @@ def sync_deepmoney():
             for s in stocks:
                 print(f"  > {s['ticker']}")
                 upsert_query = """
-                INSERT INTO recommended_stocks 
-                (type, ticker, company_name, current_price, gps_score, classification, 
-                 analyst_upside_pct, revenue_growth_yoy, gross_margin_pct, rd_spend_pct, 
-                 market_cap_m, mention_count, discovery_source, trading_signal, 
-                 trading_signal_score, upcoming_earnings, prediction_input, snapshot_date)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE 
+                INSERT INTO recommended_stocks
+                (type, ticker, company_name, current_price, gps_score, classification,
+                 analyst_upside_pct, revenue_growth_yoy, gross_margin_pct, rd_spend_pct,
+                 market_cap_m, mention_count, discovery_source, trading_signal,
+                 trading_signal_score, upcoming_earnings, prediction_input,
+                 trailing_pe, price_to_book, metric_value, metric_label, snapshot_date)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
                 company_name=VALUES(company_name), current_price=VALUES(current_price),
                 gps_score=VALUES(gps_score), classification=VALUES(classification),
                 analyst_upside_pct=VALUES(analyst_upside_pct), revenue_growth_yoy=VALUES(revenue_growth_yoy),
@@ -84,17 +92,76 @@ def sync_deepmoney():
                 market_cap_m=VALUES(market_cap_m), mention_count=VALUES(mention_count),
                 discovery_source=VALUES(discovery_source), trading_signal=VALUES(trading_signal),
                 trading_signal_score=VALUES(trading_signal_score), upcoming_earnings=VALUES(upcoming_earnings),
-                prediction_input=VALUES(prediction_input)
+                prediction_input=VALUES(prediction_input), trailing_pe=VALUES(trailing_pe),
+                price_to_book=VALUES(price_to_book), metric_value=VALUES(metric_value),
+                metric_label=VALUES(metric_label)
                 """
                 cursor.execute(upsert_query, (
-                    s_type, s['ticker'], s['company_name'], s['current_price'], 
-                    s['gps_score'], s['classification'], s['analyst_upside_pct'], 
-                    s['revenue_growth_yoy'], s['gross_margin_pct'], s['rd_spend_pct'], 
+                    s_type, s['ticker'], s['company_name'], s['current_price'],
+                    s['gps_score'], s['classification'], s['analyst_upside_pct'],
+                    s['revenue_growth_yoy'], s['gross_margin_pct'], s['rd_spend_pct'],
                     s['market_cap_m'], s['mention_count'], s['discovery_source'],
                     s.get('trading_signal'),
                     s.get('trading_signal_score'),
                     s.get('upcoming_earnings'),
                     json.dumps(s.get('prediction_input')),
+                    None, None, None, None,
+                    today
+                ))
+
+        # 4b. Process new screener types (undervalued_large_caps, breakout_candidates, insider_activity, analyst_favorites)
+        INSERT_SQL = """
+            INSERT INTO recommended_stocks (
+                type, ticker, company_name, current_price, gps_score, classification,
+                analyst_upside_pct, revenue_growth_yoy, gross_margin_pct, rd_spend_pct,
+                market_cap_m, mention_count, discovery_source, trading_signal,
+                trading_signal_score, upcoming_earnings, prediction_input,
+                trailing_pe, price_to_book, metric_value, metric_label,
+                snapshot_date
+            ) VALUES (
+                %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s,
+                %s, %s, %s, %s,
+                %s, %s, %s,
+                %s, %s, %s, %s,
+                %s
+            )
+            ON DUPLICATE KEY UPDATE
+                current_price = VALUES(current_price),
+                trailing_pe   = VALUES(trailing_pe),
+                price_to_book = VALUES(price_to_book),
+                metric_value  = VALUES(metric_value),
+                metric_label  = VALUES(metric_label),
+                snapshot_date = VALUES(snapshot_date)
+        """
+
+        for list_key in ['undervalued_large_caps', 'breakout_candidates', 'insider_activity', 'analyst_favorites']:
+            stocks = data.get(list_key, [])
+            print(f"Processing {list_key} ({len(stocks)} candidates)...")
+            for stock in stocks:
+                print(f"  > {stock['ticker']}")
+                cursor.execute(INSERT_SQL, (
+                    list_key,
+                    stock['ticker'],
+                    stock['company_name'],
+                    stock['current_price'],
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    stock.get('market_cap_m'),
+                    0,
+                    'screener',
+                    None,
+                    None,
+                    None,
+                    None,
+                    stock.get('trailing_pe'),
+                    stock.get('price_to_book'),
+                    stock.get('metric_value'),
+                    stock.get('metric_label'),
                     today
                 ))
 

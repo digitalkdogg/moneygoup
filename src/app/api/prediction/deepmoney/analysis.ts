@@ -642,7 +642,126 @@ export async function performDeepAnalysis() {
   const hot_etfs = await performETFDiscovery(hot_stocks, trendingSubSectors, allTrendingTickers);
 
   // -------------------------------------------------------------------------
-  // Stage 6: Deep Enrichment (Post-Selection)
+  // Stage 6: Extended Dashboard Screeners
+  // -------------------------------------------------------------------------
+  async function fetchUndervaluedLargeCaps() {
+    const result = await getYahooScreener('undervalued_large_caps');
+    return (result.quotes || [])
+      .filter((q: any) => q.marketCap > 10e9 && q.trailingPE > 0 && q.trailingPE < 20)
+      .sort((a: any, b: any) => a.trailingPE - b.trailingPE)
+      .slice(0, 8)
+      .map((q: any) => ({
+        ticker:        q.symbol,
+        company_name:  q.shortName || q.longName,
+        current_price: q.regularMarketPrice,
+        market_cap_m:  q.marketCap / 1e6,
+        trailing_pe:   q.trailingPE,
+        price_to_book: q.priceToBook,
+        metric_value:  null,
+        metric_label:  null,
+        type:          'undervalued_large_caps',
+      }));
+  }
+
+  async function fetchBreakoutCandidates() {
+    const result = await getYahooScreener('day_gainers');
+    return (result.quotes || [])
+      .filter((q: any) => q.regularMarketPrice > 0 && q.fiftyTwoWeekHigh > 0)
+      .map((q: any) => ({
+        ticker:        q.symbol,
+        company_name:  q.shortName || q.longName,
+        current_price: q.regularMarketPrice,
+        market_cap_m:  (q.marketCap || 0) / 1e6,
+        trailing_pe:   null,
+        price_to_book: null,
+        metric_value:  q.fiftyTwoWeekHigh ? parseFloat(((q.regularMarketPrice / q.fiftyTwoWeekHigh) * 100).toFixed(2)) : null,
+        metric_label:  '% of 52W High',
+        type:          'breakout_candidates',
+      }))
+      .filter((s: any) => s.metric_value !== null)
+      .sort((a: any, b: any) => (b.metric_value || 0) - (a.metric_value || 0))
+      .slice(0, 8);
+  }
+
+  async function fetchInsiderActivity() {
+    // Try most_bought_by_hedge_funds first, fallback to undervalued_growth_stocks
+    let result = await getYahooScreener('most_bought_by_hedge_funds');
+
+    if (!result.quotes || result.quotes.length === 0) {
+      result = await getYahooScreener('undervalued_growth_stocks');
+    }
+
+    return (result.quotes || [])
+      .filter((q: any) => q.symbol && q.regularMarketPrice && q.regularMarketPrice > 0)
+      .slice(0, 8)
+      .map((q: any) => ({
+        ticker:        q.symbol,
+        company_name:  q.shortName || q.longName,
+        current_price: q.regularMarketPrice,
+        market_cap_m:  (q.marketCap || 0) / 1e6,
+        trailing_pe:   null,
+        price_to_book: null,
+        metric_value:  q.regularMarketChangePercent
+          ? parseFloat((q.regularMarketChangePercent * 100).toFixed(2))
+          : null,
+        metric_label:  'Day Change %',
+        type:          'insider_activity',
+      }));
+  }
+
+  async function fetchAnalystFavorites() {
+    // Try most_watched_tickers first, fallback to growth_technology_stocks
+    let result = await getYahooScreener('most_watched_tickers');
+
+    if (!result.quotes || result.quotes.length === 0) {
+      result = await getYahooScreener('growth_technology_stocks');
+    }
+
+    return (result.quotes || [])
+      .filter((q: any) => q.symbol && q.regularMarketPrice && q.regularMarketPrice > 0)
+      .slice(0, 8)
+      .map((q: any) => {
+        let metricValue = null;
+        let metricLabel = 'Analyst Rating';
+
+        // Try to calculate analyst upside if we have the data
+        if (q.targetMeanPrice && q.regularMarketPrice) {
+          metricValue = parseFloat(((q.targetMeanPrice - q.regularMarketPrice) / q.regularMarketPrice * 100).toFixed(2));
+          metricLabel = 'Analyst Upside %';
+        } else if (q.averageAnalystRating) {
+          // Fallback: use analyst rating if available
+          metricValue = parseFloat(String(q.averageAnalystRating));
+          metricLabel = 'Avg Rating';
+        } else if (q.regularMarketChangePercent) {
+          // Final fallback: use price change percent
+          metricValue = parseFloat((q.regularMarketChangePercent * 100).toFixed(2));
+          metricLabel = 'Day Change %';
+        }
+
+        return {
+          ticker:        q.symbol,
+          company_name:  q.shortName || q.longName,
+          current_price: q.regularMarketPrice,
+          market_cap_m:  (q.marketCap || 0) / 1e6,
+          trailing_pe:   null,
+          price_to_book: null,
+          metric_value:  metricValue,
+          metric_label:  metricLabel,
+          type:          'analyst_favorites',
+        };
+      });
+  }
+
+  const [undervalued_large_caps, breakout_candidates, insider_activity, analyst_favorites] =
+    await Promise.all([
+      fetchUndervaluedLargeCaps().catch(() => []),
+      fetchBreakoutCandidates().catch(() => []),
+      fetchInsiderActivity().catch(() => []),
+      fetchAnalystFavorites().catch(() => []),
+    ]);
+
+  // -------------------------------------------------------------------------
+  // Stage 7: Deep Enrichment (Post-Selection)
   // -------------------------------------------------------------------------
   // Fetch complete LSTM-ready data payloads + ticker news for finalists
   const finalists = [...hot_stocks, ...hot_ai_tech_stocks];
@@ -724,6 +843,10 @@ export async function performDeepAnalysis() {
     hot_ai_tech_stocks: final_hot_ai_tech_stocks,
     hot_markets,
     hot_ai_sectors,
-    hot_etfs
+    hot_etfs,
+    undervalued_large_caps,
+    breakout_candidates,
+    insider_activity,
+    analyst_favorites,
   };
 }

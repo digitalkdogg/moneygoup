@@ -92,16 +92,13 @@ export default function Dashboard() {
   const [loadingPortfolio, setLoadingPortfolio] = useState(true);
   const [portfolioError, setPortfolioError] = useState<string | null>(null);
 
-  const [undervaluedLargeCaps, setUndervaluedLargeCaps] = useState<UndervaluedLargeCap[]>([]); // New state for undervalued large caps
-  const [undervaluedLargeCapsError, setUndervaluedLargeCapsError] = useState<string | null>(null);
-  
-  // State for technical/sentiment recommendations
-  const [momentumPlays, setMomentumPlays] = useState<RecommendedStock[]>([]);
+  const [undervaluedLargeCaps, setUndervaluedLargeCaps] = useState<UndervaluedLargeCap[]>([]);
   const [breakoutCandidates, setBreakoutCandidates] = useState<RecommendedStock[]>([]);
   const [analystFavorites, setAnalystFavorites] = useState<RecommendedStock[]>([]);
   const [insiderActivity, setInsiderActivity] = useState<RecommendedStock[]>([]);
-  const [recommendedStocksError, setRecommendedStocksError] = useState<string | null>(null);
-  const [recommendedStocksLoading, setRecommendedStocksLoading] = useState(false);
+  const [momentumPlays, setMomentumPlays] = useState<RecommendedStock[]>([]);
+  const [deepMoneyError, setDeepMoneyError] = useState<string | null>(null);
+  const [deepMoneyLoading, setDeepMoneyLoading] = useState(false);
   
   const router = useRouter();
 
@@ -161,46 +158,32 @@ export default function Dashboard() {
     }
   }, []); // Empty dependency array as it doesn't depend on any props or state from Dashboard directly
 
-  const fetchUndervaluedLargeCaps = useCallback(async () => {
-    setUndervaluedLargeCapsError(null);
+  const fetchDeepMoneyPicks = useCallback(async () => {
+    setDeepMoneyLoading(true);
+    setDeepMoneyError(null);
     try {
-      const res = await fetch('/api/dashboard/undervalued-large-caps');
+      const res = await fetch('/api/dashboard/deepmoney-picks');
       if (!res.ok) {
-        throw new Error('Failed to fetch undervalued large caps');
+        throw new Error('Failed to fetch DeepMoney picks');
       }
       const data = await res.json();
-      setUndervaluedLargeCaps(data);
-    } catch (err) {
-      setUndervaluedLargeCapsError(err instanceof Error ? err.message : 'An unknown error occurred while fetching undervalued large caps');
-    }
-  }, []); // Empty dependency array
-
-  const fetchRecommendedStocks = useCallback(async () => {
-    setRecommendedStocksLoading(true);
-    setRecommendedStocksError(null);
-    try {
-      const res = await fetch('/api/dashboard/recommended-stocks');
-      if (!res.ok) {
-        throw new Error('Failed to fetch recommended stocks');
-      }
-      const data = await res.json();
+      setUndervaluedLargeCaps(data.undervalued_large_caps || []);
+      setBreakoutCandidates(data.breakout_candidates || []);
+      setAnalystFavorites(data.analyst_favorites || []);
+      setInsiderActivity(data.insider_activity || []);
       setMomentumPlays(data.momentumPlays || []);
-      setBreakoutCandidates(data.breakoutCandidates || []);
-      setAnalystFavorites(data.analystFavorites || []);
-      setInsiderActivity(data.insiderActivity || []);
     } catch (err) {
-      setRecommendedStocksError(err instanceof Error ? err.message : 'An unknown error occurred while fetching recommended stocks');
+      setDeepMoneyError(err instanceof Error ? err.message : 'An unknown error occurred while fetching DeepMoney picks');
     } finally {
-      setRecommendedStocksLoading(false);
+      setDeepMoneyLoading(false);
     }
-  }, []); // Empty dependency array
+  }, []);
 
 
   useEffect(() => {
     fetchPortfolioData(); // Fetch portfolio data when component mounts
-    fetchUndervaluedLargeCaps(); // Fetch undervalued large caps when component mounts
-    fetchRecommendedStocks(); // Fetch technical/sentiment recommendations when component mounts
-  }, [fetchPortfolioData, fetchUndervaluedLargeCaps, fetchRecommendedStocks]); // Add functions to dependency array
+    fetchDeepMoneyPicks(); // Fetch DeepMoney picks (consolidated endpoint)
+  }, [fetchPortfolioData, fetchDeepMoneyPicks]);
 
   const handleRowClick = (symbol: string) => {
     router.push(`/search/${symbol}`);
@@ -435,8 +418,8 @@ export default function Dashboard() {
               },
             ]}
             onRowClick={handleRowClick}
-            loading={false}
-            error={undervaluedLargeCapsError}
+            loading={deepMoneyLoading && undervaluedLargeCaps.length === 0}
+            error={deepMoneyError && undervaluedLargeCaps.length === 0 ? deepMoneyError : null}
             emptyMessage="No undervalued large caps data available."
           />
 
@@ -462,8 +445,8 @@ export default function Dashboard() {
               },
             ]}
             onRowClick={handleRowClick}
-            loading={recommendedStocksLoading && momentumPlays.length === 0}
-            error={recommendedStocksError && momentumPlays.length === 0 ? recommendedStocksError : null}
+            loading={deepMoneyLoading && momentumPlays.length === 0}
+            error={deepMoneyError && momentumPlays.length === 0 ? deepMoneyError : null}
             emptyMessage="No momentum stocks found."
           />
           
@@ -489,8 +472,8 @@ export default function Dashboard() {
               },
             ]}
             onRowClick={handleRowClick}
-            loading={recommendedStocksLoading && breakoutCandidates.length === 0}
-            error={recommendedStocksError && breakoutCandidates.length === 0 ? recommendedStocksError : null}
+            loading={deepMoneyLoading && breakoutCandidates.length === 0}
+            error={deepMoneyError && breakoutCandidates.length === 0 ? deepMoneyError : null}
             emptyMessage="No breakout candidates found."
           />
                     
@@ -516,8 +499,8 @@ export default function Dashboard() {
               },
             ]}
             onRowClick={handleRowClick}
-            loading={recommendedStocksLoading && insiderActivity.length === 0}
-            error={recommendedStocksError && insiderActivity.length === 0 ? recommendedStocksError : null}
+            loading={deepMoneyLoading && insiderActivity.length === 0}
+            error={deepMoneyError && insiderActivity.length === 0 ? deepMoneyError : null}
             emptyMessage="No insider activity found."
           />
                     
@@ -543,8 +526,8 @@ export default function Dashboard() {
               },
             ]}
             onRowClick={handleRowClick}
-            loading={recommendedStocksLoading && analystFavorites.length === 0}
-            error={recommendedStocksError && analystFavorites.length === 0 ? recommendedStocksError : null}
+            loading={deepMoneyLoading && analystFavorites.length === 0}
+            error={deepMoneyError && analystFavorites.length === 0 ? deepMoneyError : null}
             emptyMessage="No analyst favorites found."
           />
         </div>

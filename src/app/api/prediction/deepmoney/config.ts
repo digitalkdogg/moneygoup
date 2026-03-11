@@ -173,7 +173,7 @@ export const ETF_GPS_BONUS = {
   UNDER_THE_RADAR: 3         // AUM < $500M
 };
 
-export const ETF_GPS_THRESHOLD = 55;
+export const ETF_GPS_THRESHOLD = 80;
 
 export const THEME_TO_SUB_SECTORS: { [theme: string]: string[] } = {
   'Artificial Intelligence': ['Artificial Intelligence', 'Robotics & Automation'],

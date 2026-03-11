@@ -20,7 +20,7 @@ Section 9 — Hot ETF Discovery Module (fully new), which includes:
 
 A $400/share hard price gate for all ETFs
 Three discovery strategies: News Signal Alignment, Dynamic ETF Screener, and Thematic ETF Mapping (with a watchlist covering AI, semis, cloud, cybersecurity, etc.)
-An ETF GPS Scoring Model (52-week return, momentum, liquidity, expense ratio, news alignment) with a qualifying threshold of 55/100
+An ETF GPS Scoring Model (52-week return, momentum, liquidity, expense ratio, news alignment) with a qualifying threshold of 80/100
 A complete database persistence plan (Section 9.5) with:
 Two new tables: hot_etfs and etf_cycle_summary
 Indexes for common query patterns
