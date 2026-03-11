@@ -646,10 +646,8 @@ export async function performDeepAnalysis() {
   // -------------------------------------------------------------------------
   async function fetchUndervaluedLargeCaps() {
     const result = await getYahooScreener('undervalued_large_caps');
-    return (result.quotes || [])
+    const candidates = (result.quotes || [])
       .filter((q: any) => q.marketCap > 10e9 && q.trailingPE > 0 && q.trailingPE < 20)
-      .sort((a: any, b: any) => a.trailingPE - b.trailingPE)
-      .slice(0, 8)
       .map((q: any) => ({
         ticker:        q.symbol,
         company_name:  q.shortName || q.longName,
@@ -661,11 +659,37 @@ export async function performDeepAnalysis() {
         metric_label:  null,
         type:          'undervalued_large_caps',
       }));
+
+    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3001';
+    const scoredCandidates = await Promise.all(candidates.map(async (candidate: any) => {
+      const historicalUrl = `${baseUrl}/api/stock_data/${candidate.ticker}/historical/3mo`;
+      const historicalRes = await fetch(historicalUrl, {
+        headers: { 'x-api-key': process.env.DEEPMONEY_INTERNAL_SECRET || '' },
+        signal: AbortSignal.timeout(10000)
+      }).then(res => res.ok ? res.json() : null).catch(() => null);
+
+      const historicalData = (historicalRes?.historicalData?.[candidate.ticker] || []) as any[];
+      const technicalResult = historicalData.length >= 51
+        ? calculateTechnicalIndicators(historicalData, [], undefined, undefined, undefined)
+        : null;
+
+      const tradingSignalScore = technicalResult?.scoreBreakdown.totalScore ?? 0;
+      
+      return {
+        ...candidate,
+        tradingSignalScore,
+      };
+    }));
+
+    return scoredCandidates
+      .filter((c: any) => c.tradingSignalScore > 0)
+      .sort((a: any, b: any) => a.trailing_pe - b.trailing_pe)
+      .slice(0, 8);
   }
 
   async function fetchBreakoutCandidates() {
     const result = await getYahooScreener('day_gainers');
-    return (result.quotes || [])
+    const candidates = (result.quotes || [])
       .filter((q: any) => q.regularMarketPrice > 0 && q.fiftyTwoWeekHigh > 0)
       .map((q: any) => ({
         ticker:        q.symbol,
@@ -678,7 +702,31 @@ export async function performDeepAnalysis() {
         metric_label:  '% of 52W High',
         type:          'breakout_candidates',
       }))
-      .filter((s: any) => s.metric_value !== null)
+      .filter((s: any) => s.metric_value !== null);
+
+    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3001';
+    const scoredCandidates = await Promise.all(candidates.map(async (candidate: any) => {
+      const historicalUrl = `${baseUrl}/api/stock_data/${candidate.ticker}/historical/3mo`;
+      const historicalRes = await fetch(historicalUrl, {
+        headers: { 'x-api-key': process.env.DEEPMONEY_INTERNAL_SECRET || '' },
+        signal: AbortSignal.timeout(10000)
+      }).then(res => res.ok ? res.json() : null).catch(() => null);
+
+      const historicalData = (historicalRes?.historicalData?.[candidate.ticker] || []) as any[];
+      const technicalResult = historicalData.length >= 51
+        ? calculateTechnicalIndicators(historicalData, [], undefined, undefined, undefined)
+        : null;
+
+      const tradingSignalScore = technicalResult?.scoreBreakdown.totalScore ?? 0;
+      
+      return {
+        ...candidate,
+        tradingSignalScore,
+      };
+    }));
+
+    return scoredCandidates
+      .filter((c: any) => c.tradingSignalScore > 0)
       .sort((a: any, b: any) => (b.metric_value || 0) - (a.metric_value || 0))
       .slice(0, 8);
   }
@@ -691,9 +739,8 @@ export async function performDeepAnalysis() {
       result = await getYahooScreener('undervalued_growth_stocks');
     }
 
-    return (result.quotes || [])
+    const candidates = (result.quotes || [])
       .filter((q: any) => q.symbol && q.regularMarketPrice && q.regularMarketPrice > 0)
-      .slice(0, 8)
       .map((q: any) => ({
         ticker:        q.symbol,
         company_name:  q.shortName || q.longName,
@@ -707,6 +754,31 @@ export async function performDeepAnalysis() {
         metric_label:  'Day Change %',
         type:          'insider_activity',
       }));
+
+    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3001';
+    const scoredCandidates = await Promise.all(candidates.map(async (candidate: any) => {
+      const historicalUrl = `${baseUrl}/api/stock_data/${candidate.ticker}/historical/3mo`;
+      const historicalRes = await fetch(historicalUrl, {
+        headers: { 'x-api-key': process.env.DEEPMONEY_INTERNAL_SECRET || '' },
+        signal: AbortSignal.timeout(10000)
+      }).then(res => res.ok ? res.json() : null).catch(() => null);
+
+      const historicalData = (historicalRes?.historicalData?.[candidate.ticker] || []) as any[];
+      const technicalResult = historicalData.length >= 51
+        ? calculateTechnicalIndicators(historicalData, [], undefined, undefined, undefined)
+        : null;
+
+      const tradingSignalScore = technicalResult?.scoreBreakdown.totalScore ?? 0;
+      
+      return {
+        ...candidate,
+        tradingSignalScore,
+      };
+    }));
+
+    return scoredCandidates
+      .filter((c: any) => c.tradingSignalScore > 0)
+      .slice(0, 8);
   }
 
   async function fetchAnalystFavorites() {
@@ -717,9 +789,8 @@ export async function performDeepAnalysis() {
       result = await getYahooScreener('growth_technology_stocks');
     }
 
-    return (result.quotes || [])
+    const candidates = (result.quotes || [])
       .filter((q: any) => q.symbol && q.regularMarketPrice && q.regularMarketPrice > 0)
-      .slice(0, 8)
       .map((q: any) => {
         let metricValue = null;
         let metricLabel = 'Analyst Rating';
@@ -750,6 +821,31 @@ export async function performDeepAnalysis() {
           type:          'analyst_favorites',
         };
       });
+
+    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3001';
+    const scoredCandidates = await Promise.all(candidates.map(async (candidate: any) => {
+      const historicalUrl = `${baseUrl}/api/stock_data/${candidate.ticker}/historical/3mo`;
+      const historicalRes = await fetch(historicalUrl, {
+        headers: { 'x-api-key': process.env.DEEPMONEY_INTERNAL_SECRET || '' },
+        signal: AbortSignal.timeout(10000)
+      }).then(res => res.ok ? res.json() : null).catch(() => null);
+
+      const historicalData = (historicalRes?.historicalData?.[candidate.ticker] || []) as any[];
+      const technicalResult = historicalData.length >= 51
+        ? calculateTechnicalIndicators(historicalData, [], undefined, undefined, undefined)
+        : null;
+
+      const tradingSignalScore = technicalResult?.scoreBreakdown.totalScore ?? 0;
+      
+      return {
+        ...candidate,
+        tradingSignalScore,
+      };
+    }));
+
+    return scoredCandidates
+      .filter((c: any) => c.tradingSignalScore > 0)
+      .slice(0, 8);
   }
 
   const [undervalued_large_caps, breakout_candidates, insider_activity, analyst_favorites] =

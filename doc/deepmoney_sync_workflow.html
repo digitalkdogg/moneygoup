@@ -111,6 +111,7 @@
             <a href="#step6" class="nav-link">6. Deep Enrichment</a>
             <a href="#step7" class="nav-link">7. LSTM Readiness</a>
             <a href="#step8" class="nav-link">8. Persistence Layer</a>
+            <a href = "#step9" class="nav-link">9. API Structure</a>
         </nav>
     </aside>
 
@@ -121,7 +122,7 @@
         <section id="step1">
             <h2><span>1</span> Automation Trigger</h2>
             <div class="step-card">
-                <div class="component-tag">Python Script: deepmoney_sync.py</div>
+                <div class="component-tag">File: deepmoney_sync.py</div>
                 <p>The process starts via a scheduled task (likely cron) executing the sync script.</p>
                 <ul>
                     <li><strong>Environment:</strong> Loads <code>DEEPMONEY_INTERNAL_SECRET</code> and DB credentials from <code>.env.production</code>.</li>
@@ -135,7 +136,7 @@
         <section id="step2">
             <h2><span>2</span> API Authorization</h2>
             <div class="step-card">
-                <div class="component-tag">Endpoint: GET /api/prediction/deepmoney</div>
+                <div class="component-tag">File: src/app/api/prediction/deepmoney/route.ts</div>
                 <p>The API validates the internal handshake:</p>
                 <ul>
                     <li><strong>RBAC:</strong> If no user session is present, it requires an <code>x-api-key</code> matching the internal secret.</li>
@@ -150,7 +151,8 @@
         <section id="step3">
             <h2><span>3</span> News Aggregation & NLP</h2>
             <div class="step-card">
-                <div class="component-tag">Service: getNews.ts & Stage 1 Analysis</div>
+                <div class="component-tag">File: src/app/api/prediction/deepmoney/getNews.ts</div>
+                <div class="component-tag">File: src/app/api/prediction/deepmoney/analysis.ts</div>
                 <p>The system aggregates and processes financial intelligence in real-time:</p>
                 <ul>
                     <li><strong>Feeds:</strong> Fetches from Yahoo Finance, MarketBeat, The Street, and Motley Fool.</li>
@@ -166,10 +168,11 @@
         <section id="step4">
             <h2><span>4</span> Multi-Stage Discovery</h2>
             <div class="step-card">
-                <div class="component-tag">Stage 2 & 2.5 Analysis</div>
+                <div class="component-tag">File: src/app/api/prediction/deepmoney/analysis.ts</div>
+                <div class="component-tag">File: src/utils/yahooFinanceHelper.ts</div>
                 <p>The system expands its search beyond the headlines:</p>
                 <ul>
-                    <li><strong>Screeners:</strong> Hits Yahoo Finance screeners for <code>growth_technology_stocks</code> and <code>undervalued_growth_stocks</code>.</li>
+                    <li><strong>Screeners:</strong> Hits Yahoo Finance screeners for <code>growth_technology_stocks</code>, <code>undervalued_growth_stocks</code>, <code>day_gainers</code>, <code>most_bought_by_hedge_funds</code>, and <code>most_watched_tickers</code>.</li>
                     <li><strong>Deep Scan (Pass 2):</strong> For the top-mentioned tickers, the system fetches their <em>specific</em> company feeds to find co-mentioned peers.</li>
                     <li><strong>Discovery Sources:</strong> Tickers are tagged with their origin (e.g., <code>screener+keyword</code> or <code>company_feed</code>).</li>
                 </ul>
@@ -181,13 +184,14 @@
         <section id="step5">
             <h2><span>5</span> GPS Scoring Model</h2>
             <div class="step-card">
-                <div class="component-tag">Logic: enrichAndScore()</div>
+                <div class="component-tag">File: src/app/api/prediction/deepmoney/analysis.ts</div>
+                <div class="component-tag">File: src/utils/technicalIndicators.ts</div>
                 <p>Every candidate is put through a rigorous weighted scoring algorithm (0-100):</p>
                 <div class="highlight-box">
                     <strong>Base Weights (70% Total):</strong> Analyst Upside (25%), Revenue Growth (15%), EPS Growth (10%), Momentum (10%), Mentions (5%), News Sentiment (5%).
                 </div>
                 <ul>
-                    <li><strong>Trading Signal Gate:</strong> Stocks must have a positive <code>tradingSignalScore</code> (> 0) based on technical indicators (SMA, RSI, Momentum) to pass.</li>
+                    <li><strong>Trading Signal Gate:</strong> Stocks must have a positive <code>tradingSignalScore</code> (> 0) based on technical indicators (SMA, RSI, Momentum) to pass. This gate is applied to all screener results.</li>
                     <li><strong>Expanded Metrics:</strong> Includes P/E, P/B, Debt-to-Equity, ROE, Beta, and Dividend Yield.</li>
                     <li><strong>Hard Gates:</strong> Discards stocks with price > $300 or Market Cap > $2T.</li>
                     <li><strong>AI Bonus (Up to +30 pts):</strong> Extra points for High R&D spend, small-cap status, or AI-taxonomy keyword density.</li>
@@ -201,7 +205,7 @@
         <section id="step6">
             <h2><span>6</span> Deep Enrichment Stage</h2>
             <div class="step-card">
-                <div class="component-tag">Stage 6 Enrichment</div>
+                <div class="component-tag">File: src/app/api/prediction/deepmoney/analysis.ts</div>
                 <p>The top 5-8 finalists undergo intensive data gathering to prepare for LSTM modeling:</p>
                 <ul>
                     <li><strong>Complete History:</strong> Calls <code>/api/stock_data/[ticker]/data</code> for 5-year OHLCV and Fundamentals.</li>
@@ -217,7 +221,7 @@
         <section id="step7">
             <h2><span>7</span> LSTM-Ready Payload</h2>
             <div class="step-card">
-                <div class="component-tag">Schema: prediction_input</div>
+                <div class="component-tag">File: src/app/api/prediction/deepmoney/analysis.ts</div>
                 <p>The API assembles a specialized JSON block for the Python Prediction Engine:</p>
                 <pre><code>"prediction_input": {
   "historicalData": [...],
@@ -239,14 +243,98 @@
         <section id="step8">
             <h2><span>8</span> Persistence Layer</h2>
             <div class="step-card">
-                <div class="component-tag">Database: MySQL (recommended_stocks, hot_etfs)</div>
+                <div class="component-tag">File: deepmoney_sync.py</div>
                 <p>The sync script receives the final enriched JSON and commits it to the database:</p>
                 <ul>
                     <li><strong>Atomic Refresh:</strong> Clears existing <code>recommended_stocks</code> and <code>recommended_markets</code> to ensure data freshness.</li>
                     <li><strong>Deep Persistence:</strong> Now saves <code>trading_signal</code>, <code>trading_signal_score</code>, <code>upcoming_earnings</code>, and the full <code>prediction_input</code> JSON block.</li>
+                    <li><strong>Screener Persistence:</strong> Saves results from <code>undervalued_large_caps</code>, <code>breakout_candidates</code>, <code>insider_activity</code>, and <code>analyst_favorites</code> screeners into the <code>recommended_stocks</code> table.</li>
                     <li><strong>Upsert:</strong> Performs a bulk <code>INSERT ... ON DUPLICATE KEY UPDATE</code> for Stocks, AI Sectors, and ETFs.</li>
                     <li><strong>Result:</strong> The User Dashboard now shows the new analysis without triggering heavy API calls.</li>
                 </ul>
+            </div>
+        </section>
+        
+        <hr style="margin-top: 4rem; margin-bottom: 2rem; border: none; border-top: 1px solid var(--border);">
+
+        <section id="step9">
+            <h2><span>9</span> API Structure</h2>
+            <div class="step-card">
+                <div class="component-tag">Endpoint: GET /api/prediction/deepmoney</div>
+                <p>This endpoint returns a JSON object containing various lists of recommendations and market data.</p>
+                <pre><code>{
+  "hot_stocks": [...],
+  "hot_ai_tech_stocks": [...],
+  "hot_markets": [...],
+  "hot_ai_sectors": [...],
+  "hot_etfs": [...],
+  "undervalued_large_caps": [...],
+  "breakout_candidates": [...],
+  "insider_activity": [...],
+  "analyst_favorites": [...]
+}</code></pre>
+                <h3>hot_stocks & hot_ai_tech_stocks</h3>
+                <p>Array of stock objects with full enrichment.</p>
+                <pre><code>{
+  "ticker": "string",
+  "company_name": "string",
+  "current_price": "number",
+  "gps_score": "number",
+  "classification": "string",
+  "sub_sectors": ["string"],
+  "analyst_upside_pct": "number",
+  "revenue_growth_yoy": "number",
+  "gross_margin_pct": "number",
+  "rd_spend_pct": "number",
+  "market_cap_m": "number",
+  "mention_count": "number",
+  "co_mentioned_with": ["string"],
+  "discovery_source": "string",
+  "snapshot_date": "string",
+  "trading_signal": "string",
+  "trading_signal_score": "number",
+  "signal_breakdown": { ... },
+  "stockMetrics": { ... },
+  "prediction_input": { ... }
+}</code></pre>
+                <h3>Screener Lists</h3>
+                <p><code>undervalued_large_caps</code>, <code>breakout_candidates</code>, <code>insider_activity</code>, <code>analyst_favorites</code> are arrays of stock objects with the following structure:</p>
+                <pre><code>{
+  "ticker": "string",
+  "company_name": "string",
+  "current_price": "number",
+  "market_cap_m": "number",
+  "trailing_pe": "number" | null,
+  "price_to_book": "number" | null,
+  "metric_value": "number" | null,
+  "metric_label": "string" | null,
+  "type": "string",
+  "tradingSignalScore": "number"
+}</code></pre>
+                <h3>hot_markets & hot_ai_sectors</h3>
+                <pre><code>{
+  "industry": "string", // or "sub_sector"
+  "average_sentiment": "number",
+  "count": "number" // or "article_count"
+}</code></pre>
+                <h3>hot_etfs</h3>
+                <pre><code>{
+  "ticker": "string",
+  "etf_name": "string",
+  "snapshot_date": "string",
+  "current_price": "number",
+  "etf_gps_score": "number",
+  "theme": "string",
+  "aum_m": "number",
+  "expense_ratio_pct": "number",
+  "fiftyTwoWk_return_pct": "number",
+  "threeMo_return_pct": "number",
+  "avg_daily_volume": "number",
+  "momentum_score": "number",
+  "news_signal_score": "number",
+  "discovery_source": "string",
+  "is_leveraged": "boolean"
+}</code></pre>
             </div>
         </section>
 
