@@ -11,11 +11,10 @@ interface PortfolioSummaryProps {
 }
 
 const PortfolioSummary: React.FC<PortfolioSummaryProps> = ({ portfolio, marketStatus }) => {
-  let totalDailyChange = 0;
+  let totalPositionValue = 0;
   let totalDailyEarnings = 0;
   let totalLifetimeEarnings = 0;
 
-  let stocksExcludedFromDailyChange = 0;
   let stocksExcludedFromDailyEarnings = 0;
   let stocksExcludedFromLifetimeEarnings = 0;
 
@@ -24,7 +23,7 @@ const PortfolioSummary: React.FC<PortfolioSummaryProps> = ({ portfolio, marketSt
       <div className="bg-white p-6 rounded-2xl shadow-lg mb-8">
         <h2 className="text-2xl font-bold text-gray-800 mb-4">Portfolio Summary</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-center">
-          <SummaryCard label="Total Daily Change" value={0} marketStatus={marketStatus} />
+          <SummaryCard label="Total Position Value" value={0} marketStatus={marketStatus} />
           <SummaryCard label="Total Daily Earnings" value={0} marketStatus={marketStatus} />
           <SummaryCard label="Total Lifetime Earnings" value={0} marketStatus={marketStatus} />
         </div>
@@ -38,13 +37,8 @@ const PortfolioSummary: React.FC<PortfolioSummaryProps> = ({ portfolio, marketSt
     const hasValidPrevClose = prev_close !== null && prev_close !== undefined && prev_close !== 0;
     const hasValidPurchasePrice = purchase_price !== null && purchase_price !== undefined && purchase_price !== 0;
 
-    // Box 1: Total Daily Change
-    // Exclude if prev_close is missing. If all stocks are excluded, display '—'.
-    if (hasValidPrevClose) {
-      totalDailyChange += (regularMarketPrice - prev_close!);
-    } else {
-      stocksExcludedFromDailyChange++;
-    }
+    // Box 1: Total Position Value
+    totalPositionValue += shares * regularMarketPrice;
 
     // Box 2: Total Daily Earnings
     // Exclude if shares > 0 and prev_close is missing.
@@ -65,7 +59,6 @@ const PortfolioSummary: React.FC<PortfolioSummaryProps> = ({ portfolio, marketSt
     // If shares is 0, it contributes 0 and isn't "excluded" due to missing cost basis
   });
 
-  const allStocksExcludedFromDailyChange = stocksExcludedFromDailyChange === portfolio.length;
   const allStocksExcludedFromDailyEarnings = stocksExcludedFromDailyEarnings === portfolio.length;
   const allStocksExcludedFromLifetimeEarnings = stocksExcludedFromLifetimeEarnings === portfolio.length;
 
@@ -75,11 +68,9 @@ const PortfolioSummary: React.FC<PortfolioSummaryProps> = ({ portfolio, marketSt
       <h2 className="text-2xl font-bold text-gray-800 mb-4">Portfolio Summary</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-center">
         <SummaryCard
-          label="Total Daily Change"
-          value={allStocksExcludedFromDailyChange ? null : totalDailyChange}
+          label="Total Position Value"
+          value={totalPositionValue}
           marketStatus={marketStatus}
-          isMissingData={stocksExcludedFromDailyChange > 0 && !allStocksExcludedFromDailyChange}
-          tooltip={stocksExcludedFromDailyChange > 0 && !allStocksExcludedFromDailyChange ? "One or more stocks excluded due to missing price history" : undefined}
         />
         <SummaryCard
           label="Total Daily Earnings"
