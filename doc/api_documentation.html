@@ -8,12 +8,17 @@
         :root {
             --primary: #15803d;
             --primary-dark: #166534;
+            --success: #15803d;
+            --warning: #b45309;
             --bg: #f8fafc;
             --text: #1e293b;
             --code-bg: #1e293b;
             --code-text: #f8fafc;
             --border: #e2e8f0;
+            --purple: #7c3aed;
+            --teal: #0d9488;
         }
+        * { box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             line-height: 1.6;
@@ -23,7 +28,7 @@
             display: flex;
         }
         aside {
-            width: 280px;
+            width: 300px;
             height: 100vh;
             background: white;
             border-right: 1px solid var(--border);
@@ -31,16 +36,39 @@
             padding: 2rem;
             box-sizing: border-box;
             overflow-y: auto;
+            z-index: 10;
         }
         main {
-            margin-left: 280px;
+            margin-left: 300px;
             padding: 3rem;
-            max-width: 900px;
+            max-width: 1100px;
             width: 100%;
         }
         h1 { color: var(--primary-dark); border-bottom: 2px solid var(--primary); padding-bottom: 0.5rem; }
-        h2 { color: var(--primary); margin-top: 3rem; border-bottom: 1px solid var(--border); }
-        h3 { color: #334155; margin-top: 2rem; background: #f1f5f9; padding: 0.5rem 1rem; border-radius: 6px; }
+        h2 { color: var(--primary); margin-top: 4rem; display: flex; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+        h2 span { background: var(--primary); color: white; border-radius: 50%; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; margin-right: 1rem; font-size: 1.1rem; flex-shrink: 0; }
+        
+        h3 { color: #334155; margin-top: 2rem; background: #f1f5f9; padding: 0.5rem 1rem; border-radius: 6px; display: flex; align-items: center; }
+
+        .step-card {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .component-tag {
+            font-size: 0.75rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            background: #f1f5f9;
+            color: #64748b;
+            margin-bottom: 0.5rem;
+            display: inline-block;
+        }
         .method {
             display: inline-block;
             padding: 0.2rem 0.6rem;
@@ -55,35 +83,41 @@
         .patch { background: #fef3c7; color: #92400e; }
         .put { background: #e0f2fe; color: #0369a1; }
         .delete { background: #fee2e2; color: #991b1b; }
-        
-        ul { list-style: none; padding-left: 0; }
-        li { margin-bottom: 0.5rem; }
-        .flow li { position: relative; padding-left: 1.5rem; }
+
+        ul.flow { list-style: none; padding-left: 0; }
+        .flow li { position: relative; padding-left: 1.5rem; margin-bottom: 0.5rem; }
         .flow li::before { content: "→"; position: absolute; left: 0; color: var(--primary); }
         
         code {
-            background: #f1f5f9;
             padding: 0.2rem 0.4rem;
             border-radius: 4px;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-family: ui-monospace, SFMono-Regular, monospace;
             font-size: 0.9rem;
+            background: #f1f5f9;
         }
         pre {
             background: var(--code-bg);
             color: var(--code-text);
-            padding: 1.5rem;
+            padding: 1.2rem;
             border-radius: 8px;
             overflow-x: auto;
             margin: 1rem 0;
         }
         pre code { background: transparent; padding: 0; color: inherit; }
-        
+
+        .highlight-box {
+            background: #f0fdf4;
+            border-left: 4px solid var(--primary);
+            padding: 1rem;
+            margin: 1rem 0;
+        }
         .nav-link {
             display: block;
-            padding: 0.5rem 0;
+            padding: 0.6rem 0;
             color: #64748b;
             text-decoration: none;
             font-size: 0.95rem;
+            border-bottom: 1px solid #f1f5f9;
         }
         .nav-link:hover { color: var(--primary); }
         .nav-header {
@@ -95,6 +129,11 @@
             font-size: 0.8rem;
             letter-spacing: 0.05em;
         }
+
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+        .mini-card { background: white; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
+        .mini-card h4 { margin: 0 0 0.5rem 0; font-size: 0.85rem; text-transform: uppercase; color: var(--primary); }
+
         @media (max-width: 768px) {
             aside { display: none; }
             main { margin-left: 0; padding: 1.5rem; }
@@ -103,8 +142,11 @@
 </head>
 <body>
     <aside>
-        <h2 style="font-size: 1.2rem; margin-top: 0; border: none;">MoneyGoUp API</h2>
+        <h2 style="font-size: 1.2rem; margin-top: 0; border: none;">API Map</h2>
         <nav>
+            <span class="nav-header">Fundamentals</span>
+            <a href="#auth-overview" class="nav-link">0. Auth & Rate Limits</a>
+            
             <span class="nav-header">Stock Data</span>
             <a href="#stock-ticker" class="nav-link">GET /stock/[ticker]</a>
             <a href="#stock-industry" class="nav-link">GET /stock/[ticker]/industry</a>
@@ -124,8 +166,9 @@
             
             <span class="nav-header">User Data</span>
             <a href="#watchlist" class="nav-link">Watchlist APIs</a>
-            <a href="#portfolio" class="nav-link">Portfolio APIs</a>
-            <a href="#trades" class="nav-link">Trade APIs</a>
+            <a href="#portfolio" class="nav-link">Portfolio Tracking</a>
+            <a href="#portfolio-history" class="nav-link">Portfolio History</a>
+            <a href="#trades" class="nav-link">Trade Operations</a>
             
             <span class="nav-header">Auth & Utility</span>
             <a href="#auth" class="nav-link">Auth APIs</a>
@@ -133,25 +176,29 @@
         </nav>
     </aside>
 
+    <main>
         <h1>API Documentation</h1>
         <p>Comprehensive overview of MoneyGoUp API endpoints, logic flows, and testing coverage.</p>
 
         <section id="auth-overview">
-            <h2>0. Authentication & Rate Limiting</h2>
-            <div class="step-card" style="background: white; border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin: 1.5rem 0;">
+            <h2><span>0</span> Authentication & Rate Limiting</h2>
+            <div class="step-card">
                 <p>Most endpoints require a valid user session. However, for internal automation and cross-service calls, the system supports an API Key handshake.</p>
-                <ul>
-                    <li><strong>Header:</strong> <code>x-api-key: [DEEPMONEY_INTERNAL_SECRET]</code></li>
-                    <li><strong>Bypass:</strong> Valid API keys bypass both session requirements and standard IP-based rate limits.</li>
-                </ul>
+                <div class="highlight-box">
+                    <ul>
+                        <li><strong>Header:</strong> <code>x-api-key: [DEEPMONEY_INTERNAL_SECRET]</code></li>
+                        <li><strong>Bypass:</strong> Valid API keys bypass both session requirements and standard IP-based rate limits.</li>
+                    </ul>
+                </div>
             </div>
         </section>
 
         <section id="stock-data">
-            <h2>1. Stock Data & Analysis</h2>
+            <h2><span>1</span> Stock Data & Analysis</h2>
             
-            <div id="stock-ticker">
+            <div id="stock-ticker" class="step-card">
                 <h3><span class="method get">GET</span> /api/stock_data/[ticker]</h3>
+                <div class="component-tag">Module: Consolidated Hub</div>
                 <p>Consolidated data hub for stock analysis.</p>
                 <strong>Logic Flow:</strong>
                 <ul class="flow">
@@ -163,24 +210,26 @@
                 <p><strong>Associated Tests:</strong> <code>api_stock_ticker.test.ts</code>, <code>technicalIndicators.test.ts</code></p>
             </div>
 
-            <div id="stock-industry">
+            <div id="stock-industry" class="step-card">
                 <h3><span class="method get">GET</span> /api/stock_data/[ticker]/industry</h3>
                 <p>Retrieves industry comparisons and peer performance.</p>
                 <p><strong>Associated Tests:</strong> <code>api_stock_ticker_industry.test.ts</code></p>
             </div>
 
-            <div id="stock-historical">
+            <div id="stock-historical" class="step-card">
                 <h3><span class="method get">GET</span> /api/stock_data/[ticker]/historical/[period]</h3>
+                <div class="component-tag">Source: Yahoo / Database</div>
                 <p>Fetches historical OHLCV data.</p>
                 <strong>Logic Flow:</strong>
                 <ul class="flow">
                     <li>Supports periods: 1d, 5d, 1mo, 3mo, 6mo, 1y, 5y, max.</li>
                     <li>If <code>source=dashboard</code>, reads from Local DB.</li>
                     <li>Default: Fetches from Yahoo Finance.</li>
+                    <li>Uses yesterday's date as end-point to avoid incomplete intraday data validation errors.</li>
                 </ul>
             </div>
 
-            <div id="stock-earnings">
+            <div id="stock-earnings" class="step-card">
                 <h3><span class="method get">GET</span> /api/stock_data/[ticker]/earnings</h3>
                 <p>Retrieves upcoming and historical quarterly earnings data (EPS, Revenue).</p>
                 <strong>Logic Flow:</strong>
@@ -190,7 +239,7 @@
                 </ul>
             </div>
 
-            <div id="stock-news">
+            <div id="stock-news" class="step-card">
                 <h3><span class="method get">GET</span> /api/stock_data/[ticker]/news</h3>
                 <p>Fetches filtered news articles for specific tickers.</p>
                 <strong>Logic Flow:</strong>
@@ -202,12 +251,13 @@
                 </ul>
             </div>
 
-            <div id="stock-data-enriched">
+            <div id="stock-data-enriched" class="step-card">
                 <h3><span class="method get">GET</span> /api/stock_data/[ticker]/data</h3>
-                <p><strong>Internal:</strong> Assembles the complete 5-year data payload for the Prediction Engine.</p>
+                <div class="component-tag">Internal: Prediction Preprocessor</div>
+                <p>Assembles the complete 5-year data payload for the Prediction Engine.</p>
                 <strong>Logic Flow:</strong>
                 <ul class="flow">
-                    <li>Fetches 5 years of OHLCV data.</li>
+                    <li>Fetches 5 years of OHLCV data (up to yesterday).</li>
                     <li>Fetches macro series (VIX, 10Y Treasury, Sector ETFs) using 24h <code>macroCache</code>.</li>
                     <li>Imputes missing fundamental data using sector medians.</li>
                     <li>Calculates <code>dataQuality</code> metadata (historyYears, imputedFields).</li>
@@ -216,10 +266,11 @@
             </div>
         </section>
 
-        <section>
-            <h2>2. Prediction Engine</h2>
-            <div id="prediction">
+        <section id="prediction-engine">
+            <h2><span>2</span> Prediction Engine</h2>
+            <div id="prediction" class="step-card">
                 <h3><span class="method post">POST</span> /api/prediction/[ticker]</h3>
+                <div class="component-tag">Process: Python Spawn</div>
                 <p>Generates an AI price prediction using a local MLP neural network.</p>
                 <strong>Logic Flow:</strong>
                 <ul class="flow">
@@ -229,13 +280,13 @@
                 </ul>
                 <p><strong>Associated Tests:</strong> <code>stockPrediction.test.ts</code>, <code>predictionQueue.test.ts</code></p>
             </div>
-            <div id = "deepmoney">
+            <div id="deepmoney" class="step-card">
                 <h3><span class="method get">GET</span> /api/prediction/deepmoney</h3>
+                <div class="component-tag">Process: Market-Wide Analysis</div>
                 <p>Premium market-wide sentiment and growth analysis.</p>
-                <strong>Query Parameters:</strong>
-                <ul>
-                    <li><code>refresh=true</code>: Optional. Bypasses the 30-minute cache to force a fresh analysis.</li>
-                </ul>
+                <div class="highlight-box">
+                    <strong>Query Parameters:</strong> <code>refresh=true</code>: Bypasses the 30-minute cache.
+                </div>
                 <strong>Logic Flow:</strong>
                 <ul class="flow">
                     <li>Aggregates Yahoo, MarketBeat, The Street, and Motley Fool.</li>
@@ -251,15 +302,15 @@
             </div>
         </section>
 
-        <section id="dashboard">
-            <h2>3. Dashboard</h2>
-            <div id="dashboard1">
+        <section id="dashboard-section">
+            <h2><span>3</span> Dashboard</h2>
+            <div id="dashboard1" class="step-card">
                 <h3><span class="method get">GET</span> /api/dashboard</h3>
                 <p>User-specific performance summary and holdings signals.</p>
                 <p><strong>Associated Tests:</strong> <code>api_dashboard.test.ts</code></p>
             </div>
 
-            <div id="dashboard-on">
+            <div id="dashboard-on" class="step-card">
                 <h3><span class="method get">GET</span> /api/dashboard/on?ticker=[TICKER]</h3>
                 <p>Quick check to see if a ticker exists in user's watchlist or portfolio.</p>
                 <strong>Logic Flow:</strong>
@@ -269,9 +320,9 @@
                 </ul>
             </div>
 
-            <div id="dashboard-picks">
+            <div id="dashboard-picks" class="step-card">
                 <h3>Dashboard Discovery APIs</h3>
-                <ul>
+                <ul class="flow">
                     <li><code>GET /api/dashboard/deepmoney-picks</code>: Latest AI-generated picks from DB.</li>
                     <li><code>GET /api/dashboard/recommended-stocks</code>: Real-time discovery (Momentum, Breakouts).</li>
                     <li><code>GET /api/dashboard/undervalued-large-caps</code>: Screener-based value plays.</li>
@@ -279,11 +330,11 @@
             </div>
         </section>
 
-        <section id="watchlist">
-            <h2>4. User Portfolio & Watchlist</h2>
-            <div>
+        <section id="watchlist-section">
+            <h2><span>4</span> User Portfolio & Watchlist</h2>
+            <div id="watchlist" class="step-card">
                 <h3>Watchlist Management</h3>
-                <ul>
+                <ul class="flow">
                     <li><span class="method get">GET</span> <code>/api/user/watchlist</code>: Fetch watchlist with 6mo MA.</li>
                     <li><span class="method post">POST</span> <code>/api/user/watchlist</code>: Add ticker to watch.</li>
                     <li><span class="method delete">DELETE</span> <code>/api/user/watchlist?stockId=[ticker]</code>: Remove from watch.</li>
@@ -291,17 +342,34 @@
                 <p><strong>Associated Tests:</strong> <code>api_user_stocks.test.ts</code></p>
             </div>
 
-            <div id="portfolio">
+            <div id="portfolio" class="step-card">
                 <h3>Portfolio Tracking</h3>
-                <ul>
+                <ul class="flow">
                     <li><span class="method get">GET</span> <code>/api/user/portfolio</code>: Active positions with real-time P&L.</li>
                 </ul>
                 <p><strong>Associated Tests:</strong> <code>api_user_portfolio.test.ts</code></p>
             </div>
 
-            <div id="trades">
+            <div id="portfolio-history" class="step-card">
+                <h3><span class="method get">GET</span> /api/user/portfolio/historical-value</h3>
+                <div class="component-tag">Calculation: Current Holdings History</div>
+                <p>Calculates the historical value of the user's current portfolio over time.</p>
+                <div class="highlight-box">
+                    <strong>Query Parameters:</strong> <code>period</code>: 1w (default), 1m, 6m, 1y, all.
+                </div>
+                <strong>Logic Flow:</strong>
+                <ul class="flow">
+                    <li>Fetches current stock holdings from <code>user_stocks</code> (shares > 0).</li>
+                    <li>Retrieves historical prices for each held ticker from Yahoo Finance.</li>
+                    <li>Uses yesterday's date as the end-point to ensure data completeness.</li>
+                    <li>Computes aggregate portfolio value for each day based on current share counts.</li>
+                    <li>Returns a time-series array for charting.</li>
+                </ul>
+            </div>
+
+            <div id="trades" class="step-card">
                 <h3>Trade Operations</h3>
-                <ul>
+                <ul class="flow">
                     <li><span class="method post">POST</span> <code>/api/user/stocks</code>: Log initial purchase.</li>
                     <li><span class="method patch">PATCH</span> <code>/api/user/stocks/[id]</code>: Update shares (buy/sell).</li>
                     <li><span class="method put">PUT</span> <code>/api/user/stocks/[id]</code>: "Sell All" (Moves position back to watchlist).</li>
@@ -310,18 +378,18 @@
             </div>
         </section>
 
-        <section id="auth">
-            <h2>5. Authentication</h2>
-            <div>
+        <section id="auth-section">
+            <h2><span>5</span> Authentication</h2>
+            <div id="auth" class="step-card">
                 <h3><span class="method post">POST</span> /api/auth/register</h3>
                 <p>Creates new user account.</p>
                 <p><strong>Associated Tests:</strong> <code>api_auth_register.test.ts</code></p>
             </div>
         </section>
 
-        <section id="utility">
-            <h2>6. Utility APIs</h2>
-            <div>
+        <section id="utility-section">
+            <h2><span>6</span> Utility APIs</h2>
+            <div id="utility" class="step-card">
                 <h3><span class="method get">GET</span> /api/cache-stats</h3>
                 <p><strong>Admin:</strong> View cache utilization and memory pressure.</p>
                 <p><strong>Associated Tests:</strong> <code>cache.test.ts</code></p>
@@ -337,9 +405,12 @@
         document.querySelectorAll('.nav-link').forEach(anchor => {
             anchor.addEventListener('click', function (e) {
                 e.preventDefault();
-                document.querySelector(this.getAttribute('href')).scrollIntoView({
-                    behavior: 'smooth'
-                });
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth'
+                    });
+                }
             });
         });
     </script>

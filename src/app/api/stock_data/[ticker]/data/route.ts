@@ -113,9 +113,10 @@ function safeNum(v: unknown): number | null {
 // Data fetching helpers
 // ---------------------------------------------------------------------------
 async function fetchOhlcv(ticker: string) {
-  // ... (existing implementation)
   const fiveYearsAgo = new Date(Date.now() - 5 * 365.25 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const today = new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const today = yesterday.toISOString().slice(0, 10);
 
   const rows = await yahooFinance.historical(ticker, { period1: fiveYearsAgo, period2: today });
   if (!rows || rows.length === 0) {
@@ -150,7 +151,9 @@ async function fetchMacroSeries(sym: string): Promise<{ date: string; close: num
 
   try {
     const fiveYearsAgo = new Date(Date.now() - 5 * 365.25 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    const today = new Date().toISOString().slice(0, 10);
+    const now = new Date();
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const today = yesterday.toISOString().slice(0, 10);
     const rows = await yahooFinance.historical(sym, { period1: fiveYearsAgo, period2: today });
     
     if (!rows || rows.length === 0) return [];

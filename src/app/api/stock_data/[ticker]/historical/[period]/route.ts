@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { executeRawQuery } from '@/utils/databaseHelper'
-import YahooFinance from 'yahoo-finance2';
+import { yahooFinance } from '@/utils/yahooFinanceHelper';
 import { createErrorResponse, validationErrorResponse } from '@/utils/errorResponse';
 import { checkOrigin } from '@/utils/originCheck';
-import { getServerSession } from 'next-auth'; // Add this import
-import { authOptions } from '@/lib/auth'; // Add this import
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { tickerSchema, periodSchema } from '@/utils/validationSchemas';
 import { historicalLimiter } from '@/utils/rateLimiter';
 import { checkRateLimit } from '@/utils/rateLimitMiddleware';
 import { z } from 'zod';
-
-const yahooFinance = new YahooFinance();
 
 const getDays = (period: string): number => {
   switch (period) {
@@ -111,37 +109,47 @@ async function fetchFromExternalAPIs(tickers: string | string[], startDate: stri
   const errors: string[] = [];
   const sources: string[] = ['Yahoo'];
 
-  const currentDate = new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const currentDate = yesterday.toISOString().slice(0, 10);
 
   // Helper to normalize Yahoo Finance data
   const normalizeYahooData = (data: any[]) => {
-    return data.map(item => ({
-      date: item.date.toISOString().split('T')[0],
-      datetime: item.date.toISOString(),
-      open: item.open,
-      high: item.high,
-      low: item.low,
-      close: item.close,
-      volume: item.volume,
-      adjOpen: item.adjClose, // Yahoo provides adjusted close, not open
-      adjHigh: item.adjClose,
-      adjLow: item.adjClose,
-      adjClose: item.adjClose,
-      adjVolume: item.volume
-    }));
+    return data
+      .filter(item => item.date && item.close !== null && item.close !== undefined)
+      .map(item => {
+        const adjClose = item.adjClose ?? item.adjclose ?? item.close;
+        return {
+          date: item.date instanceof Date ? item.date.toISOString().split('T')[0] : String(item.date).split('T')[0],
+          datetime: item.date instanceof Date ? item.date.toISOString() : String(item.date),
+          open: item.open,
+          high: item.high,
+          low: item.low,
+          close: item.close,
+          volume: item.volume,
+          adjOpen: adjClose,
+          adjHigh: adjClose,
+          adjLow: adjClose,
+          adjClose: adjClose,
+          adjVolume: item.volume
+        };
+      });
   };
 
   // Fetch historical data for all tickers in parallel
   const fetchPromises = tickerArray.map(async (ticker) => {
     try {
+      console.log(`[Historical API] Fetching from Yahoo for ${ticker} since ${startDate}`);
       const data = await yahooFinance.historical(ticker, { period1: startDate, period2: currentDate });
 
       if (data && Array.isArray(data) && data.length > 0) {
         results[ticker] = normalizeYahooData(data);
+        console.log(`[Historical API] Got ${results[ticker].length} normalized data points for ${ticker}`);
       } else {
         errors.push(`${ticker}: No historical data returned from Yahoo Finance`);
       }
     } catch (error) {
+      console.error(`[Historical API] Error fetching ${ticker}:`, error);
       errors.push(`${ticker}: ${error instanceof Error ? error.message : 'Network error'}`);
     }
   });

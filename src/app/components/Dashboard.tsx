@@ -11,6 +11,7 @@ import PortfolioSummary from './PortfolioSummary'; // NEW: Import PortfolioSumma
 import { formatNumber, formatCurrency as formatUtilityCurrency } from '@/utils/formatters'; // Import formatters
 import { PortfolioItem } from '@/types/portfolio'; // NEW: Import PortfolioItem
 import DeepMoneyPicksSection from './DeepMoneyPicksSection';
+import { PortfolioHistoryChart } from './PortfolioHistoryChart';
 
 interface StockData {
   symbol?: string
@@ -99,6 +100,7 @@ export default function Dashboard() {
   const [momentumPlays, setMomentumPlays] = useState<RecommendedStock[]>([]);
   const [deepMoneyError, setDeepMoneyError] = useState<string | null>(null);
   const [deepMoneyLoading, setDeepMoneyLoading] = useState(false);
+  const [showChart, setShowChart] = useState(false);
   
   const router = useRouter();
 
@@ -373,7 +375,14 @@ export default function Dashboard() {
           </header>
 
           {/* NEW: Portfolio Summary */}
-          <PortfolioSummary portfolio={portfolio} marketStatus={marketStatus} />
+          <PortfolioSummary 
+            portfolio={portfolio} 
+            marketStatus={marketStatus} 
+            showChart={showChart}
+            onToggleChart={() => setShowChart(!showChart)}
+          />
+
+          {showChart && <PortfolioHistoryChart />}
 
           {/* Portfolio and Watchlist Sections */}
           <PortfolioSection portfolio={portfolio} onRefresh={fetchPortfolioData} />
