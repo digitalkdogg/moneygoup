@@ -49,10 +49,13 @@ interface PredictionResult {
   regularMarketPrice: number
   predicted_price_6m: number
   predicted_price_1y: number
+  predicted_price_1m: number
   predicted_change_pct_6m: number
   predicted_change_pct_1y: number
+  predicted_change_pct_1m: number
   confidence_score_6m: number
   confidence_score_1y: number
+  confidence_score_1m: number 
   high_uncertainty: boolean
   predicted_change_range: [number, number]
   monthly_trajectory: TrajectoryPoint[]
@@ -169,6 +172,9 @@ function TrajectoryChart({
   const m12X      = xScale(m12Idx)
   const m6Y       = yScale(trajectory[m6Idx]?.predicted_price ?? currentPrice)
   const m12Y      = yScale(trajectory[m12Idx]?.predicted_price ?? currentPrice)
+  const m1Idx     = 0   
+  const m1X       = xScale(m1Idx)
+  const m1Y       = yScale(trajectory[m1Idx]?.predicted_price ?? currentPrice)
 
   const yTicks = Array.from({ length: 4 }, (_, i) => minP + (i / 3) * (maxP - minP))
 
@@ -190,7 +196,7 @@ function TrajectoryChart({
           y1={currentY}  y2={currentY}
           stroke="#9CA3AF" strokeWidth="1" strokeDasharray="5 3"
         />
-        <text x={PAD.left + 4} y={currentY - 4} fontSize="10" fill="#6B7280">Current</text>
+        <text x={PAD.left + 11} y={currentY - 4} fontSize="10" fill="#6B7280">Current</text>
 
         {/* Month-6 divider */}
         <line
@@ -203,6 +209,9 @@ function TrajectoryChart({
 
         {/* Price line */}
         <path d={linePath} fill="none" stroke="#2563EB" strokeWidth="2" clipPath="url(#chart-clip)" />
+
+        {/* Month 1 dot */}
+        <circle cx={m1X} cy={m1Y} r="5" fill="#0ca776" />
 
         {/* Month 6 dot */}
         <circle cx={m6X} cy={m6Y} r="5" fill="#2563EB" />
@@ -353,7 +362,7 @@ export default function StockPrediction({
     <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
       <h2 className="text-2xl font-semibold text-gray-800 mb-4">📊 AI-Powered Price Prediction</h2>
       <p className="text-gray-600 mb-4">
-        Click the button to generate a 6-month and 12-month price prediction for {ticker} using an MLP neural network.
+        Click the button to generate a 1-month, 6-month and 12-month price prediction for {ticker} using an MLP neural network.
       </p>
 
       {/* Data quality warnings (shown after Step 1 completes) */}
@@ -400,8 +409,25 @@ export default function StockPrediction({
             </div>
           )}
 
-          {/* ---- Dual-horizon headline cards ---- */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          {/* ---- three-horizon headline cards ---- */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            {/* 1-month card */}
+            <div className="p-5 bg-emerald-50 rounded-xl border border-emerald-200">
+              <p className="text-xs font-semibold text-emerald-500 uppercase tracking-wide mb-2">1-Month Price Target</p>
+              <p className="text-3xl font-bold text-emerald-800 mb-1">
+                {formatCurrency(prediction.predicted_price_1m)}
+              </p>
+              <p className={`text-sm font-semibold mb-3 ${prediction.predicted_change_pct_1m >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {prediction.predicted_change_pct_1m >= 0 ? '+' : ''}{formatNumber(prediction.predicted_change_pct_1m, 2)}% from current
+              </p>
+              <ConfidenceBadge score={prediction.confidence_score_1m} />
+              {prediction.monthly_trajectory?.[0] && (
+                <p className="text-xs text-emerald-600 mt-3">
+                  Range: {formatCurrency(prediction.monthly_trajectory[0].lower_bound)} – {formatCurrency(prediction.monthly_trajectory[0].upper_bound)}
+                </p>
+              )}
+            </div>
+
             {/* 6-month card */}
             <div className="p-5 bg-blue-50 rounded-xl border border-blue-200">
               <p className="text-xs font-semibold text-blue-500 uppercase tracking-wide mb-2">6-Month Price Target</p>
@@ -434,7 +460,7 @@ export default function StockPrediction({
                   Range: {formatCurrency(prediction.monthly_trajectory[11].lower_bound)} – {formatCurrency(prediction.monthly_trajectory[11].upper_bound)}
                 </p>
               )}
-              <p className="text-xs text-gray-400 mt-2 italic">Wider uncertainty — treat as directional guidance</p>
+              <p className="text-xs text-gray-400 mt-2 italic">Wider uncertainty — treat as <br />directional guidance</p>
             </div>
           </div>
 

@@ -780,6 +780,13 @@ def predict(ticker, input_data):
     prange_low  = round(traj_6m['lower_bound'] - current_price, 2)
     prange_high = round(traj_6m['upper_bound']  - current_price, 2)
 
+    # ---- 1m trajectory point (index 0 = waypoint t+21 ≈ 1 month) ----
+    traj_1m = trajectory[0]   # index 0 = waypoint 21 trading days (~1 month)
+
+    predicted_price_1m = traj_1m['predicted_price']
+    pct_1m = round((predicted_price_1m - current_price) / (current_price + 1e-9) * 100, 2)
+    cs1m = min(100, cs6m + 10)  # 1m is tighter horizon → slightly higher confidence
+
     pct_6m  = round((predicted_price_6m  - current_price) / (current_price + 1e-9) * 100, 2)
     pct_12m = round((predicted_price_1y  - current_price) / (current_price + 1e-9) * 100, 2)
 
@@ -793,6 +800,9 @@ def predict(ticker, input_data):
         "predicted_change_pct_1y":  pct_12m,
         "confidence_score_6m":  cs6m,
         "confidence_score_1y":  cs1y,
+        "predicted_price_1m":      round(predicted_price_1m, 2),
+        "predicted_change_pct_1m": pct_1m,
+        "confidence_score_1m":     cs1m,
         "high_uncertainty":     high_uncertainty,
         # Backward compat
         "predicted_change_range": [prange_low, prange_high],
