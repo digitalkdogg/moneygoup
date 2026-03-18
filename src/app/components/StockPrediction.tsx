@@ -327,7 +327,7 @@ export default function StockPrediction({
       }
       dataPayload = await res.json()
       setDataQuality(dataPayload.dataQuality ?? null)
-    } catch (err) {g-600 
+    } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch stock data')
       setStep('idle')
       return
