@@ -93,12 +93,43 @@ interface DataQuality {
 const CONFIDENCE_TOOLTIP =
   'Score is based on: data depth (25 pts), cross-validation error (40 pts), feature completeness (20 pts), analyst coverage (15 pts).'
 
+function ConfidenceBadgeBlue({ score }: { score: number }) {
+  if (score >= 66) {
+    return (
+      <span
+        title={CONFIDENCE_TOOLTIP}
+        className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full border bg-blue-50 text-blue-600 border-blue-500 cursor-help"
+      >
+        High Confidence · {score}
+      </span>
+    )
+  }
+   if (score >= 41) {
+    return (
+      <span
+        title={CONFIDENCE_TOOLTIP}
+        className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full border bg-gray-50 text-amber-700 border-gray-300 cursor-help"
+      >
+        Medium Confidence · {score}
+      </span>
+    )
+  }
+  return (
+    <span
+      title={CONFIDENCE_TOOLTIP}
+      className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full border bg-red-50 text-red-700 border-red-300 cursor-help"
+    >
+      Low Confidence · {score}
+    </span>
+  )
+}
+
 function ConfidenceBadge({ score }: { score: number }) {
   if (score >= 66) {
     return (
       <span
         title={CONFIDENCE_TOOLTIP}
-        className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full border bg-green-50 text-green-700 border-green-300 cursor-help"
+        className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full border bg-white-50 text-green-700 border-green-500 cursor-help"
       >
         High Confidence · {score}
       </span>
@@ -108,7 +139,7 @@ function ConfidenceBadge({ score }: { score: number }) {
     return (
       <span
         title={CONFIDENCE_TOOLTIP}
-        className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-300 cursor-help"
+        className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full border bg-gray-50 text-amber-700 border-gray-300 cursor-help"
       >
         Medium Confidence · {score}
       </span>
@@ -211,13 +242,13 @@ function TrajectoryChart({
         <path d={linePath} fill="none" stroke="#2563EB" strokeWidth="2" clipPath="url(#chart-clip)" />
 
         {/* Month 1 dot */}
-        <circle cx={m1X} cy={m1Y} r="5" fill="#0ca776" />
+        <circle cx={m1X} cy={m1Y} r="5" fill="#2563EB" stroke="#2826b1c4" />
 
         {/* Month 6 dot */}
-        <circle cx={m6X} cy={m6Y} r="5" fill="#2563EB" />
+        <circle cx={m6X} cy={m6Y} r="5" fill="#2563EB" stroke = "#2826b1c4" />
 
         {/* Month 12 dot */}
-        <circle cx={m12X} cy={m12Y} r="5" fill="#7C3AED" />
+        <circle cx={m12X} cy={m12Y} r="5" fill="#2563EB" stroke = "#2826b1c4" />
 
         {/* Y-axis ticks */}
         {yTicks.map((p, i) => (
@@ -296,7 +327,7 @@ export default function StockPrediction({
       }
       dataPayload = await res.json()
       setDataQuality(dataPayload.dataQuality ?? null)
-    } catch (err) {
+    } catch (err) {g-600 
       setError(err instanceof Error ? err.message : 'Failed to fetch stock data')
       setStep('idle')
       return
@@ -412,55 +443,55 @@ export default function StockPrediction({
           {/* ---- three-horizon headline cards ---- */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             {/* 1-month card */}
-            <div className="p-5 bg-emerald-50 rounded-xl border border-emerald-200">
-              <p className="text-xs font-semibold text-emerald-500 uppercase tracking-wide mb-2">1-Month Price Target</p>
-              <p className="text-3xl font-bold text-emerald-800 mb-1">
+            <div className="p-5 bg-blue-50 rounded-xl border border-blue-200">
+              <p className="text-xs font-semibold text-blue-500 uppercase tracking-wide mb-2">1-Month Price Target</p>
+              <p className="text-3xl font-bold text-blue-800 mb-1">
                 {formatCurrency(prediction.predicted_price_1m)}
               </p>
               <p className={`text-sm font-semibold mb-3 ${prediction.predicted_change_pct_1m >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 {prediction.predicted_change_pct_1m >= 0 ? '+' : ''}{formatNumber(prediction.predicted_change_pct_1m, 2)}% from current
               </p>
-              <ConfidenceBadge score={prediction.confidence_score_1m} />
+              <ConfidenceBadgeBlue score={prediction.confidence_score_1m} />
               {prediction.monthly_trajectory?.[0] && (
-                <p className="text-xs text-emerald-600 mt-3">
+                <p className="text-xs text-blue-600 mt-3">
                   Range: {formatCurrency(prediction.monthly_trajectory[0].lower_bound)} – {formatCurrency(prediction.monthly_trajectory[0].upper_bound)}
                 </p>
               )}
             </div>
 
             {/* 6-month card */}
-            <div className="p-5 bg-blue-50 rounded-xl border border-blue-200">
-              <p className="text-xs font-semibold text-blue-500 uppercase tracking-wide mb-2">6-Month Price Target</p>
-              <p className="text-3xl font-bold text-blue-800 mb-1">
+            <div className="p-5 bg-emerald-50 rounded-xl border border-emerald-200">
+              <p className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-2">6-Month Price Target</p>
+              <p className="text-3xl font-bold text-emerald-800 mb-1">
                 {formatCurrency(prediction.predicted_price_6m)}
               </p>
-              <p className={`text-sm font-semibold mb-3 ${prediction.predicted_change_pct_6m >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <p className={`text-sm font-semibold mb-3 ${prediction.predicted_change_pct_6m >= 0 ? 'text-green-700' : 'text-red-600'}`}>
                 {prediction.predicted_change_pct_6m >= 0 ? '+' : ''}{formatNumber(prediction.predicted_change_pct_6m, 2)}% from current
               </p>
               <ConfidenceBadge score={prediction.confidence_score_6m} />
               {prediction.monthly_trajectory?.[5] && (
-                <p className="text-xs text-blue-600 mt-3">
+                <p className="text-xs text-green-700 mt-3">
                   Range: {formatCurrency(prediction.monthly_trajectory[5].lower_bound)} – {formatCurrency(prediction.monthly_trajectory[5].upper_bound)}
                 </p>
               )}
             </div>
 
             {/* 12-month card */}
-            <div className="p-5 bg-purple-50 rounded-xl border border-purple-200">
-              <p className="text-xs font-semibold text-purple-500 uppercase tracking-wide mb-2">Long-Term Outlook (12 months)</p>
-              <p className="text-3xl font-bold text-purple-800 mb-1">
+            <div className="p-5 bg-green-200 rounded-xl border border-green-500">
+              <p className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-2">Long-Term Outlook (12 months)</p>
+              <p className="text-3xl font-bold text-green-900 mb-1">
                 {formatCurrency(prediction.predicted_price_1y)}
               </p>
-              <p className={`text-sm font-semibold mb-3 ${prediction.predicted_change_pct_1y >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <p className={`text-sm font-semibold mb-3 ${prediction.predicted_change_pct_1y >= 0 ? 'text-green-700' : 'text-red-600'}`}>
                 {prediction.predicted_change_pct_1y >= 0 ? '+' : ''}{formatNumber(prediction.predicted_change_pct_1y, 2)}% from current
               </p>
               <ConfidenceBadge score={prediction.confidence_score_1y} />
               {prediction.monthly_trajectory?.[11] && (
-                <p className="text-xs text-purple-600 mt-3">
+                <p className="text-xs text-green-800 mt-3">
                   Range: {formatCurrency(prediction.monthly_trajectory[11].lower_bound)} – {formatCurrency(prediction.monthly_trajectory[11].upper_bound)}
                 </p>
               )}
-              <p className="text-xs text-gray-400 mt-2 italic">Wider uncertainty — treat as <br />directional guidance</p>
+              <p className="text-xs text-gray-800 mt-2 italic">Wider uncertainty — treat as <br />directional guidance</p>
             </div>
           </div>
 
