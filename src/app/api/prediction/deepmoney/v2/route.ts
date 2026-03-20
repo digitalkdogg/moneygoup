@@ -81,7 +81,7 @@ async function fetchFeed(url: string): Promise<string | null> {
             signal: AbortSignal.timeout(8_000),
         });
         if (!res.ok) {
-            logger.warn(`Feed returned ${res.status}: ${url}`);
+         //   logger.warn(`Feed returned ${res.status}: ${url}`);
             return null;
         }
         return await res.text();
@@ -169,6 +169,10 @@ async function fetchPrimaryTickers(): Promise<Set<string>> {
                 // Specific handler for ApeWisdom JSON structure
                 if (data && Array.isArray(data.results)) {
                     data.results.forEach((item: any) => {
+                        // Pre-filter: skip stocks with low historical volume (less than 5 mentions 24h ago)
+                        const historicalMentions = item.mentions_24h_ago || 0;
+                        if (historicalMentions < 5) return;
+
                         if (item.ticker && !TICKER_STOPLIST.has(item.ticker.toUpperCase())) {
                             allTickers.add(item.ticker.toUpperCase());
                         }
@@ -215,7 +219,7 @@ async function fetchSecondaryTickers(primaryTickers: Set<string>): Promise<Set<s
  * Processes all tickers in small batches to avoid overwhelming the API.
  */
 async function enrichTickers(tickers: string[]) {
-    logger.info(`Enriching ${tickers.length} tickers with metrics (Full Sweep)`);
+    //logger.info(`Enriching ${tickers.length} tickers with metrics (Full Sweep)`);
 
     const results: any[] = [];
     const BATCH_SIZE = 5; // Process 5 tickers concurrently to avoid rate limits
@@ -229,7 +233,7 @@ async function enrichTickers(tickers: string[]) {
             try {
                 const [summary, historical, newsRes] = await Promise.all([
                     yahooFinance.quoteSummary(ticker, {
-                        modules: ['summaryDetail', 'financialData', 'defaultKeyStatistics', 'price']
+                        modules: ['summaryDetail', 'financialData', 'defaultKeyStatistics', 'price', 'incomeStatementHistory', 'assetProfile']
                     }).catch(() => null),
                     yahooFinance.historical(ticker, {
                         period1: oneYearAgo,
@@ -244,50 +248,17 @@ async function enrichTickers(tickers: string[]) {
                 const financial = (summary as any).financialData || {};
                 const stats = (summary as any).defaultKeyStatistics || {};
                 const price = (summary as any).price || {};
-                
-                // Define relevance keywords for news filtering
-                const companyName = price.longName || price.shortName || ticker;
-                const relevantKeywords = [ticker.toLowerCase(), companyName.toLowerCase()];
-                const strippedName = companyName.toLowerCase()
-                    .replace(/,?\s+(inc|corporation|corp|ltd|llc|co)\.?$/g, '')
-                    .trim();
-                if (strippedName !== companyName.toLowerCase()) {
-                    relevantKeywords.push(strippedName);
-                }
+                const income = (summary as any).incomeStatementHistory?.incomeStatementHistory?.[0] || {};
+                const profile = (summary as any).assetProfile || {};
 
-                // Process news for sentiment with filtering
-                const newsArticles: any[] = [];
-                if (newsRes) {
-                    try {
-                        const parsed = xmlParser.parse(newsRes);
-                        const channel = parsed.rss?.channel;
-                        const items = channel?.item;
-                        const itemsArray = Array.isArray(items) ? items : items ? [items] : [];
-                        
-                        itemsArray.forEach((item: any) => {
-                            if (newsArticles.length >= 10) return;
-
-                            const title = (item.title || '').toLowerCase();
-                            const description = (item.description || '').toLowerCase();
-
-                            // Filter: check if title or description contains relevant keywords
-                            const isRelevant = relevantKeywords.some(keyword => 
-                                title.includes(keyword) || description.includes(keyword)
-                            );
-
-                            if (!isRelevant) return;
-
-                            const score = sentiment.analyze(item.title || '').score;
-                            newsArticles.push({
-                                title: item.title,
-                                sentiment_score: score,
-                                pub_date: item.pubDate
-                            });
-                        });
-                    } catch (e) {
-                        logger.warn(`Failed to parse news for ${ticker}`, { error: String(e) });
-                    }
-                }
+                const marketCap = price.marketCap || detail.marketCap || 0;
+                const currentPrice = price.regularMarketPrice || 0;
+                // Technical & Growth calculations
+                const revenueGrowth = financial.revenueGrowth || 0;
+                const earningsGrowth = financial.earningsGrowth || 0;
+                const analystTarget = financial.targetMeanPrice || 0;
+                const analystUpside = analystTarget > 0 ? (analystTarget - currentPrice) / currentPrice : 0;
+                const fiftyTwoWeekChange = stats.fiftyTwoWeekChange || 0;
 
                 const histData = (historical || []).map(r => ({
                     date: new Date(r.date).toISOString().slice(0, 10),
@@ -299,27 +270,37 @@ async function enrichTickers(tickers: string[]) {
                 }));
 
                 const tech = histData.length >= 20 
-                    ? calculateTechnicalIndicators(histData, newsArticles, detail.trailingPE || stats.forwardPE, stats.priceToBook, price.marketCap)
+                    ? calculateTechnicalIndicators(histData, [], detail.trailingPE || stats.forwardPE, stats.priceToBook, marketCap)
                     : null;
 
                 return {
                     ticker,
-                    name: companyName,
-                    price: price.regularMarketPrice || null,
-                    changePercent: price.regularMarketChangePercent || null,
+                    name: price.longName || price.shortName || ticker,
+                    price: currentPrice,
+                    changePercent: price.regularMarketChangePercent || 0,
                     pe: detail.trailingPE || stats.forwardPE || null,
                     pb: stats.priceToBook || null,
                     debtToEquity: financial.debtToEquity || null,
                     roe: financial.returnOnEquity || null,
                     beta: stats.beta || detail.beta || null,
                     dividendYield: detail.dividendYield || null,
+                    marketCap: marketCap,
+                    revenueGrowth: revenueGrowth,
+                    earningsGrowth: earningsGrowth,
+                    grossMargins: financial.grossMargins || 0,
+                    researchDevelopment: income.researchDevelopment || 0,
+                    totalRevenue: financial.totalRevenue || 1,
+                    fiftyTwoWeekChange: fiftyTwoWeekChange,
+                    analystUpside: analystUpside,
                     sma20: tech?.sma20 || null,
                     sma50: tech?.sma50 || null,
                     rsi: tech?.rsi14 || null,
                     tradingSignal: tech?.signal || 'Hold',
                     tradingSignalScore: tech?.scoreBreakdown.totalScore || 0,
-                    signalStrength: tech?.signalStrength || 0
+                    signalStrength: tech?.signalStrength || 0,
+                    sector: profile.sector || 'Unknown'
                     };            } catch (err) {
+
                 logger.warn(`Failed to enrich ${ticker}`, { error: String(err) });
                 return { ticker, name: ticker, error: 'Enrichment failed' };
             }
@@ -333,42 +314,51 @@ async function enrichTickers(tickers: string[]) {
 // ---------------------------------------------------------------------------
 // Route Handler
 // ---------------------------------------------------------------------------
-
 export async function GET(request: NextRequest) {
-    // --- Origin guard ---
-    const originCheckResponse = checkOrigin(request as any);
-    if (originCheckResponse) return originCheckResponse;
+    // --- Auth & Origin Split ---
+    const apiKey = request.headers.get('x-api-key');
+    const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
+    const isInternal = apiKey && apiKey === internalSecret;
 
-    // --- Auth ---
-    const session = await getServerSession(authOptions);
-    if (!session) {
-        logger.warn('Unauthenticated request to hot-tickers endpoint');
-        return unauthorizedResponse();
+    if (!isInternal) {
+        const originCheckResponse = checkOrigin(request as any);
+        if (originCheckResponse) return originCheckResponse;
+
+        const session = await getServerSession(authOptions);
+        if (!session) {
+            logger.warn('Unauthenticated request to hot-tickers endpoint');
+            return unauthorizedResponse();
+        }
     }
 
     // --- Rate limiting ---
     const clientIP = getClientIP(request);
-    const rateLimitResult = await deepmoneyLimiter.check(clientIP);
+    const rateLimitResult = await deepmoneyLimiter.check(isInternal ? 'internal' : clientIP);
     if (!rateLimitResult.allowed) {
-        logger.warn(`Rate limit exceeded for IP: ${clientIP}`);
+        logger.warn(`Rate limit exceeded for ${isInternal ? 'internal' : clientIP}`);
         return forbiddenResponse('Rate limit exceeded. Please try again later.');
     }
 
     // --- Cache check ---
-    const cached = deepmoneyCache.get(CACHE_KEY);
-    if (cached) {
-        logger.info('Returning cached enriched hot tickers');
-        return NextResponse.json(cached);
+    const { searchParams } = new URL(request.url);
+    const forceRefresh = searchParams.get('refresh') === 'true';
+
+    if (!forceRefresh) {
+        const cached = deepmoneyCache.get(CACHE_KEY);
+        if (cached) {
+            logger.info('Returning cached enriched hot tickers');
+            return NextResponse.json(cached);
+        }
+    } else {
+        logger.info('DeepMoney V2 force refresh requested');
     }
+
 
     try {
         logger.info('Starting primary RSS feed pass');
         const primaryTickers = await fetchPrimaryTickers();
-        logger.info(`Primary pass found ${primaryTickers.size} tickers`);
-
-        logger.info('Starting secondary RSS feed pass');
         const allTickersSet = await fetchSecondaryTickers(primaryTickers);
-        logger.info(`Secondary pass total: ${allTickersSet.size} tickers`);
+        
 
         const tickerArray = Array.from(allTickersSet).sort();
 
@@ -376,7 +366,7 @@ export async function GET(request: NextRequest) {
         const enrichedStocks = await enrichTickers(tickerArray);
 
         // --- Analysis Filtering ---
-        const filteredStocks = analyzeStocks(enrichedStocks);
+        const filteredStocks = await analyzeStocks(enrichedStocks);
 
         const data = {
             success: true,

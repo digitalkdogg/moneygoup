@@ -76,18 +76,25 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { ticker: string } }
 ) {
-  // 1. Origin check
-  const originCheckResponse = checkOrigin(request);
-  if (originCheckResponse) return originCheckResponse;
+  // 1. Auth & Origin check
+  const apiKey = request.headers.get('x-api-key');
+  const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
+  const isInternal = apiKey && apiKey === internalSecret;
 
-  // 2. Auth
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    return unauthorizedResponse('Authentication required');
+  if (!isInternal) {
+    const originCheckResponse = checkOrigin(request);
+    if (originCheckResponse) return originCheckResponse;
+
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return unauthorizedResponse('Authentication required');
+    }
+    var userId = session.user.email || session.user.id;
+    var ip = getClientIP(request);
+  } else {
+    var userId = 'internal';
+    var ip = '127.0.0.1';
   }
-
-  const userId = session.user.email || session.user.id;
-  const ip = getClientIP(request);
 
   // 3. Validate ticker using schema
   try {
@@ -102,9 +109,9 @@ export async function POST(
     return validationErrorResponse('Invalid ticker format');
   }
 
-  // 4. Per-user+ip+ticker rate limit
+  // 4. Per-user+ip+ticker rate limit (skip for internal)
   const cooldownKey = `${userId}-${ip}-${validatedTicker}`;
-  if (isOnCooldown(cooldownKey)) {
+  if (!isInternal && isOnCooldown(cooldownKey)) {
     const retryAfterMs = COOLDOWN_MS - (Date.now() - (tickerCooldown.get(cooldownKey) ?? 0));
     return NextResponse.json(
       { message: `Please wait ${Math.ceil(retryAfterMs / 1000)} seconds before requesting another prediction for ${validatedTicker}.` },
@@ -142,10 +149,17 @@ export async function POST(
     );
   }
 
-  // 7. Record cooldown before spawning (prevents double-submit races)
-  setCooldown(cooldownKey);
+  // 7. Record cooldown before spawning (prevents double-submit races, skip for internal)
+  if (!isInternal) {
+    setCooldown(cooldownKey);
+  }
 
-  // 8. Acquire semaphore slot, run prediction, release on completion
+  // 8. Extract outlook parameter (body first, then query, default to 'all')
+  const outlook = (body.outlook || request.nextUrl.searchParams.get('outlook') || 'all').toString();
+  const validOutlooks = ['1_month', '6_month', '1_year', 'all'];
+  const validatedOutlook = validOutlooks.includes(outlook) ? outlook : 'all';
+
+  // 9. Acquire semaphore slot, run prediction, release on completion
   const tempFile = join(tmpdir(), `tf_prediction_input_${randomUUID()}.json`);
 
   await predictionSemaphore.acquire();
@@ -156,12 +170,13 @@ export async function POST(
     writeFileSync(tempFile, JSON.stringify(body));
 
     // Python script CLI signature (predict_weighted_analysis.py argparse):
-    //   python3 predict_weighted_analysis.py <ticker> --input_file <path>
-    const result = await runPythonPrediction(validatedTicker, tempFile);
+    //   python3 predict_weighted_analysis.py <ticker> --input_file <path> --outlook <outlook>
+    const result = await runPythonPrediction(validatedTicker, tempFile, validatedOutlook);
     return NextResponse.json(result);
   } catch (error) {
     logger.error('Prediction failed', {
       ticker: validatedTicker,
+      outlook: validatedOutlook,
       error: error instanceof Error ? error : String(error),
     });
     return createErrorResponse(error, 'Prediction failed', { status: 500 });
@@ -179,11 +194,11 @@ export async function POST(
 // ---------------------------------------------------------------------------
 // Spawn the Python prediction process and return its parsed JSON output.
 // ---------------------------------------------------------------------------
-function runPythonPrediction(ticker: string, inputFile: string): Promise<unknown> {
+function runPythonPrediction(ticker: string, inputFile: string, outlook: string): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const python = spawn(
       'python3',
-      ['predict_weighted_analysis.py', ticker, '--input_file', inputFile],
+      ['predict_weighted_analysis.py', ticker, '--input_file', inputFile, '--outlook', outlook],
       {
         cwd: process.cwd(),
         env: { ...process.env },

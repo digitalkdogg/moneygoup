@@ -16,34 +16,27 @@ const logger = createLogger('api/prediction/deepmoney');
 // ---------------------------------------------------------------------------
 
 export async function GET(request: NextRequest) {
-  const originCheckResponse = checkOrigin(request as any);
-  if (originCheckResponse) return originCheckResponse;
-
   const apiKey = request.headers.get('x-api-key');
   const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
   
-  let callerId = 'unknown';
-  let authMode = 'none';
-
   // 1. Authorization Split
   const isInternal = apiKey && apiKey === internalSecret;
   
-  if (isInternal) {
-    callerId = 'internal-automation';
-    authMode = 'api-key';
-  } else {
+  if (!isInternal) {
+    const originCheckResponse = checkOrigin(request as any);
+    if (originCheckResponse) return originCheckResponse;
+
     const session = await getServerSession(authOptions);
     if (!session) return unauthorizedResponse('Authentication required');
     
     // RBAC: Only admin or premium users can trigger heavy analysis
-    // Note: session.user.role needs to be populated in NextAuth callbacks
     const userRole = (session.user as any).role || 'user';
     if (userRole !== 'admin' && userRole !== 'premium') {
       return forbiddenResponse('Premium subscription required for deep analysis');
     }
     
-    callerId = session.user.email || session.user.id || 'authenticated-user';
-    authMode = 'session';
+    var callerId = session.user.email || session.user.id || 'authenticated-user';
+    var authMode = 'session';
 
     // 2. Per-user Rate Limiting (2 per hour)
     const ip = getClientIP(request);
@@ -54,6 +47,9 @@ export async function GET(request: NextRequest) {
         { status: 429, headers: { 'Retry-After': String(Math.ceil(resetInMs / 1000)) } }
       );
     }
+  } else {
+    var callerId = 'internal-automation';
+    var authMode = 'api-key';
   }
 
   // 3. Caching (Global 30-minute window)

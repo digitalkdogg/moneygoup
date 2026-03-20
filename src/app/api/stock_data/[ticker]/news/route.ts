@@ -20,25 +20,25 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { ticker: string } }
 ) {
-  const originCheckResponse = checkOrigin(request);
-  if (originCheckResponse) {
-    return originCheckResponse;
-  }
-
-  // Check rate limit (per-IP)
-  const rateLimitResponse = checkRateLimit(request, newsLimiter, 'news');
-  if (rateLimitResponse) return rateLimitResponse;
-
   const apiKey = request.headers.get('x-api-key');
   const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
   const isInternal = apiKey && apiKey === internalSecret;
 
   if (!isInternal) {
+    const originCheckResponse = checkOrigin(request);
+    if (originCheckResponse) {
+      return originCheckResponse;
+    }
+
     const session = await getServerSession(authOptions);
     if (!session) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
   }
+
+  // Check rate limit (per-IP)
+  const rateLimitResponse = checkRateLimit(request, newsLimiter, 'news');
+  if (rateLimitResponse) return rateLimitResponse;
 
   // Validate and normalize ticker input
   try {

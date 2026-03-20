@@ -832,9 +832,10 @@ def predict(ticker, input_data):
 # ENTRY POINT
 # ============================================================================
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='LSTM Stock Price Prediction')
+    parser = argparse.ArgumentParser(description='MLP Stock Price Prediction')
     parser.add_argument('ticker',       type=str, help='Stock ticker symbol')
     parser.add_argument('--input_file', type=str, required=True, help='Path to JSON input file')
+    parser.add_argument('--outlook',    type=str, default='all', choices=['1_month', '6_month', '1_year', 'all'], help='Prediction outlook')
     args = parser.parse_args()
 
     try:
@@ -842,6 +843,38 @@ if __name__ == '__main__':
             input_data = json.load(fh)
 
         result = predict(args.ticker, input_data)
+
+        # Filter result based on outlook if not 'all'
+        if args.outlook != 'all':
+            filtered = {
+                "ticker": result["ticker"],
+                "regularMarketPrice": result["regularMarketPrice"],
+                "outlook": args.outlook,
+                "data_quality": result["data_quality"],
+                "accuracy_metrics": result["accuracy_metrics"]
+            }
+            
+            if args.outlook == '1_month':
+                filtered.update({
+                    "predicted_price": result["predicted_price_1m"],
+                    "predicted_change_pct": result["predicted_change_pct_1m"],
+                    "confidence_score": result["confidence_score_1m"]
+                })
+            elif args.outlook == '6_month':
+                filtered.update({
+                    "predicted_price": result["predicted_price_6m"],
+                    "predicted_change_pct": result["predicted_change_pct_6m"],
+                    "confidence_score": result["confidence_score_6m"],
+                    "predicted_change_range": result["predicted_change_range"]
+                })
+            elif args.outlook == '1_year':
+                filtered.update({
+                    "predicted_price": result["predicted_price_1y"],
+                    "predicted_change_pct": result["predicted_change_pct_1y"],
+                    "confidence_score": result["confidence_score_1y"]
+                })
+            result = filtered
+
         print(json.dumps(result, cls=NumpyEncoder))
         sys.exit(0)
 
