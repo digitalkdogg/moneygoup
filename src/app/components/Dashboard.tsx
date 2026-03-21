@@ -59,15 +59,6 @@ interface StockDashboardData {
 }
 
 
-interface UndervaluedLargeCap {
-  symbol: string;
-  name: string;
-  regularMarketPrice: number;
-  marketCap: number;
-  trailingPE?: number;
-  priceToBook?: number;
-}
-
 interface RecommendedStock {
   symbol: string;
   name: string | undefined;
@@ -93,11 +84,6 @@ export default function Dashboard() {
   const [loadingPortfolio, setLoadingPortfolio] = useState(true);
   const [portfolioError, setPortfolioError] = useState<string | null>(null);
 
-  const [undervaluedLargeCaps, setUndervaluedLargeCaps] = useState<UndervaluedLargeCap[]>([]);
-  const [breakoutCandidates, setBreakoutCandidates] = useState<RecommendedStock[]>([]);
-  const [analystFavorites, setAnalystFavorites] = useState<RecommendedStock[]>([]);
-  const [insiderActivity, setInsiderActivity] = useState<RecommendedStock[]>([]);
-  const [momentumPlays, setMomentumPlays] = useState<RecommendedStock[]>([]);
   const [deepMoneyError, setDeepMoneyError] = useState<string | null>(null);
   const [deepMoneyLoading, setDeepMoneyLoading] = useState(false);
   const [showChart, setShowChart] = useState(false);
@@ -168,12 +154,8 @@ export default function Dashboard() {
       if (!res.ok) {
         throw new Error('Failed to fetch DeepMoney picks');
       }
-      const data = await res.json();
-      setUndervaluedLargeCaps(data.undervalued_large_caps || []);
-      setBreakoutCandidates(data.breakout_candidates || []);
-      setAnalystFavorites(data.analyst_favorites || []);
-      setInsiderActivity(data.insider_activity || []);
-      setMomentumPlays(data.momentumPlays || []);
+      // Data is now handled by DeepMoneyPicksSection component directly
+      // but we keep the consolidate fetch error handling if needed.
     } catch (err) {
       setDeepMoneyError(err instanceof Error ? err.message : 'An unknown error occurred while fetching DeepMoney picks');
     } finally {
@@ -392,153 +374,6 @@ export default function Dashboard() {
           }} />
 
           <DeepMoneyPicksSection />
-
-          {/* Undervalued Large Caps Section */}
-          <StockTable<UndervaluedLargeCap>
-            title="Undervalued Large Caps"
-            icon="💰"
-            data={undervaluedLargeCaps}
-            columns={[
-              { key: 'symbol', label: 'Symbol' },
-              { key: 'name', label: 'Company Name' },
-              {
-                key: 'regularMarketPrice',
-                label: 'Price',
-                align: 'right',
-                format: (value: number) => formatUtilityCurrency(value, 2),
-              },
-              {
-                key: 'marketCap',
-                label: 'Market Cap',
-                align: 'right',
-                format: (value: number) => `${formatUtilityCurrency(value / 1e9, 2)}B`,
-              },
-              {
-                key: 'trailingPE',
-                label: 'P/E',
-                align: 'right',
-                format: (value: number) => formatNumber(value, 2),
-              },
-              {
-                key: 'priceToBook',
-                label: 'P/B',
-                align: 'right',
-                format: (value: number) => formatNumber(value, 2),
-              },
-            ]}
-            onRowClick={handleRowClick}
-            loading={deepMoneyLoading && undervaluedLargeCaps.length === 0}
-            error={deepMoneyError && undervaluedLargeCaps.length === 0 ? deepMoneyError : null}
-            emptyMessage="No undervalued large caps data available."
-          />
-
-          {/* Momentum Plays Section */}
-          <StockTable<RecommendedStock>
-            title="Momentum Plays"
-            icon="🚀"
-            data={momentumPlays}
-            columns={[
-              { key: 'symbol', label: 'Symbol' },
-              { key: 'name', label: 'Company Name' },
-              {
-                key: 'regularMarketPrice',
-                label: 'Price',
-                align: 'right',
-                format: (value: number) => formatUtilityCurrency(value, 2),
-              },
-              {
-                key: 'metric',
-                label: momentumPlays[0]?.metricLabel || 'Metric',
-                align: 'right',
-                format: (value: number) => `+${formatNumber(value, 2)}%`,
-              },
-            ]}
-            onRowClick={handleRowClick}
-            loading={deepMoneyLoading && momentumPlays.length === 0}
-            error={deepMoneyError && momentumPlays.length === 0 ? deepMoneyError : null}
-            emptyMessage="No momentum stocks found."
-          />
-          
-          {/* Breakout Candidates Section */}
-          <StockTable<RecommendedStock>
-            title="Breakout Candidates"
-            icon="📈"
-            data={breakoutCandidates}
-            columns={[
-              { key: 'symbol', label: 'Symbol' },
-              { key: 'name', label: 'Company Name' },
-              {
-                key: 'regularMarketPrice',
-                label: 'Price',
-                align: 'right',
-                format: (value: number) => formatUtilityCurrency(value, 2),
-              },
-              {
-                key: 'metric',
-                label: breakoutCandidates[0]?.metricLabel || 'Metric',
-                align: 'right',
-                format: (value: number) => `${formatNumber(value, 2)}%`,
-              },
-            ]}
-            onRowClick={handleRowClick}
-            loading={deepMoneyLoading && breakoutCandidates.length === 0}
-            error={deepMoneyError && breakoutCandidates.length === 0 ? deepMoneyError : null}
-            emptyMessage="No breakout candidates found."
-          />
-                    
-          {/* Insider Activity Section */}
-          <StockTable<RecommendedStock>
-            title="Insider Activity"
-            icon="💼"
-            data={insiderActivity}
-            columns={[
-              { key: 'symbol', label: 'Symbol' },
-              { key: 'name', label: 'Company Name' },
-              {
-                key: 'regularMarketPrice',
-                label: 'Price',
-                align: 'right',
-                format: (value: number) => formatUtilityCurrency(value, 2),
-              },
-              {
-                key: 'metric',
-                label: insiderActivity[0]?.metricLabel || 'Metric',
-                align: 'right',
-                format: (value: number) => `${formatNumber(value, 1)}%`,
-              },
-            ]}
-            onRowClick={handleRowClick}
-            loading={deepMoneyLoading && insiderActivity.length === 0}
-            error={deepMoneyError && insiderActivity.length === 0 ? deepMoneyError : null}
-            emptyMessage="No insider activity found."
-          />
-                    
-          {/* Analyst Favorites Section */}
-          <StockTable<RecommendedStock>
-            title="Analyst Favorites"
-            icon="👨‍💼"
-            data={analystFavorites}
-            columns={[
-              { key: 'symbol', label: 'Symbol' },
-              { key: 'name', label: 'Company Name' },
-              {
-                key: 'regularMarketPrice',
-                label: 'Price',
-                align: 'right',
-                format: (value: number) => formatUtilityCurrency(value, 2),
-              },
-              {
-                key: 'metric',
-                label: analystFavorites[0]?.metricLabel || 'Metric',
-                align: 'right',
-                format: (value: number) => formatNumber(value, 1),
-              },
-            ]}
-            onRowClick={handleRowClick}
-            loading={deepMoneyLoading && analystFavorites.length === 0}
-            error={deepMoneyError && analystFavorites.length === 0 ? deepMoneyError : null}
-            emptyMessage="No analyst favorites found."
-          />
         </div>
       </div>
 

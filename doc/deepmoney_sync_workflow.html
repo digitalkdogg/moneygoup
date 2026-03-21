@@ -126,7 +126,7 @@
                 <p>The process starts via a scheduled task (likely cron) executing the sync script.</p>
                 <ul>
                     <li><strong>Environment:</strong> Loads <code>DEEPMONEY_INTERNAL_SECRET</code> and DB credentials from <code>.env.production</code>.</li>
-                    <li><strong>Action:</strong> Initiates an outbound HTTP GET request to the local API.</li>
+                    <li><strong>Action:</strong> Initiates an outbound HTTP GET request to the legacy <code>/api/prediction/deepmoney</code> endpoint.</li>
                 </ul>
             </div>
         </section>
@@ -246,10 +246,8 @@
                 <div class="component-tag">File: deepmoney_sync.py</div>
                 <p>The sync script receives the final enriched JSON and commits it to the database:</p>
                 <ul>
-                    <li><strong>Atomic Refresh:</strong> Clears existing <code>recommended_stocks</code> and <code>recommended_markets</code> to ensure data freshness.</li>
-                    <li><strong>Deep Persistence:</strong> Now saves <code>trading_signal</code>, <code>trading_signal_score</code>, <code>upcoming_earnings</code>, and the full <code>prediction_input</code> JSON block.</li>
-                    <li><strong>Screener Persistence:</strong> Saves results from <code>undervalued_large_caps</code>, <code>breakout_candidates</code>, <code>insider_activity</code>, and <code>analyst_favorites</code> screeners into the <code>recommended_stocks</code> table.</li>
-                    <li><strong>Upsert:</strong> Performs a bulk <code>INSERT ... ON DUPLICATE KEY UPDATE</code> for Stocks, AI Sectors, and ETFs.</li>
+                    <li><strong>Atomic Refresh:</strong> Clears existing <code>recommended_stocks</code> to ensure data freshness.</li>
+                    <li><strong>Deep Persistence:</strong> Now saves <code>trading_signal</code>, <code>trading_signal_score</code>, and the full <code>prediction_input</code> JSON block.</li>
                     <li><strong>Result:</strong> The User Dashboard now shows the new analysis without triggering heavy API calls.</li>
                 </ul>
             </div>
@@ -264,16 +262,9 @@
                 <p>This endpoint returns a JSON object containing various lists of recommendations and market data.</p>
                 <pre><code>{
   "hot_stocks": [...],
-  "hot_ai_tech_stocks": [...],
-  "hot_markets": [...],
-  "hot_ai_sectors": [...],
-  "hot_etfs": [...],
-  "undervalued_large_caps": [...],
-  "breakout_candidates": [...],
-  "insider_activity": [...],
-  "analyst_favorites": [...]
+  "hot_etfs": [...]
 }</code></pre>
-                <h3>hot_stocks & hot_ai_tech_stocks</h3>
+                <h3>hot_stocks</h3>
                 <p>Array of stock objects with full enrichment.</p>
                 <pre><code>{
   "ticker": "string",
@@ -281,41 +272,14 @@
   "current_price": "number",
   "gps_score": "number",
   "classification": "string",
-  "sub_sectors": ["string"],
   "analyst_upside_pct": "number",
   "revenue_growth_yoy": "number",
-  "gross_margin_pct": "number",
-  "rd_spend_pct": "number",
   "market_cap_m": "number",
-  "mention_count": "number",
-  "co_mentioned_with": ["string"],
   "discovery_source": "string",
   "snapshot_date": "string",
   "trading_signal": "string",
   "trading_signal_score": "number",
-  "signal_breakdown": { ... },
-  "stockMetrics": { ... },
   "prediction_input": { ... }
-}</code></pre>
-                <h3>Screener Lists</h3>
-                <p><code>undervalued_large_caps</code>, <code>breakout_candidates</code>, <code>insider_activity</code>, <code>analyst_favorites</code> are arrays of stock objects with the following structure:</p>
-                <pre><code>{
-  "ticker": "string",
-  "company_name": "string",
-  "current_price": "number",
-  "market_cap_m": "number",
-  "trailing_pe": "number" | null,
-  "price_to_book": "number" | null,
-  "metric_value": "number" | null,
-  "metric_label": "string" | null,
-  "type": "string",
-  "tradingSignalScore": "number"
-}</code></pre>
-                <h3>hot_markets & hot_ai_sectors</h3>
-                <pre><code>{
-  "industry": "string", // or "sub_sector"
-  "average_sentiment": "number",
-  "count": "number" // or "article_count"
 }</code></pre>
                 <h3>hot_etfs</h3>
                 <pre><code>{
@@ -337,7 +301,6 @@
 }</code></pre>
             </div>
         </section>
-
         <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem;">
             MoneyGoUp DeepMoney Analytics &copy; 2026
         </footer>

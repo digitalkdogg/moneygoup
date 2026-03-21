@@ -299,14 +299,14 @@
         <section id="cli-usage">
             <h3 style="color: var(--primary-dark);">-- CLI Usage (called internally by route.ts)</h3>
             <pre><code># Invocation inside route.ts via child_process.spawn()
-python3 predict_weighted_analysis.py NU --input_file /tmp/tf_prediction_input_{uuid}.json
+python3 predict_weighted_analysis.py NU --input_file /tmp/tf_prediction_input_{uuid}.json --outlook 1_month
 
 # Manual test run against sample data
-python3 predict_weighted_analysis.py IONQ --input_file ./sampledata.json > result.json
+python3 predict_weighted_analysis.py IONQ --input_file ./sampledata.json --outlook all > result.json
 
-# The ticker is a positional CLI arg — NOT embedded in the JSON file
-# Exit 0 = success (JSON on stdout)
-# Exit 1 = file not found, invalid JSON, or prediction error (stderr has traceback)</code></pre>
+# Parameters:
+# --outlook: 1_month, 6_month, 1_year, all (default: all)
+# The ticker is a positional CLI arg — NOT embedded in the JSON file</code></pre>
         </section>
 
         <div class="flow-arrow">↓</div>

@@ -157,7 +157,8 @@
             
             <span class="nav-header">Prediction</span>
             <a href="#prediction" class="nav-link">POST /stock/predict</a>
-            <a href="#deepmoney" class="nav-link">GET /deepmoney</a>
+            <a href="#deepmoney" class="nav-link">GET /deepmoney (Legacy)</a>
+            <a href="#deepmoney-v2" class="nav-link">GET /deepmoney/v2</a>
             
             <span class="nav-header">Dashboard</span>
             <a href="#dashboard1" class="nav-link">GET /dashboard</a>
@@ -281,24 +282,32 @@
                 <p><strong>Associated Tests:</strong> <code>stockPrediction.test.ts</code>, <code>predictionQueue.test.ts</code></p>
             </div>
             <div id="deepmoney" class="step-card">
-                <h3><span class="method get">GET</span> /api/prediction/deepmoney</h3>
+                <h3><span class="method get">GET</span> /api/prediction/deepmoney (Legacy)</h3>
                 <div class="component-tag">Process: Market-Wide Analysis</div>
-                <p>Premium market-wide sentiment and growth analysis.</p>
+                <p>Legacy market-wide sentiment and growth analysis.</p>
                 <div class="highlight-box">
                     <strong>Query Parameters:</strong> <code>refresh=true</code>: Bypasses the 30-minute cache.
                 </div>
                 <strong>Logic Flow:</strong>
                 <ul class="flow">
                     <li>Aggregates Yahoo, MarketBeat, The Street, and Motley Fool.</li>
-                    <li>Discovers "Hot Stocks" via GPS (Global Prediction Score).
-                        <ul style="margin-left: 1.5rem; font-size: 0.85rem; color: #64748b;">
-                            <li>• Base Weights (70%): Analyst Upside (25%), Revenue Growth (15%), EPS (10%), Momentum (10%), Mentions (5%), Sentiment (5%).</li>
-                            <li>• AI Bonus (30%): Extra points for R&D, Small-cap, and AI-density.</li>
-                        </ul>
-                    </li>
+                    <li>Discovers "Hot Stocks" via GPS (Global Prediction Score).</li>
                     <li>Enforces a Technical Signal gate (Score > 0).</li>
-                    <li>Enriches top finalists with a complete <code>prediction_input</code> block.</li>
                 </ul>
+            </div>
+
+            <div id="deepmoney-v2" class="step-card">
+                <h3><span class="method get">GET</span> /api/prediction/deepmoney/v2</h3>
+                <div class="component-tag">Process: Recursive News & ML Validation</div>
+                <p>Next-generation discovery engine with ML-based momentum validation.</p>
+                <strong>Logic Flow:</strong>
+                <ul class="flow">
+                    <li>Recursive news discovery across 15+ global feeds.</li>
+                    <li><strong>Gate 1:</strong> Technical indicator validation (Score >= 0).</li>
+                    <li><strong>Gate 2:</strong> 1-month ML prediction check (Threshold >= 0.1%).</li>
+                    <li>Returns enriched, DB-compatible JSON with sector and ML trajectory.</li>
+                </ul>
+                <p><strong>Associated Tests:</strong> <code>api_prediction_deepmoney_v2.test.ts</code></p>
             </div>
         </section>
 
@@ -323,9 +332,7 @@
             <div id="dashboard-picks" class="step-card">
                 <h3>Dashboard Discovery APIs</h3>
                 <ul class="flow">
-                    <li><code>GET /api/dashboard/deepmoney-picks</code>: Latest AI-generated picks from DB.</li>
-                    <li><code>GET /api/dashboard/recommended-stocks</code>: Real-time discovery (Momentum, Breakouts).</li>
-                    <li><code>GET /api/dashboard/undervalued-large-caps</code>: Screener-based value plays.</li>
+                    <li><code>GET /api/dashboard/deepmoney-picks</code>: Latest AI-generated picks from DB (V2 Engine).</li>
                 </ul>
             </div>
         </section>

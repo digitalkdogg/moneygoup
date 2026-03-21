@@ -1,10 +1,26 @@
 # API Endpoint: /api/prediction/deepmoney
 
-The `/api/prediction/deepmoney` endpoint is designed for automated AI and Tech stock discovery, analysis, and scoring. It combines real-time news sentiment with fundamental financial data to identify "hot" stocks and sectors.
+The `/api/prediction/deepmoney` endpoint family is designed for automated AI and Tech stock discovery, analysis, and scoring. It consists of two versions: the original legacy algorithm and the next-generation V2 engine.
 
-## 1. Algorithm Overview
+## 1. Next-Generation Discovery (V2)
+**Endpoint:** `/api/prediction/deepmoney/v2`
 
-The endpoint follows a four-stage process to arrive at its recommendations.
+The V2 engine represents a major leap in precision, combining recursive news scraping with individual machine learning momentum validation for every candidate.
+
+### Workflow:
+1.  **Recursive News Discovery**: Scrapes 15+ global financial RSS feeds. For every trending ticker found, it recursively scans that specific company's feed to discover co-mentioned peers.
+2.  **Social Sentiment Pre-Filter**: To reduce noise from social bots, tickers from ApeWisdom are only accepted if they have `mentions_24h_ago >= 5`.
+3.  **Gate 1: Technical Validation**: Every candidate must have a non-negative `tradingSignalScore` (calculated from SMA, RSI, and Volume trends).
+4.  **Gate 2: Sequential ML Validation**: For stocks passing Gate 1, the system assembles a complete 5-year data payload (Historical, Macro, and Earnings) and runs a 1-month ML prediction.
+    *   **Threshold**: Only stocks with a predicted 1-month growth of **≥ 0.1%** are returned.
+5.  **DB-Ready Enrichment**: Results are enriched with Sectors, GPS scores, and full ML trajectories, optimized for direct persistence into the `recommended_stocks` table.
+
+---
+
+## 2. Legacy Engine (V1)
+**Endpoint:** `/api/prediction/deepmoney`
+
+The legacy endpoint follows a four-stage process to arrive at its recommendations.
 
 ### Stage 1: News Aggregation & Sentiment Analysis
 *   **RSS Feeds**: Fetches latest headlines from Yahoo Finance RSS feeds for major indices (DJI, S&P 500, Nasdaq).
@@ -53,9 +69,7 @@ To even be considered for any "Hot" list, a stock must pass these initial filter
 | Category | Criteria | Sorting | Limit |
 | :--- | :--- | :--- | :--- |
 | **Hot Stocks** | Any valid candidate passing the hard gates. | Top GPS Score | 5 |
-| **Hot AI/Tech Stocks** | Must meet ONE of: <br>1. Classified as `ai_tech_hyper_growth`<br>2. Has AI sub-sector matches<br>3. Discovered via Tech Screener | Top GPS Score | 3 |
 | **Hot Markets** | Broad industries (Gold, Energy, Tech, etc.) found in news. | Top Average Sentiment | 2 |
-| **Hot AI Sectors** | AI sub-sectors (Semiconductors, Robotics, etc.) found in news. | Top Average Sentiment | 2 |
 
 ### Growth Classifications
 The algorithm assigns a classification label based on fundamentals:
@@ -75,7 +89,7 @@ The algorithm assigns a classification label based on fundamentals:
 
 ---
 
-## 4. Sample JSON Response
+## 4. Sample JSON Response (Legacy)
 
 ```json
 {
@@ -97,24 +111,6 @@ The algorithm assigns a classification label based on fundamentals:
       "snapshot_date": "2024-05-20"
     }
   ],
-  "hot_ai_tech_stocks": [
-    {
-      "ticker": "ARM",
-      "company_name": "Arm Holdings plc",
-      "current_price": 120.0,
-      "gps_score": 88.5,
-      "classification": "ai_tech_hyper_growth",
-      "sub_sectors": ["Semiconductors"],
-      "analyst_upside_pct": 5.2,
-      "revenue_growth_yoy": 47.0,
-      "gross_margin_pct": 95.0,
-      "rd_spend_pct": 42.0,
-      "market_cap_m": 125000.0,
-      "mention_count": 4,
-      "discovery_source": "watchlist+keyword",
-      "snapshot_date": "2024-05-20"
-    }
-  ],
   "hot_markets": [
     {
       "industry": "Tech",
@@ -122,13 +118,7 @@ The algorithm assigns a classification label based on fundamentals:
       "count": 25
     }
   ],
-  "hot_ai_sectors": [
-    {
-      "sub_sector": "Semiconductors",
-      "average_sentiment": 5.2,
-      "article_count": 15
-    }
-  ]
+  "hot_etfs": [ ... ]
 }
 ```
 

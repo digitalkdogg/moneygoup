@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import StockTable from '@/app/components/StockTable';
 import { formatCurrency, formatNumber } from '@/utils/formatters';
 
@@ -14,7 +15,7 @@ interface RecommendedStock {
   company_name: string;
   current_price: number;
   gps_score: number;
-  classification: string;
+  classification: string; // This stores the sector
   analyst_upside_pct: number;
   revenue_growth_yoy: number;
   gross_margin_pct: number;
@@ -25,16 +26,8 @@ interface RecommendedStock {
   trading_signal?: string;
   trading_signal_score?: number;
   snapshot_date: string;
-}
-
-interface RecommendedMarket {
-  id: number;
-  type: string;
-  name: string;
-  symbol: string; // Map name to symbol for StockTable
-  average_sentiment: number;
-  count: number;
-  snapshot_date: string;
+  metric_value?: number; // Stores predicted_change_pct
+  metric_label?: string; // Stores confidence_score
 }
 
 interface RecommendedETF {
@@ -59,8 +52,6 @@ interface RecommendedETF {
 
 interface DeepMoneyData {
   hot_stocks: RecommendedStock[];
-  hot_ai_tech_stocks: RecommendedStock[];
-  combined_markets: RecommendedMarket[];
   hot_etfs: RecommendedETF[];
 }
 
@@ -122,11 +113,18 @@ const stockColumns = [
     }
   },
   {
-    key: 'revenue_growth_yoy',
-    label: 'Growth',
+    key: 'metric_value',
+    label: 'Predicted Growth',
     align: 'right' as const,
-    format: (value: any) => (
-      <span className="text-gray-700">{formatNumber(value, 1)}%</span>
+    format: (value: any, row: any) => (
+      <div className="flex flex-col items-end">
+        <span className={`${value > 0 ? 'text-green-600' : 'text-red-600'} font-bold`}>
+          {value > 0 ? '+' : ''}{formatNumber(value, 2)}%
+        </span>
+        {row.metric_label && (
+          <span className="text-[10px] text-gray-400 italic">{row.metric_label}</span>
+        )}
+      </div>
     ),
   },
   {
@@ -139,47 +137,19 @@ const stockColumns = [
     },
   },
   {
-    key: 'discovery_source',
-    label: 'Source',
+    key: 'classification',
+    label: 'Sector',
     align: 'left' as const,
     format: (value: string) => (
-      <span className="text-xs px-2 py-1 bg-blue-50 border border-blue-100 rounded text-blue-600 font-medium capitalize">
-        {(value || '').replace('_', ' ')}
-      </span>
+      <Link 
+        href={`/search/industry/${value}`}
+        onClick={(e) => e.stopPropagation()}
+        className="text-xs px-2 py-1 bg-indigo-50 border border-indigo-100 rounded text-indigo-600 font-medium hover:bg-indigo-100 transition-colors"
+      >
+        {value}
+      </Link>
     ),
   },
-];
-
-const marketColumns = [
-    {
-      key: 'symbol',
-      label: 'Market / Sector',
-      align: 'left' as const,
-      format: (value: string) => <span className="font-bold text-gray-900">{value}</span>
-    },
-    {
-      key: 'average_sentiment',
-      label: 'Sentiment',
-      align: 'center' as const,
-      format: (value: any) => {
-          const num = typeof value === 'string' ? parseFloat(value) : value;
-          if (num === null || num === undefined || isNaN(num)) return 'N/A';
-          const color = num > 0 ? 'text-emerald-600' : num < 0 ? 'text-rose-600' : 'text-gray-500';
-          const label = num > 0.5 ? 'Very Bullish' : num > 0 ? 'Bullish' : num < -0.5 ? 'Bearish' : num < 0 ? 'Cautious' : 'Neutral';
-          return (
-              <div className="flex flex-col items-center">
-                  <span className={`font-bold ${color}`}>{num.toFixed(2)}</span>
-                  <span className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">{label}</span>
-              </div>
-          );
-      }
-    },
-    {
-      key: 'count',
-      label: 'Mentions / Articles',
-      align: 'right' as const,
-      format: (value: any) => <span className="text-gray-600 font-medium">{formatNumber(value, 0)}</span>
-    }
 ];
 
 const etfColumns = [
@@ -271,25 +241,12 @@ export default function DeepMoneyPicksSection() {
       const json = await res.json();
       
       // Map ticker to symbol for StockTable compatibility
-      const hot_ai_tech_stocks = (json.hot_ai_tech_stocks || []).map((s: any) => ({ ...s, symbol: s.ticker }));
-      const hot_stocks_raw = (json.hot_stocks || []).map((s: any) => ({ ...s, symbol: s.ticker }));
-      
-      // Deduplicate: If in hot_ai_tech_stocks, remove from hot_stocks
-      const ai_stock_tickers = new Set(hot_ai_tech_stocks.map((s: any) => s.ticker));
-      const hot_stocks = hot_stocks_raw.filter((s: any) => !ai_stock_tickers.has(s.ticker));
-
-      // Combine markets and sectors
-      const combined_markets = [
-        ...(json.hot_markets || []).map((m: any) => ({ ...m, symbol: m.name })),
-        ...(json.hot_ai_sectors || []).map((s: any) => ({ ...s, symbol: s.name }))
-      ];
+      const hot_stocks = (json.hot_stocks || []).map((s: any) => ({ ...s, symbol: s.ticker }));
 
       const hot_etfs = (json.hot_etfs || []).map((e: any) => ({ ...e, symbol: e.ticker }));
 
       setData({
         hot_stocks,
-        hot_ai_tech_stocks,
-        combined_markets,
         hot_etfs
       });
     } catch (err) {
@@ -334,28 +291,6 @@ export default function DeepMoneyPicksSection() {
         error={error}
         emptyMessage="No top growth picks available today."
       />
-      
-      <StockTable
-        title="AI & Tech Hyper-Growth"
-        icon="⚡"
-        data={data?.hot_ai_tech_stocks || []}
-        columns={stockColumns}
-        onRowClick={(symbol) => router.push(`/search/${symbol}`)}
-        loading={loading}
-        error={error}
-        emptyMessage="No additional AI/Tech hyper-growth picks found."
-      />
-
-      <StockTable
-        title="Hot Markets or Sectors"
-        icon="🌍"
-        data={data?.combined_markets || []}
-        columns={marketColumns}
-        onRowClick={(symbol) => router.push(`/search/industry/${symbol}`)}
-        loading={loading}
-        error={error}
-        emptyMessage="No market or sector data available."
-      />
 
       <StockTable
         title="Hot ETFs Under $300"
@@ -367,6 +302,7 @@ export default function DeepMoneyPicksSection() {
         error={error}
         emptyMessage="No hot ETFs matching your criteria found today."
       />
+
     </div>
   );
 }

@@ -384,34 +384,11 @@ export async function performDeepAnalysis() {
 
   const tickerMentions: { [key: string]: TickerMention } = {};
   const tickerArticles: { [key: string]: { sentiment_score: number; pub_date: string }[] } = {};
-  const industryStats: { [key: string]: { score: number; count: number } } = {};
-  const aiSubSectorStats: { [key: string]: { score: number; count: number } } = {};
 
   for (const article of articles) {
     // FIX: use description as fallback — MarketBeat has no content field
     const text = (article.title + ' ' + (article.content || article.description || '')).toLowerCase();
     const sentimentResult = sentiment.analyze(text);
-
-    // Sub-sector and industry detection — unchanged, runs for ALL articles
-    const foundSubSectors = new Set<string>();
-    let keywordCount = 0;
-    for (const [subSector, keywords] of Object.entries(AI_TECH_TAXONOMY)) {
-      if (keywords.some(k => text.includes(k))) {
-        foundSubSectors.add(subSector);
-        keywordCount++;
-        if (!aiSubSectorStats[subSector]) aiSubSectorStats[subSector] = { score: 0, count: 0 };
-        aiSubSectorStats[subSector].score += sentimentResult.score;
-        aiSubSectorStats[subSector].count++;
-      }
-    }
-
-    for (const [industry, keywords] of Object.entries(BROAD_INDUSTRIES)) {
-      if (keywords.some(k => text.includes(k))) {
-        if (!industryStats[industry]) industryStats[industry] = { score: 0, count: 0 };
-        industryStats[industry].score += sentimentResult.score;
-        industryStats[industry].count++;
-      }
-    }
 
     // Ticker resolution — branched by source
     const hasExplicitTickers = article.explicitTickers && article.explicitTickers.length > 0;
@@ -439,8 +416,6 @@ export async function performDeepAnalysis() {
 
       tickerMentions[ticker].count += mentionIncrement; // fractional for multi-ticker articles
       tickerMentions[ticker].sentiment += sentimentResult.score;
-      foundSubSectors.forEach(s => tickerMentions[ticker].subSectors.add(s));
-      tickerMentions[ticker].keywords += keywordCount;
 
       tickerArticles[ticker].push({
         sentiment_score: sentimentResult.score,
@@ -607,264 +582,21 @@ export async function performDeepAnalysis() {
     .sort((a, b) => b.gps_score - a.gps_score)
     .slice(0, 5);
 
-  const hot_ai_tech_stocks = validResults
-    .filter(
-      r =>
-        r.classification === 'ai_tech_hyper_growth' ||
-        r.sub_sectors.length > 0
-    )
-    .sort((a, b) => b.gps_score - a.gps_score)
-    .slice(0, 3);
-
-  const hot_markets = Object.entries(industryStats)
-    .map(([industry, stats]) => ({
-      industry,
-      average_sentiment: stats.score / stats.count,
-      count: stats.count
-    }))
-    .sort((a, b) => b.average_sentiment - a.average_sentiment)
-    .slice(0, 2);
-
-  const hot_ai_sectors = Object.entries(aiSubSectorStats)
-    .map(([sub_sector, stats]) => ({
-      sub_sector,
-      average_sentiment: stats.score / stats.count,
-      article_count: stats.count
-    }))
-    .sort((a, b) => b.average_sentiment - a.average_sentiment)
-    .slice(0, 2);
-
   // -------------------------------------------------------------------------
   // Stage 5: ETF Discovery Module (Section 9)
   // -------------------------------------------------------------------------
-  const trendingSubSectors = hot_ai_sectors.map(s => s.sub_sector);
   const allTrendingTickers = Object.keys(tickerMentions); // All tickers mentioned in today's news
-  const hot_etfs = await performETFDiscovery(hot_stocks, trendingSubSectors, allTrendingTickers);
-
-  // -------------------------------------------------------------------------
-  // Stage 6: Extended Dashboard Screeners
-  // -------------------------------------------------------------------------
-  async function fetchUndervaluedLargeCaps() {
-    const result = await getYahooScreener('undervalued_large_caps');
-    const candidates = (result.quotes || [])
-      .filter((q: any) => q.marketCap > 10e9 && q.trailingPE > 0 && q.trailingPE < 20)
-      .map((q: any) => ({
-        ticker:        q.symbol,
-        company_name:  q.shortName || q.longName,
-        current_price: q.regularMarketPrice,
-        market_cap_m:  q.marketCap / 1e6,
-        trailing_pe:   q.trailingPE,
-        price_to_book: q.priceToBook,
-        metric_value:  null,
-        metric_label:  null,
-        type:          'undervalued_large_caps',
-      }));
-
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3001';
-    const scoredCandidates = await Promise.all(candidates.map(async (candidate: any) => {
-      const historicalUrl = `${baseUrl}/api/stock_data/${candidate.ticker}/historical/3mo`;
-      const historicalRes = await fetch(historicalUrl, {
-        headers: { 'x-api-key': process.env.DEEPMONEY_INTERNAL_SECRET || '' },
-        signal: AbortSignal.timeout(10000)
-      }).then(res => res.ok ? res.json() : null).catch(() => null);
-
-      const historicalData = (historicalRes?.historicalData?.[candidate.ticker] || []) as any[];
-      const technicalResult = historicalData.length >= 51
-        ? calculateTechnicalIndicators(historicalData, [], undefined, undefined, undefined)
-        : null;
-
-      const tradingSignalScore = technicalResult?.scoreBreakdown.totalScore ?? 0;
-      
-      return {
-        ...candidate,
-        tradingSignalScore,
-      };
-    }));
-
-    return scoredCandidates
-      .filter((c: any) => c.tradingSignalScore > 0)
-      .sort((a: any, b: any) => a.trailing_pe - b.trailing_pe)
-      .slice(0, 8);
-  }
-
-  async function fetchBreakoutCandidates() {
-    const result = await getYahooScreener('day_gainers');
-    const candidates = (result.quotes || [])
-      .filter((q: any) => q.regularMarketPrice > 0 && q.fiftyTwoWeekHigh > 0)
-      .map((q: any) => ({
-        ticker:        q.symbol,
-        company_name:  q.shortName || q.longName,
-        current_price: q.regularMarketPrice,
-        market_cap_m:  (q.marketCap || 0) / 1e6,
-        trailing_pe:   null,
-        price_to_book: null,
-        metric_value:  q.fiftyTwoWeekHigh ? parseFloat(((q.regularMarketPrice / q.fiftyTwoWeekHigh) * 100).toFixed(2)) : null,
-        metric_label:  '% of 52W High',
-        type:          'breakout_candidates',
-      }))
-      .filter((s: any) => s.metric_value !== null);
-
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3001';
-    const scoredCandidates = await Promise.all(candidates.map(async (candidate: any) => {
-      const historicalUrl = `${baseUrl}/api/stock_data/${candidate.ticker}/historical/3mo`;
-      const historicalRes = await fetch(historicalUrl, {
-        headers: { 'x-api-key': process.env.DEEPMONEY_INTERNAL_SECRET || '' },
-        signal: AbortSignal.timeout(10000)
-      }).then(res => res.ok ? res.json() : null).catch(() => null);
-
-      const historicalData = (historicalRes?.historicalData?.[candidate.ticker] || []) as any[];
-      const technicalResult = historicalData.length >= 51
-        ? calculateTechnicalIndicators(historicalData, [], undefined, undefined, undefined)
-        : null;
-
-      const tradingSignalScore = technicalResult?.scoreBreakdown.totalScore ?? 0;
-      
-      return {
-        ...candidate,
-        tradingSignalScore,
-      };
-    }));
-
-    return scoredCandidates
-      .filter((c: any) => c.tradingSignalScore > 0)
-      .sort((a: any, b: any) => (b.metric_value || 0) - (a.metric_value || 0))
-      .slice(0, 8);
-  }
-
-  async function fetchInsiderActivity() {
-    // Try most_bought_by_hedge_funds first, fallback to undervalued_growth_stocks
-    let result = await getYahooScreener('most_bought_by_hedge_funds');
-
-    if (!result.quotes || result.quotes.length === 0) {
-      result = await getYahooScreener('undervalued_growth_stocks');
-    }
-
-    const candidates = (result.quotes || [])
-      .filter((q: any) => q.symbol && q.regularMarketPrice && q.regularMarketPrice > 0)
-      .map((q: any) => ({
-        ticker:        q.symbol,
-        company_name:  q.shortName || q.longName,
-        current_price: q.regularMarketPrice,
-        market_cap_m:  (q.marketCap || 0) / 1e6,
-        trailing_pe:   null,
-        price_to_book: null,
-        metric_value:  q.regularMarketChangePercent
-          ? parseFloat((q.regularMarketChangePercent * 100).toFixed(2))
-          : null,
-        metric_label:  'Day Change %',
-        type:          'insider_activity',
-      }));
-
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3001';
-    const scoredCandidates = await Promise.all(candidates.map(async (candidate: any) => {
-      const historicalUrl = `${baseUrl}/api/stock_data/${candidate.ticker}/historical/3mo`;
-      const historicalRes = await fetch(historicalUrl, {
-        headers: { 'x-api-key': process.env.DEEPMONEY_INTERNAL_SECRET || '' },
-        signal: AbortSignal.timeout(10000)
-      }).then(res => res.ok ? res.json() : null).catch(() => null);
-
-      const historicalData = (historicalRes?.historicalData?.[candidate.ticker] || []) as any[];
-      const technicalResult = historicalData.length >= 51
-        ? calculateTechnicalIndicators(historicalData, [], undefined, undefined, undefined)
-        : null;
-
-      const tradingSignalScore = technicalResult?.scoreBreakdown.totalScore ?? 0;
-      
-      return {
-        ...candidate,
-        tradingSignalScore,
-      };
-    }));
-
-    return scoredCandidates
-      .filter((c: any) => c.tradingSignalScore > 0)
-      .slice(0, 8);
-  }
-
-  async function fetchAnalystFavorites() {
-    // Try most_watched_tickers first, fallback to growth_technology_stocks
-    let result = await getYahooScreener('most_watched_tickers');
-
-    if (!result.quotes || result.quotes.length === 0) {
-      result = await getYahooScreener('growth_technology_stocks');
-    }
-
-    const candidates = (result.quotes || [])
-      .filter((q: any) => q.symbol && q.regularMarketPrice && q.regularMarketPrice > 0)
-      .map((q: any) => {
-        let metricValue = null;
-        let metricLabel = 'Analyst Rating';
-
-        // Try to calculate analyst upside if we have the data
-        if (q.targetMeanPrice && q.regularMarketPrice) {
-          metricValue = parseFloat(((q.targetMeanPrice - q.regularMarketPrice) / q.regularMarketPrice * 100).toFixed(2));
-          metricLabel = 'Analyst Upside %';
-        } else if (q.averageAnalystRating) {
-          // Fallback: use analyst rating if available
-          metricValue = parseFloat(String(q.averageAnalystRating));
-          metricLabel = 'Avg Rating';
-        } else if (q.regularMarketChangePercent) {
-          // Final fallback: use price change percent
-          metricValue = parseFloat((q.regularMarketChangePercent * 100).toFixed(2));
-          metricLabel = 'Day Change %';
-        }
-
-        return {
-          ticker:        q.symbol,
-          company_name:  q.shortName || q.longName,
-          current_price: q.regularMarketPrice,
-          market_cap_m:  (q.marketCap || 0) / 1e6,
-          trailing_pe:   null,
-          price_to_book: null,
-          metric_value:  metricValue,
-          metric_label:  metricLabel,
-          type:          'analyst_favorites',
-        };
-      });
-
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3001';
-    const scoredCandidates = await Promise.all(candidates.map(async (candidate: any) => {
-      const historicalUrl = `${baseUrl}/api/stock_data/${candidate.ticker}/historical/3mo`;
-      const historicalRes = await fetch(historicalUrl, {
-        headers: { 'x-api-key': process.env.DEEPMONEY_INTERNAL_SECRET || '' },
-        signal: AbortSignal.timeout(10000)
-      }).then(res => res.ok ? res.json() : null).catch(() => null);
-
-      const historicalData = (historicalRes?.historicalData?.[candidate.ticker] || []) as any[];
-      const technicalResult = historicalData.length >= 51
-        ? calculateTechnicalIndicators(historicalData, [], undefined, undefined, undefined)
-        : null;
-
-      const tradingSignalScore = technicalResult?.scoreBreakdown.totalScore ?? 0;
-      
-      return {
-        ...candidate,
-        tradingSignalScore,
-      };
-    }));
-
-    return scoredCandidates
-      .filter((c: any) => c.tradingSignalScore > 0)
-      .slice(0, 8);
-  }
-
-  const [undervalued_large_caps, breakout_candidates, insider_activity, analyst_favorites] =
-    await Promise.all([
-      fetchUndervaluedLargeCaps().catch(() => []),
-      fetchBreakoutCandidates().catch(() => []),
-      fetchInsiderActivity().catch(() => []),
-      fetchAnalystFavorites().catch(() => []),
-    ]);
+  const hot_etfs = await performETFDiscovery(hot_stocks, [], allTrendingTickers);
 
   // -------------------------------------------------------------------------
   // Stage 7: Deep Enrichment (Post-Selection)
   // -------------------------------------------------------------------------
   // Fetch complete LSTM-ready data payloads + ticker news for finalists
-  const finalists = [...hot_stocks, ...hot_ai_tech_stocks];
+  const finalists = [...hot_stocks];
   const uniqueFinalistTickers = Array.from(new Set(finalists.map(s => s.ticker)));
 
   console.log(`[DeepMoney] Stage 6: Deep enrichment for ${uniqueFinalistTickers.length} finalists…`);
-  
+
   const enrichmentMap: { [ticker: string]: { data: any, news: any[], earnings: any } } = {};
 
   const enrichmentResults = await Promise.all(
@@ -932,17 +664,9 @@ export async function performDeepAnalysis() {
   };
 
   const final_hot_stocks = hot_stocks.map(finalizeStock);
-  const final_hot_ai_tech_stocks = hot_ai_tech_stocks.map(finalizeStock);
 
   return {
     hot_stocks: final_hot_stocks,
-    hot_ai_tech_stocks: final_hot_ai_tech_stocks,
-    hot_markets,
-    hot_ai_sectors,
     hot_etfs,
-    undervalued_large_caps,
-    breakout_candidates,
-    insider_activity,
-    analyst_favorites,
   };
 }
