@@ -563,15 +563,30 @@ export default function Stock({
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {earningsData.historicalEarnings.map((earning, index) => (
-                        <tr key={index} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{formatDate(earning.date)}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{formatNumber(earning.epsActual)}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{formatNumber(earning.epsEstimate)}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{earning.revenue != null ? formatCurrency(earning.revenue / 1_000_000) + 'M' : 'N/A'}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{earning.earnings != null ? formatCurrency(earning.earnings / 1_000_000) + 'M' : 'N/A'}</td>
-                        </tr>
-                      ))}
+                      {earningsData.historicalEarnings.map((earning, index) => {
+                        const actual = earning.epsActual;
+                        const estimate = earning.epsEstimate;
+                        let rowColorClass = 'text-gray-900'; // Default: dark gray
+
+                        if (actual !== null && estimate !== null && actual !== undefined && estimate !== undefined && estimate !== 0) {
+                          const surprisePct = ((actual - estimate) / Math.abs(estimate)) * 100;
+                          if (surprisePct > 5) {
+                            rowColorClass = 'text-green-700'; // Green for > 5% beat
+                          } else if (surprisePct < -5) {
+                            rowColorClass = 'text-red-600'; // Red for > 5% miss
+                          }
+                        }
+
+                        return (
+                          <tr key={index} className={`hover:bg-gray-50 font-medium ${rowColorClass}`}>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm">{formatDate(earning.date)}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold">{formatNumber(earning.epsActual)}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-right">{formatNumber(earning.epsEstimate)}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-right">{earning.revenue != null ? formatCurrency(earning.revenue / 1_000_000) + 'M' : 'N/A'}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-right">{earning.earnings != null ? formatCurrency(earning.earnings / 1_000_000) + 'M' : 'N/A'}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
