@@ -16,10 +16,10 @@ DB_PASSWORD = os.getenv('DB_PASSWORD')
 DB_DATABASE = os.getenv('DB_DATABASE')
 INTERNAL_SECRET = os.getenv('DEEPMONEY_INTERNAL_SECRET')
 NEXTAUTH_URL = os.getenv('NEXTAUTH_URL', 'http://localhost:3001')
-API_URL = f"{NEXTAUTH_URL}/api/prediction/deepmoney/v2?refresh=true"
+API_URL = f"{NEXTAUTH_URL}/api/prediction/deepmoney?refresh=true"
 
 def sync_deepmoney():
-    print(f"[{datetime.now()}] Starting DeepMoney sync (V2)...")
+    print(f"[{datetime.now()}] Starting DeepMoney sync...")
     
     # 1. Fetch data from API (V2)
     headers = {'x-api-key': INTERNAL_SECRET}
@@ -59,9 +59,9 @@ def sync_deepmoney():
         print("Clearing existing recommendation data...")
         cursor.execute("DELETE FROM recommended_stocks")
 
-        # 4. Process Stocks from V2 (stocks array)
+        # 4. Process Stocks from (stocks array)
         stocks = data.get('stocks', [])
-        print(f"Processing {len(stocks)} V2 hot stocks...")
+        print(f"Processing {len(stocks)} hot stocks...")
         
         # COLUMN ORDER MUST MATCH VALUES IN CURSOR.EXECUTE
         insert_query = """
