@@ -1,17 +1,17 @@
 import { NextRequest } from 'next/server';
-import { GET } from '@/app/api/prediction/deepmoney/v2/route';
+import { GET } from '@/app/api/prediction/deepmoney/route';
 import { getServerSession } from 'next-auth';
 import { checkOrigin } from '@/utils/originCheck';
 import { deepmoneyLimiter } from '@/utils/rateLimiter';
 import YahooFinance from 'yahoo-finance2';
-import { analyzeStocks } from '@/app/api/prediction/deepmoney/v2/analyzer';
+import { analyzeStocks } from '@/app/api/prediction/deepmoney/analyzer';
 
 // Mock dependencies
 jest.mock('next-auth');
 jest.mock('@/utils/originCheck');
 jest.mock('@/utils/rateLimiter');
 jest.mock('yahoo-finance2');
-jest.mock('@/app/api/prediction/deepmoney/v2/analyzer');
+jest.mock('@/app/api/prediction/deepmoney/analyzer');
 jest.mock('@/utils/logger', () => ({
   createLogger: () => ({
     info: jest.fn(),
@@ -23,7 +23,7 @@ jest.mock('@/utils/logger', () => ({
 // Mock global fetch
 global.fetch = jest.fn();
 
-describe('GET /api/prediction/deepmoney/v2', () => {
+describe('GET /api/prediction/deepmoney', () => {
   let mockRequest: any;
 
   beforeEach(() => {
@@ -34,8 +34,8 @@ describe('GET /api/prediction/deepmoney/v2', () => {
 
     mockRequest = {
       headers: new Headers(),
-      url: 'http://localhost/api/prediction/deepmoney/v2',
-      nextUrl: new URL('http://localhost/api/prediction/deepmoney/v2'),
+      url: 'http://localhost/api/prediction/deepmoney',
+      nextUrl: new URL('http://localhost/api/prediction/deepmoney'),
     } as unknown as NextRequest;
   });
 

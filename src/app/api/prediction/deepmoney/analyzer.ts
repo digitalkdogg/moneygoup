@@ -120,7 +120,7 @@ export async function analyzeStocks(stocks: EnrichedStock[]): Promise<EnrichedSt
 
             if (predictedChangePct !== undefined) {
                 stock.prediction_1m = predictedChangePct;
-                // Threshold: 0.1%
+                // Threshold: 1.5%
                 if (predictedChangePct >= 1.5) {
                     
                     // --- DB COMPATIBILITY CALCULATION ---

@@ -105,13 +105,11 @@
         <nav>
             <a href="#step1" class="nav-link">1. Automation Trigger</a>
             <a href="#step2" class="nav-link">2. API Authorization</a>
-            <a href="#step3" class="nav-link">3. News & NLP Stage</a>
-            <a href="#step4" class="nav-link">4. Discovery & Deep Scan</a>
-            <a href="#step5" class="nav-link">5. GPS Scoring Model</a>
-            <a href="#step6" class="nav-link">6. Deep Enrichment</a>
-            <a href="#step7" class="nav-link">7. LSTM Readiness</a>
-            <a href="#step8" class="nav-link">8. Persistence Layer</a>
-            <a href = "#step9" class="nav-link">9. API Structure</a>
+            <a href="#step3" class="nav-link">3. V2 Discovery & Analysis</a>
+            <a href="#step4" class="nav-link">4. Deep Enrichment</a>
+            <a href="#step5" class="nav-link">5. Persistence Layer</a>
+            <a href="#step6" class="nav-link">6. Workflow Diagram</a>
+            <a href="#step7" class="nav-link">7. API Structure</a>
         </nav>
     </aside>
 
@@ -125,8 +123,8 @@
                 <div class="component-tag">File: deepmoney_sync.py</div>
                 <p>The process starts via a scheduled task (likely cron) executing the sync script.</p>
                 <ul>
-                    <li><strong>Environment:</strong> Loads <code>DEEPMONEY_INTERNAL_SECRET</code> and DB credentials from <code>.env.production</code>.</li>
-                    <li><strong>Action:</strong> Initiates an outbound HTTP GET request to the legacy <code>/api/prediction/deepmoney</code> endpoint.</li>
+                    <li><strong>Environment:</strong> Loads <code>DEEPMONEY_INTERNAL_SECRET</code> and DB credentials from s.
+                    <li><strong>Action:</strong> Initiates an outbound HTTP GET request to the V2 <code>/api/prediction/deepmoney</code> endpoint.</li>
                 </ul>
             </div>
         </section>
@@ -149,99 +147,39 @@
         <div class="flow-arrow">↓</div>
 
         <section id="step3">
-            <h2><span>3</span> News Aggregation & NLP</h2>
+            <h2><span>3</span>Discovery & Analysis</h2>
             <div class="step-card">
-                <div class="component-tag">File: src/app/api/prediction/deepmoney/getNews.ts</div>
-                <div class="component-tag">File: src/app/api/prediction/deepmoney/analysis.ts</div>
-                <p>The system aggregates and processes financial intelligence in real-time:</p>
+                <div class="component-tag">File: src/app/api/prediction/deepmoney/route.ts</div>
+                <div class="component-tag">File: src/app/api/prediction/deepmoney/analyzer.ts</div>
+                <p>The engine uses a recursive, multi-pass discovery and validation process:</p>
                 <ul>
-                    <li><strong>Feeds:</strong> Fetches from Yahoo Finance, MarketBeat, The Street, and Motley Fool.</li>
-                    <li><strong>Fast-Path Tickers:</strong> Uses explicit XML tags from MarketBeat/Fool to resolve tickers instantly.</li>
-                    <li><strong>NLP Path:</strong> Uses <code>compromise</code> (NLP) to extract organizations from Yahoo/TheStreet headlines.</li>
-                    <li><strong>Sentiment:</strong> Scores every headline to calculate <code>avgSentiment</code> per ticker and industry.</li>
+                    <li><strong>Primary Pass:</strong> Scrapes 15+ global RSS and JSON feeds (Yahoo, MarketBeat, ApeWisdom).</li>
+                    <li><strong>Secondary Pass:</strong> For each discovered ticker, it performs a deep-dive on that ticker's specific news feed to find co-mentioned stocks.</li>
+                    <li><strong>Enrichment:</strong> All unique tickers are enriched with technicals, fundamentals, and sector data.</li>
+                    <li><strong>ML Validation Gate:</strong> The <code>analyzer.ts</code> process sequentially runs a 1-month ML prediction for each candidate and only returns stocks that meet the growth threshold (>= 1.5%).</li>
                 </ul>
             </div>
         </section>
-
+        
         <div class="flow-arrow">↓</div>
 
         <section id="step4">
-            <h2><span>4</span> Multi-Stage Discovery</h2>
+            <h2><span>4</span> Deep Enrichment Stage</h2>
             <div class="step-card">
-                <div class="component-tag">File: src/app/api/prediction/deepmoney/analysis.ts</div>
-                <div class="component-tag">File: src/utils/yahooFinanceHelper.ts</div>
-                <p>The system expands its search beyond the headlines:</p>
+                <div class="component-tag">File: src/app/api/prediction/deepmoney/analyzer.ts</div>
+                <p>The top finalists undergo a final enrichment and scoring phase:</p>
                 <ul>
-                    <li><strong>Screeners:</strong> Hits Yahoo Finance screeners for <code>growth_technology_stocks</code>, <code>undervalued_growth_stocks</code>, <code>day_gainers</code>, <code>most_bought_by_hedge_funds</code>, and <code>most_watched_tickers</code>.</li>
-                    <li><strong>Deep Scan (Pass 2):</strong> For the top-mentioned tickers, the system fetches their <em>specific</em> company feeds to find co-mentioned peers.</li>
-                    <li><strong>Discovery Sources:</strong> Tickers are tagged with their origin (e.g., <code>screener+keyword</code> or <code>company_feed</code>).</li>
+                    <li><strong>GPS Scoring:</strong> Calculates a final GPS score based on analyst upside, revenue growth, and momentum.</li>
+                    <li><strong>Yahoo Validation:</strong> Adjusts the GPS score based on analyst consensus from Yahoo Finance.</li>
+                    <li><strong>DB-Ready Payload:</strong> Prepares a final JSON object that is compatible with the `recommended_stocks` database schema.</li>
                 </ul>
             </div>
         </section>
-
+        
         <div class="flow-arrow">↓</div>
 
         <section id="step5">
-            <h2><span>5</span> GPS Scoring Model</h2>
-            <div class="step-card">
-                <div class="component-tag">File: src/app/api/prediction/deepmoney/analysis.ts</div>
-                <div class="component-tag">File: src/utils/technicalIndicators.ts</div>
-                <p>Every candidate is put through a rigorous weighted scoring algorithm (0-100):</p>
-                <div class="highlight-box">
-                    <strong>Base Weights (70% Total):</strong> Analyst Upside (25%), Revenue Growth (15%), EPS Growth (10%), Momentum (10%), Mentions (5%), News Sentiment (5%).
-                </div>
-                <ul>
-                    <li><strong>Trading Signal Gate:</strong> Stocks must have a positive <code>tradingSignalScore</code> (> 0) based on technical indicators (SMA, RSI, Momentum) to pass. This gate is applied to all screener results.</li>
-                    <li><strong>Expanded Metrics:</strong> Includes P/E, P/B, Debt-to-Equity, ROE, Beta, and Dividend Yield.</li>
-                    <li><strong>Hard Gates:</strong> Discards stocks with price > $300 or Market Cap > $2T.</li>
-                    <li><strong>AI Bonus (Up to +30 pts):</strong> Extra points for High R&D spend, small-cap status, or AI-taxonomy keyword density.</li>
-                    <li><strong>ETF Discovery:</strong> Final "Hot Stocks" are correlated with thematic ETFs (e.g., BOTZ, SOXX).</li>
-                </ul>
-            </div>
-        </section>
-
-        <div class="flow-arrow">↓</div>
-
-        <section id="step6">
-            <h2><span>6</span> Deep Enrichment Stage</h2>
-            <div class="step-card">
-                <div class="component-tag">File: src/app/api/prediction/deepmoney/analysis.ts</div>
-                <p>The top 5-8 finalists undergo intensive data gathering to prepare for LSTM modeling:</p>
-                <ul>
-                    <li><strong>Complete History:</strong> Calls <code>/api/stock_data/[ticker]/data</code> for 5-year OHLCV and Fundamentals.</li>
-                    <li><strong>Macro Integration:</strong> Injects VIX series, 10Y Treasury yields, and Sector ETF correlations.</li>
-                    <li><strong>Earnings Pulse:</strong> Fetches quarterly Beat/Miss history and upcoming earnings dates.</li>
-                    <li><strong>News Deep Dive:</strong> Aggregates ticker-specific feeds with index-level mentions for high-density sentiment signals.</li>
-                </ul>
-            </div>
-        </section>
-
-        <div class="flow-arrow">↓</div>
-
-        <section id="step7">
-            <h2><span>7</span> LSTM-Ready Payload</h2>
-            <div class="step-card">
-                <div class="component-tag">File: src/app/api/prediction/deepmoney/analysis.ts</div>
-                <p>The API assembles a specialized JSON block for the Python Prediction Engine:</p>
-                <pre><code>"prediction_input": {
-  "historicalData": [...],
-  "stockMetrics": { "peRatio": 25.0, ... },
-  "macroData": { "vix": [...], "treasury10y": [...] },
-  "newsArticles": [{ "sentiment_score": 5, "publishedAt": "..." }],
-  "historicalEarnings": [{ "epsActual": 1.2, "epsEstimate": 1.1 }],
-  "technicalScore": 6,
-  "dataQuality": { "historyYears": 4.8, "imputedFields": [] }
-}</code></pre>
-                <div class="highlight-box">
-                    <strong>Advanced Caching:</strong> Macro series (VIX/TNX) are cached for 24 hours via a shared <code>macroCache</code> to minimize redundant external API calls.
-                </div>
-            </div>
-        </section>
-
-        <div class="flow-arrow">↓</div>
-
-        <section id="step8">
-            <h2><span>8</span> Persistence Layer</h2>
+            <h2><span>5</span> Persistence Layer</h2>
             <div class="step-card">
                 <div class="component-tag">File: deepmoney_sync.py</div>
                 <p>The sync script receives the final enriched JSON and commits it to the database:</p>
@@ -253,51 +191,147 @@
             </div>
         </section>
         
+        <div class="flow-arrow">↓</div>
+
+        <section id="step6">
+            <h2><span>6</span> Workflow Diagram</h2>
+            <div class="step-card">
+                <svg width="100%" viewBox="0 0 680 860" xmlns="http://www.w3.org/2000/svg" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                  <defs>
+                    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                      <path d="M2 1L8 5L2 9" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </marker>
+                    <marker id="arrow-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                      <path d="M2 1L8 5L2 9" fill="none" stroke="#93c5fd" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </marker>
+                    <marker id="arrow-purple" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                      <path d="M2 1L8 5L2 9" fill="none" stroke="#c4b5fd" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </marker>
+                    <marker id="arrow-teal" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                      <path d="M2 1L8 5L2 9" fill="none" stroke="#5eead4" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </marker>
+                  </defs>
+
+                  <!-- Vertical spine -->
+                  <line x1="100" y1="60" x2="100" y2="800" stroke="#e2e8f0" stroke-width="1.5" stroke-dasharray="4 4"/>
+
+                  <!-- STAGE 1: Trigger -->
+                  <circle cx="100" cy="60" r="14" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1"/>
+                  <text x="100" y="60" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#475569">1</text>
+                  <rect x="140" y="36" width="480" height="48" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+                  <text x="164" y="56" dominant-baseline="central" font-size="13" font-weight="600" fill="#1e293b">Automation trigger</text>
+                  <text x="164" y="72" dominant-baseline="central" font-size="11" fill="#64748b">Cron job runs deepmoney_sync.py · loads secrets from env</text>
+
+                  <!-- Connector -->
+                  <line x1="100" y1="108" x2="100" y2="146" stroke="#e2e8f0" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+                  <!-- STAGE 2: Auth -->
+                  <circle cx="100" cy="160" r="14" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1"/>
+                  <text x="100" y="160" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#5b21b6">2</text>
+                  <rect x="140" y="136" width="480" height="48" rx="8" fill="#f5f3ff" stroke="#ddd6fe" stroke-width="1"/>
+                  <text x="164" y="156" dominant-baseline="central" font-size="13" font-weight="600" fill="#4c1d95">API authorization</text>
+                  <text x="164" y="172" dominant-baseline="central" font-size="11" fill="#6d28d9">x-api-key checked · rate limit bypassed · ?refresh=true</text>
+
+                  <!-- Connector -->
+                  <line x1="100" y1="208" x2="100" y2="248" stroke="#e2e8f0" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+                  <!-- STAGE 3: Discovery -->
+                  <circle cx="100" cy="260" r="14" fill="#eff6ff" stroke="#3b82f6" stroke-width="1"/>
+                  <text x="100" y="260" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#1d4ed8">3</text>
+                  <rect x="140" y="236" width="480" height="186" rx="8" fill="#f0f9ff" stroke="#bae6fd" stroke-width="1"/>
+                  <text x="164" y="258" dominant-baseline="central" font-size="13" font-weight="600" fill="#0c4a6e">Discovery &amp; analysis</text>
+
+                  <rect x="160" y="272" width="440" height="38" rx="6" fill="#dbeafe" stroke="#93c5fd" stroke-width="0.5"/>
+                  <text x="180" y="287" dominant-baseline="central" font-size="12" font-weight="600" fill="#1e40af">Primary pass</text>
+                  <text x="180" y="302" dominant-baseline="central" font-size="11" fill="#1d4ed8">Scrapes 15+ RSS &amp; JSON feeds (Yahoo, MarketBeat, ApeWisdom)</text>
+
+                  <line x1="380" y1="310" x2="380" y2="322" stroke="#93c5fd" stroke-width="1" marker-end="url(#arrow-blue)"/>
+
+                  <rect x="160" y="322" width="440" height="38" rx="6" fill="#dbeafe" stroke="#93c5fd" stroke-width="0.5"/>
+                  <text x="180" y="337" dominant-baseline="central" font-size="12" font-weight="600" fill="#1e40af">Secondary pass</text>
+                  <text x="180" y="352" dominant-baseline="central" font-size="11" fill="#1d4ed8">Deep-dives each ticker's news feed for co-mentioned stocks</text>
+
+                  <line x1="380" y1="360" x2="380" y2="372" stroke="#93c5fd" stroke-width="1" marker-end="url(#arrow-blue)"/>
+
+                  <rect x="160" y="372" width="440" height="38" rx="6" fill="#dbeafe" stroke="#93c5fd" stroke-width="0.5"/>
+                  <text x="180" y="387" dominant-baseline="central" font-size="12" font-weight="600" fill="#1e40af">ML validation gate</text>
+                  <text x="180" y="402" dominant-baseline="central" font-size="11" fill="#1d4ed8">1-month prediction run · only stocks &#8805; 1.5% growth pass</text>
+
+                  <!-- Connector -->
+                  <line x1="100" y1="426" x2="100" y2="466" stroke="#e2e8f0" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+                  <!-- STAGE 4: Enrichment -->
+                  <circle cx="100" cy="478" r="14" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1"/>
+                  <text x="100" y="478" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#5b21b6">4</text>
+                  <rect x="140" y="454" width="480" height="148" rx="8" fill="#faf5ff" stroke="#ddd6fe" stroke-width="1"/>
+                  <text x="164" y="476" dominant-baseline="central" font-size="13" font-weight="600" fill="#4c1d95">Deep enrichment</text>
+
+                  <rect x="160" y="490" width="440" height="38" rx="6" fill="#ede9fe" stroke="#c4b5fd" stroke-width="0.5"/>
+                  <text x="180" y="505" dominant-baseline="central" font-size="12" font-weight="600" fill="#5b21b6">GPS scoring</text>
+                  <text x="180" y="520" dominant-baseline="central" font-size="11" fill="#6d28d9">Analyst upside + revenue growth + momentum</text>
+
+                  <line x1="380" y1="528" x2="380" y2="540" stroke="#c4b5fd" stroke-width="1" marker-end="url(#arrow-purple)"/>
+
+                  <rect x="160" y="540" width="440" height="48" rx="6" fill="#ede9fe" stroke="#c4b5fd" stroke-width="0.5"/>
+                  <text x="180" y="557" dominant-baseline="central" font-size="12" font-weight="600" fill="#5b21b6">Yahoo validation &amp; DB payload</text>
+                  <text x="180" y="573" dominant-baseline="central" font-size="11" fill="#6d28d9">GPS score adjusted · payload shaped for recommended_stocks</text>
+
+                  <!-- Connector -->
+                  <line x1="100" y1="606" x2="100" y2="646" stroke="#e2e8f0" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+                  <!-- STAGE 5: Persistence -->
+                  <circle cx="100" cy="658" r="14" fill="#f0fdfa" stroke="#0f766e" stroke-width="1"/>
+                  <text x="100" y="658" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#0f766e">5</text>
+                  <rect x="140" y="634" width="480" height="148" rx="8" fill="#f0fdfa" stroke="#99f6e4" stroke-width="1"/>
+                  <text x="164" y="656" dominant-baseline="central" font-size="13" font-weight="600" fill="#134e4a">Persistence layer</text>
+
+                  <rect x="160" y="670" width="440" height="38" rx="6" fill="#ccfbf1" stroke="#5eead4" stroke-width="0.5"/>
+                  <text x="180" y="685" dominant-baseline="central" font-size="12" font-weight="600" fill="#0f766e">Atomic refresh</text>
+                  <text x="180" y="700" dominant-baseline="central" font-size="11" fill="#0d9488">Clears existing recommended_stocks for freshness</text>
+
+                  <line x1="380" y1="708" x2="380" y2="720" stroke="#5eead4" stroke-width="1" marker-end="url(#arrow-teal)"/>
+
+                  <rect x="160" y="720" width="440" height="48" rx="6" fill="#ccfbf1" stroke="#5eead4" stroke-width="0.5"/>
+                  <text x="180" y="737" dominant-baseline="central" font-size="12" font-weight="600" fill="#0f766e">Deep persistence</text>
+                  <text x="180" y="753" dominant-baseline="central" font-size="11" fill="#0d9488">Saves trading_signal, trading_signal_score, prediction_input</text>
+
+                  <!-- Connector -->
+                  <line x1="100" y1="786" x2="100" y2="806" stroke="#e2e8f0" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+                  <!-- End node -->
+                  <circle cx="100" cy="820" r="14" fill="#f0fdf4" stroke="#16a34a" stroke-width="1"/>
+                  <text x="100" y="820" text-anchor="middle" dominant-baseline="central" font-size="14" fill="#15803d">✓</text>
+                  <rect x="140" y="802" width="480" height="36" rx="8" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1"/>
+                  <text x="164" y="820" dominant-baseline="central" font-size="13" font-weight="600" fill="#15803d">Dashboard ready · new hot stocks &amp; sectors live</text>
+                </svg>
+            </div>
+        </section>
+
         <hr style="margin-top: 4rem; margin-bottom: 2rem; border: none; border-top: 1px solid var(--border);">
 
-        <section id="step9">
-            <h2><span>9</span> API Structure</h2>
+        <section id="step7">
+            <h2><span>7</span> API Structure</h2>
             <div class="step-card">
                 <div class="component-tag">Endpoint: GET /api/prediction/deepmoney</div>
-                <p>This endpoint returns a JSON object containing various lists of recommendations and market data.</p>
+                <p>This endpoint returns a JSON object containing various lists of recommendations and market data, powered by the V2 engine.</p>
                 <pre><code>{
-  "hot_stocks": [...],
-  "hot_etfs": [...]
+  "success": true,
+  "timestamp": "...",
+  "count": 5,
+  "stocks": [ ... ],
+  "meta": { ... }
 }</code></pre>
-                <h3>hot_stocks</h3>
-                <p>Array of stock objects with full enrichment.</p>
+                <h3>stocks</h3>
+                <p>Array of stock objects with full enrichment from the V2 engine.</p>
                 <pre><code>{
   "ticker": "string",
-  "company_name": "string",
-  "current_price": "number",
+  "name": "string",
+  "sector": "string",
+  "price": "number",
   "gps_score": "number",
-  "classification": "string",
-  "analyst_upside_pct": "number",
-  "revenue_growth_yoy": "number",
-  "market_cap_m": "number",
-  "discovery_source": "string",
-  "snapshot_date": "string",
   "trading_signal": "string",
-  "trading_signal_score": "number",
+  "prediction_1m": "number",
   "prediction_input": { ... }
-}</code></pre>
-                <h3>hot_etfs</h3>
-                <pre><code>{
-  "ticker": "string",
-  "etf_name": "string",
-  "snapshot_date": "string",
-  "current_price": "number",
-  "etf_gps_score": "number",
-  "theme": "string",
-  "aum_m": "number",
-  "expense_ratio_pct": "number",
-  "fiftyTwoWk_return_pct": "number",
-  "threeMo_return_pct": "number",
-  "avg_daily_volume": "number",
-  "momentum_score": "number",
-  "news_signal_score": "number",
-  "discovery_source": "string",
-  "is_leveraged": "boolean"
 }</code></pre>
             </div>
         </section>

@@ -3,15 +3,37 @@ import { yahooFinance, fetchYahooStockSummary, getYahooScreener } from './yahooF
 import etfWatchlist from '../../public/etf_theme_watchlist.json';
 import { createLogger } from './logger';
 
-import {
-  ETF_PRICE_FILTER_MAX,
-  ETF_VOLUME_FLOOR,
-  ETF_AUM_FLOOR,
-  ETF_GPS_WEIGHTS,
-  ETF_GPS_BONUS,
-  ETF_GPS_THRESHOLD,
-  THEME_TO_SUB_SECTORS
-} from '../app/api/prediction/deepmoney/config';
+// --- ETF Constants (moved from config.ts) ---
+const ETF_PRICE_FILTER_MAX = 400;
+const ETF_VOLUME_FLOOR = 50000;
+const ETF_AUM_FLOOR = 50_000_000; // $50M
+const ETF_GPS_THRESHOLD = 55;
+
+const ETF_GPS_WEIGHTS = {
+  FIFTY_TWO_WEEK_RETURN: 0.30,
+  THEMATIC_NEWS_SIGNAL: 0.25,
+  MOMENTUM_3MO: 0.20,
+  LIQUIDITY: 0.15,
+  EXPENSE_RATIO: 0.10,
+};
+
+const ETF_GPS_BONUS = {
+  HOT_STOCKS_OVERLAP: 8,
+  TRENDING_THEME: 5,
+  HIGH_MOMENTUM: 4,
+  UNDER_THE_RADAR: 3,
+};
+
+const THEME_TO_SUB_SECTORS: { [key: string]: string[] } = {
+  "Artificial Intelligence": ["Artificial Intelligence", "Robotics & Automation"],
+  "Semiconductors": ["Semiconductors"],
+  "Cloud & SaaS": ["Cloud & SaaS", "Cybersecurity"],
+  "Cybersecurity": ["Cybersecurity"],
+  "Clean Energy & Tech": ["Data Infrastructure"], // Assumption based on context
+  "Broad Technology": ["Artificial Intelligence", "Semiconductors", "Cloud & SaaS", "Cybersecurity", "Data Infrastructure", "Robotics & Automation"],
+  "Small/Mid Cap Growth": [],
+};
+// --- End ETF Constants ---
 
 const logger = createLogger('utils/etfDiscovery');
 

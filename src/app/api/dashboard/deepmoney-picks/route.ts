@@ -4,7 +4,9 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { executeRawQuery } from '@/utils/databaseHelper';
 import { checkOrigin } from '@/utils/originCheck';
-import { ETF_GPS_THRESHOLD } from '@/app/api/prediction/deepmoney/config';
+
+// Define ETF_GPS_THRESHOLD directly, as config.ts is no longer in deepmoney/v2
+const ETF_GPS_THRESHOLD = 55;
 
 export async function GET(request: NextRequest) {
   const originCheckResponse = checkOrigin(request);
