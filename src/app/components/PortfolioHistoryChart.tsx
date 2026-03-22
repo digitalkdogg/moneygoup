@@ -99,7 +99,7 @@ export const PortfolioHistoryChart: React.FC = () => {
     const periodLabel = period === '1w' ? '1 Week' : period === '1m' ? '1 Month' : period === '6m' ? '6 Months' : '1 Year';
 
     return (
-        <div className="bg-white p-4 md:p-6 rounded-2xl shadow-lg hover:shadow-2xl transition-shadow duration-300 ease-in-out mt-4">
+        <div className="bg-white p-4 md:p-6 mb-10 rounded-2xl shadow-lg hover:shadow-2xl transition-shadow duration-300 ease-in-out mt-4">
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl md:text-2xl font-bold text-gray-800">
                     📈 Portfolio Value ({periodLabel})
@@ -145,7 +145,7 @@ export const PortfolioHistoryChart: React.FC = () => {
                             />
                             <YAxis 
                                 tickFormatter={formatYAxis}
-                                dx={-100}
+                                dx={-10}
                                 tick={{ fill: '#6b7280', fontSize: 12 }}
                                 axisLine={{ stroke: '#d1d5db' }}
                                 tickLine={{ stroke: '#d1d5db' }}
