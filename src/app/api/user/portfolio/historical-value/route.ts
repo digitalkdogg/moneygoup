@@ -11,15 +11,10 @@ const logger = createLogger('api/user/portfolio/historical-value');
 
 type Period = '1w' | '1m' | '6m' | '1y' | 'all';
 
-function getPeriod(p: string | null): { startDate: string, endDate: string } {
+function getStartDate(period: Period, firstPurchaseDate: Date | null): Date {
     const now = new Date();
-    const period = p?.toLowerCase() || '1w';
-    
-    // Yesterday for end date to avoid incomplete Yahoo data
-    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const endDate = yesterday.toISOString().split('T')[0];
+    let startDate = new Date();
 
-    let startDate = new Date(now.getTime());
     switch (period) {
         case '1w':
             startDate.setDate(now.getDate() - 7);
@@ -34,103 +29,124 @@ function getPeriod(p: string | null): { startDate: string, endDate: string } {
             startDate.setFullYear(now.getFullYear() - 1);
             break;
         case 'all':
-            startDate.setFullYear(now.getFullYear() - 5);
-            break;
-        default:
-            startDate.setDate(now.getDate() - 7);
+            return firstPurchaseDate || new Date(now.getFullYear() - 5, now.getMonth(), now.getDate());
     }
-    
-    return { 
-        startDate: startDate.toISOString().split('T')[0], 
-        endDate: endDate 
-    };
-}
 
+    if (firstPurchaseDate && startDate < firstPurchaseDate) {
+        return firstPurchaseDate;
+    }
+    return startDate;
+}
 
 export async function GET(req: NextRequest) {
     const session = await getServerSession(authOptions);
-
-    if (!session || !session.user?.id) {
+    if (!session?.user?.id) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const userId = session.user.id;
-    const { searchParams } = new URL(req.url);
-    const periodParam = searchParams.get('period');
+    const periodParam = (req.nextUrl.searchParams.get('period') as Period) || '1w';
 
     try {
-        logger.info('Fetching portfolio history', { userId, period: periodParam });
+        logger.info(`Fetching portfolio history for user ${userId} for period ${periodParam}`);
 
-        const sql = `
-            SELECT
-                us.shares as quantity,
-                s.symbol as ticker
-            FROM
-                user_stocks us
-            JOIN
-                stocks s ON us.stock_id = s.id
-            WHERE
-                us.user_id = ? AND us.shares > 0
+        // 1. Fetch current holdings and their initial purchase dates
+        const holdingsSql = `
+            SELECT s.symbol as ticker, us.shares, us.initial_purchase_date
+            FROM user_stocks us
+            JOIN stocks s ON us.stock_id = s.id
+            WHERE us.user_id = ? AND us.shares > 0 AND us.is_purchased = 1
+            ORDER BY us.initial_purchase_date ASC
         `;
-        const [userStocksRows] = await executeRawQuery(sql, [userId]);
+        const [holdings] = await executeRawQuery(holdingsSql, [userId]) as any[];
 
-        const userStocks = userStocksRows as { quantity: string; ticker: string; }[];
-
-        if (userStocks.length === 0) {
-            logger.info('No user holdings found', { userId });
+        if (!holdings || holdings.length === 0) {
+            logger.info('No user holdings found, returning empty history.');
             return NextResponse.json([]);
         }
 
-        const { startDate, endDate } = getPeriod(periodParam);
-        logger.info('Requesting historical data from Yahoo', { startDate, endDate });
+        const firstPurchaseDate = holdings[0]?.initial_purchase_date ? new Date(holdings[0].initial_purchase_date) : null;
+        const startDate = getStartDate(periodParam, firstPurchaseDate);
+        const endDate = new Date();
 
-        const historicalDataPromises = userStocks.map(userStock => {
-            return yahooFinance.historical(userStock.ticker, {
-                period1: startDate,
-                period2: endDate,
-                interval: '1d'
-            }).catch(err => {
-                logger.error('Failed to fetch data for ticker', { ticker: userStock.ticker, error: err });
-                return []; 
-            });
-        });
+        // 2. Fetch price histories for all held stocks
+        const uniqueTickers = [...new Set(holdings.map((h: any) => h.ticker))];
+        logger.info(`Fetching price history for tickers: ${uniqueTickers.join(', ')} from ${startDate.toISOString()} to ${endDate.toISOString()}`);
+        
+        const priceHistoryPromises = uniqueTickers.map(ticker =>
+            yahooFinance.historical(ticker as string, { period1: startDate, period2: endDate })
+                .catch(err => {
+                    logger.warn(`Failed to fetch history for ${ticker}`, { error: err.message });
+                    return []; // Return empty array on failure
+                })
+        );
+        const priceHistoryResults = await Promise.all(priceHistoryPromises);
 
-        const historicalDataResults = await Promise.all(historicalDataPromises);
-
-        const portfolioHistory: { [key: string]: number } = {};
-
-        userStocks.forEach((userStock, index) => {
-            const historicalData = historicalDataResults[index];
-            const sharesCount = parseFloat(userStock.quantity);
-            
-            if (Array.isArray(historicalData)) {
-                historicalData
-                    .filter(dayData => dayData.date && dayData.close !== null && dayData.close !== undefined)
-                    .forEach(dayData => {
-                        const dateStr = dayData.date instanceof Date 
-                            ? dayData.date.toISOString().split('T')[0]
-                            : String(dayData.date).split('T')[0];
-                            
-                        const dayValue = sharesCount * dayData.close;
-                        if (!portfolioHistory[dateStr]) {
-                            portfolioHistory[dateStr] = 0;
-                        }
-                        portfolioHistory[dateStr] += dayValue;
-                    });
+        // 3. Create a fast lookup map for prices
+        const priceMap: Record<string, Record<string, number>> = {};
+        uniqueTickers.forEach((ticker, index) => {
+            priceMap[ticker as string] = {};
+            const prices = priceHistoryResults[index];
+            if (prices) {
+                prices.forEach(day => {
+                    priceMap[ticker as string][new Date(day.date).toISOString().split('T')[0]] = day.close;
+                });
             }
         });
 
-        const chartData = Object.keys(portfolioHistory).map(date => ({
-            date,
-            value: portfolioHistory[date],
-        })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        // 4. Calculate daily portfolio value
+        const portfolioHistory: { date: string, value: number }[] = [];
+        let currentDate = new Date(startDate);
 
-        logger.info('Returning portfolio chart data', { dataPoints: chartData.length });
+        while (currentDate <= endDate) {
+            const dateStr = currentDate.toISOString().split('T')[0];
+            let dailyValue = 0;
+            let dataForDayExists = false;
 
-        return NextResponse.json(chartData);
+            for (const holding of holdings) {
+                const holdingPurchaseDate = holding.initial_purchase_date ? new Date(holding.initial_purchase_date) : new Date(0);
+                
+                // Only include stock value if the current chart date is on or after the purchase date
+                if (currentDate >= holdingPurchaseDate) {
+                    let closePrice = priceMap[holding.ticker]?.[dateStr];
+                    
+                    // If price is missing (weekend/holiday), find the last known price
+                    if (closePrice === undefined) {
+                        let tempDate = new Date(currentDate);
+                        for (let i = 0; i < 7; i++) {
+                            tempDate.setDate(tempDate.getDate() - 1);
+                            const tempDateStr = tempDate.toISOString().split('T')[0];
+                            if (priceMap[holding.ticker]?.[tempDateStr]) {
+                                closePrice = priceMap[holding.ticker][tempDateStr];
+                                break;
+                            }
+                        }
+                    }
+
+                    if (closePrice !== undefined) {
+                        dailyValue += parseFloat(holding.shares) * closePrice;
+                        dataForDayExists = true;
+                    }
+                }
+            }
+            
+            // Only add data point if there was value to calculate
+            if (dataForDayExists) {
+                portfolioHistory.push({ date: dateStr, value: dailyValue });
+            }
+
+            currentDate.setDate(currentDate.getDate() + 1);
+        }
+
+        logger.info('Successfully calculated portfolio history', { dataPoints: portfolioHistory.length });
+        return NextResponse.json(portfolioHistory);
 
     } catch (error) {
-        logger.error('Critical error in historical-value API', { error });
-        return createErrorResponse(error, 'Failed to fetch portfolio history');
+        const err = error as Error;
+        logger.error('Fatal error in historical-value API', { 
+            errorMessage: err.message,
+            stack: err.stack,
+        });
+        return createErrorResponse(err, 'Failed to reconstruct portfolio history');
     }
 }

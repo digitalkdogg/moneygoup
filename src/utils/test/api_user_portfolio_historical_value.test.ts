@@ -18,9 +18,12 @@ describe('GET /api/user/portfolio/historical-value', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    const url = 'http://localhost/api/user/portfolio/historical-value?period=1w';
     mockRequest = {
       headers: new Headers(),
-      url: 'http://localhost/api/user/portfolio/historical-value?period=1w',
+      nextUrl: {
+        searchParams: new URL(url).searchParams,
+      },
     } as unknown as NextRequest;
   });
 
@@ -44,36 +47,43 @@ describe('GET /api/user/portfolio/historical-value', () => {
   test('returns historical portfolio value correctly', async () => {
     (getServerSession as jest.Mock).mockResolvedValue({ user: { id: '1' } });
     
-    // User owns 10 shares of AAPL
     (executeRawQuery as jest.Mock).mockResolvedValue([
-      [{ quantity: '10', ticker: 'AAPL' }]
+      [{ 
+        ticker: 'AAPL', 
+        shares: '10', 
+        initial_purchase_date: new Date('2026-03-10T12:00:00.000Z') 
+      }]
     ]);
 
-    // Mock historical data from Yahoo Finance
     const mockHistoricalData = [
       { date: new Date('2026-03-10'), close: 150 },
       { date: new Date('2026-03-11'), close: 155 },
     ];
     (yahooFinance.historical as jest.Mock).mockResolvedValue(mockHistoricalData);
 
+    // Mock the date to be constant
+    jest.useFakeTimers().setSystemTime(new Date('2026-03-12'));
+
     const response = await GET(mockRequest);
     expect(response.status).toBe(200);
     const data = await response.json();
-
-    // Expected data: 10 * 150 = 1500, 10 * 155 = 1550
-    expect(data).toHaveLength(2);
+    
+    // The new logic iterates day-by-day, so we expect more data points
+    // It should start on the purchase date
+    expect(data.length).toBeGreaterThanOrEqual(2);
     expect(data[0]).toEqual({ date: '2026-03-10', value: 1500 });
     expect(data[1]).toEqual({ date: '2026-03-11', value: 1550 });
+
+    jest.useRealTimers();
   });
 
   test('aggregates multiple stocks correctly', async () => {
     (getServerSession as jest.Mock).mockResolvedValue({ user: { id: '1' } });
     
-    // User owns 10 AAPL and 5 MSFT
     (executeRawQuery as jest.Mock).mockResolvedValue([
       [
-        { quantity: '10', ticker: 'AAPL' },
-        { quantity: '5', ticker: 'MSFT' }
+        { ticker: 'AAPL', shares: '10', initial_purchase_date: new Date('2026-03-10T12:00:00.000Z') },
+        { ticker: 'MSFT', shares: '5', initial_purchase_date: new Date('2026-03-10T12:00:00.000Z') }
       ]
     ]);
 
@@ -93,15 +103,18 @@ describe('GET /api/user/portfolio/historical-value', () => {
       return Promise.resolve([]);
     });
 
+    jest.useFakeTimers().setSystemTime(new Date('2026-03-12'));
     const response = await GET(mockRequest);
     expect(response.status).toBe(200);
     const data = await response.json();
-
+    
+    expect(data.length).toBeGreaterThanOrEqual(2);
     // 2026-03-10: (10 * 100) + (5 * 200) = 1000 + 1000 = 2000
     // 2026-03-11: (10 * 110) + (5 * 210) = 1100 + 1050 = 2150
-    expect(data).toHaveLength(2);
     expect(data[0]).toEqual({ date: '2026-03-10', value: 2000 });
     expect(data[1]).toEqual({ date: '2026-03-11', value: 2150 });
+
+    jest.useRealTimers();
   });
 
   test('handles Yahoo Finance errors for a single stock and continues', async () => {
@@ -109,8 +122,8 @@ describe('GET /api/user/portfolio/historical-value', () => {
     
     (executeRawQuery as jest.Mock).mockResolvedValue([
       [
-        { quantity: '10', ticker: 'AAPL' },
-        { quantity: '5', ticker: 'INVALID' }
+        { ticker: 'AAPL', shares: '10', initial_purchase_date: new Date('2026-03-10T12:00:00.000Z') },
+        { ticker: 'INVALID', shares: '5', initial_purchase_date: new Date('2026-03-10T12:00:00.000Z') }
       ]
     ]);
 
@@ -126,13 +139,15 @@ describe('GET /api/user/portfolio/historical-value', () => {
       return Promise.resolve([]);
     });
 
+    jest.useFakeTimers().setSystemTime(new Date('2026-03-11'));
     const response = await GET(mockRequest);
     expect(response.status).toBe(200);
     const data = await response.json();
 
     // Should only have AAPL data
-    expect(data).toHaveLength(1);
+    expect(data.length).toBeGreaterThanOrEqual(1);
     expect(data[0]).toEqual({ date: '2026-03-10', value: 1000 });
+    jest.useRealTimers();
   });
 
   test('handles 500 error on database failure', async () => {
@@ -142,6 +157,6 @@ describe('GET /api/user/portfolio/historical-value', () => {
     const response = await GET(mockRequest);
     expect(response.status).toBe(500);
     const data = await response.json();
-    expect(data.message).toBe('Failed to fetch portfolio history');
+    expect(data.message).toBe('Failed to reconstruct portfolio history');
   });
 });

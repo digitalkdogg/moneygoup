@@ -16,13 +16,30 @@ const formatXAxis = (tickItem: string) => {
 };
 
 const formatYAxis = (tick: number) => {
-    if (tick >= 1000000) {
-        return `$${(tick / 1000000).toFixed(1)}M`;
-    }
-    if (tick >= 1000) {
-        return `$${(tick / 1000).toFixed(0)}k`;
-    }
+    if (tick >= 1_000_000_000) return `$${(tick / 1_000_000_000).toFixed(1)}B`;
+    if (tick >= 1_000_000) return `$${(tick / 1_000_000).toFixed(1)}M`;
+    if (tick >= 1_000) return `$${(tick / 1_000).toFixed(0)}k`;
     return `$${tick.toFixed(0)}`;
+};
+
+const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+        const date = new Date(label);
+        const formattedDate = !isNaN(date.getTime()) 
+            ? date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+            : 'Invalid Date';
+        const value = payload[0].value;
+
+        return (
+            <div className="p-4 bg-white rounded-lg shadow-lg border border-gray-200">
+                <p className="font-bold text-gray-800">{formattedDate}</p>
+                <p className="text-green-700">
+                    Value: <span className="font-semibold">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)}</span>
+                </p>
+            </div>
+        );
+    }
+    return null;
 };
 
 export const PortfolioHistoryChart: React.FC = () => {
@@ -128,34 +145,13 @@ export const PortfolioHistoryChart: React.FC = () => {
                             />
                             <YAxis 
                                 tickFormatter={formatYAxis}
-                                dx={-10}
+                                dx={-100}
                                 tick={{ fill: '#6b7280', fontSize: 12 }}
                                 axisLine={{ stroke: '#d1d5db' }}
                                 tickLine={{ stroke: '#d1d5db' }}
                                 domain={['dataMin', 'dataMax']}
                             />
-                            <Tooltip
-                                contentStyle={{ 
-                                    backgroundColor: 'rgba(255, 255, 255, 0.9)', 
-                                    border: '1px solid #e0e0e0', 
-                                    borderRadius: '0.5rem',
-                                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                                }}
-                                labelStyle={{ fontWeight: 'bold', color: '#374151' }}
-                                formatter={(value: number | undefined) => [
-                                    typeof value === 'number' 
-                                        ? `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
-                                        : 'N/A', 
-                                    'Value'
-                                ]}
-                                labelFormatter={(label) => {
-                                    if (typeof label !== 'string') return 'Invalid Date';
-                                    const date = new Date(label);
-                                    return !isNaN(date.getTime()) 
-                                        ? date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
-                                        : 'Invalid Date';
-                                }}
-                            />
+                            <Tooltip content={<CustomTooltip />} />
                             <Legend iconType="circle" iconSize={8} />
                             <Line 
                                 type="monotone" 
