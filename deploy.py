@@ -1,19 +1,17 @@
-import subprocess
-import logging
 import uuid
-import sys
-import os
+import subprocess
+import time
 from datetime import datetime
-from dotenv import load_dotenv
 import mysql.connector
-from mysql.connector import Error
+from mysql.connector import pooling
+import os
+from dotenv import load_dotenv
 
 # ─────────────────────────────────────────
 # Load .env
 # ─────────────────────────────────────────
-if os.path.exists('.env.production'):
-    load_dotenv('.env.production')
-load_dotenv('.env.local')
+load_dotenv('.env.local', override=False)
+load_dotenv('.env.production', override=True)
 
 # ─────────────────────────────────────────
 # Configuration
@@ -25,173 +23,169 @@ DB_CONFIG = {
     "user":     os.getenv("DB_USER"),
     "password": os.getenv("DB_PASSWORD"),
     "database": os.getenv("LOG_DB_NAME"),
+    "charset":  "utf8mb4",
 }
 
-APP_NAME    = "moneygoup_deploy"
-ENVIRONMENT = os.getenv("ENVIRONMENT", "production")
-WORK_DIR    = "/Volume1/www/moneygoup"
+pool = pooling.MySQLConnectionPool(
+    pool_name="deploy_pool",
+    pool_size=5,
+    **DB_CONFIG
+)
 
-# Ordered list of deployment steps: (label, command)
-DEPLOY_STEPS = [
-    ("git_pull",        ["git", "pull", "origin", "main"]),
-    ("sync_script",     ["python3", "deepmoney_sync.py"]),
-    ("docker_stop",     ["docker", "stop", "moneygoup"]),
-    ("docker_rm",       ["docker", "rm", "moneygoup"]),
-    ("docker_build",    ["docker", "build", "-t", "moneygoup", "."]),
-    ("docker_run",      ["docker", "run", "-d", "--name", "moneygoup",
-                         "-p", "3001:3001", "--env-file", ".env.production", "moneygoup"]),
+MAX_LOG_LENGTH = 4000
+DEFAULT_TIMEOUT = 600
+RETRY_COUNT = 2
+
+def get_conn():
+    return pool.get_connection()
+
+STEPS = [
+    {"name": "git_pull", "cmd": "git pull origin main"},
+    {"name": "sync_script", "cmd": "python3 deepmoney_sync.py"},
+    {"name": "docker_stop", "cmd": "docker stop moneygoup", "ignore_error": True},
+    {"name": "docker_rm", "cmd": "docker rm moneygoup", "ignore_error": True},
+    {"name": "docker_build", "cmd": "docker build -t moneygoup ."},
+    {"name": "docker_run", "cmd": "docker run -d --name moneygoup -p 3001:3001 --env-file .env.production moneygoup"},
 ]
 
-# ─────────────────────────────────────────
-# DB Logging Handler
-# ─────────────────────────────────────────
-class DBHandler(logging.Handler):
-    def __init__(self, connection, run_id):
-        super().__init__()
-        self.conn   = connection
-        self.run_id = run_id
+def create_deployment(conn):
+    deployment_id = str(uuid.uuid4())
+    cur = conn.cursor()
+    cur.execute("INSERT INTO deployments (id) VALUES (%s)", (deployment_id,))
+    conn.commit()
+    return deployment_id
 
-    def emit(self, record):
+def create_step(conn, deployment_id, name):
+    cur = conn.cursor()
+    now = datetime.now()
+    cur.execute("""
+        INSERT INTO steps (deployment_id, name, status, started_at)
+        VALUES (%s, %s, 'running', %s)
+    """, (deployment_id, name, now))
+    conn.commit()
+    return cur.lastrowid, now   
+
+def update_step(conn, step_id, status, start_time):
+    cur = conn.cursor()
+    end_time = datetime.now()
+    duration = int((end_time - start_time).total_seconds() * 1000)
+
+    cur.execute("""
+        UPDATE steps
+        SET status=%s, finished_at=%s, duration_ms=%s
+        WHERE id=%s
+    """, (status, end_time, duration, step_id))
+    conn.commit()
+
+def log_event(conn, step_id, event_type):
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO events (step_id, event_type) VALUES (%s, %s)",
+        (step_id, event_type)
+    )
+    conn.commit()
+
+def log_child(conn, step_id, message, log_type):
+    if not message:
+        return
+
+    message = message[:MAX_LOG_LENGTH]
+
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO child_events (step_id, log, log_type) VALUES (%s, %s, %s)",
+        (step_id, message, log_type)
+    )
+    conn.commit()
+
+def run_command(step, deployment_id):
+    conn = get_conn()
+    step_id, start_time = create_step(conn, deployment_id, step["name"])
+    log_event(conn, step_id, "start")
+
+    success = False
+
+    for attempt in range(RETRY_COUNT + 1):
         try:
-            self.format(record)
-            cursor = self.conn.cursor()
-            cursor.execute("""
-                INSERT INTO logs.events
-                  (app_name, environment, level, logger_name, message,
-                   exception_type, exception_message, stack_trace,
-                   module, function_name, line_number, run_id, extra)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, (
-                APP_NAME,
-                ENVIRONMENT,
-                record.levelname,
-                record.name,
-                record.getMessage(),
-                type(record.exc_info[1]).__name__ if record.exc_info and record.exc_info[1] else None,
-                str(record.exc_info[1])           if record.exc_info and record.exc_info[1] else None,
-                record.exc_text,
-                record.module,
-                record.funcName,
-                record.lineno,
-                self.run_id,
-                None,
-            ))
-            self.conn.commit()
-            cursor.close()
-        except Exception as e:
-            print(f"[DBHandler] Failed to write log: {e}", file=sys.stderr)
-
-
-# ─────────────────────────────────────────
-# Setup
-# ─────────────────────────────────────────
-def setup_logger(db_conn, run_id):
-    logger = logging.getLogger(APP_NAME)
-    logger.setLevel(logging.DEBUG)
-
-    # Console handler
-    console = logging.StreamHandler(sys.stdout)
-    console.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
-    logger.addHandler(console)
-
-    # DB handler
-    db_handler = DBHandler(db_conn, run_id)
-    db_handler.setLevel(logging.DEBUG)
-    logger.addHandler(db_handler)
-
-    return logger
-
-
-def connect_db():
-    # Validate that required env vars were actually loaded
-    missing = [k for k, v in DB_CONFIG.items() if v is None]
-    if missing:
-        print(f"[FATAL] Missing required .env variables: {', '.join(missing)}", file=sys.stderr)
-        sys.exit(1)
-
-    try:
-        conn = mysql.connector.connect(**DB_CONFIG)
-        return conn
-    except Error as e:
-        print(f"[FATAL] Could not connect to log DB: {e}", file=sys.stderr)
-        sys.exit(1)
-
-
-# ─────────────────────────────────────────
-# Command Runner
-# ─────────────────────────────────────────
-def run_step(label, command, logger, cwd=WORK_DIR):
-    """
-    Runs a single shell command. Returns True on success, False on failure.
-    """
-    logger.info(f"▶ Starting step [{label}]: {' '.join(command)}")
-
-    try:
-        result = subprocess.run(
-            command,
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-        )
-
-        if result.stdout.strip():
-            logger.info(f"[{label}] stdout: {result.stdout.strip()}")
-        if result.stderr.strip():
-            logger.warning(f"[{label}] stderr: {result.stderr.strip()}")
-
-        if result.returncode != 0:
-            logger.error(
-                f"✗ Step [{label}] failed with exit code {result.returncode}. "
-                f"stderr: {result.stderr.strip()}"
+            process = subprocess.Popen(
+                step["cmd"],
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
             )
-            return False
 
-        logger.info(f"✔ Step [{label}] completed successfully.")
-        return True
+            start_exec = time.time()
 
-    except FileNotFoundError:
-        logger.error(f"✗ Step [{label}] failed — command not found: {command[0]}")
-        return False
-    except Exception as e:
-        logger.exception(f"✗ Step [{label}] raised an unexpected exception.")
-        return False
+            while True:
+                if process.poll() is not None:
+                    break
 
+                if time.time() - start_exec > step.get("timeout", DEFAULT_TIMEOUT):
+                    process.kill()
+                    raise TimeoutError("Step timed out")
 
-# ─────────────────────────────────────────
-# Main
-# ─────────────────────────────────────────
-def main():
-    run_id  = str(uuid.uuid4())
-    db_conn = connect_db()
-    logger  = setup_logger(db_conn, run_id)
+                stdout_line = process.stdout.readline()
+                if stdout_line:
+                    print(stdout_line.strip())
+                    log_child(conn, step_id, stdout_line.strip(), "stdout")
 
-    logger.info(f"═══ Deployment started | run_id={run_id} ═══")
-    start_time = datetime.now()
+                stderr_line = process.stderr.readline()
+                if stderr_line:
+                    print(stderr_line.strip())
+                    log_child(conn, step_id, stderr_line.strip(), "stderr")
 
-    failed_step = None
+            process.wait()
 
-    for label, command in DEPLOY_STEPS:
-        success = run_step(label, command, logger)
-        if not success:
-            failed_step = label
-            break
+            for line in process.stdout.readlines():
+                log_child(conn, step_id, line.strip(), "stdout")
 
-    duration = (datetime.now() - start_time).total_seconds()
+            for line in process.stderr.readlines():
+                log_child(conn, step_id, line.strip(), "stderr")
 
-    if failed_step:
-        logger.error(
-            f"═══ Deployment FAILED at step [{failed_step}] "
-            f"after {duration:.1f}s | run_id={run_id} ═══"
-        )
+            if process.returncode == 0:
+                success = True
+                break
+            else:
+                raise Exception(f"Exit code {process.returncode}")
+
+        except Exception as e:
+            log_child(conn, step_id, str(e), "stderr")
+
+            if attempt < RETRY_COUNT:
+                print(f"Retrying {step['name']} (attempt {attempt+1})...")
+                time.sleep(2)
+            else:
+                if step.get("ignore_error"):
+                    success = True
+                else:
+                    success = False
+
+    if success:
+        log_event(conn, step_id, "finish")
+        update_step(conn, step_id, "success", start_time)
     else:
-        logger.info(
-            f"═══ Deployment COMPLETED successfully "
-            f"in {duration:.1f}s | run_id={run_id} ═══"
-        )
+        log_event(conn, step_id, "error")
+        update_step(conn, step_id, "failed", start_time)
 
-    db_conn.close()
-    sys.exit(1 if failed_step else 0)
+    conn.close()
+    return success
 
+def run_deployment():
+    conn = get_conn()
+    deployment_id = create_deployment(conn)
+    conn.close()
+
+    print(f"\n🚀 Deployment started: {deployment_id}\n")
+
+    for step in STEPS:
+        success = run_command(step, deployment_id)
+
+        if not success:
+            print(f"\n❌ Deployment failed at step: {step['name']}")
+            return
+
+    print("\n✅ Deployment completed successfully")  
 
 if __name__ == "__main__":
-    main()
+    run_deployment()
