@@ -11,7 +11,9 @@ from mysql.connector import Error
 # ─────────────────────────────────────────
 # Load .env
 # ─────────────────────────────────────────
-load_dotenv()
+if os.path.exists('.env.production'):
+    load_dotenv('.env.production')
+load_dotenv('.env.local')
 
 # ─────────────────────────────────────────
 # Configuration
