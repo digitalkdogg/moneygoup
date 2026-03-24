@@ -51,6 +51,7 @@ STEPS = [
 def create_deployment(conn):
     deployment_id = str(uuid.uuid4())
     title = "moneygoup " + datetime.now().strftime("%m/%d/%Y")
+    print(title)
     cur = conn.cursor()
     cur.execute("INSERT INTO deployments (id, title) VALUES (%s, %s)", (deployment_id, title))
     conn.commit()
