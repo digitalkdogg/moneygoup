@@ -5,10 +5,13 @@ import mysql.connector
 from datetime import datetime
 from dotenv import load_dotenv
 
-# Load environment variables: .env.production takes precedence, then .env.local
-if os.path.exists('.env.production'):
-    load_dotenv('.env.production')
-load_dotenv('.env.local')
+# Load environment variables relative to this script's directory,
+# not the current working directory of the calling process.
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+if os.path.exists(os.path.join(SCRIPT_DIR, '.env.production')):
+    load_dotenv(os.path.join(SCRIPT_DIR, '.env.production'))
+load_dotenv(os.path.join(SCRIPT_DIR, '.env.local'))
 
 DB_HOST = os.getenv('DB_HOST', 'localhost')
 DB_USER = os.getenv('DB_USER')
