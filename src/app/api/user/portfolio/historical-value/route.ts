@@ -61,9 +61,13 @@ export async function GET(req: NextRequest) {
         const [holdings] = await executeRawQuery(holdingsSql, [userId]) as any[];
 
         if (!holdings || holdings.length === 0) {
-            logger.info('No user holdings found, returning empty history.');
+            logger.warn('No user holdings found with shares > 0 and is_purchased = 1, returning empty history.');
             return NextResponse.json([]);
         }
+
+        logger.info(`Found ${holdings.length} holdings for user`, {
+            holdings: holdings.map((h: any) => ({ ticker: h.ticker, shares: h.shares }))
+        });
 
         const firstPurchaseDate = holdings[0]?.initial_purchase_date ? new Date(holdings[0].initial_purchase_date) : null;
         const startDate = getStartDate(periodParam, firstPurchaseDate);
@@ -74,7 +78,17 @@ export async function GET(req: NextRequest) {
         logger.info(`Fetching price history for tickers: ${uniqueTickers.join(', ')} from ${startDate.toISOString()} to ${endDate.toISOString()}`);
         
         const priceHistoryPromises = uniqueTickers.map(ticker =>
-            yahooFinance.historical(ticker as string, { period1: startDate, period2: endDate })
+            yahooFinance.chart(ticker as string, { period1: startDate, period2: endDate })
+                .then(result => result.quotes || [])
+                .then(quotes =>
+                    // Filter out quotes with null close prices and map to expected format
+                    quotes
+                        .filter((q: any) => q.close !== null && q.close !== undefined)
+                        .map((q: any) => ({
+                            date: q.date,
+                            close: q.close
+                        }))
+                )
                 .catch(err => {
                     logger.warn(`Failed to fetch history for ${ticker}`, { error: err.message });
                     return []; // Return empty array on failure
@@ -87,6 +101,11 @@ export async function GET(req: NextRequest) {
         uniqueTickers.forEach((ticker, index) => {
             priceMap[ticker as string] = {};
             const prices = priceHistoryResults[index];
+            logger.info(`Price history for ${ticker}:`, {
+                dataPoints: prices?.length || 0,
+                firstPrice: prices?.[0],
+                lastPrice: prices?.[prices.length - 1]
+            });
             if (prices) {
                 prices.forEach(day => {
                     priceMap[ticker as string][new Date(day.date).toISOString().split('T')[0]] = day.close;
@@ -97,19 +116,22 @@ export async function GET(req: NextRequest) {
         // 4. Calculate daily portfolio value
         const portfolioHistory: { date: string, value: number }[] = [];
         let currentDate = new Date(startDate);
+        let daysProcessed = 0;
+        let daysWithoutData = 0;
 
         while (currentDate <= endDate) {
             const dateStr = currentDate.toISOString().split('T')[0];
             let dailyValue = 0;
             let dataForDayExists = false;
+            daysProcessed++;
 
             for (const holding of holdings) {
                 const holdingPurchaseDate = holding.initial_purchase_date ? new Date(holding.initial_purchase_date) : new Date(0);
-                
+
                 // Only include stock value if the current chart date is on or after the purchase date
                 if (currentDate >= holdingPurchaseDate) {
                     let closePrice = priceMap[holding.ticker]?.[dateStr];
-                    
+
                     // If price is missing (weekend/holiday), find the last known price
                     if (closePrice === undefined) {
                         let tempDate = new Date(currentDate);
@@ -129,16 +151,23 @@ export async function GET(req: NextRequest) {
                     }
                 }
             }
-            
+
             // Only add data point if there was value to calculate
             if (dataForDayExists) {
                 portfolioHistory.push({ date: dateStr, value: dailyValue });
+            } else {
+                daysWithoutData++;
             }
 
             currentDate.setDate(currentDate.getDate() + 1);
         }
 
-        logger.info('Successfully calculated portfolio history', { dataPoints: portfolioHistory.length });
+        logger.info('Successfully calculated portfolio history', {
+            dataPoints: portfolioHistory.length,
+            daysProcessed,
+            daysWithoutData,
+            priceMapKeys: Object.keys(priceMap)
+        });
         return NextResponse.json(portfolioHistory);
 
     } catch (error) {

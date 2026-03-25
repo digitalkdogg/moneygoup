@@ -127,43 +127,54 @@ export const PortfolioHistoryChart: React.FC = () => {
                 </div>
             ) : (
                 <div className="h-80 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <LineChart
-                            data={data}
-                            margin={{
-                                top: 5, right: 30, left: 20, bottom: 5,
-                            }}
-                        >
-                            <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-                            <XAxis 
-                                dataKey="date" 
-                                tickFormatter={formatXAxis} 
-                                dy={10}
-                                tick={{ fill: '#6b7280', fontSize: 12 }}
-                                axisLine={{ stroke: '#d1d5db' }}
-                                tickLine={{ stroke: '#d1d5db' }}
-                            />
-                            <YAxis 
-                                tickFormatter={formatYAxis}
-                                dx={-10}
-                                tick={{ fill: '#6b7280', fontSize: 12 }}
-                                axisLine={{ stroke: '#d1d5db' }}
-                                tickLine={{ stroke: '#d1d5db' }}
-                                domain={['dataMin', 'dataMax']}
-                            />
-                            <Tooltip content={<CustomTooltip />} />
-                            <Legend iconType="circle" iconSize={8} />
-                            <Line 
-                                type="monotone" 
-                                dataKey="value" 
-                                stroke="#16a34a" 
-                                strokeWidth={2}
-                                dot={false}
-                                activeDot={{ r: 6, strokeWidth: 2, fill: '#fff' }}
-                                name="Portfolio Value"
-                            />
-                        </LineChart>
-                    </ResponsiveContainer>
+                    {(() => {
+                        const values = data.map(d => d.value);
+                        const minValue = Math.min(...values);
+                        const maxValue = Math.max(...values);
+                        const range = maxValue - minValue || maxValue * 0.1; // Default 10% if no range
+                        const padding = range * 0.1; // 10% padding on each side
+                        const domain = [Math.max(0, minValue - padding), maxValue + padding];
+
+                        return (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart
+                                    data={data}
+                                    margin={{
+                                        top: 5, right: 30, left: 20, bottom: 5,
+                                    }}
+                                >
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+                                    <XAxis
+                                        dataKey="date"
+                                        tickFormatter={formatXAxis}
+                                        dy={10}
+                                        tick={{ fill: '#6b7280', fontSize: 12 }}
+                                        axisLine={{ stroke: '#d1d5db' }}
+                                        tickLine={{ stroke: '#d1d5db' }}
+                                    />
+                                    <YAxis
+                                        tickFormatter={formatYAxis}
+                                        dx={-10}
+                                        tick={{ fill: '#6b7280', fontSize: 12 }}
+                                        axisLine={{ stroke: '#d1d5db' }}
+                                        tickLine={{ stroke: '#d1d5db' }}
+                                        domain={domain}
+                                    />
+                                    <Tooltip content={<CustomTooltip />} />
+                                    <Legend iconType="circle" iconSize={8} />
+                                    <Line
+                                        type="monotone"
+                                        dataKey="value"
+                                        stroke="#16a34a"
+                                        strokeWidth={2}
+                                        dot={false}
+                                        activeDot={{ r: 6, strokeWidth: 2, fill: '#fff' }}
+                                        name="Portfolio Value"
+                                    />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        );
+                    })()}
                 </div>
             )}
         </div>
