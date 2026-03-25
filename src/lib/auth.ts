@@ -91,8 +91,9 @@ export const authOptions: NextAuthOptions = {
       name: 'next-auth.session-token',
       options: {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        secure: process.env.NEXTAUTH_URL?.startsWith('https') ?? false,
+        sameSite: 'lax',
+        path: '/',
         maxAge: 30 * 24 * 60 * 60,
       },
     },
