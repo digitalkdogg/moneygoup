@@ -28,7 +28,7 @@ export async function fetchYahooQuotesForSymbols(
 
 export async function fetchYahooStockSummary(ticker: string) {
   const summary = await yahooFinance.quoteSummary(ticker, {
-    modules: ["assetProfile", "price", "summaryDetail", "quoteType", "financialData", "defaultKeyStatistics", "incomeStatementHistory", "earningsTrend"],
+    modules: ["assetProfile", "price", "summaryDetail", "quoteType", "financialData", "defaultKeyStatistics", "incomeStatementHistory", "earningsTrend", "recommendationTrend"],
   });
   return summary;
 }

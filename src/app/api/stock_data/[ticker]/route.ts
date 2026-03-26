@@ -8,7 +8,7 @@ import { checkOrigin } from '@/utils/originCheck';
 import { calculateTechnicalIndicators } from '@/utils/technicalIndicators';
 import { createLogger } from '@/utils/logger';
 import { fetchYahooStockSummary } from '@/utils/yahooFinanceHelper'; // Import the new helper function
-import { tickerSchema } from '@/utils/validationSchemas';
+import { tickerSchema, multiTickerSchema } from '@/utils/validationSchemas';
 import { stockDataLimiter } from '@/utils/rateLimiter';
 import { checkRateLimit } from '@/utils/rateLimitMiddleware';
 import { z } from 'zod';
@@ -182,7 +182,6 @@ async function fetchFromExternalAPIs(tickers: string | string[]) {
   const tickerArray = Array.isArray(tickers) ? tickers : tickers.split(',').map(t => t.trim().toUpperCase());
   
   const errors: string[] = [];
-  const results: any[] = [];
   const secCompanyNames: Record<string, string | null> = {};
   const sources: string[] = [];
 
@@ -207,7 +206,7 @@ async function fetchFromExternalAPIs(tickers: string | string[]) {
   // Try Yahoo Finance for all tickers
   try {
     // Fetch all tickers in one call using quote with multiple symbols
-    const yahooPromises = tickerArray.map(async (ticker) => {
+    const results = await Promise.all(tickerArray.map(async (ticker) => {
       try {
         const summary = await fetchYahooStockSummary(ticker); // Use the helper function
 
@@ -220,31 +219,48 @@ async function fetchFromExternalAPIs(tickers: string | string[]) {
             ...summary.defaultKeyStatistics,
         };
 
+        const analyst = {
+          recommendationTrend: summary.recommendationTrend?.trend || [],
+          recommendationKey: summary.financialData?.recommendationKey || null,
+          numberOfAnalystOpinions: summary.financialData?.numberOfAnalystOpinions || null,
+          priceTarget: {
+            low: summary.financialData?.targetLowPrice || null,
+            mean: summary.financialData?.targetMeanPrice || null,
+            median: summary.financialData?.targetMedianPrice || null,
+            high: summary.financialData?.targetHighPrice || null,
+            current: summary.financialData?.currentPrice || summary.price?.regularMarketPrice || null
+          }
+        };
+
         if (!data || !data.symbol) {
           throw new Error(`StockNotFoundError: ${ticker}`);
         }
         const normalized = normalizeYahooData(data, sources, secCompanyNames);
         if (normalized) {
-          results.push(normalized);
+          return normalized;
         }
+        console.warn(`Normalization failed for ${ticker}`);
+        return null;
       } catch (error: any) {
+        console.error(`Error in fetchFromExternalAPIs for ${ticker}:`, error.message);
         if (error.message && error.message.startsWith('StockNotFoundError:')) {
           errors.push(`${ticker}: Stock not found`);
         } else {
           errors.push(`${ticker}: ${error instanceof Error ? error.message : 'Network error'}`);
         }
+        return null;
       }
-    });
+    }));
 
-    await Promise.all(yahooPromises);
+    const validResults = results.filter(r => r !== null);
 
     // If no results were successfully fetched, throw an error
-    if (results.length === 0) {
+    if (validResults.length === 0) {
       throw new Error(errors.join('; ') || 'Failed to fetch stock data from external APIs');
     }
 
     // Return single object if one ticker, array if multiple
-    return tickerArray.length === 1 ? [results[0]] : results;
+    return tickerArray.length === 1 ? [validResults[0]] : validResults;
   } catch (error: any) {
     throw error;
   }
@@ -268,7 +284,7 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
 
   // Validate ticker parameter
   try {
-    var validatedTicker = tickerSchema.parse(params.ticker);
+    var validatedTicker = multiTickerSchema.parse(params.ticker);
   } catch (error) {
     if (error instanceof z.ZodError) {
       const message = error.issues && error.issues.length > 0 
@@ -294,7 +310,12 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
     const newsAllTickersRes = await newsAllTickersPromise;
     const newsAllTickersJson = newsAllTickersRes.ok ? await newsAllTickersRes.json() : { articles: {}, error: `Failed to fetch news for all tickers: ${newsAllTickersRes.status}` };
 
-    // 3. Fetch earnings data for all tickers in a single call (if possible, else we'll loop)
+    // 3. Fetch analyst data for all tickers in a single call
+    const analystAllTickersPromise = fetch(`${origin}/api/stock_data/${validatedTicker}/analyst`, { headers: { 'Cookie': request.headers.get('Cookie') || '' } });
+    const analystAllTickersRes = await analystAllTickersPromise;
+    const analystAllTickersJson = analystAllTickersRes.ok ? await analystAllTickersRes.json() : { analystData: {}, error: `Failed to fetch analyst for all tickers: ${analystAllTickersRes.status}` };
+
+    // 4. Fetch earnings data for all tickers in a single call (if possible, else we'll loop)
     // There is no batch earnings endpoint currently, so we'll fetch them in the map below.
 
     // Fetch data for all tickers in parallel
@@ -308,6 +329,11 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
         // stockDataArray is already an array from fetchFromExternalAPIs, get the first element for single ticker
         const stockData = (stockDataArray && stockDataArray.length > 0) ? stockDataArray[0] : { error: 'Failed to fetch stock' };
         const stockJson = stockData;
+
+        // Extract analyst data for the current ticker
+        const analystJson = tickerArray.length === 1 
+          ? analystAllTickersJson 
+          : (analystAllTickersJson.analystData?.[ticker] || null);
 
         // Extract news data for the current ticker from the pre-fetched all-tickers response
         const newsJson = {
@@ -348,9 +374,11 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
           news: newsJson || { articles: [] },
           historical: histJson || { historicalData: [] },
           indicators: indicators || null,
-          earnings: earningsJson || null
+          earnings: earningsJson || null,
+          analyst: analystJson
         };
       } catch (error) {
+        logger.error(`Error in GET map for ${ticker}:`, { error });
         return {
           ticker,
           stock: { error: 'Failed to fetch' },
@@ -358,6 +386,7 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
           historical: { historicalData: [] },
           indicators: null,
           earnings: null,
+          analyst: null,
           error: `Failed to fetch data for ${ticker}`,
           details: error instanceof Error ? error.message : String(error)
         };
@@ -376,6 +405,7 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
         historical: result.historical,
         indicators: result.indicators,
         earnings: result.earnings,
+        analyst: result.analyst,
         ...(result.error && { error: result.error, details: result.details })
       });
     } else {
@@ -388,6 +418,7 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
           historical: result.historical,
           indicators: result.indicators,
           earnings: result.earnings,
+          analyst: result.analyst,
           ...(result.error && { error: result.error, details: result.details })
         };
       });

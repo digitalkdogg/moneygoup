@@ -18,6 +18,15 @@ export const tickerSchema = z
   .toUpperCase();
 
 /**
+ * Multi-ticker validation (comma-separated)
+ */
+export const multiTickerSchema = z
+  .string()
+  .min(1, 'Ticker is required')
+  .regex(/^[A-Z0-9.^-]+(,[A-Z0-9.^-]+)*$/, 'Invalid ticker format (comma-separated symbols)')
+  .toUpperCase();
+
+/**
  * Historical data period validation
  * Only allow known periods to prevent injection attacks
  */

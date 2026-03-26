@@ -202,12 +202,20 @@
                 <p>Consolidated data hub for stock analysis.</p>
                 <strong>Logic Flow:</strong>
                 <ul class="flow">
-                    <li>Validates ticker(s).</li>
-                    <li>Parallel internal calls to <code>/historical</code> and <code>/news</code>.</li>
+                    <li>Validates ticker(s) using <code>multiTickerSchema</code> (supports comma-separated comparison).</li>
+                    <li>Parallel internal calls to <code>/historical</code>, <code>/news</code>, and <code>/analyst</code>.</li>
                     <li>Fetches real-time quote/metadata from Yahoo & SEC.</li>
                     <li>Calculates Technical Indicators (SMA, RSI, Momentum).</li>
                 </ul>
                 <p><strong>Associated Tests:</strong> <code>api_stock_ticker.test.ts</code>, <code>technicalIndicators.test.ts</code></p>
+                <div class="highlight-box">
+                    <strong>New Response Fields:</strong>
+                    <ul>
+                        <li><code>analyst.recommendationTrend</code>: Monthly consensus trends (Strong Buy to Strong Sell).</li>
+                        <li><code>analyst.recommendationKey</code>: Latest consensus label (e.g., "buy", "strong_buy").</li>
+                        <li><code>analyst.priceTarget</code>: Low, Mean, Median, and High analyst price targets.</li>
+                    </ul>
+                </div>
             </div>
 
             <div id="stock-industry" class="step-card">
@@ -387,6 +395,30 @@
                 <h3><span class="method get">GET</span> /api/cache-stats</h3>
                 <p><strong>Admin:</strong> View cache utilization and memory pressure.</p>
                 <p><strong>Associated Tests:</strong> <code>cache.test.ts</code></p>
+            </div>
+        </section>
+
+        <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem;">
+            MoneyGoUp API Documentation &copy; 2026
+        </footer>
+    </main>
+
+    <script>
+        document.querySelectorAll('.nav-link').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth'
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+</strong> <code>cache.test.ts</code></p>
             </div>
         </section>
 

@@ -189,7 +189,8 @@ export default function Stock({
                 news: consolidated.news || { articles: [] },
                 historical: consolidated.historical || { historicalData: [] },
                 indicators: consolidated.indicators || null,
-                earnings: consolidated.earnings || null
+                earnings: consolidated.earnings || null,
+                analyst: consolidated.analyst || null
               }
             } else {
               throw new Error(`Failed to fetch ${t}`)
@@ -202,9 +203,9 @@ export default function Stock({
               news: { articles: [] },
               historical: { historicalData: [] },
               indicators: null,
-              earnings: null
-            }
-          }
+              earnings: null,
+              analyst: null
+            }          }
         })
 
         const results = await Promise.all(fetchPromises)
@@ -216,7 +217,8 @@ export default function Stock({
             news: result.news || { articles: [] },
             historical: result.historical || { historicalData: [] },
             indicators: result.indicators || null,
-            earnings: result.earnings || null
+            earnings: result.earnings || null,
+            analyst: result.analyst || null
           }
         })
         
@@ -528,6 +530,91 @@ export default function Stock({
           historicalEarnings={earningsData?.historicalEarnings || []}
         />
 
+        {/* Analyst Sentiment & Price Targets */}
+        {data.analyst && (
+          <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
+            <h2 className="text-2xl font-semibold text-gray-800 mb-6">📊 Analyst Sentiment & Targets</h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-4">
+              {/* Recommendation Trend */}
+              <div>
+                <h3 className="text-xl font-medium text-gray-700 mb-4">Recommendation Trend</h3>
+                {data.analyst.recommendationTrend && data.analyst.recommendationTrend.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
+                          <th className="px-2 py-2 text-center text-xs font-medium text-green-600 uppercase">Strong Buy</th>
+                          <th className="px-2 py-2 text-center text-xs font-medium text-green-500 uppercase">Buy</th>
+                          <th className="px-2 py-2 text-center text-xs font-medium text-yellow-500 uppercase">Hold</th>
+                          <th className="px-2 py-2 text-center text-xs font-medium text-red-400 uppercase">Sell</th>
+                          <th className="px-2 py-2 text-center text-xs font-medium text-red-600 uppercase">Strong Sell</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {data.analyst.recommendationTrend.slice(0, 4).map((trend, idx) => (
+                          <tr key={idx} className={idx === 0 ? 'bg-blue-50 font-bold' : ''}>
+                            <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{trend.period}</td>
+                            <td className="px-2 py-2 whitespace-nowrap text-sm text-center text-gray-700">{trend.strongBuy}</td>
+                            <td className="px-2 py-2 whitespace-nowrap text-sm text-center text-gray-700">{trend.buy}</td>
+                            <td className="px-2 py-2 whitespace-nowrap text-sm text-center text-gray-700">{trend.hold}</td>
+                            <td className="px-2 py-2 whitespace-nowrap text-sm text-center text-gray-700">{trend.sell}</td>
+                            <td className="px-2 py-2 whitespace-nowrap text-sm text-center text-gray-700">{trend.strongSell}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="text-gray-500 italic">No recommendation trend data available.</p>
+                )}
+                <div className="mt-4 flex flex-col gap-1">
+                   <p className="text-sm text-gray-600">
+                    Consensus: <span className="font-bold text-gray-800 uppercase">{data.analyst.recommendationKey || 'N/A'}</span>
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    Based on <span className="font-bold text-gray-800">{data.analyst.numberOfAnalystOpinions || 0}</span> analyst opinions.
+                  </p>
+                </div>
+              </div>
+
+              {/* Price Targets */}
+              <div>
+                <h3 className="text-xl font-medium text-gray-700 mb-4">Price Targets</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                    <p className="text-xs text-gray-500 uppercase">Low Target</p>
+                    <p className="text-lg font-bold text-gray-800">{formatCurrency(data.analyst.priceTarget.low)}</p>
+                  </div>
+                  <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                    <p className="text-xs text-gray-500 uppercase">High Target</p>
+                    <p className="text-lg font-bold text-gray-800">{formatCurrency(data.analyst.priceTarget.high)}</p>
+                  </div>
+                  <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
+                    <p className="text-xs text-blue-600 uppercase font-semibold">Mean Target</p>
+                    <p className="text-lg font-bold text-blue-800">{formatCurrency(data.analyst.priceTarget.mean)}</p>
+                  </div>
+                  <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                    <p className="text-xs text-gray-500 uppercase">Median Target</p>
+                    <p className="text-lg font-bold text-gray-800">{formatCurrency(data.analyst.priceTarget.median)}</p>
+                  </div>
+                </div>
+
+                {data.analyst.priceTarget.mean && currentPrice && (
+                  <div className="mt-6 p-4 rounded-xl border border-dashed border-gray-300">
+                    <p className="text-sm text-gray-600 mb-1">Implied Upside/Downside (from Mean Target):</p>
+                    <p className={`text-xl font-bold ${((data.analyst.priceTarget.mean - currentPrice) / currentPrice) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {formatNumber(((data.analyst.priceTarget.mean - currentPrice) / currentPrice) * 100)}%
+                    </p>
+                    <p className="text-xs text-gray-400 mt-2 italic">Calculated based on current price of {formatCurrency(currentPrice)}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Technical Indicators */}
         {indicators && (
           <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
@@ -712,6 +799,82 @@ export default function Stock({
                 technicalScore={indicators?.scoreBreakdown?.totalScore}
                 newsArticles={news}
               />
+
+              {/* Analyst Sentiment & Price Targets */}
+              {data.analyst && (
+                <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-6">
+                  <h3 className="text-xl font-semibold text-gray-800 mb-6">📊 Analyst Sentiment & Targets</h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-4">
+                    {/* Recommendation Trend */}
+                    <div>
+                      <h4 className="text-lg font-medium text-gray-700 mb-4">Recommendation Trend</h4>
+                      {data.analyst.recommendationTrend && data.analyst.recommendationTrend.length > 0 ? (
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
+                                <th className="px-1 py-2 text-center text-xs font-medium text-green-600 uppercase">Buy</th>
+                                <th className="px-1 py-2 text-center text-xs font-medium text-yellow-500 uppercase">Hold</th>
+                                <th className="px-1 py-2 text-center text-xs font-medium text-red-600 uppercase">Sell</th>
+                              </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                              {data.analyst.recommendationTrend.slice(0, 3).map((trend, idx) => (
+                                <tr key={idx} className={idx === 0 ? 'bg-blue-50 font-bold' : ''}>
+                                  <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-900">{trend.period}</td>
+                                  <td className="px-1 py-2 whitespace-nowrap text-xs text-center text-gray-700">{trend.strongBuy + trend.buy}</td>
+                                  <td className="px-1 py-2 whitespace-nowrap text-xs text-center text-gray-700">{trend.hold}</td>
+                                  <td className="px-1 py-2 whitespace-nowrap text-xs text-center text-gray-700">{trend.sell + trend.strongSell}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <p className="text-gray-500 italic text-sm">No recommendation data.</p>
+                      )}
+                      <div className="mt-3">
+                        <p className="text-xs text-gray-600">
+                          Consensus: <span className="font-bold text-gray-800 uppercase">{data.analyst.recommendationKey || 'N/A'}</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Price Targets */}
+                    <div>
+                      <h4 className="text-lg font-medium text-gray-700 mb-4">Price Targets</h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="p-2 bg-gray-50 rounded-lg border border-gray-100">
+                          <p className="text-[10px] text-gray-500 uppercase">Low</p>
+                          <p className="text-md font-bold text-gray-800">{formatCurrency(data.analyst.priceTarget.low)}</p>
+                        </div>
+                        <div className="p-2 bg-gray-50 rounded-lg border border-gray-100">
+                          <p className="text-[10px] text-gray-500 uppercase">High</p>
+                          <p className="text-md font-bold text-gray-800">{formatCurrency(data.analyst.priceTarget.high)}</p>
+                        </div>
+                        <div className="p-2 bg-blue-50 rounded-lg border border-blue-100 col-span-2">
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <p className="text-[10px] text-blue-600 uppercase font-semibold">Mean Target</p>
+                              <p className="text-lg font-bold text-blue-800">{formatCurrency(data.analyst.priceTarget.mean)}</p>
+                            </div>
+                            {data.analyst.priceTarget.mean && currentPrice && (
+                              <div className="text-right">
+                                <p className="text-[10px] text-gray-500 uppercase">Potential</p>
+                                <p className={`text-md font-bold ${((data.analyst.priceTarget.mean - currentPrice) / currentPrice) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {formatNumber(((data.analyst.priceTarget.mean - currentPrice) / currentPrice) * 100)}%
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Indicators */}
               {indicators && (

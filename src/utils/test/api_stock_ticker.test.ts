@@ -68,23 +68,30 @@ describe('GET /api/stock_data/[ticker]', () => {
     });
 
     // Mock internal fetches
-    (global.fetch as jest.Mock)
-      .mockResolvedValueOnce({
+    (global.fetch as jest.Mock).mockImplementation((url) => {
+      if (url.includes('/historical')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ historicalData: { AAPL: [{ date: '2023-01-01', close: 140 }] } }),
+        });
+      }
+      if (url.includes('/news')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ articles: { AAPL: [{ sentiment_score: 0.5, pub_date: '2023-01-01' }] } }),
+        });
+      }
+      if (url.includes('/analyst')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ priceTarget: {}, recommendationTrend: [] }),
+        });
+      }
+      return Promise.resolve({
         ok: true,
-        json: jest.fn().mockResolvedValue({ historicalData: { AAPL: [{ date: '2023-01-01', close: 140 }] } }),
-      }) // Historical
-      .mockResolvedValueOnce({
-        ok: true,
-        json: jest.fn().mockResolvedValue({ articles: { AAPL: [{ sentiment_score: 0.5, pub_date: '2023-01-01' }] } }),
-      }) // News
-      .mockResolvedValueOnce({
-        ok: true,
-        json: jest.fn().mockResolvedValue({ "0": { ticker: "AAPL", title: "Apple Inc." } }),
-      }) // SEC
-      .mockResolvedValueOnce({
-        ok: true,
-        json: jest.fn().mockResolvedValue({ historicalEarnings: [] }),
-      }); // Earnings
+        json: () => Promise.resolve({}),
+      });
+    });
 
     (calculateTechnicalIndicators as jest.Mock).mockReturnValue({ signal: 'BUY' });
 
@@ -94,6 +101,63 @@ describe('GET /api/stock_data/[ticker]', () => {
 
     expect(data.stock.symbol).toBe('AAPL');
     expect(data.indicators.signal).toBe('BUY');
+    expect(data.analyst).toBeDefined();
+    expect(data.analyst.priceTarget).toBeDefined();
+    expect(data.analyst.recommendationTrend).toBeDefined();
+  });
+
+  test('returns analyst data correctly', async () => {
+    const params = { ticker: 'AAPL' };
+
+    // Mock Yahoo Summary with analyst data
+    (fetchYahooStockSummary as jest.Mock).mockResolvedValue({
+      price: {
+        symbol: 'AAPL',
+        regularMarketPrice: 150,
+        regularMarketTime: Date.now() / 1000,
+      },
+      summaryDetail: {},
+      assetProfile: {},
+      financialData: {
+        recommendationKey: 'buy',
+        numberOfAnalystOpinions: 40,
+        targetLowPrice: 130,
+        targetMeanPrice: 160,
+        targetMedianPrice: 155,
+        targetHighPrice: 180,
+      },
+      recommendationTrend: {
+        trend: [{ period: '0m', strongBuy: 10, buy: 20, hold: 5, sell: 3, strongSell: 2 }]
+      }
+    });
+
+    // Mock internal fetches
+    (global.fetch as jest.Mock).mockImplementation((url) => {
+      if (url.includes('/analyst')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            recommendationKey: 'buy',
+            numberOfAnalystOpinions: 40,
+            priceTarget: { mean: 160 },
+            recommendationTrend: [{ strongBuy: 10 }]
+          })
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({}),
+      });
+    });
+
+    const response = await GET(mockRequest, { params });
+    const data = await response.json();
+
+    expect(data.analyst.recommendationKey).toBe('buy');
+    expect(data.analyst.numberOfAnalystOpinions).toBe(40);
+    expect(data.analyst.priceTarget.mean).toBe(160);
+    expect(data.analyst.recommendationTrend).toHaveLength(1);
+    expect(data.analyst.recommendationTrend[0].strongBuy).toBe(10);
   });
 
   test('returns 401 if no session', async () => {
