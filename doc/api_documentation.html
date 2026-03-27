@@ -149,6 +149,7 @@
             
             <span class="nav-header">Stock Data</span>
             <a href="#stock-ticker" class="nav-link">GET /stock/[ticker]</a>
+            <a href="#stock-analyst" class="nav-link">GET /stock/[ticker]/analyst</a>
             <a href="#stock-industry" class="nav-link">GET /stock/[ticker]/industry</a>
             <a href="#stock-historical" class="nav-link">GET /stock/[ticker]/historical</a>
             <a href="#stock-earnings" class="nav-link">GET /stock/[ticker]/earnings</a>
@@ -216,6 +217,17 @@
                         <li><code>analyst.priceTarget</code>: Low, Mean, Median, and High analyst price targets.</li>
                     </ul>
                 </div>
+            </div>
+
+            <div id="stock-analyst" class="step-card">
+                <h3><span class="method get">GET</span> /api/stock_data/[ticker]/analyst</h3>
+                <div class="component-tag">Source: Yahoo Finance</div>
+                <p>Retrieves analyst recommendation trends and price targets.</p>
+                <strong>Logic Flow:</strong>
+                <ul class="flow">
+                    <li>Calls Yahoo Finance <code>quoteSummary</code> with <code>recommendationTrend</code> and <code>financialData</code> modules.</li>
+                    <li>Returns monthly consensus trends and specific price targets (Low, Mean, Median, High).</li>
+                </ul>
             </div>
 
             <div id="stock-industry" class="step-card">
