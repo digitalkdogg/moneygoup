@@ -73,7 +73,7 @@ export async function GET(
 
         analystDataByTicker[ticker] = analyst;
       } catch (error) {
-        logger.warn(`Error fetching analyst data for ${ticker}:`, error);
+        logger.warn(`Error fetching analyst data for ${ticker}:`, { error });
         analystDataByTicker[ticker] = {
           recommendationTrend: [],
           recommendationKey: null,

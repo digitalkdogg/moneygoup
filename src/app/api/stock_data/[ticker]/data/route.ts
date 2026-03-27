@@ -216,29 +216,38 @@ export async function GET(
     const historyYears = Math.round((historyDays / 252) * 10) / 10;
 
     // ---- 2. Fetch fundamentals + analyst targets (single quoteSummary call) ----
-    const summary = await yahooFinance.quoteSummary(validatedTicker, {
-      modules: [
-        'price',
-        'summaryDetail',
-        'financialData',
-        'defaultKeyStatistics',
-        'recommendationTrend',
-      ],
-    });
+    let summary: any = {};
+    try {
+      summary = await yahooFinance.quoteSummary(validatedTicker, {
+        modules: [
+          'price',
+          'summaryDetail',
+          'financialData',
+          'defaultKeyStatistics',
+          'recommendationTrend',
+        ],
+      });
+    } catch (err) {
+      logger.warn(`Failed to fetch quoteSummary for ${validatedTicker}`, { error: err });
+      summary = {};
+    }
 
     const price    = (summary as any).price            ?? {};
     const detail   = (summary as any).summaryDetail     ?? {};
     const finData  = (summary as any).financialData     ?? {};
     const keyStats = (summary as any).defaultKeyStatistics ?? {};
 
-    const sector = safeNum(null) === null
-      ? ((price.sector ?? finData.sector ?? null) as string | null) ?? '_default'
-      : '_default';
-    // sector comes from quoteSummary assetProfile; fall back to _default
-    const assetSummary = await yahooFinance.quoteSummary(validatedTicker, {
-      modules: ['assetProfile'],
-    }).catch(() => null);
-    const resolvedSector: string = (assetSummary as any)?.assetProfile?.sector ?? '_default';
+    // Try to get sector from assetProfile first, then fall back to other sources
+    let resolvedSector: string = '_default';
+    try {
+      const assetSummary = await yahooFinance.quoteSummary(validatedTicker, {
+        modules: ['assetProfile'],
+      });
+      resolvedSector = (assetSummary as any)?.assetProfile?.sector ?? (price.sector ?? finData.sector ?? '_default');
+    } catch (err) {
+      logger.warn(`Failed to fetch assetProfile for ${validatedTicker}, using fallback sector`, { error: err });
+      resolvedSector = price.sector ?? finData.sector ?? '_default';
+    }
 
     const imputedFields: string[] = [];
 

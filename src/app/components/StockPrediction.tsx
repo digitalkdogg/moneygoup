@@ -17,6 +17,7 @@ interface StockPredictionProps {
   rsi?: number
   momentum?: number
   technicalScore?: number
+  recommendationKey: string | null; // Added recommendationKey
   newsArticles?: Array<{
     title?: string
     description?: string
@@ -296,6 +297,7 @@ export default function StockPrediction({
   rsi,
   momentum,
   technicalScore,
+  recommendationKey,
   newsArticles,
   historicalEarnings,
 }: StockPredictionProps) {
@@ -341,6 +343,7 @@ export default function StockPrediction({
         ...dataPayload,
         newsArticles: newsArticles ?? [],
         technicalScore: technicalScore,
+        recommendationKey: recommendationKey,
         historicalEarnings:
           dataPayload.historicalEarnings?.length > 0
             ? dataPayload.historicalEarnings
@@ -635,6 +638,7 @@ export default function StockPrediction({
                       growth_and_trend: '20-day price growth rate and trend direction — measures raw price momentum over the last 20 trading days and classifies whether the stock is in an uptrend. Strong positive growth in an uptrend is the single largest positive input to the model\'s impact score (+8%). A downtrend subtracts the same amount.',
                       sentiment: 'News sentiment score derived from recent headlines. Ranges from -1 (very negative) to +1 (very positive). Positive news flow (earnings beats, upgrades, new products) tends to attract buyers and lift the price. Negative news (lawsuits, misses, leadership changes) does the reverse. The model applies this as a short-term multiplier.',
                       fundamentals: 'Core valuation metrics used as baseline context. P/E ratio shows how much the market pays per dollar of earnings (high = growth premium, low = value or distress). P/B ratio compares price to net assets (below 1.0 often signals undervaluation). Market cap determines the size tier, which affects risk and liquidity in the model.',
+                      analyst_consensus: 'Aggregate analyst consensus rating (e.g., Buy, Strong Buy, Hold). The model converts these qualitative ratings into a numeric multiplier. A strong consensus across many analysts provides a statistically significant "wisdom of the crowd" signal that adjusts the price target up or down (+/- 2%).',
                     }
 
                     const description = metricDescriptions[key]

@@ -216,9 +216,9 @@ function runPythonPrediction(ticker: string, inputFile: string, outlook: string)
         logger.error('Python process exited with non-zero code', {
           code,
           ticker,
-          stderr: stderr.substring(0, 500),
+          stderr: stderr, // Log full stderr, not truncated
         });
-        reject(new Error(`Prediction process failed (exit code ${code})`));
+        reject(new Error(`Prediction process failed (exit code ${code}): ${stderr}`));
         return;
       }
 

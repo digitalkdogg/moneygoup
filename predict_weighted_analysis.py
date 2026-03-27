@@ -461,7 +461,7 @@ def confidence_score(cv_mape, history_years, imputed_fields, analyst_count):
 # ============================================================================
 # LEGACY METRIC ANALYSIS (kept for backward compat)
 # ============================================================================
-def metric_analysis(df, stock_metrics, news_sentiment, growth_rate, is_uptrend, earnings_beat_streak, external_tech_score=0.0):
+def metric_analysis(df, stock_metrics, news_sentiment, growth_rate, is_uptrend, earnings_beat_streak, external_tech_score=0.0, consensus_value=0.0):
     current_price = df['Close'].iloc[-1]
     rsi       = df['RSI_14'].iloc[-1] if 'RSI_14' in df.columns else 50.0
     sma20_val = df['SMA_20'].iloc[-1]  if 'SMA_20'  in df.columns else current_price
@@ -488,9 +488,16 @@ def metric_analysis(df, stock_metrics, news_sentiment, growth_rate, is_uptrend, 
     total_impact += news_sentiment * 0.01
     
     # ── External Technical Indicator Influence ──
-    # The higher the number the more influence it should have.
     # Scaled such that a max buy (+14) adds ~3.5% and max sell (-14) removes ~3.5%.
     total_impact += external_tech_score * 0.0025
+
+    # ── Analyst Consensus Influence (0.0 to 1.0) ──
+    # A strong buy (1.0) adds ~2% to the target; a strong sell (-1.0) removes ~2%.
+    total_impact += consensus_value * 0.02
+
+    # ── Earnings Beat Streak influence (0-4 quarters) ──
+    # Adds ~0.5% per beat in the last 4 quarters. Max +2%.
+    total_impact += earnings_beat_streak * 0.005
 
     return {
         "rsi": {
@@ -549,7 +556,17 @@ def metric_analysis(df, stock_metrics, news_sentiment, growth_rate, is_uptrend, 
         "external_indicator_score": {
             "value": round(float(external_tech_score), 2),
             "impact": round(float(external_tech_score * 0.0025), 4),
-            "description": "External indicator score (total score from frontend)",
+            "description": "External technical indicator score",
+        },
+        "analyst_consensus": {
+            "value": round(float(consensus_value), 2),
+            "impact": round(float(consensus_value * 0.02), 4),
+            "description": "Analyst recommendation summary",
+        },
+        "earnings_beats": {
+            "value": int(earnings_beat_streak),
+            "impact": round(float(earnings_beat_streak * 0.005), 4),
+            "description": "Last 4 quarters of earnings beats (relative to analyst estimates)",
         },
         "total_metric_impact":   round(float(total_impact), 4),
         "impact_classification": (
@@ -574,18 +591,44 @@ def predict(ticker, input_data):
     data_quality       = input_data.get('dataQuality', {})
     # External technical score from the frontend/technical indicators section
     external_tech_score = safe(input_data.get('technicalScore'), 0.0)
+    
+    # Analyst Consensus (recommendationKey) from frontend
+    recommendation_key = input_data.get('recommendationKey')
+    consensus_key = (recommendation_key or '').lower().replace('_', ' ') if recommendation_key else ''
+    consensus_map = {
+        'strong buy': 1.0,
+        'buy': 0.75,
+        'hold': 0.0,
+        'sell': -0.75,
+        'strong sell': -1.0
+    }
+    consensus_value = consensus_map.get(consensus_key, 0.0)
 
     if not historical_data:
         raise ValueError("No historical data provided.")
 
     # ---- Build DataFrame ----
     df = pd.DataFrame(historical_data)
+
+    # Validate required columns exist before renaming
+    required_cols = ['open', 'high', 'low', 'close', 'volume']
+    if not all(col in df.columns for col in required_cols):
+        missing = [col for col in required_cols if col not in df.columns]
+        raise ValueError(f"Historical data missing required columns: {missing}")
+
     df.rename(columns={'open': 'Open', 'high': 'High', 'low': 'Low',
                         'close': 'Close', 'volume': 'Volume', 'date': 'Date'},
               inplace=True)
 
     if len(df) < 504:
         raise ValueError(f"Insufficient data: {len(df)} rows, need ≥ 504.")
+
+    # Ensure numeric columns are actually numeric
+    for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
+        try:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+        except Exception as e:
+            raise ValueError(f"Could not convert {col} to numeric: {e}")
 
     # Current price anchor for all % change calculations
     current_price = float(stock_metrics.get('regularMarketPrice') or df['Close'].iloc[-1])
@@ -664,7 +707,7 @@ def predict(ticker, input_data):
 
     # ---- Legacy metric analysis ----
     m_analysis = metric_analysis(feat_df, stock_metrics, news_sentiment,
-                                  growth_rate, is_uptrend, earnings_beat_streak, external_tech_score)
+                                  growth_rate, is_uptrend, earnings_beat_streak, external_tech_score, consensus_value)
 
     # ── Final Price Adjustment ──
     # We apply the total_impact as a final multiplier to the MLP output.

@@ -78,9 +78,8 @@ export async function GET(req: NextRequest) {
         logger.info(`Fetching price history for tickers: ${uniqueTickers.join(', ')} from ${startDate.toISOString()} to ${endDate.toISOString()}`);
         
         const priceHistoryPromises = uniqueTickers.map(ticker =>
-            yahooFinance.chart(ticker as string, { period1: startDate, period2: endDate })
-                .then(result => result.quotes || [])
-                .then(quotes =>
+            (yahooFinance as any).historical(ticker as string, { period1: startDate, period2: endDate })
+                .then((quotes: any[]) =>
                     // Filter out quotes with null close prices and map to expected format
                     quotes
                         .filter((q: any) => q.close !== null && q.close !== undefined)
@@ -89,7 +88,7 @@ export async function GET(req: NextRequest) {
                             close: q.close
                         }))
                 )
-                .catch(err => {
+                .catch((err: Error) => {
                     logger.warn(`Failed to fetch history for ${ticker}`, { error: err.message });
                     return []; // Return empty array on failure
                 })
@@ -107,7 +106,7 @@ export async function GET(req: NextRequest) {
                 lastPrice: prices?.[prices.length - 1]
             });
             if (prices) {
-                prices.forEach(day => {
+                prices.forEach((day: any) => {
                     priceMap[ticker as string][new Date(day.date).toISOString().split('T')[0]] = day.close;
                 });
             }

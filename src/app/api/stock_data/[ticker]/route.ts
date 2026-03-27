@@ -355,19 +355,32 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
         // Calculate indicators if all data is available
         let indicators = null;
         // Check if historical data and news data was successfully fetched for this specific ticker
-        if (newsJson.articles && newsJson.articles.length > 0 && histJson.historicalData && histJson.historicalData.length > 0 && stockJson) {
+        // Calculate indicators if all data is available and stock data is valid
+        if (
+          newsJson.articles &&
+          newsJson.articles.length > 0 &&
+          histJson.historicalData &&
+          histJson.historicalData.length > 0 &&
+          stockJson &&
+          'symbol' in stockJson // Ensure stockJson is a valid stock object and not an error object
+        ) {
           const historicalData = histJson.historicalData;
           const newsArticles = newsJson.articles;
+
+          // Safely access properties, providing null if they don't exist.
+          // The 'symbol' check above prevents accessing properties on an error object.
+          const peRatio = stockJson.peRatio ?? null;
+          const pbRatio = stockJson.pbRatio ?? null;
+          const marketCap = stockJson.marketCap ?? null;
 
           indicators = calculateTechnicalIndicators(
             historicalData,
             newsArticles,
-            stockJson.peRatio,
-            stockJson.pbRatio,
-            stockJson.marketCap
+            peRatio,
+            pbRatio,
+            marketCap
           );
         }
-
         return {
           ticker,
           stock: stockJson || { error: 'Missing stock data' },

@@ -48,12 +48,33 @@ interface HistoricalData {
   adjVolume: number
 }
 
+interface RecommendationTrendItem {
+  period: string;
+  strongBuy: number;
+  buy: number;
+  hold: number;
+  sell: number;
+  strongSell: number;
+}
+
 interface ConsolidatedStockData {
   stock: StockData
   news: any
   historical: any
   indicators: TechnicalIndicators | null
   earnings: EarningsData | null // Add earnings data
+  analyst: { // Assuming this structure based on route.ts and JSX usage
+    recommendationTrend: RecommendationTrendItem[];
+    recommendationKey: string | null;
+    numberOfAnalystOpinions: number | null;
+    priceTarget: {
+      low: number | null;
+      mean: number | null;
+      median: number | null;
+      high: number | null;
+      current: number | null;
+    };
+  } | null;
 }
 
 interface EarningsData {
@@ -514,7 +535,6 @@ export default function Stock({
           </div>
         )}
 
-        {/* 1-Year Price Prediction */}
         <StockPrediction
           ticker={primaryTicker}
           currentPrice={currentPrice}
@@ -526,6 +546,7 @@ export default function Stock({
           rsi={indicators?.rsi14 ?? undefined}
           momentum={indicators?.momentum ?? undefined}
           technicalScore={indicators?.scoreBreakdown?.totalScore}
+          recommendationKey={data.analyst?.recommendationKey ?? null}
           newsArticles={news}
           historicalEarnings={earningsData?.historicalEarnings || []}
         />
@@ -797,6 +818,7 @@ export default function Stock({
                 rsi={indicators?.rsi14 ?? undefined}
                 momentum={indicators?.momentum ?? undefined}
                 technicalScore={indicators?.scoreBreakdown?.totalScore}
+                recommendationKey={data.analyst?.recommendationKey ?? null}
                 newsArticles={news}
               />
 
