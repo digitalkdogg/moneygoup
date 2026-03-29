@@ -7,6 +7,7 @@ import { executeRawQuery, insert, upsert } from '@/utils/databaseHelper';
 import { createErrorResponse, unauthorizedResponse, validationErrorResponse, notFoundResponse } from '@/utils/errorResponse';
 import { createLogger } from '@/utils/logger';
 import { checkOrigin } from '@/utils/originCheck';
+import { fetchYahooStockSummary } from '@/utils/yahooFinanceHelper';
 
 const logger = createLogger('api/user/watchlist');
 
@@ -33,13 +34,19 @@ export async function GET(request: NextRequest) {
         us.shares,
         us.purchase_price,
         us.is_purchased,
-        s.price AS regularMarketPrice
+        s.price AS db_price
       FROM user_stocks us
       JOIN stocks s ON us.stock_id = s.id
       WHERE us.user_id = ? AND us.is_purchased = 0
     `, [userId]);
 
-    const watchlistWithMA = await Promise.all(watchlistItems.map(async (item: any) => {
+    // Dynamically import yahoo-finance2
+    const yahooFinanceModule = await import('yahoo-finance2');
+    const YahooFinance = yahooFinanceModule.default;
+    const yahooFinanceInstance = new YahooFinance();
+
+    const watchlistWithData = await Promise.all(watchlistItems.map(async (item: any) => {
+      // Fetch 6M MA data from DB
       const [dailyPrices]: any[] = await executeRawQuery(`
         SELECT close
         FROM stocksdailyprice
@@ -52,13 +59,41 @@ export async function GET(request: NextRequest) {
       const sum = closingPrices.reduce((acc: number, price: number) => acc + price, 0);
       const ma6_month = closingPrices.length > 0 ? sum / closingPrices.length : null;
 
-      return {
-        ...item,
-        ma6_month: ma6_month,
-      };
+      // Fetch live data from Yahoo Finance
+      try {
+        const [quoteResult, summary] = await Promise.all([
+          yahooFinanceInstance.quote(item.symbol),
+          fetchYahooStockSummary(item.symbol).catch(err => {
+            logger.warn(`Could not fetch summary for ${item.symbol}`, err);
+            return null;
+          })
+        ]);
+
+        const regularMarketPrice = (quoteResult as any)?.regularMarketPrice || item.db_price || 0;
+        const prev_close = (quoteResult as any)?.regularMarketPreviousClose || null;
+
+        return {
+          ...item,
+          ma6_month: ma6_month,
+          regularMarketPrice,
+          prev_close,
+          recommendationKey: summary?.financialData?.recommendationKey || null,
+          numberOfAnalystOpinions: summary?.financialData?.numberOfAnalystOpinions || null
+        };
+      } catch (yahooError) {
+        logger.error(`Error fetching Yahoo data for ${item.symbol}:`, yahooError);
+        return {
+          ...item,
+          ma6_month: ma6_month,
+          regularMarketPrice: item.db_price || 0,
+          prev_close: null,
+          recommendationKey: null,
+          numberOfAnalystOpinions: null
+        };
+      }
     }));
 
-    return NextResponse.json({ watchlist: watchlistWithMA }, { status: 200 });
+    return NextResponse.json({ watchlist: watchlistWithData }, { status: 200 });
   } catch (error: any) {
     logger.error('Error fetching user watchlist:', error);
     return createErrorResponse(error, 'Error fetching user watchlist', { status: 500 });

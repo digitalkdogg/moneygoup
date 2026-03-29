@@ -1,13 +1,13 @@
 // src/app/components/PortfolioSection.tsx
 'use client';
 
-import { useState, useEffect, ReactNode } from 'react';
+import { useState, ReactNode } from 'react';
 import BuyMoreModal from './modals/BuyMoreModal';
 import SellModal from './modals/SellModal';
 import { useRouter } from 'next/navigation';
-import StockTable, { StockTableRow } from './StockTable'; // Import StockTable
-import { formatNumber, formatCurrency } from '@/utils/formatters'; // Import formatters
-import { PortfolioItem } from '@/types/portfolio'; // NEW: Import PortfolioItem
+import StockTable from './StockTable';
+import { formatNumber, formatCurrency } from '@/utils/formatters';
+import { PortfolioItem } from '@/types/portfolio';
 
 // Define the type for a column definition for StockTable
 type ColumnDefinition<T> = {
@@ -18,9 +18,32 @@ type ColumnDefinition<T> = {
 };
 
 interface PortfolioSectionProps {
-  portfolio: PortfolioItem[]; // NEW: Portfolio data now comes from props
-  onRefresh: () => void; // NEW: onRefresh function now comes from props
+  portfolio: PortfolioItem[];
+  onRefresh: () => void;
 }
+
+const formatRecommendationKey = (key: string | null | undefined): string => {
+  if (!key) return 'N/A';
+  
+  const mapping: Record<string, string> = {
+    'strongBuy': 'Strong Buy',
+    'buy': 'Buy',
+    'hold': 'Hold',
+    'sell': 'Sell',
+    'strongSell': 'Strong Sell',
+    'strong_buy': 'Strong Buy',
+    'strong_sell': 'Strong Sell'
+  };
+
+  if (mapping[key]) return mapping[key];
+  if (mapping[key.toLowerCase()]) return mapping[key.toLowerCase()];
+
+  return key
+    .replace(/_/g, ' ')
+    .replace(/([A-Z])/g, ' $1')
+    .trim()
+    .replace(/^\w/, (c) => c.toUpperCase());
+};
 
 export default function PortfolioSection({ portfolio, onRefresh }: PortfolioSectionProps) {
   const [selectedStock, setSelectedStock] = useState<PortfolioItem | null>(null);
@@ -44,16 +67,32 @@ export default function PortfolioSection({ portfolio, onRefresh }: PortfolioSect
   const handleModalClose = () => {
     setSelectedStock(null);
     setModalType(null);
-    onRefresh(); // Call the passed onRefresh prop
+    onRefresh();
   };
 
-  const portfolioColumns: ColumnDefinition<PortfolioItem>[] = [ // Applied the type here
-    { key: 'symbol', label: 'Symbol' },
+  const portfolioColumns: ColumnDefinition<PortfolioItem>[] = [
+    { 
+      key: 'symbol', 
+      label: 'Symbol',
+      format: (value: string, row: PortfolioItem) => (
+        <>
+          <span className="block">{value}</span>
+          <span className="block text-xs font-normal text-gray-500">{formatNumber(row.shares, 2, true)}</span>
+        </>
+      )
+    },
     {
-      key: 'shares',
-      label: 'Shares',
-      align: 'right',
-      format: (value: number) => formatNumber(value, 2, true),
+      key: 'recommendationKey',
+      label: 'Analyst Rec',
+      align: 'left',
+      format: (value: string | null, row: PortfolioItem) => (
+        <>
+          <span className="block font-bold text-gray-900">{formatRecommendationKey(value)}</span>
+          <span className="block text-xs font-normal text-gray-500">
+            {row.numberOfAnalystOpinions ? `${row.numberOfAnalystOpinions} analysts` : 'No analyst data'}
+          </span>
+        </>
+      )
     },
     {
       key: 'purchase_price',
@@ -72,10 +111,10 @@ export default function PortfolioSection({ portfolio, onRefresh }: PortfolioSect
         let percentageDisplay: ReactNode;
 
         if (prev_close === null || prev_close === undefined || prev_close === 0) {
-          percentageDisplay = <span className="text-gray-500 ml-1">(—)</span>;
+          percentageDisplay = <span className="block text-xs font-normal text-gray-500">(—)</span>;
         } else {
           const dailyPercentageChange = ((regularMarketPrice - prev_close) / prev_close) * 100;
-          let textColor = 'text-gray-500'; // Default for 0.00%
+          let textColor = 'text-gray-500';
           if (dailyPercentageChange > 0) {
             textColor = 'text-green-600';
           } else if (dailyPercentageChange < 0) {
@@ -85,34 +124,34 @@ export default function PortfolioSection({ portfolio, onRefresh }: PortfolioSect
           const formattedPercentage = formatNumber(dailyPercentageChange, 2);
           const displayPercentage = dailyPercentageChange > 0 ? `+${formattedPercentage}` : formattedPercentage;
           
-          percentageDisplay = <span className={`${textColor} ml-1`}>({displayPercentage}%)</span>;
+          percentageDisplay = <span className={`block text-xs font-normal ${textColor}`}>({displayPercentage}%)</span>;
         }
 
         return (
           <span className="font-semibold">
-            <span className="text-gray-600">{formattedCurrentPrice}</span>
+            <span className="text-gray-600 block">{formattedCurrentPrice}</span>
             {percentageDisplay}
           </span>
         );
       },
     },
     {
-      key: 'dailyEarnings', // A new key for this column
+      key: 'dailyEarnings',
       label: 'Daily Earnings',
       align: 'right',
       format: (value: any, row: PortfolioItem) => {
         const { shares, regularMarketPrice, prev_close } = row;
 
         if (shares === 0) {
-          return <span className="text-gray-500">{formatCurrency(0, 2)}</span>; // $0.00 for 0 shares
+          return <span className="text-gray-500">{formatCurrency(0, 2)}</span>;
         }
 
         if (prev_close === null || prev_close === undefined) {
-          return <span className="text-gray-500">—</span>; // Em dash for unavailable prevClose
+          return <span className="text-gray-500">—</span>;
         }
 
         const dailyEarnings = shares * (regularMarketPrice - prev_close);
-        let textColor = 'text-gray-500'; // Default for $0.00
+        let textColor = 'text-gray-500';
         if (dailyEarnings > 0) {
           textColor = 'text-green-600';
         } else if (dailyEarnings < 0) {
@@ -120,29 +159,28 @@ export default function PortfolioSection({ portfolio, onRefresh }: PortfolioSect
         }
 
         const formattedEarnings = formatCurrency(dailyEarnings, 2);
-        // Add + prefix for positive values
         const displayValue = dailyEarnings > 0 ? `+${formattedEarnings}` : formattedEarnings;
 
         return <span className={`${textColor} font-semibold`}>{displayValue}</span>;
       },
     },
     {
-      key: 'lifetimeEarnings', // A new key for this column
+      key: 'lifetimeEarnings',
       label: 'Lifetime Earnings',
       align: 'right',
       format: (value: any, row: PortfolioItem) => {
         const { shares, regularMarketPrice, purchase_price } = row;
 
         if (shares === 0) {
-          return <span className="text-gray-500">{formatCurrency(0, 2)}</span>; // $0.00 for 0 shares
+          return <span className="text-gray-500">{formatCurrency(0, 2)}</span>;
         }
 
         if (purchase_price === null || purchase_price === undefined || purchase_price === 0) {
-          return <span className="text-gray-500">—</span>; // Em dash for unavailable Avg Price
+          return <span className="text-gray-500">—</span>;
         }
 
         const lifetimeEarnings = (regularMarketPrice * shares) - (purchase_price * shares);
-        let textColor = 'text-gray-500'; // Default for $0.00
+        let textColor = 'text-gray-500';
         if (lifetimeEarnings > 0) {
           textColor = 'text-green-600';
         } else if (lifetimeEarnings < 0) {
@@ -150,7 +188,6 @@ export default function PortfolioSection({ portfolio, onRefresh }: PortfolioSect
         }
 
         const formattedEarnings = formatCurrency(lifetimeEarnings, 2);
-        // Add + prefix for positive values
         const displayValue = lifetimeEarnings > 0 ? `+${formattedEarnings}` : formattedEarnings;
 
         return <span className={`${textColor} font-semibold`}>{displayValue}</span>;
@@ -161,11 +198,11 @@ export default function PortfolioSection({ portfolio, onRefresh }: PortfolioSect
       label: 'Position Value',
       align: 'right',
       format: (value: any, row: PortfolioItem) => {
-        const positionValue = row.shares * row.purchase_price; // Initial calculation
-        if (row.regularMarketPrice !== 0) { // Only use current market price if available
+        const positionValue = row.shares * row.purchase_price;
+        if (row.regularMarketPrice !== 0) {
           return <span className="text-green-600 font-semibold">{formatCurrency(row.shares * row.regularMarketPrice, 2)}</span>;
         }
-        return <span className="text-gray-500 font-semibold">{formatCurrency(positionValue, 2)}</span>; // Fallback or if current price is 0
+        return <span className="text-gray-500 font-semibold">{formatCurrency(positionValue, 2)}</span>;
       },
     },
     {
@@ -199,8 +236,8 @@ export default function PortfolioSection({ portfolio, onRefresh }: PortfolioSect
         data={portfolio}
         columns={portfolioColumns}
         onRowClick={handleRowClick}
-        loading={false} // Loading handled by Dashboard
-        error={null} // Error handled by Dashboard
+        loading={false}
+        error={null}
         emptyMessage="No stocks in your portfolio yet. Add stocks from your watchlist to get started!"
       />
 

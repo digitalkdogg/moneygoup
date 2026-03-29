@@ -151,12 +151,13 @@
             <div class="step-card">
                 <div class="component-tag">File: src/app/api/prediction/deepmoney/route.ts</div>
                 <div class="component-tag">File: src/app/api/prediction/deepmoney/analyzer.ts</div>
-                <p>The engine uses a recursive, multi-pass discovery and validation process:</p>
+                <div class="component-tag">File: src/utils/etfDiscovery.ts</div>
+                <p>The engine uses a recursive, multi-pass discovery and validation process for both stocks and ETFs:</p>
                 <ul>
                     <li><strong>Primary Pass:</strong> Scrapes 15+ global RSS and JSON feeds (Yahoo, MarketBeat, ApeWisdom).</li>
                     <li><strong>Secondary Pass:</strong> For each discovered ticker, it performs a deep-dive on that ticker's specific news feed to find co-mentioned stocks.</li>
-                    <li><strong>Enrichment:</strong> All unique tickers are enriched with technicals, fundamentals, and sector data.</li>
-                    <li><strong>ML Validation Gate:</strong> The <code>analyzer.ts</code> process sequentially runs a 1-month ML prediction for each candidate and only returns stocks that meet the growth threshold (>= 1.5%).</li>
+                    <li><strong>Stock ML Validation:</strong> The <code>analyzer.ts</code> process sequentially runs a 1-month ML prediction for each stock candidate (Threshold >= 1.5%).</li>
+                    <li><strong>Hot ETF Discovery Module:</strong> In parallel, <code>etfDiscovery.ts</code> scans thematic watchlists and dynamic screeners for ETFs under $400 with high volume and AUM (Threshold GPS >= 55).</li>
                 </ul>
             </div>
         </section>
@@ -167,11 +168,12 @@
             <h2><span>4</span> Deep Enrichment Stage</h2>
             <div class="step-card">
                 <div class="component-tag">File: src/app/api/prediction/deepmoney/analyzer.ts</div>
-                <p>The top finalists undergo a final enrichment and scoring phase:</p>
+                <div class="component-tag">File: src/utils/etfDiscovery.ts</div>
+                <p>Final enrichment and scoring phase for all candidates:</p>
                 <ul>
-                    <li><strong>GPS Scoring:</strong> Calculates a final GPS score based on analyst upside, revenue growth, and momentum.</li>
-                    <li><strong>Yahoo Validation:</strong> Adjusts the GPS score based on analyst consensus from Yahoo Finance.</li>
-                    <li><strong>DB-Ready Payload:</strong> Prepares a final JSON object that is compatible with the `recommended_stocks` database schema.</li>
+                    <li><strong>Stock GPS Scoring:</strong> Based on analyst upside, revenue growth, and momentum.</li>
+                    <li><strong>ETF GPS Scoring:</strong> Based on 52-week return, news signal alignment, momentum, and expense ratio.</li>
+                    <li><strong>DB-Ready Payload:</strong> Prepares final JSON objects compatible with <code>recommended_stocks</code> and <code>hot_etfs</code> schemas.</li>
                 </ul>
             </div>
         </section>
@@ -184,9 +186,10 @@
                 <div class="component-tag">File: deepmoney_sync.py</div>
                 <p>The sync script receives the final enriched JSON and commits it to the database:</p>
                 <ul>
-                    <li><strong>Atomic Refresh:</strong> Clears existing <code>recommended_stocks</code> to ensure data freshness.</li>
-                    <li><strong>Deep Persistence:</strong> Now saves <code>trading_signal</code>, <code>trading_signal_score</code>, and the full <code>prediction_input</code> JSON block.</li>
-                    <li><strong>Result:</strong> The User Dashboard now shows the new analysis without triggering heavy API calls.</li>
+                    <li><strong>Atomic Refresh:</strong> Clears existing <code>recommended_stocks</code>.</li>
+                    <li><strong>Deep Persistence:</strong> Saves stocks to <code>recommended_stocks</code> and ETFs to <code>hot_etfs</code>.</li>
+                    <li><strong>Cycle Summary:</strong> Records aggregate statistics into <code>etf_cycle_summary</code>.</li>
+                    <li><strong>Result:</strong> The User Dashboard now shows new Hot Stocks and Hot ETFs.</li>
                 </ul>
             </div>
         </section>

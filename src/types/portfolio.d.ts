@@ -11,5 +11,7 @@ export interface PortfolioItem {
   last_transaction_date?: string;
   regularMarketPrice: number;
   prev_close?: number;
+  recommendationKey?: string | null;
+  numberOfAnalystOpinions?: number | null;
   [key: string]: any; // For StockTableRow compatibility
 }

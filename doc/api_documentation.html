@@ -303,7 +303,7 @@
             <div id="deepmoney" class="step-card">
                 <h3><span class="method get">GET</span> /api/prediction/deepmoney</h3>
                 <div class="component-tag">Process: Recursive News & ML Validation</div>
-                <p>Next-generation discovery engine with ML-based momentum validation.</p>
+                <p>Next-generation discovery engine with ML-based momentum validation and parallel ETF discovery.</p>
                 <div class="highlight-box">
                     <strong>Query Parameters:</strong> <code>refresh=true</code>: Bypasses the 30-minute cache.
                 </div>
@@ -312,7 +312,8 @@
                     <li>Recursive news discovery across 15+ global feeds.</li>
                     <li><strong>Gate 1:</strong> Technical indicator validation (Score >= 0).</li>
                     <li><strong>Gate 2:</strong> 1-month ML prediction check (Threshold >= 1.5%).</li>
-                    <li>Returns enriched, DB-compatible JSON with sector and ML trajectory.</li>
+                    <li><strong>Parallel Stage:</strong> Runs <code>ETF Discovery Module</code> (Scans screeners + thematic watchlist).</li>
+                    <li>Returns enriched, DB-compatible JSON with <code>stocks</code> and <code>hot_etfs</code> arrays.</li>
                 </ul>
                 <p><strong>Associated Tests:</strong> <code>api_prediction_deepmoney.test.ts</code></p>
             </div>
@@ -339,7 +340,12 @@
             <div id="dashboard-picks" class="step-card">
                 <h3>Dashboard Discovery APIs</h3>
                 <ul class="flow">
-                    <li><code>GET /api/dashboard/deepmoney-picks</code>: Latest AI-generated picks from DB.</li>
+                    <li><code>GET /api/dashboard/deepmoney-picks</code>: Latest AI-generated picks (Stocks & ETFs) from DB.</li>
+                </ul>
+                <strong>Logic Flow:</strong>
+                <ul class="flow">
+                    <li>Fetches latest snapshot of <code>recommended_stocks</code> (filtered by type).</li>
+                    <li>Fetches latest snapshot of <code>hot_etfs</code> (score >= 55).</li>
                 </ul>
             </div>
         </section>
@@ -407,30 +413,6 @@
                 <h3><span class="method get">GET</span> /api/cache-stats</h3>
                 <p><strong>Admin:</strong> View cache utilization and memory pressure.</p>
                 <p><strong>Associated Tests:</strong> <code>cache.test.ts</code></p>
-            </div>
-        </section>
-
-        <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem;">
-            MoneyGoUp API Documentation &copy; 2026
-        </footer>
-    </main>
-
-    <script>
-        document.querySelectorAll('.nav-link').forEach(anchor => {
-            anchor.addEventListener('click', function (e) {
-                e.preventDefault();
-                const target = document.querySelector(this.getAttribute('href'));
-                if (target) {
-                    target.scrollIntoView({
-                        behavior: 'smooth'
-                    });
-                }
-            });
-        });
-    </script>
-</body>
-</html>
-</strong> <code>cache.test.ts</code></p>
             </div>
         </section>
 

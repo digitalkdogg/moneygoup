@@ -5,6 +5,7 @@ import { executeRawQuery } from '@/utils/databaseHelper';
 import { createErrorResponse, unauthorizedResponse } from '@/utils/errorResponse';
 import { createLogger } from '@/utils/logger';
 import { checkOrigin } from '@/utils/originCheck';
+import { fetchYahooStockSummary } from '@/utils/yahooFinanceHelper';
 
 const logger = createLogger('api/user/portfolio');
 
@@ -48,11 +49,19 @@ export async function GET(request: NextRequest) {
     const YahooFinance = yahooFinanceModule.default;
     const yahooFinanceInstance = new YahooFinance();
 
-    // Fetch current prices for each stock
-    const portfolioWithCurrentPrices = await Promise.all(
+    // Fetch current prices and analyst data for each stock
+    const portfolioWithData = await Promise.all(
       (portfolioItems as any[]).map(async (item) => {
         try {
-          const quoteResult = await yahooFinanceInstance.quote(item.symbol);
+          // Fetch quote and summary data
+          const [quoteResult, summary] = await Promise.all([
+            yahooFinanceInstance.quote(item.symbol),
+            fetchYahooStockSummary(item.symbol).catch(err => {
+              logger.warn(`Could not fetch summary for ${item.symbol}`, err);
+              return null;
+            })
+          ]);
+
           const currentPrice = (quoteResult as any)?.regularMarketPrice || null;
           let prevClose = null;
 
@@ -93,15 +102,27 @@ export async function GET(request: NextRequest) {
             }
           }
 
-          return { ...item, regularMarketPrice: currentPrice, prev_close: prevClose };
-        } catch (priceError) {
-          logger.error(`Error fetching data for ${item.symbol}:`, priceError as Error);
-          return { ...item, regularMarketPrice: null, prev_close: null };
+          return { 
+            ...item, 
+            regularMarketPrice: currentPrice, 
+            prev_close: prevClose,
+            recommendationKey: summary?.financialData?.recommendationKey || null,
+            numberOfAnalystOpinions: summary?.financialData?.numberOfAnalystOpinions || null
+          };
+        } catch (dataError) {
+          logger.error(`Error fetching data for ${item.symbol}:`, dataError as Error);
+          return { 
+            ...item, 
+            regularMarketPrice: null, 
+            prev_close: null,
+            recommendationKey: null,
+            numberOfAnalystOpinions: null
+          };
         }
       })
     );
 
-    return NextResponse.json({ portfolio: portfolioWithCurrentPrices || [] }, { status: 200 });
+    return NextResponse.json({ portfolio: portfolioWithData || [] }, { status: 200 });
   } catch (error: any) {
     logger.error('Error fetching user portfolio:', error);
     return createErrorResponse(error, 'Error fetching user portfolio', { status: 500 });

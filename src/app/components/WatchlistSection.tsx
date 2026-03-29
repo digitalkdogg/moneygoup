@@ -4,8 +4,8 @@
 import { useState, useEffect, ReactNode } from 'react';
 import PurchaseFromWatchlistModal from './modals/PurchaseFromWatchlistModal';
 import { useRouter } from 'next/navigation';
-import StockTable, { StockTableRow } from './StockTable'; // Import StockTable
-import { formatCurrency } from '@/utils/formatters'; // Import formatters
+import StockTable from './StockTable';
+import { formatCurrency, formatNumber } from '@/utils/formatters';
 
 // Define the type for a column definition for StockTable
 type ColumnDefinition<T> = {
@@ -19,25 +19,51 @@ interface WatchlistItem {
   stock_id: number;
   symbol: string;
   company_name: string;
-  name?: string; // Added to align with StockTableRow
+  name?: string;
   shares: number;
   purchase_price: number;
   is_purchased: number;
-  regularMarketPrice: number; // Renamed from current_price to align with StockTableRow
-  ma6_month: number; // Changed from number | null to number
-  [key: string]: any; // Add index signature for StockTableRow compatibility
+  regularMarketPrice: number;
+  prev_close?: number;
+  ma6_month: number;
+  recommendationKey?: string | null;
+  numberOfAnalystOpinions?: number | null;
+  [key: string]: any;
 }
 
 interface WatchlistSectionProps {
   onRefresh?: () => void;
 }
 
+const formatRecommendationKey = (key: string | null | undefined): string => {
+  if (!key) return 'N/A';
+  
+  const mapping: Record<string, string> = {
+    'strongBuy': 'Strong Buy',
+    'buy': 'Buy',
+    'hold': 'Hold',
+    'sell': 'Sell',
+    'strongSell': 'Strong Sell',
+    'strong_buy': 'Strong Buy',
+    'strong_sell': 'Strong Sell'
+  };
+
+  if (mapping[key]) return mapping[key];
+  if (mapping[key.toLowerCase()]) return mapping[key.toLowerCase()];
+
+  return key
+    .replace(/_/g, ' ')
+    .replace(/([A-Z])/g, ' $1')
+    .trim()
+    .replace(/^\w/, (c) => c.toUpperCase());
+};
+
 export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null); // Keep this existing error state
-  const [pendingDeleteTicker, setPendingDeleteTicker] = useState<string | null>(null); // Corrected
-  const [deleteError, setDeleteError] = useState<string | null>(null); // Corrected
+  const [error, setError] = useState<string | null>(null);
+  const [pendingDeleteTicker, setPendingDeleteTicker] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [selectedStock, setSelectedStock] = useState<WatchlistItem | null>(null);
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   const router = useRouter();
@@ -59,9 +85,9 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
       const data = await response.json();
       setWatchlist(data.watchlist.map((item: any) => ({
         ...item,
-        name: item.company_name, // Map company_name to name for StockTableRow compatibility
-        regularMarketPrice: item.regularMarketPrice !== null ? parseFloat(item.regularMarketPrice) : 0, // Default to 0 instead of null
-        ma6_month: item.ma6_month !== null ? parseFloat(item.ma6_month) : 0 // Default to 0 instead of null
+        name: item.company_name,
+        regularMarketPrice: item.regularMarketPrice !== null ? parseFloat(item.regularMarketPrice) : 0,
+        ma6_month: item.ma6_month !== null ? parseFloat(item.ma6_month) : 0
       })) || []);
     } catch (err: any) {
       setError(err.message);
@@ -80,7 +106,7 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
   };
 
   const handleRemoveClick = (stock: WatchlistItem) => {
-    setPendingDeleteTicker(stock.symbol); // Opens the confirm modal
+    setPendingDeleteTicker(stock.symbol);
   };
 
   const handleConfirmRemove = async () => {
@@ -96,12 +122,12 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
 
       setWatchlist(watchlist.filter(s => s.symbol !== pendingDeleteTicker));
       setDeleteError(null);
-      fetchWatchlist(); // Refresh the watchlist after successful deletion
+      fetchWatchlist();
       onRefresh?.();
     } catch (err: any) {
       setDeleteError('Failed to remove from watchlist. Please try again.');
     } finally {
-      setPendingDeleteTicker(null); // Close modal regardless
+      setPendingDeleteTicker(null);
     }
   };
   
@@ -113,37 +139,86 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
   };
 
   const watchlistColumns: ColumnDefinition<WatchlistItem>[] = [
-    { key: 'symbol', label: 'Symbol' },
-    { key: 'company_name', label: 'Company Name' },
+    { 
+      key: 'symbol', 
+      label: 'Symbol',
+      format: (value: string, row: WatchlistItem) => (
+        <>
+          <span className="block font-bold text-gray-900">{value}</span>
+          <span className="block text-xs font-normal text-gray-500 truncate max-w-[150px]">{row.company_name}</span>
+        </>
+      )
+    },
+    {
+      key: 'recommendationKey',
+      label: 'Analyst Rec',
+      align: 'left',
+      format: (value: string | null, row: WatchlistItem) => (
+        <>
+          <span className="block font-bold text-gray-900">{formatRecommendationKey(value)}</span>
+          <span className="block text-xs font-normal text-gray-500">
+            {row.numberOfAnalystOpinions ? `${row.numberOfAnalystOpinions} analysts` : 'No analyst data'}
+          </span>
+        </>
+      )
+    },
     {
       key: 'regularMarketPrice',
       label: 'Price',
       align: 'right',
-      format: (value: number) =>
-        <span className="text-gray-600 font-semibold">{formatCurrency(value, 2)}</span>,
+      format: (value: number, row: WatchlistItem) => {
+        const { regularMarketPrice, prev_close } = row;
+        const formattedPrice = formatCurrency(regularMarketPrice, 2);
+
+        let percentageDisplay: ReactNode;
+
+        if (prev_close === null || prev_close === undefined || prev_close === 0) {
+          percentageDisplay = <span className="block text-xs font-normal text-gray-500">(—)</span>;
+        } else {
+          const dailyPercentageChange = ((regularMarketPrice - prev_close) / prev_close) * 100;
+          let textColor = 'text-gray-500';
+          if (dailyPercentageChange > 0) {
+            textColor = 'text-green-600';
+          } else if (dailyPercentageChange < 0) {
+            textColor = 'text-red-600';
+          }
+
+          const formattedPercentage = formatNumber(dailyPercentageChange, 2);
+          const displayPercentage = dailyPercentageChange > 0 ? `+${formattedPercentage}` : formattedPercentage;
+          
+          percentageDisplay = <span className={`block text-xs font-normal ${textColor}`}>({displayPercentage}%)</span>;
+        }
+
+        return (
+          <span className="font-semibold">
+            <span className="text-gray-600 block">{formattedPrice}</span>
+            {percentageDisplay}
+          </span>
+        );
+      }
     },
     {
       key: 'ma6_month',
       label: '6M MA',
       align: 'right',
       format: (value: number) =>
-        <span className="text-gray-500">{formatCurrency(value, 2)}</span>,
+        <span className="text-gray-500 font-medium">{formatCurrency(value, 2)}</span>,
     },
     {
       key: 'actions',
       label: 'Actions',
       align: 'center',
       format: (value: any, row: WatchlistItem) => (
-        <span className="space-x-2">
+        <span className="flex items-center justify-center space-x-2">
           <button
             onClick={(e) => { e.stopPropagation(); handlePurchase(row); }}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold cursor-pointer text-sm"
+            className="px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-bold text-sm cursor-pointer min-h-[44px] min-w-[120px]"
           >
             Add to Portfolio
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); handleRemoveClick(row); }}
-            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500 transition-colors cursor-pointer font-semibold text-sm"
+            className="px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-500 transition-colors cursor-pointer font-bold text-sm min-h-[44px] min-w-[80px]"
           >
             Remove
           </button>
@@ -184,10 +259,10 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
               Remove <strong>{pendingDeleteTicker}</strong> from your watchlist?
             </p>
             <div className="flex gap-3 justify-end">
-              <button className="px-4 py-2 text-sm rounded border" onClick={() => setPendingDeleteTicker(null)}>
+              <button className="px-4 py-2 text-sm rounded border cursor-pointer" onClick={() => setPendingDeleteTicker(null)}>
                 Cancel
               </button>
-              <button className="px-4 py-2 text-sm rounded bg-red-600 text-white" onClick={handleConfirmRemove}>
+              <button className="px-4 py-2 text-sm rounded bg-red-600 text-white cursor-pointer" onClick={handleConfirmRemove}>
                 Remove
               </button>
             </div>
