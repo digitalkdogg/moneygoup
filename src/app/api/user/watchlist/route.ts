@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
           recommendationKey: summary?.financialData?.recommendationKey || null,
           numberOfAnalystOpinions: summary?.financialData?.numberOfAnalystOpinions || null
         };
-      } catch (yahooError) {
+      } catch (yahooError: any) {
         logger.error(`Error fetching Yahoo data for ${item.symbol}:`, yahooError);
         return {
           ...item,

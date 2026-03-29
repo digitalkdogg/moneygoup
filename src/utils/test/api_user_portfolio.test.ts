@@ -3,11 +3,15 @@ import { GET } from '@/app/api/user/portfolio/route';
 import { getServerSession } from 'next-auth';
 import { executeRawQuery } from '@/utils/databaseHelper';
 import { checkOrigin } from '@/utils/originCheck';
+import { fetchYahooStockSummary } from '@/utils/yahooFinanceHelper';
 
 // Mock dependencies
 jest.mock('next-auth');
 jest.mock('@/utils/databaseHelper');
 jest.mock('@/utils/originCheck');
+jest.mock('@/utils/yahooFinanceHelper', () => ({
+  fetchYahooStockSummary: jest.fn(),
+}));
 jest.mock('@/utils/logger', () => ({
   createLogger: () => ({
     info: jest.fn(),
@@ -17,14 +21,15 @@ jest.mock('@/utils/logger', () => ({
 }));
 
 // Mock yahoo-finance2
-const mockYahooFinance = {
-  quote: jest.fn(),
-  historical: jest.fn(),
-};
+const mockQuote = jest.fn();
+const mockHistorical = jest.fn();
 
 jest.mock('yahoo-finance2', () => ({
   __esModule: true,
-  default: jest.fn().mockImplementation(() => mockYahooFinance),
+  default: jest.fn().mockImplementation(() => ({
+    quote: mockQuote,
+    historical: mockHistorical,
+  })),
 }));
 
 describe('GET /api/user/portfolio', () => {
@@ -46,7 +51,7 @@ describe('GET /api/user/portfolio', () => {
     expect(response.status).toBe(401);
   });
 
-  test('returns portfolio with current prices', async () => {
+  test('returns portfolio with current prices and analyst data', async () => {
     const mockSession = { user: { id: 123, name: 'testuser' } };
     (getServerSession as jest.Mock).mockResolvedValue(mockSession);
 
@@ -56,13 +61,27 @@ describe('GET /api/user/portfolio', () => {
     ];
     (executeRawQuery as jest.Mock).mockResolvedValue([mockPortfolioItems]);
 
-    mockYahooFinance.quote.mockImplementation((symbol: string) => {
+    mockQuote.mockImplementation((symbol: string) => {
       if (symbol === 'AAPL') return Promise.resolve({ regularMarketPrice: 170 });
       if (symbol === 'TSLA') return Promise.resolve({ regularMarketPrice: 210 });
       return Promise.resolve({});
     });
 
-    mockYahooFinance.historical.mockResolvedValue([]);
+    mockHistorical.mockResolvedValue([]);
+
+    (fetchYahooStockSummary as jest.Mock).mockImplementation((symbol: string) => {
+      if (symbol === 'AAPL') {
+        return Promise.resolve({
+          financialData: { recommendationKey: 'buy', numberOfAnalystOpinions: 40 }
+        });
+      }
+      if (symbol === 'TSLA') {
+        return Promise.resolve({
+          financialData: { recommendationKey: 'hold', numberOfAnalystOpinions: 30 }
+        });
+      }
+      return Promise.resolve({});
+    });
 
     const response = await GET(mockRequest);
     expect(response.status).toBe(200);
@@ -71,8 +90,12 @@ describe('GET /api/user/portfolio', () => {
     expect(data.portfolio).toHaveLength(2);
     expect(data.portfolio[0].symbol).toBe('AAPL');
     expect(data.portfolio[0].regularMarketPrice).toBe(170);
+    expect(data.portfolio[0].recommendationKey).toBe('buy');
+    expect(data.portfolio[0].numberOfAnalystOpinions).toBe(40);
     expect(data.portfolio[1].symbol).toBe('TSLA');
     expect(data.portfolio[1].regularMarketPrice).toBe(210);
+    expect(data.portfolio[1].recommendationKey).toBe('hold');
+    expect(data.portfolio[1].numberOfAnalystOpinions).toBe(30);
   });
 
   test('handles errors gracefully', async () => {
