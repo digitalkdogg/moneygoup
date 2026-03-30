@@ -1,5 +1,6 @@
 'use client'
 
+import { TechnicalIndicators, HistoricalData } from '@/utils/technicalIndicators'
 import React, { useState } from 'react'
 import { formatNumber } from '@/utils/formatters'
 
