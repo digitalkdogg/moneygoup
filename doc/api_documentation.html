@@ -355,9 +355,15 @@
             <div id="watchlist" class="step-card">
                 <h3>Watchlist Management</h3>
                 <ul class="flow">
-                    <li><span class="method get">GET</span> <code>/api/user/watchlist</code>: Fetch watchlist with 6mo MA.</li>
+                    <li><span class="method get">GET</span> <code>/api/user/watchlist</code>: Fetch watchlist with live prices, 6mo MA, and analyst consensus data.</li>
                     <li><span class="method post">POST</span> <code>/api/user/watchlist</code>: Add ticker to watch.</li>
                     <li><span class="method delete">DELETE</span> <code>/api/user/watchlist?stockId=[ticker]</code>: Remove from watch.</li>
+                </ul>
+                <strong>Logic Flow (GET):</strong>
+                <ul class="flow">
+                    <li>Queries <code>user_stocks</code> for items where <code>is_purchased = 0</code>.</li>
+                    <li>Fetches 120-day historical closing prices from DB to calculate 6-month Moving Average.</li>
+                    <li>Parallel calls to Yahoo Finance for live price, previous close, and analyst consensus (recommendationKey).</li>
                 </ul>
                 <p><strong>Associated Tests:</strong> <code>api_user_stocks.test.ts</code></p>
             </div>
@@ -365,7 +371,13 @@
             <div id="portfolio" class="step-card">
                 <h3>Portfolio Tracking</h3>
                 <ul class="flow">
-                    <li><span class="method get">GET</span> <code>/api/user/portfolio</code>: Active positions with real-time P&L.</li>
+                    <li><span class="method get">GET</span> <code>/api/user/portfolio</code>: Active positions with real-time P&L, live pricing, and analyst consensus ratings.</li>
+                </ul>
+                <strong>Logic Flow (GET):</strong>
+                <ul class="flow">
+                    <li>Queries <code>user_stocks</code> for items where <code>shares > 0</code>.</li>
+                    <li>Fetches live price and analyst consensus data from Yahoo Finance for every holding.</li>
+                    <li>Calculates daily and lifetime P&L based on purchase price vs. live price.</li>
                 </ul>
                 <p><strong>Associated Tests:</strong> <code>api_user_portfolio.test.ts</code></p>
             </div>

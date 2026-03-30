@@ -388,40 +388,81 @@ python3 predict_weighted_analysis.py IONQ --input_file ./sampledata.json --outlo
         </section>
 
         <section id="feature-details">
-            <h3 style="color: var(--primary-dark);">-- Feature Groups (63 total)</h3>
-            <div class="grid">
-                <div class="mini-card">
-                    <h4>OHLCV (5)</h4>
-                    <p style="font-size: 0.75rem; color: #64748b;">Raw daily price bars.</p>
-                    <code style="font-size: 0.7rem;">Open, High, Low, Close, Volume</code>
-                </div>
-                <div class="mini-card">
-                    <h4>Technical Indicators (17)</h4>
-                    <p style="font-size: 0.75rem; color: #64748b;">Trend, momentum, and volatility signals.</p>
-                    <code style="font-size: 0.7rem;">MACD, MACD_Signal, BB_Upper/Mid/Lower, RSI_14, STOCH_K/D, ATR_14, SMA_20/200, EMA_50/200, HiRatio/LoRatio_52w, ROC_6m/12m</code>
-                </div>
-                <div class="mini-card">
-                    <h4>Fundamentals (14)</h4>
-                    <p style="font-size: 0.75rem; color: #64748b;">Business health & analyst sentiment.</p>
-                    <code style="font-size: 0.7rem;">PE/PB_Ratio, EPS, Revenue/EarningsGrowth, Margins, DebtToEquity, ROE, Beta, DivYield, AnalystPremium, RecommendationMean</code>
-                </div>
-                <div class="mini-card">
-                    <h4>Macro & Stats (4)</h4>
-                    <p style="font-size: 0.75rem; color: #64748b;">Market context signals.</p>
-                    <code style="font-size: 0.7rem;">VIX, VIX_20d_Avg, Treasury10Y, SectorETF_Corr</code>
-                </div>
-                <div class="mini-card">
-                    <h4>Derived & Calendar (7)</h4>
-                    <p style="font-size: 0.75rem; color: #64748b;">External & cyclical features.</p>
-                    <code style="font-size: 0.7rem;">NewsSentiment, EarningsBeatStreak, Month_Sin/Cos, EarningsSeason, GoldenCross, HistVol_30</code>
-                </div>
-                <div class="mini-card">
-                    <h4>v3 Improvements (16)</h4>
-                    <p style="font-size: 0.75rem; color: #64748b;">Lag, ROC, and rolling statistics.</p>
-                    <code style="font-size: 0.7rem;">Close_lag_5/10/20, Volume_lag_5, ROC_5d/20d, Return_1d/5d/20d, PriceToHigh_5d/20d, VolumePriceTrend, RollingMean/Std/Skew/Sharpe_20d</code>
-                </div>
+            <h3 style="color: var(--primary-dark);">-- Feature Inventory (v3 Neural Tensor)</h3>
+            <div class="step-card" style="padding: 0; overflow: hidden;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+                    <thead>
+                        <tr style="background: #f8fafc; border-bottom: 1px solid var(--border);">
+                            <th style="padding: 0.8rem 1rem; text-align: left; width: 25%;">Category</th>
+                            <th style="padding: 0.8rem 1rem; text-align: left; width: 35%;">Feature Columns</th>
+                            <th style="padding: 0.8rem 1rem; text-align: left;">Purpose / Logic</th>
+                        </tr>
+                    </thead>
+                    <tbody style="color: #475569;">
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding: 0.8rem 1rem; font-weight: 600;">Price &amp; Volume</td>
+                            <td style="padding: 0.8rem 1rem;"><code>Open, High, Low, Close, Volume</code></td>
+                            <td>Baseline OHLCV price action and trading activity.</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding: 0.8rem 1rem; font-weight: 600;">Standard Technicals</td>
+                            <td style="padding: 0.8rem 1rem;"><code>MACD, MACD_Signal, RSI_14, STOCH_K, STOCH_D, ATR_14</code></td>
+                            <td>Momentum oscillators, convergence/divergence, and volatility (ATR).</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding: 0.8rem 1rem; font-weight: 600;">Trend Analysis</td>
+                            <td style="padding: 0.8rem 1rem;"><code>SMA_20, EMA_50, SMA_200, EMA_200, GoldenCross</code></td>
+                            <td>Moving average crossovers and long-term trend support/resistance.</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding: 0.8rem 1rem; font-weight: 600;">Relative Range</td>
+                            <td style="padding: 0.8rem 1rem;"><code>BB_Upper, BB_Lower, BB_Mid, Hi/LoRatio_52w, HistVol_30</code></td>
+                            <td>Positioning relative to historical volatility bands and 52-week extremes.</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding: 0.8rem 1rem; font-weight: 600;">Fundamentals</td>
+                            <td style="padding: 0.8rem 1rem;"><code>PE/PB_Ratio, EPS, Rev/EarnGrowth, Margins, ROE, Beta, DebtToEquity</code></td>
+                            <td>Broadcast scalar values representing corporate health and valuation.</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding: 0.8rem 1rem; font-weight: 600;">Analyst Sentiment</td>
+                            <td style="padding: 0.8rem 1rem;"><code>AnalystPremium, AnalystPremiumWeighted, RecommendationMean</code></td>
+                            <td>Distance to consensus price targets weighted by analyst coverage density.</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding: 0.8rem 1rem; font-weight: 600;">Macro &amp; External</td>
+                            <td style="padding: 0.8rem 1rem;"><code>VIX, VIX_20d_Avg, Treasury10Y, SectorETF_60d_Corr</code></td>
+                            <td>Market fear index, interest rate environment, and sector correlation.</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding: 0.8rem 1rem; font-weight: 600;">Derived &amp; NLP</td>
+                            <td style="padding: 0.8rem 1rem;"><code>NewsSentiment, EarningsBeatStreak, Month_Sin/Cos, EarningsSeason</code></td>
+                            <td>Tanh-scaled news sentiment and cyclical calendar features.</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding: 0.8rem 1rem; font-weight: 600;">Lag Features (v3)</td>
+                            <td style="padding: 0.8rem 1rem;"><code>Close_lag_5/10/20, Volume_lag_5</code></td>
+                            <td>Explicit past values to help the MLP learn temporal dependencies.</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding: 0.8rem 1rem; font-weight: 600;">Short-Term Momentum</td>
+                            <td style="padding: 0.8rem 1rem;"><code>ROC_5d/20d, Return_1d/5d/20d</code></td>
+                            <td>High-frequency rate-of-change signals.</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding: 0.8rem 1rem; font-weight: 600;">Breakout Signals</td>
+                            <td style="padding: 0.8rem 1rem;"><code>PriceToHigh_5d/20d, PriceToLow_20d, VolumePriceTrend, EMA_Slope_10/20</code></td>
+                            <td>Proximity to rolling highs/lows and steepness of trend lines.</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.8rem 1rem; font-weight: 600;">Statistical Moments</td>
+                            <td style="padding: 0.8rem 1rem;"><code>RollingMean/Std/Skew/Sharpe_20d</code></td>
+                            <td>Compressed return distribution characteristics over a 20-day window.</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
-            <p style="font-size: 0.8rem; color: #64748b; font-style: italic; margin-top: 1rem;">* Features are normalized via MinMaxScaler and flattened into a SEQ_LEN=60 window (60 × 63 = 3,780 inputs).</p>
+            <p style="font-size: 0.8rem; color: #64748b; font-style: italic; margin-top: 1rem;">* Features are normalized via MinMaxScaler and flattened into a SEQ_LEN=60 window (60 × 66 = 3,960 total neural inputs).</p>
         </section>
 
         <div class="flow-arrow">↓</div>
