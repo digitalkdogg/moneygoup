@@ -823,6 +823,14 @@ def predict(ticker, input_data):
     prange_low  = round(traj_6m['lower_bound'] - current_price, 2)
     prange_high = round(traj_6m['upper_bound']  - current_price, 2)
 
+    # ---- 1d trajectory point (extrapolated from initial movement toward 6m) ----
+    # For 1-day prediction, interpolate between current and 6m target with fraction 1/126
+    frac_1d = 1.0 / T6  # 1 trading day out of ~126 trading days to 6 months
+    base_1d_return = (p6m_mean - current_price) / (current_price + 1e-9)
+    # tariff_adjustment and energy_adjustment removed
+    predicted_price_1d = current_price * (1.0 + base_1d_return)
+    spread_1d = spread_6m * frac_1d
+
     # ---- 1m trajectory point (index 0 = waypoint t+21 ≈ 1 month) ----
     traj_1m = trajectory[0]   # index 0 = waypoint 21 trading days (~1 month)
 
@@ -830,12 +838,22 @@ def predict(ticker, input_data):
     pct_1m = round((predicted_price_1m - current_price) / (current_price + 1e-9) * 100, 2)
     cs1m = min(100, cs6m + 10)  # 1m is tighter horizon → slightly higher confidence
 
+    # ---- 1d metrics ----
+    pct_1d = round((predicted_price_1d - current_price) / (current_price + 1e-9) * 100, 2)
+    cs1d = min(100, cs1m + 5)  # 1d is even tighter → highest confidence
+
     pct_6m  = round((predicted_price_6m  - current_price) / (current_price + 1e-9) * 100, 2)
     pct_12m = round((predicted_price_1y  - current_price) / (current_price + 1e-9) * 100, 2)
 
     result = {
         "ticker":                str(ticker).upper().strip(),
         "regularMarketPrice":    round(current_price, 2),
+        # 1-day short-term
+        "predicted_price_1d":      round(predicted_price_1d, 2),
+        "predicted_change_pct_1d": pct_1d,
+        "confidence_score_1d":     cs1d,
+        "predicted_range_1d":      [round(predicted_price_1d - spread_1d / 2, 2), round(predicted_price_1d + spread_1d / 2, 2)],
+        # short_term_signal_breakdown removed
         # Dual-horizon
         "predicted_price_6m":   round(predicted_price_6m, 2),
         "predicted_price_1y":   round(predicted_price_1y, 2),
@@ -878,7 +896,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='MLP Stock Price Prediction')
     parser.add_argument('ticker',       type=str, help='Stock ticker symbol')
     parser.add_argument('--input_file', type=str, required=True, help='Path to JSON input file')
-    parser.add_argument('--outlook',    type=str, default='all', choices=['1_month', '6_month', '1_year', 'all'], help='Prediction outlook')
+    parser.add_argument('--outlook',    type=str, default='all', choices=['1_day', '1_month', '6_month', '1_year', 'all'], help='Prediction outlook')
     args = parser.parse_args()
 
     try:
@@ -896,8 +914,15 @@ if __name__ == '__main__':
                 "data_quality": result["data_quality"],
                 "accuracy_metrics": result["accuracy_metrics"]
             }
-            
-            if args.outlook == '1_month':
+
+            if args.outlook == '1_day':
+                filtered.update({
+                    "predicted_price": result["predicted_price_1d"],
+                    "predicted_change_pct": result["predicted_change_pct_1d"],
+                    "confidence_score": result["confidence_score_1d"],
+                    "predicted_range": result["predicted_range_1d"]
+                })
+            elif args.outlook == '1_month':
                 filtered.update({
                     "predicted_price": result["predicted_price_1m"],
                     "predicted_change_pct": result["predicted_change_pct_1m"],

@@ -48,17 +48,21 @@ interface TrajectoryPoint {
 interface PredictionResult {
   ticker: string
   regularMarketPrice: number
+  predicted_price_1d: number
+  predicted_price_1m: number
   predicted_price_6m: number
   predicted_price_1y: number
-  predicted_price_1m: number
+  predicted_change_pct_1d: number
+  predicted_change_pct_1m: number
   predicted_change_pct_6m: number
   predicted_change_pct_1y: number
-  predicted_change_pct_1m: number
+  confidence_score_1d: number
+  confidence_score_1m: number
   confidence_score_6m: number
   confidence_score_1y: number
-  confidence_score_1m: number 
   high_uncertainty: boolean
   predicted_change_range: [number, number]
+  predicted_range_1d?: [number, number]
   monthly_trajectory: TrajectoryPoint[]
   accuracy_metrics: {
     model?: { mae: number; rmse: number; cv_mae?: number }
@@ -396,7 +400,7 @@ export default function StockPrediction({
     <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
       <h2 className="text-2xl font-semibold text-gray-800 mb-4">📊 AI-Powered Price Prediction</h2>
       <p className="text-gray-600 mb-4">
-        Click the button to generate a 1-month, 6-month and 12-month price prediction for {ticker} using an MLP neural network.
+        Click the button to generate 1-day, 1-month, 6-month and 12-month price predictions for {ticker} using an MLP neural network.
       </p>
 
       {/* Data quality warnings (shown after Step 1 completes) */}
@@ -443,8 +447,25 @@ export default function StockPrediction({
             </div>
           )}
 
-          {/* ---- three-horizon headline cards ---- */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          {/* ---- four-horizon headline cards ---- */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            {/* 1-day card */}
+            <div className="p-5 bg-purple-50 rounded-xl border border-purple-200">
+              <p className="text-xs font-semibold text-purple-600 uppercase tracking-wide mb-2">1-Day Price Target</p>
+              <p className="text-3xl font-bold text-purple-800 mb-1">
+                {formatCurrency(prediction.predicted_price_1d)}
+              </p>
+              <p className={`text-sm font-semibold mb-3 ${prediction.predicted_change_pct_1d >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {prediction.predicted_change_pct_1d >= 0 ? '+' : ''}{formatNumber(prediction.predicted_change_pct_1d, 2)}% from current
+              </p>
+              <ConfidenceBadgeBlue score={prediction.confidence_score_1d} />
+              {prediction.predicted_range_1d && (
+                <p className="text-xs text-purple-600 mt-3">
+                  Range: {formatCurrency(prediction.predicted_range_1d[0])} – {formatCurrency(prediction.predicted_range_1d[1])}
+                </p>
+              )}
+            </div>
+
             {/* 1-month card */}
             <div className="p-5 bg-blue-50 rounded-xl border border-blue-200">
               <p className="text-xs font-semibold text-blue-500 uppercase tracking-wide mb-2">1-Month Price Target</p>
@@ -481,7 +502,7 @@ export default function StockPrediction({
 
             {/* 12-month card */}
             <div className="p-5 bg-green-200 rounded-xl border border-green-500">
-              <p className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-2">Long-Term Outlook (12 months)</p>
+              <p className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-2">12-Month Price Target</p>
               <p className="text-3xl font-bold text-green-900 mb-1">
                 {formatCurrency(prediction.predicted_price_1y)}
               </p>

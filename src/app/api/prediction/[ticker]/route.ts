@@ -156,7 +156,7 @@ export async function POST(
 
   // 8. Extract outlook parameter (body first, then query, default to 'all')
   const outlook = (body.outlook || request.nextUrl.searchParams.get('outlook') || 'all').toString();
-  const validOutlooks = ['1_month', '6_month', '1_year', 'all'];
+  const validOutlooks = ['1_day', '1_month', '6_month', '1_year', 'all'];
   const validatedOutlook = validOutlooks.includes(outlook) ? outlook : 'all';
 
   // 9. Acquire semaphore slot, run prediction, release on completion

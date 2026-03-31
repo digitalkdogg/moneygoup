@@ -305,7 +305,10 @@ python3 predict_weighted_analysis.py NU --input_file /tmp/tf_prediction_input_{u
 python3 predict_weighted_analysis.py IONQ --input_file ./sampledata.json --outlook all > result.json
 
 # Parameters:
-# --outlook: 1_month, 6_month, 1_year, all (default: all)
+# --outlook: 1_day, 1_month, 6_month, 1_year, all (default: all)
+#   - 1_day: Short-term outlook
+#   - 1_month, 6_month, 1_year: Standard multi-horizon predictions
+#   - all: Returns all horizons with full signal breakdowns
 # The ticker is a positional CLI arg — NOT embedded in the JSON file</code></pre>
         </section>
 
@@ -676,6 +679,26 @@ python3 predict_weighted_analysis.py IONQ --input_file ./sampledata.json --outlo
                         <th style="padding: 1rem; text-align: left;">Field</th>
                         <th style="padding: 1rem; text-align: left;">Type</th>
                         <th style="padding: 1rem; text-align: left;">Description</th>
+                    </tr>
+                    <tr style="border-bottom: 1px solid var(--border); background: #f5f3ff;">
+                        <td style="padding: 0.8rem 1rem;"><code>predicted_price_1d</code></td>
+                        <td><span class="tag t-num">float</span></td>
+                        <td><strong>NEW:</strong> 1-day short-term target price.</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid var(--border); background: #f5f3ff;">
+                        <td style="padding: 0.8rem 1rem;"><code>predicted_change_pct_1d</code></td>
+                        <td><span class="tag t-num">float</span></td>
+                        <td><strong>NEW:</strong> Expected 1-day % change from current price.</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid var(--border); background: #f5f3ff;">
+                        <td style="padding: 0.8rem 1rem;"><code>confidence_score_1d</code></td>
+                        <td><span class="tag t-num">0-100</span></td>
+                        <td><strong>NEW:</strong> Highest confidence score; 1-day is the tightest horizon.</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid var(--border); background: #f5f3ff;">
+                        <td style="padding: 0.8rem 1rem;"><code>predicted_range_1d</code></td>
+                        <td><span class="tag t-opt">array[2]</span></td>
+                        <td><strong>NEW:</strong> [low, high] price range for 1-day (±1σ confidence band).</td>
                     </tr>
                     <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 0.8rem 1rem;"><code>predicted_price_6m</code></td>
