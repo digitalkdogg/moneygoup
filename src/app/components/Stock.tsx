@@ -199,11 +199,9 @@ export default function Stock({
 
             if (response.ok) {
               const data = await response.json()
-              console.log(`[DEBUG] Raw API response for ${t}:`, data);
               // If we are in a map loop over tickerArray, and the API returns a keyed object, use data[t]
               // If it returns the consolidated object directly (single ticker), use data.
               const consolidated = data[t] || data;
-              console.log(`[DEBUG] Consolidated data for ${t}:`, consolidated);
               return {
                 ticker: t,
                 stock: consolidated.stock || { error: 'Missing stock data' },
@@ -243,8 +241,6 @@ export default function Stock({
           }
         })
         
-        console.log('[DEBUG] Final dataMap keys:', Object.keys(dataMap));
-        console.log('[DEBUG] Primary Ticker:', primaryTicker);
         setStockDataMap(dataMap)
         setApiError(null)
 
@@ -698,6 +694,9 @@ export default function Stock({
                     </tbody>
                   </table>
                 </div>
+                {earningsData.upcomingEarnings && (
+                  <div className="mt-4 text-sm italic text-gray-700">Next Earnings Call : {earningsData.upcomingEarnings}</div>
+                )}
               </div>
             )}
             {(!earningsData.upcomingEarnings && earningsData.historicalEarnings.length === 0) && (

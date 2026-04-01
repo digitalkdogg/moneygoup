@@ -10,6 +10,58 @@ import { z } from 'zod';
 
 const logger = createLogger('api/stock/[ticker]/earnings');
 
+// Helper function to format earnings date
+const formatEarningsDate = (dateValue: any): string | null => {
+  if (!dateValue) return null;
+
+  let date: Date | null = null;
+  let dateString: string | null = null;
+
+  // If it's a string, try to parse it as ISO or date string
+  if (typeof dateValue === 'string') {
+    dateString = dateValue;
+  }
+  // If it's a number (Unix timestamp in seconds)
+  else if (typeof dateValue === 'number') {
+    date = new Date(dateValue * 1000);
+  }
+  // If it's an object, try to extract a date
+  else if (typeof dateValue === 'object' && dateValue !== null) {
+    // Try common property names
+    if ((dateValue as any).fmt) {
+      return (dateValue as any).fmt;
+    }
+    if ((dateValue as any).date) {
+      dateString = (dateValue as any).date;
+    } else if ((dateValue as any).earningsDate) {
+      dateString = (dateValue as any).earningsDate;
+    } else if ((dateValue as any).toString && typeof (dateValue as any).toString === 'function') {
+      dateString = (dateValue as any).toString();
+    }
+  }
+
+  // Parse the date string if we have one
+  if (dateString && !date) {
+    date = new Date(dateString);
+  }
+
+  // Format the date as M/D/YYYY
+  if (date) {
+    const timeValue = date.getTime();
+
+    if (!isNaN(timeValue)) {
+      const formatted = date.toLocaleDateString('en-US', {
+        month: 'numeric',
+        day: 'numeric',
+        year: 'numeric'
+      });
+      return formatted;
+    }
+  }
+
+  return null;
+};
+
 // Declare yahooFinance outside to potentially reuse, but initialize inside GET for testing
 let yahooFinanceInstance: InstanceType<typeof YahooFinance> | null = null;
 
@@ -50,9 +102,23 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
   }
 
   try {
-    const quoteSummary = await yahooFinanceInstance.quoteSummary(validatedTicker, { modules: ['earnings'] });
+    // Fetch earnings data with multiple modules to get calendar info
+    const quoteSummary = await yahooFinanceInstance.quoteSummary(validatedTicker, {
+      modules: ['earnings', 'calendarEvents']
+    });
 
     const earningsData = quoteSummary.earnings;
+    const calendarEvents = quoteSummary.calendarEvents;
+
+    // Log the structure for debugging
+    logger.info(`Earnings data structure for ${validatedTicker}:`, {
+      hasEarningsChart: !!earningsData?.earningsChart,
+      hasEarningsDate: !!earningsData?.earningsChart?.earningsDate,
+      earningsDateLength: earningsData?.earningsChart?.earningsDate?.length,
+      earningsDateSample: earningsData?.earningsChart?.earningsDate?.[0],
+      hasCalendarEvents: !!calendarEvents,
+      calendarEarnings: calendarEvents?.earnings?.[0],
+    });
 
     if (!earningsData || (!earningsData.financialsChart && !earningsData.earningsChart)) {
       return NextResponse.json({
@@ -62,7 +128,31 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
       }, { status: 200 });
     }
 
-        const upcomingEarnings = (earningsData.earningsChart?.earningsDate?.[0] as any)?.fmt || null;
+        // Extract upcoming earnings date - try multiple approaches
+        let upcomingEarnings = null;
+
+        // First try earningsChart.earningsDate
+        if (earningsData.earningsChart?.earningsDate) {
+          const earningsDateEntry = earningsData.earningsChart.earningsDate[0];
+          logger.info(`[DEBUG] earningsDateEntry raw:`, { earningsDateEntry });
+          if (earningsDateEntry) {
+            upcomingEarnings = formatEarningsDate(earningsDateEntry);
+            logger.info(`[DEBUG] formatEarningsDate result:`, { upcomingEarnings });
+          }
+        }
+
+        // If that didn't work, try calendar events
+        if (!upcomingEarnings && calendarEvents?.earnings?.[0]) {
+          const nextEarnings = calendarEvents.earnings[0];
+          upcomingEarnings = formatEarningsDate(
+            (nextEarnings as any)?.earningsDate ||
+            (nextEarnings as any)?.date ||
+            nextEarnings
+          );
+          logger.info(`[DEBUG] from calendar events:`, { upcomingEarnings });
+        }
+
+        logger.info(`[DEBUG] Final upcomingEarnings:`, { upcomingEarnings });
 
     
 
