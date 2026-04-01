@@ -184,10 +184,15 @@ FEATURE_COLUMNS = [
     # ── Improvement 4: Rolling return statistics ─────────────────────────────
     'RollingMean_20d', 'RollingStd_20d',
     'RollingSkew_20d', 'RollingSharpe_20d',
+    # ── Options Market Data ──────────────────────────────────────────────────
+    'IV', 'IV_Rank', 'Put_Call_Ratio',
+    # ── Earnings Surprises & Short Interest ──────────────────────────────────
+    'EPS_Surprise_Avg_4Q', 'Revenue_Surprise_Avg_4Q',
+    'ShortFloatPct', 'DaysToCover',
 ]
 
 
-def build_features(df, stock_metrics, macro_data, news_sentiment, earnings_beat_streak, current_price):
+def build_features(df, stock_metrics, macro_data, news_sentiment, earnings_beat_streak, current_price, options_data=None, feature_metrics=None):
     """
     Build full feature DataFrame from OHLCV df + supplementary inputs.
     Returns a new DataFrame with FEATURE_COLUMNS, NaNs forward-filled.
@@ -328,6 +333,50 @@ def build_features(df, stock_metrics, macro_data, news_sentiment, earnings_beat_
     else:
         corr = np.zeros(n)
     f['SectorETF_60d_Corr'] = corr
+
+    # Options market data — broadcast across all rows
+    # If options_data unavailable, features default to NaN (filled later)
+    iv_val = 0.0
+    iv_rank_val = 0.0
+    put_call_ratio_val = 0.0
+
+    if options_data and isinstance(options_data, dict):
+        iv_val = safe(options_data.get('iv'), 0.0)
+        iv_rank_val = safe(options_data.get('ivRank'), 0.0)
+        put_call_ratio_val = safe(options_data.get('putCallRatio'), 0.0)
+
+    f['IV'] = iv_val if iv_val > 0 else np.nan
+    f['IV_Rank'] = iv_rank_val if iv_val > 0 else np.nan  # Only valid if IV is available
+    f['Put_Call_Ratio'] = put_call_ratio_val if put_call_ratio_val > 0 else np.nan
+
+    # Earnings surprises & short interest — broadcast as scalar across rows
+    # Clip to reasonable ranges; use NaN if unavailable
+    eps_surprise = 0.0
+    revenue_surprise = 0.0
+    short_float = 0.0
+    days_to_cover = 0.0
+
+    if feature_metrics and isinstance(feature_metrics, dict):
+        # EPS surprise: clip to [-50, 50] percent
+        eps_val = safe(feature_metrics.get('epsSurpriseAvg4Q'), 0.0)
+        eps_surprise = max(-50.0, min(50.0, eps_val)) if eps_val != 0.0 else 0.0
+
+        # Revenue surprise: clip to [-50, 50] percent
+        rev_val = safe(feature_metrics.get('revenueSurpriseAvg4Q'), 0.0)
+        revenue_surprise = max(-50.0, min(50.0, rev_val)) if rev_val != 0.0 else 0.0
+
+        # Short float: clip to [0, 100] percent
+        short_val = safe(feature_metrics.get('shortFloatPct'), 0.0)
+        short_float = max(0.0, min(100.0, short_val * 100)) if short_val != 0.0 else 0.0  # Convert decimal to percent points
+
+        # Days to cover: clip to [0, 30] days
+        dtc_val = safe(feature_metrics.get('daysToCover'), 0.0)
+        days_to_cover = max(0.0, min(30.0, dtc_val)) if dtc_val != 0.0 else 0.0
+
+    f['EPS_Surprise_Avg_4Q'] = eps_surprise if eps_surprise != 0.0 else np.nan
+    f['Revenue_Surprise_Avg_4Q'] = revenue_surprise if revenue_surprise != 0.0 else np.nan
+    f['ShortFloatPct'] = short_float if short_float > 0.0 else np.nan
+    f['DaysToCover'] = days_to_cover if days_to_cover > 0.0 else np.nan
 
     # Derived / calendar
     f['NewsSentiment']     = news_sentiment
@@ -586,6 +635,8 @@ def predict(ticker, input_data):
     historical_data    = input_data.get('historicalData', [])
     stock_metrics      = input_data.get('stockMetrics', {})
     macro_data         = input_data.get('macroData', {})
+    options_data       = input_data.get('optionsData', {})
+    feature_metrics    = input_data.get('featureMetrics', {})
     news_articles      = input_data.get('newsArticles', [])
     historical_earnings = input_data.get('historicalEarnings', [])
     data_quality       = input_data.get('dataQuality', {})
@@ -646,7 +697,7 @@ def predict(ticker, input_data):
 
     # ---- Feature engineering ----
     feat_df = build_features(df, stock_metrics, macro_data,
-                              news_sentiment, earnings_beat_streak, current_price)
+                              news_sentiment, earnings_beat_streak, current_price, options_data, feature_metrics)
     n_features = len(FEATURE_COLUMNS)   # automatically reflects the expanded set
     raw = feat_df.values.astype(np.float32)
 
@@ -883,6 +934,8 @@ def predict(ticker, input_data):
         "is_uptrend":      int(is_uptrend),
         # Data quality pass-through
         "data_quality":    data_quality,
+        # Options data availability
+        "options_data_available": bool(options_data and options_data.get('available')),
         # Legacy metric analysis
         "metric_analysis": m_analysis,
     }

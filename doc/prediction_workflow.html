@@ -131,7 +131,7 @@
             <a href="#cli-usage" class="nav-link">-- CLI Usage</a>
             <a href="#step4" class="nav-link">4. Feature Engine (Python)</a>
             <a href="#algorithm-flow" class="nav-link">-- Algorithm Flowchart</a>
-            <a href="#feature-details" class="nav-link">-- 63 Feature Groups</a>
+            <a href="#feature-details" class="nav-link">-- 73 Feature Groups</a>
             <a href="#step5" class="nav-link">5. MLP & MC Inference</a>
             <a href="#confidence" class="nav-link">-- Confidence Scoring</a>
             <a href="#constants" class="nav-link">-- Key Constants</a>
@@ -318,7 +318,7 @@ python3 predict_weighted_analysis.py IONQ --input_file ./sampledata.json --outlo
             <h2><span>4</span> Feature Engineering</h2>
             <div class="step-card">
                 <div class="component-tag">Python Engine: predict_weighted_analysis.py</div>
-                <p>The script transforms raw JSON into a 63-column feature tensor using specialized preprocessing:</p>
+                <p>The script transforms raw JSON into a 73-column feature tensor using specialized preprocessing:</p>
                 <ul>
                     <li><strong>Time-Decay News:</strong> Older news articles lose weight linearly over 30 days. Final score is <code>tanh(weighted_avg)</code>.</li>
                     <li><strong>Cyclical Encoding:</strong> Months are converted to <code>sin/cos</code> coordinates to prevent December → January "cliffs".</li>
@@ -352,7 +352,7 @@ python3 predict_weighted_analysis.py IONQ --input_file ./sampledata.json --outlo
                     <div class="flow-node sub">Historical OHLCV (5yr) + Macro + News + Fundamentals</div>
                     <div class="flow-arrow-small">↓</div>
                     
-                    <div class="flow-node logic">2. Feature Engineering (63 Tensors)</div>
+                    <div class="flow-node logic">2. Feature Engineering (73 Tensors)</div>
                     <div class="flow-node sub">MACD/RSI/BB + v3 Lag Features + Volatility-Scaled Lags + Calendar Sin/Cos</div>
                     <div class="flow-arrow-small">↓</div>
 
@@ -398,7 +398,7 @@ python3 predict_weighted_analysis.py IONQ --input_file ./sampledata.json --outlo
                         <tr style="background: #f8fafc; border-bottom: 1px solid var(--border);">
                             <th style="padding: 0.8rem 1rem; text-align: left; width: 25%;">Category</th>
                             <th style="padding: 0.8rem 1rem; text-align: left; width: 35%;">Feature Columns</th>
-                            <th style="padding: 0.8rem 1rem; text-align: left;">Purpose / Logic</th>
+                            <th style="padding: 0.8rem 1rem; text-align: left;">Purpose / Logic <span class="tag" style="background: #dcfce7; color: #166534; margin-left: 8px;">UPDATED</span></th>
                         </tr>
                     </thead>
                     <tbody style="color: #475569;">
@@ -443,6 +443,16 @@ python3 predict_weighted_analysis.py IONQ --input_file ./sampledata.json --outlo
                             <td>Tanh-scaled news sentiment and cyclical calendar features.</td>
                         </tr>
                         <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding: 0.8rem 1rem; font-weight: 600;">Options Market</td>
+                            <td style="padding: 0.8rem 1rem;"><code>IV, IV_Rank, Put_Call_Ratio</code></td>
+                            <td>Real-time options volatility and sentiment signals from internal derivatives API.</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding: 0.8rem 1rem; font-weight: 600;">Earnings &amp; Short</td>
+                            <td style="padding: 0.8rem 1rem;"><code>EPS_Surprise_Avg_4Q, Rev_Surprise_Avg_4Q, ShortFloatPct, DaysToCover</code></td>
+                            <td>Fundamental surprises and bearish positioning context.</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border);">
                             <td style="padding: 0.8rem 1rem; font-weight: 600;">Lag Features (v3)</td>
                             <td style="padding: 0.8rem 1rem;"><code>Close_lag_5/10/20, Volume_lag_5</code></td>
                             <td>Explicit past values to help the MLP learn temporal dependencies.</td>
@@ -465,7 +475,7 @@ python3 predict_weighted_analysis.py IONQ --input_file ./sampledata.json --outlo
                     </tbody>
                 </table>
             </div>
-            <p style="font-size: 0.8rem; color: #64748b; font-style: italic; margin-top: 1rem;">* Features are normalized via MinMaxScaler and flattened into a SEQ_LEN=60 window (60 × 66 = 3,960 total neural inputs).</p>
+            <p style="font-size: 0.8rem; color: #64748b; font-style: italic; margin-top: 1rem;">* Features are normalized via MinMaxScaler and flattened into a SEQ_LEN=60 window (60 × 73 = 4,380 total neural inputs).</p>
         </section>
 
         <div class="flow-arrow">↓</div>
@@ -477,7 +487,7 @@ python3 predict_weighted_analysis.py IONQ --input_file ./sampledata.json --outlo
                 <p>The system trains a fresh model on the historical sequences to capture the stock's specific unique character:</p>
                 <ol>
                     <li><strong>Train/Test Split:</strong> 80% history for training, last 20% for holdout evaluation (MAPE calculation).</li>
-                    <li><strong>Dual Horizon:</strong> Model outputs two nodes: <code>[6-month Target, 12-month Target]</code>.</li>
+                    <li><strong>Multi-Horizon:</strong> Model outputs targets for 1-day, 1-month, 6-month, and 12-month horizons.</li>
                     <li><strong>Monte Carlo Passes (20x):</strong> Gaussian noise (10% of recent &sigma;) is added to the features across 20 iterations.</li>
                     <li><strong>Uncertainty Bounds:</strong> Upper/Lower bands are derived from the 10th and 90th percentile of the MC results.</li>
                 </ol>
@@ -522,7 +532,7 @@ python3 predict_weighted_analysis.py IONQ --input_file ./sampledata.json --outlo
                     <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 0.8rem 1rem;"><code>SEQ_LEN</code></td>
                         <td>60</td>
-                        <td>Trading-day lookback per training example. 60 × 63 = 3,780 input dimensions per sample.</td>
+                        <td>Trading-day lookback per training example. 60 × 73 = 4,380 input dimensions per sample.</td>
                     </tr>
                     <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 0.8rem 1rem;"><code>N_EPOCHS</code></td>
@@ -552,7 +562,7 @@ python3 predict_weighted_analysis.py IONQ --input_file ./sampledata.json --outlo
                     <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 0.8rem 1rem;">MLP hidden layers</td>
                         <td>(128, 64, 32)</td>
-                        <td>Widened in v3 from (64, 32) to accommodate expanded 63-feature set.</td>
+                        <td>Widened in v3 from (64, 32) to accommodate expanded 73-feature set.</td>
                     </tr>
                     <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 0.8rem 1rem;">MC noise scale</td>
@@ -680,25 +690,35 @@ python3 predict_weighted_analysis.py IONQ --input_file ./sampledata.json --outlo
                         <th style="padding: 1rem; text-align: left;">Type</th>
                         <th style="padding: 1rem; text-align: left;">Description</th>
                     </tr>
-                    <tr style="border-bottom: 1px solid var(--border); background: #f5f3ff;">
+                    <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 0.8rem 1rem;"><code>predicted_price_1d</code></td>
                         <td><span class="tag t-num">float</span></td>
-                        <td><strong>NEW:</strong> 1-day short-term target price.</td>
+                        <td>1-day short-term target price.</td>
                     </tr>
-                    <tr style="border-bottom: 1px solid var(--border); background: #f5f3ff;">
+                    <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 0.8rem 1rem;"><code>predicted_change_pct_1d</code></td>
                         <td><span class="tag t-num">float</span></td>
-                        <td><strong>NEW:</strong> Expected 1-day % change from current price.</td>
+                        <td>Expected 1-day % change from current price.</td>
                     </tr>
-                    <tr style="border-bottom: 1px solid var(--border); background: #f5f3ff;">
+                    <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 0.8rem 1rem;"><code>confidence_score_1d</code></td>
                         <td><span class="tag t-num">0-100</span></td>
-                        <td><strong>NEW:</strong> Highest confidence score; 1-day is the tightest horizon.</td>
+                        <td>Highest confidence score; 1-day is the tightest horizon.</td>
                     </tr>
-                    <tr style="border-bottom: 1px solid var(--border); background: #f5f3ff;">
+                    <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 0.8rem 1rem;"><code>predicted_range_1d</code></td>
                         <td><span class="tag t-opt">array[2]</span></td>
-                        <td><strong>NEW:</strong> [low, high] price range for 1-day (±1σ confidence band).</td>
+                        <td>[low, high] price range for 1-day (±1σ confidence band).</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <td style="padding: 0.8rem 1rem;"><code>predicted_price_1m</code></td>
+                        <td><span class="tag t-num">float</span></td>
+                        <td>1-month intermediate target price.</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <td style="padding: 0.8rem 1rem;"><code>predicted_change_pct_1m</code></td>
+                        <td><span class="tag t-num">float</span></td>
+                        <td>Expected 1-month % change.</td>
                     </tr>
                     <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 0.8rem 1rem;"><code>predicted_price_6m</code></td>

@@ -110,8 +110,147 @@ function safeNum(v: unknown): number | null {
 }
 
 // ---------------------------------------------------------------------------
+// Earnings Surprise Metrics (4Q average)
+// ---------------------------------------------------------------------------
+function extractEarningsSurprises(earningsData: any): {
+  epsSurpriseAvg4Q: number | null;
+  revenueSurpriseAvg4Q: number | null;
+  quarterCount: number;
+} {
+  const surprises = { epsSurpriseAvg4Q: null as number | null, revenueSurpriseAvg4Q: null as number | null, quarterCount: 0 };
+
+  try {
+    if (!earningsData || typeof earningsData !== 'object') return surprises;
+
+    const history = (earningsData.earningsHistory || earningsData.history || []) as any[];
+    if (!history || history.length === 0) return surprises;
+
+    // Collect EPS and revenue surprises from most recent quarters
+    const epsSurprises: number[] = [];
+    const revenueSurprises: number[] = [];
+
+    // Take up to 4 most recent quarters (they're typically sorted descending)
+    const recentQuarters = history.slice(0, 4);
+
+    for (const quarter of recentQuarters) {
+      // EPS surprise: prefer surprisePercent, fallback to manual calc
+      let epsSurprise: number | null = null;
+      if (quarter.surprisePercent !== null && quarter.surprisePercent !== undefined) {
+        epsSurprise = safeNum(quarter.surprisePercent);
+      } else if (quarter.epsActual !== null && quarter.epsEstimate !== null && safeNum(quarter.epsEstimate) !== 0) {
+        const actual = safeNum(quarter.epsActual);
+        const estimate = safeNum(quarter.epsEstimate);
+        if (actual !== null && estimate !== null && estimate !== 0) {
+          epsSurprise = ((actual - estimate) / Math.abs(estimate)) * 100;
+        }
+      }
+      if (epsSurprise !== null) epsSurprises.push(epsSurprise);
+
+      // Revenue surprise: prefer revenueSurprisePercent, fallback to manual calc
+      let revenueSurprise: number | null = null;
+      if (quarter.revenueSurprisePercent !== null && quarter.revenueSurprisePercent !== undefined) {
+        revenueSurprise = safeNum(quarter.revenueSurprisePercent);
+      } else if (quarter.revenueActual !== null && quarter.revenueEstimate !== null && safeNum(quarter.revenueEstimate) !== 0) {
+        const actual = safeNum(quarter.revenueActual);
+        const estimate = safeNum(quarter.revenueEstimate);
+        if (actual !== null && estimate !== null && estimate !== 0) {
+          revenueSurprise = ((actual - estimate) / Math.abs(estimate)) * 100;
+        }
+      }
+      if (revenueSurprise !== null) revenueSurprises.push(revenueSurprise);
+    }
+
+    surprises.quarterCount = recentQuarters.length;
+
+    // Compute averages
+    if (epsSurprises.length > 0) {
+      surprises.epsSurpriseAvg4Q = Math.round((epsSurprises.reduce((a, b) => a + b, 0) / epsSurprises.length) * 100) / 100;
+    }
+    if (revenueSurprises.length > 0) {
+      surprises.revenueSurpriseAvg4Q = Math.round((revenueSurprises.reduce((a, b) => a + b, 0) / revenueSurprises.length) * 100) / 100;
+    }
+  } catch (err) {
+    logger.warn('Error extracting earnings surprises', { error: err });
+  }
+
+  return surprises;
+}
+
+// ---------------------------------------------------------------------------
+// Short Interest Metrics
+// ---------------------------------------------------------------------------
+function extractShortInterestMetrics(keyStats: any, detail: any): {
+  shortFloatPct: number | null;
+  daysToCover: number | null;
+} {
+  const metrics = { shortFloatPct: null as number | null, daysToCover: null as number | null };
+
+  try {
+    // Short float percentage: try keyStats first, then detail
+    let shortFloat = safeNum(keyStats.shortPercentOfFloat ?? detail.shortPercentOfFloat);
+    if (shortFloat !== null && shortFloat !== 0) {
+      // Yahoo typically returns as decimal (0.126 = 12.6%)
+      // Keep as-is; caller decides representation
+      metrics.shortFloatPct = Math.round(shortFloat * 10000) / 10000; // Round to 4 decimals
+    }
+
+    // Days to cover (short ratio): try keyStats first
+    let daysTocover = safeNum(keyStats.shortRatio ?? keyStats.daysToCover);
+    if (daysTocover !== null && daysTocover > 0) {
+      metrics.daysToCover = Math.round(daysTocover * 100) / 100; // Round to 2 decimals
+    }
+  } catch (err) {
+    logger.warn('Error extracting short interest metrics', { error: err });
+  }
+
+  return metrics;
+}
+
+// ---------------------------------------------------------------------------
 // Data fetching helpers
 // ---------------------------------------------------------------------------
+async function fetchOptionsData(ticker: string): Promise<any> {
+  try {
+    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3001';
+    const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+
+    if (internalSecret) {
+      headers['x-api-key'] = internalSecret;
+    }
+
+    const response = await fetch(`${baseUrl}/api/stock_data/${ticker}/options`, {
+      method: 'GET',
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Options fetch failed with status ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (err) {
+    logger.warn(`Failed to fetch options data for ${ticker}`, { error: err });
+    // Return graceful fallback
+    return {
+      ticker,
+      available: false,
+      iv: null,
+      ivRank: null,
+      putCallRatio: null,
+      optionsChainSize: 0,
+      dataQuality: {
+        ivAvailable: false,
+        ivRankAvailable: false,
+        putCallRatioAvailable: false,
+      },
+    };
+  }
+}
+
 async function fetchOhlcv(ticker: string) {
   const fiveYearsAgo = new Date(Date.now() - 5 * 365.25 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const now = new Date();
@@ -217,6 +356,7 @@ export async function GET(
 
     // ---- 2. Fetch fundamentals + analyst targets (single quoteSummary call) ----
     let summary: any = {};
+    let earningsModule: any = {};
     try {
       summary = await yahooFinance.quoteSummary(validatedTicker, {
         modules: [
@@ -230,6 +370,17 @@ export async function GET(
     } catch (err) {
       logger.warn(`Failed to fetch quoteSummary for ${validatedTicker}`, { error: err });
       summary = {};
+    }
+
+    // ---- 2b. Fetch earnings history separately (higher failure tolerance) ----
+    try {
+      const earningsSummary = await yahooFinance.quoteSummary(validatedTicker, {
+        modules: ['earnings'],
+      });
+      earningsModule = (earningsSummary as any).earnings ?? {};
+    } catch (err) {
+      logger.warn(`Failed to fetch earnings module for ${validatedTicker}`, { error: err });
+      earningsModule = {};
     }
 
     const price    = (summary as any).price            ?? {};
@@ -289,7 +440,22 @@ export async function GET(
       recommendationMean,
     };
 
-    // ---- 3. Macro data (VIX, 10Y Treasury, Sector ETF) ----
+    // ---- Feature Metrics (earnings surprises + short interest) ----
+    const surprises = extractEarningsSurprises(earningsModule);
+    const shortInterest = extractShortInterestMetrics(keyStats, detail);
+
+    const featureMetrics = {
+      epsSurpriseAvg4Q: surprises.epsSurpriseAvg4Q,
+      revenueSurpriseAvg4Q: surprises.revenueSurpriseAvg4Q,
+      shortFloatPct: shortInterest.shortFloatPct,
+      daysToCover: shortInterest.daysToCover,
+      asOf: new Date().toISOString().slice(0, 10),
+    };
+
+    // ---- 3. Options data (IV, IV Rank, Put/Call Ratio) ----
+    const optionsData = await fetchOptionsData(validatedTicker);
+
+    // ---- 4. Macro data (VIX, 10Y Treasury, Sector ETF) ----
     const sectorEtfSym = SECTOR_ETF[resolvedSector] ?? 'SPY';
     const [vixData, tnxData, etfData] = await Promise.all([
       fetchMacroSeries('^VIX'),
@@ -303,7 +469,7 @@ export async function GET(
       sectorEtf:   { ticker: sectorEtfSym, data: etfData },
     };
 
-    // ---- 4. Earnings history ----
+    // ---- 5. Earnings history ----
     let historicalEarnings: any[] = [];
     try {
       const earningsSummary = await yahooFinance.quoteSummary(validatedTicker, {
@@ -342,7 +508,13 @@ export async function GET(
       logger.warn('Failed to fetch earnings data', { error: err });
     }
 
-    // ---- 5. Data quality ----
+    // ---- 6. Data quality ----
+    const missingFeatures: string[] = [];
+    if (featureMetrics.epsSurpriseAvg4Q === null) missingFeatures.push('epsSurpriseAvg4Q');
+    if (featureMetrics.revenueSurpriseAvg4Q === null) missingFeatures.push('revenueSurpriseAvg4Q');
+    if (featureMetrics.shortFloatPct === null) missingFeatures.push('shortFloatPct');
+    if (featureMetrics.daysToCover === null) missingFeatures.push('daysToCover');
+
     const dataQuality = {
       historyDays,
       historyYears,
@@ -350,6 +522,8 @@ export async function GET(
       analystDataAvailable: analystTargetMean !== null && analystOpinionCount > 0,
       macroDataAvailable:   vixData.length > 0 || tnxData.length > 0,
       imputedFields,
+      missingFeatureMetrics: missingFeatures.length > 0 ? missingFeatures : undefined,
+      earningsSurpriseQuarterCount: surprises.quarterCount,
     };
 
     const payload = {
@@ -357,6 +531,8 @@ export async function GET(
       historicalData,
       stockMetrics,
       macroData,
+      optionsData,
+      featureMetrics,
       historicalEarnings,
       dataQuality,
     };

@@ -274,11 +274,13 @@
             <div id="stock-data-enriched" class="step-card">
                 <h3><span class="method get">GET</span> /api/stock_data/[ticker]/data</h3>
                 <div class="component-tag">Internal: Prediction Preprocessor</div>
-                <p>Assembles the complete 5-year data payload for the Prediction Engine.</p>
+                <p>Assembles the complete 5-year data payload for the Prediction Engine (v3).</p>
                 <strong>Logic Flow:</strong>
                 <ul class="flow">
                     <li>Fetches 5 years of OHLCV data (up to yesterday).</li>
                     <li>Fetches macro series (VIX, 10Y Treasury, Sector ETFs) using 24h <code>macroCache</code>.</li>
+                    <li><strong>Feature Metrics:</strong> Calculates 4-quarter average earnings surprises and short interest.</li>
+                    <li><strong>Derivatives:</strong> Integrates implied volatility (IV) and Put/Call ratios.</li>
                     <li>Imputes missing fundamental data using sector medians.</li>
                     <li>Calculates <code>dataQuality</code> metadata (historyYears, imputedFields).</li>
                     <li>Caches result for 5 minutes.</li>
@@ -290,19 +292,20 @@
             <h2><span>2</span> Prediction Engine</h2>
             <div id="prediction" class="step-card">
                 <h3><span class="method post">POST</span> /api/prediction/[ticker]</h3>
-                <div class="component-tag">Process: Python Spawn</div>
+                <div class="component-tag">Process: Python Spawn (v3 Engine)</div>
                 <p>Generates an AI price prediction using a local MLP neural network.</p>
                 <strong>Logic Flow:</strong>
                 <ul class="flow">
                     <li>Enforces 30s rate limit per ticker.</li>
                     <li>Spawns <code>predict_weighted_analysis.py</code>.</li>
-                    <li>Applies 50% weighted influence from technical signals.</li>
+                    <li><strong>v3 Features:</strong> Utilizes 73 feature columns including lag features, rolling stats, and options data.</li>
+                    <li><strong>Horizons:</strong> Outputs 1-day, 1-month, 6-month, and 1-year targets.</li>
                 </ul>
                 <p><strong>Associated Tests:</strong> <code>stockPrediction.test.ts</code>, <code>predictionQueue.test.ts</code></p>
             </div>
             <div id="deepmoney" class="step-card">
                 <h3><span class="method get">GET</span> /api/prediction/deepmoney</h3>
-                <div class="component-tag">Process: Recursive News & ML Validation</div>
+                <div class="component-tag">Process: Recursive News & ML Validation (V2)</div>
                 <p>Next-generation discovery engine with ML-based momentum validation and parallel ETF discovery.</p>
                 <div class="highlight-box">
                     <strong>Query Parameters:</strong> <code>refresh=true</code>: Bypasses the 30-minute cache.
