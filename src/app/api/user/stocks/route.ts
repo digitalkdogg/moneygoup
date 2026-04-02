@@ -41,9 +41,10 @@ export const POST = validate(purchaseStockSchema)(
         INSERT INTO user_stocks (user_id, stock_id, shares, purchase_price, is_purchased, initial_purchase_date, last_transaction_date, is_active)
         VALUES (?, ?, ?, ?, ?, NOW(), NOW(), 1)
         ON DUPLICATE KEY UPDATE
-          shares = shares + VALUES(shares),
           purchase_price = ((purchase_price * shares) + (VALUES(purchase_price) * VALUES(shares))) / (shares + VALUES(shares)),
+          shares = shares + VALUES(shares),
           is_purchased = VALUES(is_purchased),
+          initial_purchase_date = IFNULL(initial_purchase_date, NOW()),
           last_transaction_date = NOW(),
           is_active = 1;
       `;
