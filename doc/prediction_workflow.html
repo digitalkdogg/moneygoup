@@ -131,7 +131,7 @@
             <a href="#cli-usage" class="nav-link">-- CLI Usage</a>
             <a href="#step4" class="nav-link">4. Feature Engine (Python)</a>
             <a href="#algorithm-flow" class="nav-link">-- Algorithm Flowchart</a>
-            <a href="#feature-details" class="nav-link">-- 73 Feature Groups</a>
+            <a href="#feature-details" class="nav-link">-- 109+ Feature Groups</a>
             <a href="#step5" class="nav-link">5. MLP & MC Inference</a>
             <a href="#confidence" class="nav-link">-- Confidence Scoring</a>
             <a href="#constants" class="nav-link">-- Key Constants</a>
@@ -151,8 +151,8 @@
                 <div class="component-tag">Frontend Component: StockPrediction.tsx</div>
                 <p>The workflow begins when the user clicks <strong>"Generate AI Prediction"</strong> on the stock detail page.</p>
                 <ul>
-                    <li><strong>Lookback:</strong> The model requires 60 trading days of context for each prediction.</li>
-                    <li><strong>Inputs:</strong> The UI passes the <code>technicalScore</code> (-14 to +14) and recent <code>newsArticles</code> to be used as final weights.</li>
+                    <li><strong>Lookback:</strong> The model requires 45 trading days of sequence context (optimized for <20s response).</li>
+                    <li><strong>Inputs:</strong> The UI passes the <code>technicalScore</code> (-14 to +14), <code>recommendationKey</code>, and recent <code>newsArticles</code> to be used as final weights.</li>
                 </ul>
             </div>
         </section>
@@ -170,8 +170,8 @@
                         <p style="font-size: 0.8rem;">Daily OHLCV bars.</p>
                     </div>
                     <div class="mini-card">
-                        <h4>Macro</h4>
-                        <p style="font-size: 0.8rem;">VIX, 10Y Treasury, and Sector ETF data.</p>
+                        <h4>Macro + Regime</h4>
+                        <p style="font-size: 0.8rem;">VIX, Treasury, Credit Spreads (HYG/LQD), and DXY for regime detection.</p>
                     </div>
                     <div class="mini-card">
                         <h4>Imputation</h4>
@@ -199,98 +199,12 @@
 
         <section id="input-schema">
             <h3 style="color: var(--primary-dark);">-- Input JSON Schema (Verbatim Payload)</h3>
-            <p style="font-size: 0.9rem; margin-bottom: 1rem;">The POST body is written verbatim to a temp file and passed to the Python script. All fields are top-level JSON keys except for nested metrics.</p>
+            <p style="font-size: 0.9rem; margin-bottom: 1rem;">The POST body is written verbatim to a temp file and passed to the Python script.</p>
             
-           
-                <!-- Required Fields -->
-                <div class="step-card" style="grid-column: span 2;">
-                    <h4>Required Fields</h4>
-                    <div style="margin-bottom: 1.2rem;">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span class="tag t-req">Required</span>
-                            <code style="font-weight: bold; color: var(--primary);">historicalData</code>
-                            <span class="tag t-num">Array</span>
-                        </div>
-                        <p style="font-size: 0.8rem; color: #64748b; margin-top: 0.4rem; line-height: 1.4;">
-                            Minimum 504 trading days (~2 years) required. Each object must contain:
-                            <code>date</code> (YYYY-MM-DD), <code>open</code>, <code>high</code>, <code>low</code>, <code>close</code>, and <code>volume</code> (all floats).
-                        </p>
-                    </div>
-                    <div>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span class="tag t-req">Required</span>
-                            <code style="font-weight: bold; color: var(--primary);">stockMetrics</code>
-                            <span class="tag t-num">Object</span>
-                        </div>
-                        <p style="font-size: 0.8rem; color: #64748b; margin-top: 0.4rem; line-height: 1.4;">
-                            Fundamental metrics object. Values are broadcast as row-constants across the historical dataset.
-                        </p>
-                    </div>
-                </div>
-
-                <!-- Fundamental Sub-fields -->
-                <div class="step-card">
-                    <h4>Stock Metrics Sub-fields</h4>
-                    <p style="font-size: 0.75rem; color: #64748b; margin-bottom: 0.6rem; font-style: italic;">All fields are optional; system applies sector-median defaults if missing.</p>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; font-size: 0.75rem; font-family: ui-monospace, monospace;">
-                        <div title="Price-to-Earnings (Def: 20.0)">peRatio</div>
-                        <div title="Price-to-Book (Def: 3.0)">pbRatio</div>
-                        <div>trailingEps</div>
-                        <div>forwardEps</div>
-                        <div>revenueGrowth</div>
-                        <div>earningsGrowth</div>
-                        <div>profitMargins</div>
-                        <div title="Debt-to-Equity (Def: 75.0)">debtToEquity</div>
-                        <div>returnOnEquity</div>
-                        <div title="Beta (Def: 1.0)">beta</div>
-                        <div>dividendYield</div>
-                        <div>analystTargetMean</div>
-                        <div title="Recommendation Mean (1=Buy, 5=Sell)">recommendationMean</div>
-                    </div>
-                </div>
-
-                <!-- Optional Top-Level -->
-                <div class="step-card">
-                    <h4>Optional Top-Level Fields</h4>
-                    <div style="margin-bottom: 0.8rem;">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span class="tag t-opt">Optional</span>
-                            <code style="color: var(--teal);">macroData</code>
-                            <span class="tag t-num">Object</span>
-                        </div>
-                        <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.2rem;">Contains <code>vix</code>, <code>treasury10y</code>, and <code>sectorEtf</code> series.</p>
-                    </div>
-                    <div style="margin-bottom: 0.8rem;">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span class="tag t-opt">Optional</span>
-                            <code style="color: var(--teal);">newsArticles</code>
-                            <span class="tag t-num">Array</span>
-                        </div>
-                        <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.2rem;">Recent news items with <code>sentiment_score</code> and timestamps.</p>
-                    </div>
-                    <div style="margin-bottom: 0.8rem;">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span class="tag t-opt">Optional</span>
-                            <code style="color: var(--teal);">technicalScore</code>
-                            <span class="tag t-num">Int</span>
-                        </div>
-                        <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.2rem;">External technical signal weight (-14 to +14).</p>
-                    </div>
-                    <div>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span class="tag t-opt">Optional</span>
-                            <code style="color: var(--teal);">dataQuality</code>
-                            <span class="tag t-num">Object</span>
-                        </div>
-                        <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.2rem;">Metadata: <code>historyYears</code>, <code>imputedFields</code> list.</p>
-                    </div>
-                </div>
-            
-
             <pre><code>{
   "historicalData": [{ "date": "2024-03-08", "close": 150.0, "volume": 5000000, ... }, ...],
-  "stockMetrics": { "peRatio": 25.4, "revenueGrowth": 0.15, ... },
-  "macroData": { "vix": [...], "treasury10y": [...] },
+  "stockMetrics": { "peRatio": 25.4, "analystTargetMean": 185.0, "recommendationKey": "buy", ... },
+  "macroData": { "vix": [...], "hyg": [...], "lqd": [...], "dxy": [...] },
   "newsArticles": [{ "title": "...", "sentiment_score": 4 }, ...],
   "technicalScore": 8
 }</code></pre>
@@ -299,29 +213,22 @@
         <section id="cli-usage">
             <h3 style="color: var(--primary-dark);">-- CLI Usage (called internally by route.ts)</h3>
             <pre><code># Invocation inside route.ts via child_process.spawn()
-python3 predict_weighted_analysis.py NU --input_file /tmp/tf_prediction_input_{uuid}.json --outlook 1_month
-
-# Manual test run against sample data
-python3 predict_weighted_analysis.py IONQ --input_file ./sampledata.json --outlook all > result.json
+python3 predict_weighted_analysis.py NU --input_file /tmp/tf_prediction_input_{uuid}.json --outlook all
 
 # Parameters:
-# --outlook: 1_day, 1_month, 6_month, 1_year, all (default: all)
-#   - 1_day: Short-term outlook
-#   - 1_month, 6_month, 1_year: Standard multi-horizon predictions
-#   - all: Returns all horizons with full signal breakdowns
-# The ticker is a positional CLI arg — NOT embedded in the JSON file</code></pre>
+# --outlook: 1_day, 1_month, 6_month, 1_year, all (default: all)</code></pre>
         </section>
 
         <div class="flow-arrow">↓</div>
 
         <section id="step4">
-            <h2><span>4</span> Feature Engineering</h2>
+            <h2><span>4</span> Feature Engine & Regime Detection</h2>
             <div class="step-card">
                 <div class="component-tag">Python Engine: predict_weighted_analysis.py</div>
-                <p>The script transforms raw JSON into a 73-column feature tensor using specialized preprocessing:</p>
+                <p>The script transforms raw JSON into a 109-column feature tensor using specialized preprocessing:</p>
                 <ul>
-                    <li><strong>Time-Decay News:</strong> Older news articles lose weight linearly over 30 days. Final score is <code>tanh(weighted_avg)</code>.</li>
-                    <li><strong>Cyclical Encoding:</strong> Months are converted to <code>sin/cos</code> coordinates to prevent December → January "cliffs".</li>
+                    <li><strong>Regime Selection (GMM):</strong> Fits a Gaussian Mixture Model to identify the current market regime (Risk-On, Risk-Off Stress, High Vol, Low Vol).</li>
+                    <li><strong>Interaction Terms:</strong> Computes crosses like <code>Regime x Put_Call_Ratio</code> to adjust sensitivity based on market state.</li>
                     <li><strong>Scaling:</strong> All features are normalized to [0, 1] using <code>MinMaxScaler</code>.</li>
                 </ul>
             </div>
@@ -349,133 +256,76 @@ python3 predict_weighted_analysis.py IONQ --input_file ./sampledata.json --outlo
 
                 <div class="flow-container">
                     <div class="flow-node">1. JSON Input Parsing</div>
-                    <div class="flow-node sub">Historical OHLCV (5yr) + Macro + News + Fundamentals</div>
                     <div class="flow-arrow-small">↓</div>
                     
-                    <div class="flow-node logic">2. Feature Engineering (73 Tensors)</div>
-                    <div class="flow-node sub">MACD/RSI/BB + v3 Lag Features + Volatility-Scaled Lags + Calendar Sin/Cos</div>
+                    <div class="flow-node logic">2. Macro Regime Detection (GMM)</div>
+                    <div class="flow-node sub">Analyzes VIX + Credit Spreads + DXY to select K=3/4 regimes</div>
                     <div class="flow-arrow-small">↓</div>
 
-                    <div class="flow-node">3. Min-Max Normalization [0, 1]</div>
+                    <div class="flow-node logic">3. Feature Engineering (109+ Tensors)</div>
+                    <div class="flow-node sub">OHLCV + Technicals + Regime Probabilities + Interaction Terms</div>
                     <div class="flow-arrow-small">↓</div>
 
-                    <div class="flow-node logic">4. 80/20 TimeSeriesSplit</div>
-                    <div class="flow-split">
-                        <div class="flow-node sub" style="background: #f0fdf4;">Training Set (Nodes 0 → N-252)</div>
-                        <div class="flow-node sub" style="background: #fef2f2;">Holdout Set (Last 252 Days)</div>
-                    </div>
-                    <div class="flow-arrow-small">↓</div>
-
-                    <div class="flow-node">5. MLP Training (128 → 64 → 32 Layers)</div>
+                    <div class="flow-node">4. MLP Training (256 → 128 → 64 → 32)</div>
                     <div class="flow-node sub">Adam Optimizer + Early Stopping (MAPE Minimization)</div>
                     <div class="flow-arrow-small">↓</div>
 
-                    <div class="flow-node logic">6. Dual Inference Path</div>
+                    <div class="flow-node logic">5. Dual Inference Path</div>
                     <div class="flow-split">
                         <div class="flow-node">Deterministic Prediction<br><small>Final Sequence Pass</small></div>
-                        <div class="flow-node">Monte Carlo Dropout (20x)<br><small>Feature-Scaled Gaussian Noise</small></div>
+                        <div class="flow-node">Monte Carlo Dropout (12x)<br><small>Feature-Scaled Noise</small></div>
                     </div>
                     <div class="flow-arrow-small">↓</div>
 
-                    <div class="flow-node">7. Trajectory Interpolation</div>
-                    <div class="flow-node sub">Linear Extrapolation for 18 Monthly Waypoints</div>
+                    <div class="flow-node logic">6. Heuristic Signal Weighting</div>
+                    <div class="flow-node sub">Analyst Consensus + Premium + Earnings Beats + Technical Score</div>
                     <div class="flow-arrow-small">↓</div>
 
-                    <div class="flow-node logic">8. Heuristic Signal Weighting (+/- 3.5%)</div>
-                    <div class="flow-node sub">RSI Overbought/Oversold + News Sentiment + User Technical Score</div>
-                    <div class="flow-arrow-small">↓</div>
-
-                    <div class="flow-node">9. Confidence Scoring & JSON Export</div>
+                    <div class="flow-node">7. JSON Result Export</div>
                 </div>
             </div>
         </section>
 
         <section id="feature-details">
-            <h3 style="color: var(--primary-dark);">-- Feature Inventory (v3 Neural Tensor)</h3>
+            <h3 style="color: var(--primary-dark);">-- Feature Inventory (v3+ Neural Tensor)</h3>
             <div class="step-card" style="padding: 0; overflow: hidden;">
                 <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
                     <thead>
                         <tr style="background: #f8fafc; border-bottom: 1px solid var(--border);">
                             <th style="padding: 0.8rem 1rem; text-align: left; width: 25%;">Category</th>
                             <th style="padding: 0.8rem 1rem; text-align: left; width: 35%;">Feature Columns</th>
-                            <th style="padding: 0.8rem 1rem; text-align: left;">Purpose / Logic <span class="tag" style="background: #dcfce7; color: #166534; margin-left: 8px;">UPDATED</span></th>
+                            <th style="padding: 0.8rem 1rem; text-align: left;">Purpose / Logic</th>
                         </tr>
                     </thead>
                     <tbody style="color: #475569;">
                         <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding: 0.8rem 1rem; font-weight: 600;">Price &amp; Volume</td>
-                            <td style="padding: 0.8rem 1rem;"><code>Open, High, Low, Close, Volume</code></td>
-                            <td>Baseline OHLCV price action and trading activity.</td>
+                            <td style="padding: 0.8rem 1rem; font-weight: 600;">Regime Probabilities</td>
+                            <td style="padding: 0.8rem 1rem;"><code>Regime_Prob_0, 1, 2, 3</code></td>
+                            <td>Soft-assignment probabilities from the GMM regime detector.</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding: 0.8rem 1rem; font-weight: 600;">Interactions</td>
+                            <td style="padding: 0.8rem 1rem;"><code>Regime_x_PC_Ratio, Regime_x_HYG_LQD</code></td>
+                            <td>Adjusts feature importance based on identified market state.</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding: 0.8rem 1rem; font-weight: 600;">Macro Indicators</td>
+                            <td style="padding: 0.8rem 1rem;"><code>HYG_LQD_Ratio, DXY_Return, CurveSlope</code></td>
+                            <td>Broad market health and liquidity signals.</td>
                         </tr>
                         <tr style="border-bottom: 1px solid var(--border);">
                             <td style="padding: 0.8rem 1rem; font-weight: 600;">Standard Technicals</td>
-                            <td style="padding: 0.8rem 1rem;"><code>MACD, MACD_Signal, RSI_14, STOCH_K, STOCH_D, ATR_14</code></td>
-                            <td>Momentum oscillators, convergence/divergence, and volatility (ATR).</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding: 0.8rem 1rem; font-weight: 600;">Trend Analysis</td>
-                            <td style="padding: 0.8rem 1rem;"><code>SMA_20, EMA_50, SMA_200, EMA_200, GoldenCross</code></td>
-                            <td>Moving average crossovers and long-term trend support/resistance.</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding: 0.8rem 1rem; font-weight: 600;">Relative Range</td>
-                            <td style="padding: 0.8rem 1rem;"><code>BB_Upper, BB_Lower, BB_Mid, Hi/LoRatio_52w, HistVol_30</code></td>
-                            <td>Positioning relative to historical volatility bands and 52-week extremes.</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding: 0.8rem 1rem; font-weight: 600;">Fundamentals</td>
-                            <td style="padding: 0.8rem 1rem;"><code>PE/PB_Ratio, EPS, Rev/EarnGrowth, Margins, ROE, Beta, DebtToEquity</code></td>
-                            <td>Broadcast scalar values representing corporate health and valuation.</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding: 0.8rem 1rem; font-weight: 600;">Analyst Sentiment</td>
-                            <td style="padding: 0.8rem 1rem;"><code>AnalystPremium, AnalystPremiumWeighted, RecommendationMean</code></td>
-                            <td>Distance to consensus price targets weighted by analyst coverage density.</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding: 0.8rem 1rem; font-weight: 600;">Macro &amp; External</td>
-                            <td style="padding: 0.8rem 1rem;"><code>VIX, VIX_20d_Avg, Treasury10Y, SectorETF_60d_Corr</code></td>
-                            <td>Market fear index, interest rate environment, and sector correlation.</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding: 0.8rem 1rem; font-weight: 600;">Derived &amp; NLP</td>
-                            <td style="padding: 0.8rem 1rem;"><code>NewsSentiment, EarningsBeatStreak, Month_Sin/Cos, EarningsSeason</code></td>
-                            <td>Tanh-scaled news sentiment and cyclical calendar features.</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding: 0.8rem 1rem; font-weight: 600;">Options Market</td>
-                            <td style="padding: 0.8rem 1rem;"><code>IV, IV_Rank, Put_Call_Ratio</code></td>
-                            <td>Real-time options volatility and sentiment signals from internal derivatives API.</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding: 0.8rem 1rem; font-weight: 600;">Earnings &amp; Short</td>
-                            <td style="padding: 0.8rem 1rem;"><code>EPS_Surprise_Avg_4Q, Rev_Surprise_Avg_4Q, ShortFloatPct, DaysToCover</code></td>
-                            <td>Fundamental surprises and bearish positioning context.</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding: 0.8rem 1rem; font-weight: 600;">Lag Features (v3)</td>
-                            <td style="padding: 0.8rem 1rem;"><code>Close_lag_5/10/20, Volume_lag_5</code></td>
-                            <td>Explicit past values to help the MLP learn temporal dependencies.</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding: 0.8rem 1rem; font-weight: 600;">Short-Term Momentum</td>
-                            <td style="padding: 0.8rem 1rem;"><code>ROC_5d/20d, Return_1d/5d/20d</code></td>
-                            <td>High-frequency rate-of-change signals.</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding: 0.8rem 1rem; font-weight: 600;">Breakout Signals</td>
-                            <td style="padding: 0.8rem 1rem;"><code>PriceToHigh_5d/20d, PriceToLow_20d, VolumePriceTrend, EMA_Slope_10/20</code></td>
-                            <td>Proximity to rolling highs/lows and steepness of trend lines.</td>
+                            <td style="padding: 0.8rem 1rem;"><code>MACD, RSI, STOCH, ATR, SMA/EMA</code></td>
+                            <td>Momentum oscillators and trend lines.</td>
                         </tr>
                         <tr>
                             <td style="padding: 0.8rem 1rem; font-weight: 600;">Statistical Moments</td>
                             <td style="padding: 0.8rem 1rem;"><code>RollingMean/Std/Skew/Sharpe_20d</code></td>
-                            <td>Compressed return distribution characteristics over a 20-day window.</td>
+                            <td>Compressed return distribution characteristics.</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
-            <p style="font-size: 0.8rem; color: #64748b; font-style: italic; margin-top: 1rem;">* Features are normalized via MinMaxScaler and flattened into a SEQ_LEN=60 window (60 × 73 = 4,380 total neural inputs).</p>
         </section>
 
         <div class="flow-arrow">↓</div>
@@ -483,45 +333,17 @@ python3 predict_weighted_analysis.py IONQ --input_file ./sampledata.json --outlo
         <section id="step5">
             <h2><span>5</span> MLP Training & MC Inference</h2>
             <div class="step-card">
-                <div class="component-tag">Model Architecture: 128 → 64 → 32 (ReLU)</div>
-                <p>The system trains a fresh model on the historical sequences to capture the stock's specific unique character:</p>
-                <ol>
-                    <li><strong>Train/Test Split:</strong> 80% history for training, last 20% for holdout evaluation (MAPE calculation).</li>
-                    <li><strong>Multi-Horizon:</strong> Model outputs targets for 1-day, 1-month, 6-month, and 12-month horizons.</li>
-                    <li><strong>Monte Carlo Passes (20x):</strong> Gaussian noise (10% of recent &sigma;) is added to the features across 20 iterations.</li>
-                    <li><strong>Uncertainty Bounds:</strong> Upper/Lower bands are derived from the 10th and 90th percentile of the MC results.</li>
-                </ol>
-            </div>
-        </section>
-
-        <section id="confidence">
-            <h3 style="color: var(--primary-dark);">-- Confidence Score Breakdown (Max 100)</h3>
-            <div class="conf-grid">
-                <div class="conf-box">
-                    <div class="conf-pts">40 pts</div>
-                    <div class="conf-lbl">Model Accuracy</div>
-                    <p style="font-size: 0.7rem; color: var(--muted);">Based on holdout set MAPE (Mean Absolute % Error)</p>
-                </div>
-                <div class="conf-box">
-                    <div class="conf-pts">25 pts</div>
-                    <div class="conf-lbl">History Depth</div>
-                    <p style="font-size: 0.7rem; color: var(--muted);">Full 5-year history gives max points</p>
-                </div>
-                <div class="conf-box">
-                    <div class="conf-pts">20 pts</div>
-                    <div class="conf-lbl">Completeness</div>
-                    <p style="font-size: 0.7rem; color: var(--muted);">Penalty for imputed/missing fundamental fields</p>
-                </div>
-                <div class="conf-box">
-                    <div class="conf-pts">15 pts</div>
-                    <div class="conf-lbl">Analyst Context</div>
-                    <p style="font-size: 0.7rem; color: var(--muted);">Higher analyst coverage count improves stability</p>
-                </div>
+                <div class="component-tag">Model: 256 → 128 → 64 → 32 (ReLU)</div>
+                <p>The system trains a fresh model on historical sequences (SEQ_LEN=45):</p>
+                <ul>
+                    <li><strong>Monte Carlo Passes (12x):</strong> Gaussian noise (10% of recent &sigma;) is added to features.</li>
+                    <li><strong>1-Day Prediction:</strong> Linear interpolation between current price and 6-month target <code>(1/126 trading days)</code>.</li>
+                </ul>
             </div>
         </section>
 
         <section id="constants">
-            <h3 style="color: var(--primary-dark);">-- Key Constants & Hyperparameters</h3>
+            <h3 style="color: var(--primary-dark);">-- Key Constants (Speed Optimized)</h3>
             <div class="card" style="padding: 0; overflow: hidden; background: white; border: 1px solid var(--border);">
                 <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
                     <tr style="background: #f8fafc; border-bottom: 1px solid var(--border);">
@@ -531,63 +353,23 @@ python3 predict_weighted_analysis.py IONQ --input_file ./sampledata.json --outlo
                     </tr>
                     <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 0.8rem 1rem;"><code>SEQ_LEN</code></td>
-                        <td>60</td>
-                        <td>Trading-day lookback per training example. 60 × 73 = 4,380 input dimensions per sample.</td>
+                        <td>45</td>
+                        <td>Lookback window. Balanced for speed and historical context.</td>
                     </tr>
                     <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 0.8rem 1rem;"><code>N_EPOCHS</code></td>
-                        <td>60</td>
-                        <td>Max training iterations. Early stopping (n_iter_no_change=10) usually fires well before this.</td>
+                        <td>50</td>
+                        <td>Capped training iterations with early stopping (n=8).</td>
                     </tr>
                     <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 0.8rem 1rem;"><code>BATCH_SIZE</code></td>
                         <td>128</td>
-                        <td>Declared but sklearn MLPRegressor uses full-batch Adam internally. Retained for reference.</td>
+                        <td>Optimized for fast gradient steps on CPU.</td>
                     </tr>
                     <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 0.8rem 1rem;"><code>MC_RUNS</code></td>
-                        <td>20</td>
-                        <td>Monte Carlo perturbation passes. Sufficient to estimate 10th–90th percentile spread.</td>
-                    </tr>
-                    <tr style="border-bottom: 1px solid var(--border);">
-                        <td style="padding: 0.8rem 1rem;"><code>SEED</code></td>
-                        <td>42</td>
-                        <td>Applied to Python <code>random</code>, NumPy, and MLPRegressor for fully reproducible outputs.</td>
-                    </tr>
-                    <tr style="border-bottom: 1px solid var(--border);">
-                        <td style="padding: 0.8rem 1rem;"><code>T6 / T12 / T18</code></td>
-                        <td>126 / 252 / 378</td>
-                        <td>Trading-day horizons for 6m, 12m, and 18m predictions and trajectory waypoints.</td>
-                    </tr>
-                    <tr style="border-bottom: 1px solid var(--border);">
-                        <td style="padding: 0.8rem 1rem;">MLP hidden layers</td>
-                        <td>(128, 64, 32)</td>
-                        <td>Widened in v3 from (64, 32) to accommodate expanded 73-feature set.</td>
-                    </tr>
-                    <tr style="border-bottom: 1px solid var(--border);">
-                        <td style="padding: 0.8rem 1rem;">MC noise scale</td>
-                        <td>10% of σ</td>
-                        <td>Gaussian noise = 10% of each feature's 20-day std in scaled space. Per-feature calibration.</td>
-                    </tr>
-                    <tr style="border-bottom: 1px solid var(--border);">
-                        <td style="padding: 0.8rem 1rem;">Holdout split</td>
-                        <td>80 / 20</td>
-                        <td>Last 20% of sequences for cv_mae calculation. Replaced 3-fold walk-forward CV in v3 for speed.</td>
-                    </tr>
-                    <tr style="border-bottom: 1px solid var(--border);">
-                        <td style="padding: 0.8rem 1rem;">Min data requirement</td>
-                        <td>504 rows</td>
-                        <td>Enforced in route.ts (400 error) and in Python (ValueError). Ensures t+252 targets exist.</td>
-                    </tr>
-                    <tr style="border-bottom: 1px solid var(--border);">
-                        <td style="padding: 0.8rem 1rem;">Rate limit cooldown</td>
-                        <td>30,000 ms</td>
-                        <td>Per <code>${email}-${ticker}</code> key. In-memory map with O(n) eviction on every write.</td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 0.8rem 1rem;">Map size hard cap</td>
-                        <td>5,000 entries</td>
-                        <td>Clears the entire cooldown map on abnormal traffic bursts to prevent memory leaks.</td>
+                        <td>12</td>
+                        <td>Statistical spread generation for confidence intervals.</td>
                     </tr>
                 </table>
             </div>
@@ -599,148 +381,38 @@ python3 predict_weighted_analysis.py IONQ --input_file ./sampledata.json --outlo
             <h2><span>6</span> Final Signal Weighting</h2>
             <div class="step-card">
                 <div class="component-tag">Logic: metric_analysis() adjustment</div>
-                <p>The "Pure AI" result from the neural network is nudged by high-level market signals to ensure it aligns with current technical realities and user-defined indicator strength.</p>
+                <p>The neural network result is nudged by high-level market and analyst signals:</p>
                 <div class="formula">
                     Final Price = AI_Output * (1.0 + Total_Impact)
                 </div>
-                <p style="font-size: 0.85rem; color: #64748b;">This multiplier allows the model to stay grounded by short-term momentum and trend signals that may not be fully captured by historical sequences alone.</p>
             </div>
         </section>
 
         <section id="heuristic-logic">
-            <h3 style="color: var(--primary-dark);">-- Heuristic Weighting Logic (Total_Impact Breakdown)</h3>
+            <h3 style="color: var(--primary-dark);">-- Heuristic Weighting Logic (Strengthened)</h3>
             <div class="step-card">
-                <p>The <code>Total_Impact</code> is the sum of five distinct market signals. Each signal adds or subtracts a specific percentage from the base AI prediction:</p>
-                
                 <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));">
                     <div class="mini-card" style="border-left: 3px solid var(--primary);">
-                        <h4>1. Technical Total Score</h4>
-                        <p style="font-size: 0.75rem; color: #64748b;">Influence of the summed indicator values from the UI.</p>
-                        <div class="formula" style="font-size: 0.7rem; background: #f1f5f9;">Score * 0.0025</div>
-                        <p style="font-size: 0.7rem;">Max Influence: <strong>+/- 3.5%</strong> (at +/- 14 score)</p>
-                    </div>
-                    <div class="mini-card" style="border-left: 3px solid var(--success);">
-                        <h4>2. Uptrend Bonus</h4>
-                        <p style="font-size: 0.75rem; color: #64748b;">Checks if the stock is making Higher Highs and Higher Lows.</p>
-                        <p style="font-size: 0.7rem;">Fixed Influence: <strong>+/- 2.0%</strong></p>
-                    </div>
-                    <div class="mini-card" style="border-left: 3px solid var(--teal);">
-                        <h4>3. News Sentiment</h4>
-                        <p style="font-size: 0.75rem; color: #64748b;">Decayed tanh-scaled score of recent headlines.</p>
-                        <div class="formula" style="font-size: 0.7rem; background: #f1f5f9;">Sentiment * 0.01</div>
-                        <p style="font-size: 0.7rem;">Max Influence: <strong>+/- 1.0%</strong></p>
-                    </div>
-                    <div class="mini-card" style="border-left: 3px solid var(--purple);">
-                        <h4>4. RSI Extremes</h4>
-                        <p style="font-size: 0.75rem; color: #64748b;">Punishes overbought (>75) and rewards oversold (<25).</p>
-                        <p style="font-size: 0.7rem;">Fixed Influence: <strong>+/- 1.0%</strong></p>
+                        <h4>1. Technical Score</h4>
+                        <div class="formula">Score * 0.005</div>
+                        <p style="font-size: 0.7rem;">Max Influence: <strong>+/- 7.0%</strong></p>
                     </div>
                     <div class="mini-card" style="border-left: 3px solid var(--warning);">
-                        <h4>5. Growth Multiplier</h4>
-                        <p style="font-size: 0.75rem; color: #64748b;">20-day trailing mean vs. prior 20-day mean.</p>
-                        <div class="formula" style="font-size: 0.7rem; background: #f1f5f9;">(Growth / 100) * 0.02</div>
-                        <p style="font-size: 0.7rem;">Variable Influence: Typically <strong>+/- 0.5%</strong></p>
+                        <h4>2. Analyst Consensus</h4>
+                        <div class="formula">Consensus * 0.05</div>
+                        <p style="font-size: 0.7rem;">Max Influence: <strong>+/- 5.0%</strong></p>
+                    </div>
+                    <div class="mini-card" style="border-left: 3px solid var(--teal);">
+                        <h4>3. Analyst Target Premium</h4>
+                        <div class="formula">Premium * 0.05</div>
+                        <p style="font-size: 0.7rem;">Max Influence: <strong>+/- 5.0%</strong></p>
+                    </div>
+                    <div class="mini-card" style="border-left: 3px solid var(--success);">
+                        <h4>4. Earnings Beats</h4>
+                        <div class="formula">Streak * 0.01</div>
+                        <p style="font-size: 0.7rem;">Max Influence: <strong>+4.0%</strong></p>
                     </div>
                 </div>
-
-                <h4 style="font-size: 0.85rem; margin-top: 2rem; color: var(--primary-dark);">Impact Classification Levels</h4>
-                <div class="card" style="padding: 0; overflow: hidden; background: white; border: 1px solid var(--border); margin-top: 0.5rem;">
-                    <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
-                        <tr style="background: #f8fafc; border-bottom: 1px solid var(--border);">
-                            <th style="padding: 0.6rem 1rem; text-align: left;">Total_Impact Value</th>
-                            <th style="padding: 0.6rem 1rem; text-align: left;">Classification</th>
-                            <th style="padding: 0.6rem 1rem; text-align: left;">System Meaning</th>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding: 0.6rem 1rem;"><code>> +0.08</code></td>
-                            <td style="color: var(--success); font-weight: bold;">Very Bullish</td>
-                            <td>Strong alignment across all technicals and AI.</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding: 0.6rem 1rem;"><code>+0.04 to +0.08</code></td>
-                            <td style="color: var(--success);">Bullish</td>
-                            <td>Technical momentum supports AI prediction.</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding: 0.6rem 1rem;"><code>-0.04 to +0.04</code></td>
-                            <td>Neutral</td>
-                            <td>AI prediction is primarily driving the result.</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding: 0.6rem 1rem;"><code>-0.08 to -0.04</code></td>
-                            <td style="color: var(--warning);">Bearish</td>
-                            <td>Technicals are dampening the AI's optimism.</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 0.6rem 1rem;"><code>< -0.08</code></td>
-                            <td style="color: #991b1b; font-weight: bold;">Very Bearish</td>
-                            <td>Strong technical headwind against AI prediction.</td>
-                        </tr>
-                    </table>
-                </div>
-            </div>
-        </section>
-
-        <section id="output-schema">
-            <h3 style="color: var(--primary-dark);">-- Final Output JSON Schema</h3>
-            <div class="card" style="padding: 0; overflow: hidden; background: white; border: 1px solid var(--border);">
-                <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
-                    <tr style="background: #f8fafc; border-bottom: 1px solid var(--border);">
-                        <th style="padding: 1rem; text-align: left;">Field</th>
-                        <th style="padding: 1rem; text-align: left;">Type</th>
-                        <th style="padding: 1rem; text-align: left;">Description</th>
-                    </tr>
-                    <tr style="border-bottom: 1px solid var(--border);">
-                        <td style="padding: 0.8rem 1rem;"><code>predicted_price_1d</code></td>
-                        <td><span class="tag t-num">float</span></td>
-                        <td>1-day short-term target price.</td>
-                    </tr>
-                    <tr style="border-bottom: 1px solid var(--border);">
-                        <td style="padding: 0.8rem 1rem;"><code>predicted_change_pct_1d</code></td>
-                        <td><span class="tag t-num">float</span></td>
-                        <td>Expected 1-day % change from current price.</td>
-                    </tr>
-                    <tr style="border-bottom: 1px solid var(--border);">
-                        <td style="padding: 0.8rem 1rem;"><code>confidence_score_1d</code></td>
-                        <td><span class="tag t-num">0-100</span></td>
-                        <td>Highest confidence score; 1-day is the tightest horizon.</td>
-                    </tr>
-                    <tr style="border-bottom: 1px solid var(--border);">
-                        <td style="padding: 0.8rem 1rem;"><code>predicted_range_1d</code></td>
-                        <td><span class="tag t-opt">array[2]</span></td>
-                        <td>[low, high] price range for 1-day (±1σ confidence band).</td>
-                    </tr>
-                    <tr style="border-bottom: 1px solid var(--border);">
-                        <td style="padding: 0.8rem 1rem;"><code>predicted_price_1m</code></td>
-                        <td><span class="tag t-num">float</span></td>
-                        <td>1-month intermediate target price.</td>
-                    </tr>
-                    <tr style="border-bottom: 1px solid var(--border);">
-                        <td style="padding: 0.8rem 1rem;"><code>predicted_change_pct_1m</code></td>
-                        <td><span class="tag t-num">float</span></td>
-                        <td>Expected 1-month % change.</td>
-                    </tr>
-                    <tr style="border-bottom: 1px solid var(--border);">
-                        <td style="padding: 0.8rem 1rem;"><code>predicted_price_6m</code></td>
-                        <td><span class="tag t-num">float</span></td>
-                        <td>Adjusted 6-month target price.</td>
-                    </tr>
-                    <tr style="border-bottom: 1px solid var(--border);">
-                        <td style="padding: 0.8rem 1rem;"><code>confidence_score_6m</code></td>
-                        <td><span class="tag t-num">0-100</span></td>
-                        <td>Reliability rating based on 4 accuracy factors.</td>
-                    </tr>
-                    <tr style="border-bottom: 1px solid var(--border);">
-                        <td style="padding: 0.8rem 1rem;"><code>monthly_trajectory</code></td>
-                        <td><span class="tag t-num">array</span></td>
-                        <td>18 waypoints with uncertainty bands.</td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 0.8rem 1rem;"><code>accuracy_metrics</code></td>
-                        <td><span class="tag t-num">object</span></td>
-                        <td>MAE, RMSE, and CV MAPE from the local training run.</td>
-                    </tr>
-                </table>
             </div>
         </section>
 

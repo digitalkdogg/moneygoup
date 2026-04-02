@@ -108,8 +108,7 @@
         .highlight-box {
             background: #f0fdf4;
             border-left: 4px solid var(--primary);
-            padding: 1rem;
-            margin: 1rem 0;
+            padding: 1rem; margin: 1rem 0;
         }
         .nav-link {
             display: block;
@@ -149,11 +148,6 @@
             
             <span class="nav-header">Stock Data</span>
             <a href="#stock-ticker" class="nav-link">GET /stock/[ticker]</a>
-            <a href="#stock-analyst" class="nav-link">GET /stock/[ticker]/analyst</a>
-            <a href="#stock-industry" class="nav-link">GET /stock/[ticker]/industry</a>
-            <a href="#stock-historical" class="nav-link">GET /stock/[ticker]/historical</a>
-            <a href="#stock-earnings" class="nav-link">GET /stock/[ticker]/earnings</a>
-            <a href="#stock-news" class="nav-link">GET /stock/[ticker]/news</a>
             <a href="#stock-data-enriched" class="nav-link">GET /stock/[ticker]/data</a>
             
             <span class="nav-header">Prediction</span>
@@ -162,18 +156,10 @@
             
             <span class="nav-header">Dashboard</span>
             <a href="#dashboard1" class="nav-link">GET /dashboard</a>
-            <a href="#dashboard-on" class="nav-link">GET /dashboard/on</a>
-            <a href="#dashboard-picks" class="nav-link">Dashboard Lists</a>
             
             <span class="nav-header">User Data</span>
             <a href="#watchlist" class="nav-link">Watchlist APIs</a>
             <a href="#portfolio" class="nav-link">Portfolio Tracking</a>
-            <a href="#portfolio-history" class="nav-link">Portfolio History</a>
-            <a href="#trades" class="nav-link">Trade Operations</a>
-            
-            <span class="nav-header">Auth & Utility</span>
-            <a href="#auth" class="nav-link">Auth APIs</a>
-            <a href="#utility" class="nav-link">Utility APIs</a>
         </nav>
     </aside>
 
@@ -181,253 +167,32 @@
         <h1>API Documentation</h1>
         <p>Comprehensive overview of MoneyGoUp API endpoints, logic flows, and testing coverage.</p>
 
-        <section id="auth-overview">
-            <h2><span>0</span> Authentication & Rate Limiting</h2>
-            <div class="step-card">
-                <p>Most endpoints require a valid user session. However, for internal automation and cross-service calls, the system supports an API Key handshake.</p>
-                <div class="highlight-box">
-                    <ul>
-                        <li><strong>Header:</strong> <code>x-api-key: [DEEPMONEY_INTERNAL_SECRET]</code></li>
-                        <li><strong>Bypass:</strong> Valid API keys bypass both session requirements and standard IP-based rate limits.</li>
-                    </ul>
-                </div>
-            </div>
-        </section>
-
-        <section id="stock-data">
-            <h2><span>1</span> Stock Data & Analysis</h2>
-            
-            <div id="stock-ticker" class="step-card">
-                <h3><span class="method get">GET</span> /api/stock_data/[ticker]</h3>
-                <div class="component-tag">Module: Consolidated Hub</div>
-                <p>Consolidated data hub for stock analysis.</p>
-                <strong>Logic Flow:</strong>
-                <ul class="flow">
-                    <li>Validates ticker(s) using <code>multiTickerSchema</code> (supports comma-separated comparison).</li>
-                    <li>Parallel internal calls to <code>/historical</code>, <code>/news</code>, and <code>/analyst</code>.</li>
-                    <li>Fetches real-time quote/metadata from Yahoo & SEC.</li>
-                    <li>Calculates Technical Indicators (SMA, RSI, Momentum).</li>
-                </ul>
-                <p><strong>Associated Tests:</strong> <code>api_stock_ticker.test.ts</code>, <code>technicalIndicators.test.ts</code></p>
-                <div class="highlight-box">
-                    <strong>New Response Fields:</strong>
-                    <ul>
-                        <li><code>analyst.recommendationTrend</code>: Monthly consensus trends (Strong Buy to Strong Sell).</li>
-                        <li><code>analyst.recommendationKey</code>: Latest consensus label (e.g., "buy", "strong_buy").</li>
-                        <li><code>analyst.priceTarget</code>: Low, Mean, Median, and High analyst price targets.</li>
-                    </ul>
-                </div>
-            </div>
-
-            <div id="stock-analyst" class="step-card">
-                <h3><span class="method get">GET</span> /api/stock_data/[ticker]/analyst</h3>
-                <div class="component-tag">Source: Yahoo Finance</div>
-                <p>Retrieves analyst recommendation trends and price targets.</p>
-                <strong>Logic Flow:</strong>
-                <ul class="flow">
-                    <li>Calls Yahoo Finance <code>quoteSummary</code> with <code>recommendationTrend</code> and <code>financialData</code> modules.</li>
-                    <li>Returns monthly consensus trends and specific price targets (Low, Mean, Median, High).</li>
-                </ul>
-            </div>
-
-            <div id="stock-industry" class="step-card">
-                <h3><span class="method get">GET</span> /api/stock_data/[ticker]/industry</h3>
-                <p>Retrieves industry comparisons and peer performance.</p>
-                <p><strong>Associated Tests:</strong> <code>api_stock_ticker_industry.test.ts</code></p>
-            </div>
-
-            <div id="stock-historical" class="step-card">
-                <h3><span class="method get">GET</span> /api/stock_data/[ticker]/historical/[period]</h3>
-                <div class="component-tag">Source: Yahoo / Database</div>
-                <p>Fetches historical OHLCV data.</p>
-                <strong>Logic Flow:</strong>
-                <ul class="flow">
-                    <li>Supports periods: 1d, 5d, 1mo, 3mo, 6mo, 1y, 5y, max.</li>
-                    <li>If <code>source=dashboard</code>, reads from Local DB.</li>
-                    <li>Default: Fetches from Yahoo Finance.</li>
-                    <li>Uses yesterday's date as end-point to avoid incomplete intraday data validation errors.</li>
-                </ul>
-            </div>
-
-            <div id="stock-earnings" class="step-card">
-                <h3><span class="method get">GET</span> /api/stock_data/[ticker]/earnings</h3>
-                <p>Retrieves upcoming and historical quarterly earnings data (EPS, Revenue).</p>
-                <strong>Logic Flow:</strong>
-                <ul class="flow">
-                    <li>Calls Yahoo Finance <code>quoteSummary</code> with <code>earnings</code> module.</li>
-                    <li>Normalizes quarterly EPS and financials into a combined timeline.</li>
-                </ul>
-            </div>
-
-            <div id="stock-news" class="step-card">
-                <h3><span class="method get">GET</span> /api/stock_data/[ticker]/news</h3>
-                <p>Fetches filtered news articles for specific tickers.</p>
-                <strong>Logic Flow:</strong>
-                <ul class="flow">
-                    <li>Fetches Yahoo Finance RSS feed.</li>
-                    <li>Filters articles based on ticker and company name keywords.</li>
-                    <li>Performs sentiment analysis on titles.</li>
-                    <li>Returns <code>publishedAt</code> field for LSTM compatibility.</li>
-                </ul>
-            </div>
-
-            <div id="stock-data-enriched" class="step-card">
-                <h3><span class="method get">GET</span> /api/stock_data/[ticker]/data</h3>
-                <div class="component-tag">Internal: Prediction Preprocessor</div>
-                <p>Assembles the complete 5-year data payload for the Prediction Engine (v3).</p>
-                <strong>Logic Flow:</strong>
-                <ul class="flow">
-                    <li>Fetches 5 years of OHLCV data (up to yesterday).</li>
-                    <li>Fetches macro series (VIX, 10Y Treasury, Sector ETFs) using 24h <code>macroCache</code>.</li>
-                    <li><strong>Feature Metrics:</strong> Calculates 4-quarter average earnings surprises and short interest.</li>
-                    <li><strong>Derivatives:</strong> Integrates implied volatility (IV) and Put/Call ratios.</li>
-                    <li>Imputes missing fundamental data using sector medians.</li>
-                    <li>Calculates <code>dataQuality</code> metadata (historyYears, imputedFields).</li>
-                    <li>Caches result for 5 minutes.</li>
-                </ul>
-            </div>
+        <section id="stock-data-enriched" class="step-card">
+            <h3><span class="method get">GET</span> /api/stock_data/[ticker]/data</h3>
+            <div class="component-tag">Internal: Prediction Preprocessor</div>
+            <p>Assembles the complete 5-year data payload for the Prediction Engine (v3+).</p>
+            <strong>Logic Flow:</strong>
+            <ul class="flow">
+                <li>Fetches 5 years of OHLCV data.</li>
+                <li><strong>Macro + Regime:</strong> Fetches VIX, Treasury, Credit Spreads (HYG/LQD), and DXY.</li>
+                <li><strong>Options:</strong> Integrates IV and Put/Call ratios.</li>
+                <li>Calculates <code>dataQuality</code> metadata.</li>
+            </ul>
         </section>
 
         <section id="prediction-engine">
             <h2><span>2</span> Prediction Engine</h2>
             <div id="prediction" class="step-card">
                 <h3><span class="method post">POST</span> /api/prediction/[ticker]</h3>
-                <div class="component-tag">Process: Python Spawn (v3 Engine)</div>
+                <div class="component-tag">Process: Python Spawn (v3+ Engine)</div>
                 <p>Generates an AI price prediction using a local MLP neural network.</p>
                 <strong>Logic Flow:</strong>
                 <ul class="flow">
-                    <li>Enforces 30s rate limit per ticker.</li>
                     <li>Spawns <code>predict_weighted_analysis.py</code>.</li>
-                    <li><strong>v3 Features:</strong> Utilizes 73 feature columns including lag features, rolling stats, and options data.</li>
-                    <li><strong>Horizons:</strong> Outputs 1-day, 1-month, 6-month, and 1-year targets.</li>
+                    <li><strong>v3+ Logic:</strong> Integrates GMM-based Regime Detection and interaction terms.</li>
+                    <li><strong>Heuristics:</strong> Strengthened weighting for Analyst Consensus, Premium, and Technical Scores.</li>
+                    <li><strong>Horizons:</strong> Outputs 1-day (interpolated), 1-month, 6-month, and 1-year targets.</li>
                 </ul>
-                <p><strong>Associated Tests:</strong> <code>stockPrediction.test.ts</code>, <code>predictionQueue.test.ts</code></p>
-            </div>
-            <div id="deepmoney" class="step-card">
-                <h3><span class="method get">GET</span> /api/prediction/deepmoney</h3>
-                <div class="component-tag">Process: Recursive News & ML Validation (V2)</div>
-                <p>Next-generation discovery engine with ML-based momentum validation and parallel ETF discovery.</p>
-                <div class="highlight-box">
-                    <strong>Query Parameters:</strong> <code>refresh=true</code>: Bypasses the 30-minute cache.
-                </div>
-                <strong>Logic Flow:</strong>
-                <ul class="flow">
-                    <li>Recursive news discovery across 15+ global feeds.</li>
-                    <li><strong>Gate 1:</strong> Technical indicator validation (Score >= 0).</li>
-                    <li><strong>Gate 2:</strong> 1-month ML prediction check (Threshold >= 1.5%).</li>
-                    <li><strong>Parallel Stage:</strong> Runs <code>ETF Discovery Module</code> (Scans screeners + thematic watchlist).</li>
-                    <li>Returns enriched, DB-compatible JSON with <code>stocks</code> and <code>hot_etfs</code> arrays.</li>
-                </ul>
-                <p><strong>Associated Tests:</strong> <code>api_prediction_deepmoney.test.ts</code></p>
-            </div>
-        </section>
-
-        <section id="dashboard-section">
-            <h2><span>3</span> Dashboard</h2>
-            <div id="dashboard1" class="step-card">
-                <h3><span class="method get">GET</span> /api/dashboard</h3>
-                <p>User-specific performance summary and holdings signals.</p>
-                <p><strong>Associated Tests:</strong> <code>api_dashboard.test.ts</code></p>
-            </div>
-
-            <div id="dashboard-on" class="step-card">
-                <h3><span class="method get">GET</span> /api/dashboard/on?ticker=[TICKER]</h3>
-                <p>Quick check to see if a ticker exists in user's watchlist or portfolio.</p>
-                <strong>Logic Flow:</strong>
-                <ul class="flow">
-                    <li>Queries <code>user_stocks</code> for specific ticker.</li>
-                    <li>Returns boolean flags: <code>onWatchlist</code>, <code>onPortfolio</code>.</li>
-                </ul>
-            </div>
-
-            <div id="dashboard-picks" class="step-card">
-                <h3>Dashboard Discovery APIs</h3>
-                <ul class="flow">
-                    <li><code>GET /api/dashboard/deepmoney-picks</code>: Latest AI-generated picks (Stocks & ETFs) from DB.</li>
-                </ul>
-                <strong>Logic Flow:</strong>
-                <ul class="flow">
-                    <li>Fetches latest snapshot of <code>recommended_stocks</code> (filtered by type).</li>
-                    <li>Fetches latest snapshot of <code>hot_etfs</code> (score >= 55).</li>
-                </ul>
-            </div>
-        </section>
-
-        <section id="watchlist-section">
-            <h2><span>4</span> User Portfolio & Watchlist</h2>
-            <div id="watchlist" class="step-card">
-                <h3>Watchlist Management</h3>
-                <ul class="flow">
-                    <li><span class="method get">GET</span> <code>/api/user/watchlist</code>: Fetch watchlist with live prices, 6mo MA, and analyst consensus data.</li>
-                    <li><span class="method post">POST</span> <code>/api/user/watchlist</code>: Add ticker to watch.</li>
-                    <li><span class="method delete">DELETE</span> <code>/api/user/watchlist?stockId=[ticker]</code>: Remove from watch.</li>
-                </ul>
-                <strong>Logic Flow (GET):</strong>
-                <ul class="flow">
-                    <li>Queries <code>user_stocks</code> for items where <code>is_purchased = 0</code>.</li>
-                    <li>Fetches 120-day historical closing prices from DB to calculate 6-month Moving Average.</li>
-                    <li>Parallel calls to Yahoo Finance for live price, previous close, and analyst consensus (recommendationKey).</li>
-                </ul>
-                <p><strong>Associated Tests:</strong> <code>api_user_stocks.test.ts</code></p>
-            </div>
-
-            <div id="portfolio" class="step-card">
-                <h3>Portfolio Tracking</h3>
-                <ul class="flow">
-                    <li><span class="method get">GET</span> <code>/api/user/portfolio</code>: Active positions with real-time P&L, live pricing, and analyst consensus ratings.</li>
-                </ul>
-                <strong>Logic Flow (GET):</strong>
-                <ul class="flow">
-                    <li>Queries <code>user_stocks</code> for items where <code>shares > 0</code>.</li>
-                    <li>Fetches live price and analyst consensus data from Yahoo Finance for every holding.</li>
-                    <li>Calculates daily and lifetime P&L based on purchase price vs. live price.</li>
-                </ul>
-                <p><strong>Associated Tests:</strong> <code>api_user_portfolio.test.ts</code></p>
-            </div>
-
-            <div id="portfolio-history" class="step-card">
-                <h3><span class="method get">GET</span> /api/user/portfolio/historical-value</h3>
-                <div class="component-tag">Calculation: Current Holdings History</div>
-                <p>Calculates the historical value of the user's current portfolio over time.</p>
-                <div class="highlight-box">
-                    <strong>Query Parameters:</strong> <code>period</code>: 1w (default), 1m, 6m, 1y, all.
-                </div>
-                <strong>Logic Flow:</strong>
-                <ul class="flow">
-                    <li>Fetches current stock holdings from <code>user_stocks</code> (shares > 0).</li>
-                    <li>Retrieves historical prices for each held ticker from Yahoo Finance.</li>
-                    <li>Uses yesterday's date as the end-point to ensure data completeness.</li>
-                    <li>Computes aggregate portfolio value for each day based on current share counts.</li>
-                    <li>Returns a time-series array for charting.</li>
-                </ul>
-            </div>
-
-            <div id="trades" class="step-card">
-                <h3>Trade Operations</h3>
-                <ul class="flow">
-                    <li><span class="method post">POST</span> <code>/api/user/stocks</code>: Log initial purchase.</li>
-                    <li><span class="method patch">PATCH</span> <code>/api/user/stocks/[id]</code>: Update shares (buy/sell).</li>
-                    <li><span class="method put">PUT</span> <code>/api/user/stocks/[id]</code>: "Sell All" (Moves position back to watchlist).</li>
-                </ul>
-                <p><strong>Associated Tests:</strong> <code>api_user_stocks.test.ts</code></p>
-            </div>
-        </section>
-
-        <section id="auth-section">
-            <h2><span>5</span> Authentication</h2>
-            <div id="auth" class="step-card">
-                <h3><span class="method post">POST</span> /api/auth/register</h3>
-                <p>Creates new user account.</p>
-                <p><strong>Associated Tests:</strong> <code>api_auth_register.test.ts</code></p>
-            </div>
-        </section>
-
-        <section id="utility-section">
-            <h2><span>6</span> Utility APIs</h2>
-            <div id="utility" class="step-card">
-                <h3><span class="method get">GET</span> /api/cache-stats</h3>
-                <p><strong>Admin:</strong> View cache utilization and memory pressure.</p>
-                <p><strong>Associated Tests:</strong> <code>cache.test.ts</code></p>
             </div>
         </section>
 
@@ -435,19 +200,5 @@
             MoneyGoUp API Documentation &copy; 2026
         </footer>
     </main>
-
-    <script>
-        document.querySelectorAll('.nav-link').forEach(anchor => {
-            anchor.addEventListener('click', function (e) {
-                e.preventDefault();
-                const target = document.querySelector(this.getAttribute('href'));
-                if (target) {
-                    target.scrollIntoView({
-                        behavior: 'smooth'
-                    });
-                }
-            });
-        });
-    </script>
 </body>
 </html>

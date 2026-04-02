@@ -365,6 +365,7 @@ export async function GET(
           'financialData',
           'defaultKeyStatistics',
           'recommendationTrend',
+          'calendarEvents',
         ],
       });
     } catch (err) {
@@ -387,6 +388,7 @@ export async function GET(
     const detail   = (summary as any).summaryDetail     ?? {};
     const finData  = (summary as any).financialData     ?? {};
     const keyStats = (summary as any).defaultKeyStatistics ?? {};
+    const calendar = (summary as any).calendarEvents    ?? {};
 
     // Try to get sector from assetProfile first, then fall back to other sources
     let resolvedSector: string = '_default';
@@ -416,6 +418,12 @@ export async function GET(
     const analystOpinionCount = safeNum(finData.numberOfAnalystOpinions) ?? 0;
     const recommendationMean  = safeNum(finData.recommendationMean);
 
+    // Extract next earnings date if available
+    const nextEarningsDateMs = calendar?.earnings?.[0]?.earningsDate;
+    const nextEarningsDate = nextEarningsDateMs
+      ? new Date(nextEarningsDateMs * 1000).toISOString().slice(0, 10)
+      : null;
+
     const stockMetrics = {
       regularMarketPrice: safeNum(price.regularMarketPrice),
       peRatio,
@@ -438,6 +446,7 @@ export async function GET(
       analystTargetLow,
       analystOpinionCount: Math.round(analystOpinionCount),
       recommendationMean,
+      nextEarningsDate,
     };
 
     // ---- Feature Metrics (earnings surprises + short interest) ----
@@ -455,18 +464,34 @@ export async function GET(
     // ---- 3. Options data (IV, IV Rank, Put/Call Ratio) ----
     const optionsData = await fetchOptionsData(validatedTicker);
 
-    // ---- 4. Macro data (VIX, 10Y Treasury, Sector ETF) ----
+    // ---- 4. Macro data (VIX, 10Y Treasury, Sector ETF, + 8 new series for regime) ----
     const sectorEtfSym = SECTOR_ETF[resolvedSector] ?? 'SPY';
-    const [vixData, tnxData, etfData] = await Promise.all([
+    const [vixData, tnxData, etfData, hygData, lqdData, dxyData, spyData, irxData, wtiData, copperData, wheatData] = await Promise.all([
       fetchMacroSeries('^VIX'),
       fetchMacroSeries('^TNX'),
       fetchMacroSeries(sectorEtfSym),
+      fetchMacroSeries('HYG'),        // High Yield Bond ETF
+      fetchMacroSeries('LQD'),        // Investment Grade Bond ETF
+      fetchMacroSeries('DX-Y.NYB'),   // US Dollar Index (DXY)
+      fetchMacroSeries('SPY'),        // S&P 500
+      fetchMacroSeries('^IRX'),       // 3-month T-bill (front-end rates proxy)
+      fetchMacroSeries('CL=F'),       // WTI crude oil
+      fetchMacroSeries('HG=F'),       // Copper futures
+      fetchMacroSeries('ZW=F'),       // Wheat futures
     ]);
 
     const macroData = {
       vix:         vixData,
       treasury10y: tnxData,
       sectorEtf:   { ticker: sectorEtfSym, data: etfData },
+      hyg:         hygData,
+      lqd:         lqdData,
+      dxy:         dxyData,
+      spy:         spyData,
+      treasury3m:  irxData,
+      wti:         wtiData,
+      copper:      copperData,
+      wheat:       wheatData,
     };
 
     // ---- 5. Earnings history ----

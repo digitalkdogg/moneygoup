@@ -36,6 +36,7 @@ from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
+from scipy.stats import skew as scipy_skew
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import mean_absolute_error, mean_squared_error
@@ -48,10 +49,10 @@ SEED = 42
 random.seed(SEED)
 np.random.seed(SEED)
 
-SEQ_LEN    = 60    # 60 trading-day lookback window
-N_EPOCHS   = 60    # cap; EarlyStopping fires well before this on most tickers
-BATCH_SIZE = 128   # larger batches → fewer gradient steps per epoch → faster
-MC_RUNS    = 20    # Monte Carlo Dropout passes (20 is statistically sufficient)
+SEQ_LEN    = 45    # 45 trading-day lookback window (compromise for speed/accuracy)
+N_EPOCHS   = 50    # capped for speed
+BATCH_SIZE = 128   # larger batches for faster training
+MC_RUNS    = 12    # reduced for faster trajectory generation
 
 
 # ============================================================================
@@ -189,10 +190,136 @@ FEATURE_COLUMNS = [
     # ── Earnings Surprises & Short Interest ──────────────────────────────────
     'EPS_Surprise_Avg_4Q', 'Revenue_Surprise_Avg_4Q',
     'ShortFloatPct', 'DaysToCover',
+    # ── Credit risk proxy (Phase 1) ──────────────────────────────────────────
+    'HYG_Level', 'HYG_Mom_20d',
+    'LQD_Level', 'LQD_Mom_20d',
+    'HYG_LQD_Ratio',
+    # ── Dollar ───────────────────────────────────────────────────────────────
+    'DXY_Level', 'DXY_Return_20d',
+    # ── Rates / curve ────────────────────────────────────────────────────────
+    'Treasury3M', 'CurveSlope_10M3M',
+    # ── Relative strength ─────────────────────────────────────────────────────
+    'RS_vs_SPY_20d',
+    'RS_vs_SectorETF_20d',
+    # ── Commodities ──────────────────────────────────────────────────────────
+    'WTI_Return_20d', 'WTI_Beta_60d',
+    'Copper_Return_20d', 'Copper_Beta_60d',
+    'Wheat_Return_20d', 'Wheat_Beta_60d',
+    # ── Volatility term structure proxy ──────────────────────────────────────
+    'VIX_RealVol_Ratio',
+    # ── Put/Call skew proxy ──────────────────────────────────────────────────
+    'PC_Skew_Proxy',
+    # ── Earnings-window flags ────────────────────────────────────────────────
+    'Earnings_In_Window',
+    'Days_Since_Last_Earnings',
+    'Days_To_Next_Earnings',
 ]
 
 
-def build_features(df, stock_metrics, macro_data, news_sentiment, earnings_beat_streak, current_price, options_data=None, feature_metrics=None):
+def _add_macro_features(f, date_strs, macro_data, close_s, hist_vol, stock_metrics):
+    """
+    Add Phase 1 macro/relative-strength/earnings features to feature DataFrame f.
+    Computes credit spreads, DXY, curve slope, commodity betas, relative strength,
+    vol proxies, and earnings-window flags.
+    """
+    n = len(f)
+
+    # ── Credit risk proxy ────────────────────────────────────────────────────
+    hyg_series = merge_series_by_date(date_strs, macro_data.get('hyg', []))
+    lqd_series = merge_series_by_date(date_strs, macro_data.get('lqd', []))
+
+    f['HYG_Level'] = hyg_series
+    f['HYG_Mom_20d'] = pd.Series(hyg_series).pct_change(20).values
+
+    f['LQD_Level'] = lqd_series
+    f['LQD_Mom_20d'] = pd.Series(lqd_series).pct_change(20).values
+
+    # HYG/LQD ratio: high ratio = weaker credit conditions (risk-off signal)
+    f['HYG_LQD_Ratio'] = (hyg_series / (lqd_series + 1e-9))
+
+    # ── Dollar ───────────────────────────────────────────────────────────────
+    dxy_series = merge_series_by_date(date_strs, macro_data.get('dxy', []))
+    f['DXY_Level'] = dxy_series
+    f['DXY_Return_20d'] = pd.Series(dxy_series).pct_change(20).values
+
+    # ── Rates / curve ────────────────────────────────────────────────────────
+    tnx_series = merge_series_by_date(date_strs, macro_data.get('treasury10y', []))
+    irx_series = merge_series_by_date(date_strs, macro_data.get('treasury3m', []))
+    f['Treasury3M'] = irx_series
+    f['CurveSlope_10M3M'] = tnx_series - irx_series
+
+    # ── Relative strength ─────────────────────────────────────────────────────
+    spy_series = merge_series_by_date(date_strs, macro_data.get('spy', []))
+    spy_ret = pd.Series(spy_series).pct_change().fillna(0)
+    etf_data = macro_data.get('sectorEtf', {}).get('data', [])
+    etf_series = merge_series_by_date(date_strs, etf_data)
+    etf_ret = pd.Series(etf_series).pct_change().fillna(0)
+
+    stock_ret = close_s.pct_change().fillna(0)
+
+    # 20-day rolling (stock_return - benchmark_return)
+    f['RS_vs_SPY_20d'] = (stock_ret - spy_ret).rolling(20).mean().values
+    f['RS_vs_SectorETF_20d'] = (stock_ret - etf_ret).rolling(20).mean().values
+
+    # ── Commodities ──────────────────────────────────────────────────────────
+    wti_series = merge_series_by_date(date_strs, macro_data.get('wti', []))
+    copper_series = merge_series_by_date(date_strs, macro_data.get('copper', []))
+    wheat_series = merge_series_by_date(date_strs, macro_data.get('wheat', []))
+
+    wti_ret = pd.Series(wti_series).pct_change().fillna(0)
+    copper_ret = pd.Series(copper_series).pct_change().fillna(0)
+    wheat_ret = pd.Series(wheat_series).pct_change().fillna(0)
+
+    f['WTI_Return_20d'] = wti_ret.rolling(20).mean().values
+    f['Copper_Return_20d'] = copper_ret.rolling(20).mean().values
+    f['Wheat_Return_20d'] = wheat_ret.rolling(20).mean().values
+
+    # Rolling beta: covariance(stock_ret, commodity_ret) / variance(commodity_ret)
+    def rolling_beta(stock_r, commodity_r, window=60):
+        s = pd.Series(stock_r)
+        c = pd.Series(commodity_r)
+        cov = s.rolling(window).cov(c)
+        var = c.rolling(window).var()
+        return (cov / (var + 1e-9)).values
+
+    f['WTI_Beta_60d'] = rolling_beta(stock_ret.values, wti_ret.values, window=60)
+    f['Copper_Beta_60d'] = rolling_beta(stock_ret.values, copper_ret.values, window=60)
+    f['Wheat_Beta_60d'] = rolling_beta(stock_ret.values, wheat_ret.values, window=60)
+
+    # ── Volatility term structure proxy ──────────────────────────────────────
+    vix_series = merge_series_by_date(date_strs, macro_data.get('vix', []))
+    f['VIX_RealVol_Ratio'] = (vix_series / (hist_vol + 1e-9))
+
+    # ── Put/Call skew proxy ──────────────────────────────────────────────────
+    # IV_Rank * Put_Call_Ratio: weights the P/C ratio by IV extremeness
+    iv_rank = f.get('IV_Rank', pd.Series(np.zeros(n))).fillna(0)
+    put_call = f.get('Put_Call_Ratio', pd.Series(np.ones(n))).fillna(1.0)
+    f['PC_Skew_Proxy'] = iv_rank.values * put_call.values
+
+    # ── Earnings-window flags ────────────────────────────────────────────────
+    # Parse next earnings date from stockMetrics
+    next_earnings_str = stock_metrics.get('nextEarningsDate')
+    next_earnings_date = None
+    if next_earnings_str:
+        try:
+            next_earnings_date = datetime.fromisoformat(next_earnings_str).date()
+        except Exception:
+            pass
+
+    # Earnings_In_Window: 1 if current date is within ±5 days of known earnings
+    # Days_Since_Last_Earnings: rolling count from historicalEarnings
+    # Days_To_Next_Earnings: days until next earnings (NaN if unknown)
+    f['Earnings_In_Window'] = 0.0
+    f['Days_Since_Last_Earnings'] = 0.0
+    f['Days_To_Next_Earnings'] = np.nan
+
+    # For now, fill these with NaN (will be handled by final fillna)
+    # They require historicalEarnings and exact date parsing, which we'll defer
+
+    return f
+
+
+def build_features(df, stock_metrics, macro_data, news_sentiment, earnings_beat_streak, current_price, options_data=None, feature_metrics=None, next_earnings_date=None):
     """
     Build full feature DataFrame from OHLCV df + supplementary inputs.
     Returns a new DataFrame with FEATURE_COLUMNS, NaNs forward-filled.
@@ -435,10 +562,14 @@ def build_features(df, stock_metrics, macro_data, news_sentiment, earnings_beat_
     ret20 = daily_ret.rolling(20)
     f['RollingMean_20d']   = ret20.mean().values
     f['RollingStd_20d']    = ret20.std().values
-    f['RollingSkew_20d']   = ret20.apply(lambda x: pd.Series(x).skew(), raw=False).values
+    f['RollingSkew_20d']   = ret20.apply(scipy_skew, raw=True).values
     # Rolling Sharpe: mean daily return / std (annualised implicitly via ratio)
     rolling_sharpe = ret20.mean() / (ret20.std() + 1e-9)
     f['RollingSharpe_20d'] = rolling_sharpe.values
+
+    # ── Phase 1 Macro Features ───────────────────────────────────────────────
+    hist_vol = f['HistVol_30'].values if 'HistVol_30' in f.columns else np.ones(n) * 0.20
+    f = _add_macro_features(f, date_strs, macro_data, close_s, hist_vol, stock_metrics)
 
     # Reorder and fill
     f = f[FEATURE_COLUMNS]
@@ -450,19 +581,83 @@ def build_features(df, stock_metrics, macro_data, news_sentiment, earnings_beat_
 # MLP MODEL (sklearn — CPU-portable, no AVX/AVX2 requirement)
 # ============================================================================
 def build_mlp(seed=SEED):
-    # Wider first layer to accommodate the expanded feature set
-    # (original 47 features × SEQ_LEN=60 flattened, now with 16 extra features)
+    # Widened to handle expanded feature set + regime features (~109 features total)
+    # Input dims: 109 features × 60 steps = 6,540 flattened inputs
     return MLPRegressor(
-        hidden_layer_sizes=(128, 64, 32),
+        hidden_layer_sizes=(256, 128, 64, 32),
         activation='relu',
         solver='adam',
         learning_rate_init=0.001,
         max_iter=N_EPOCHS,
         early_stopping=True,
         validation_fraction=0.1,
-        n_iter_no_change=10,
+        n_iter_no_change=8,
         random_state=seed,
     )
+
+
+def build_regime_detector(market_vec_norm, fitted_model, n_clusters):
+    """
+    Use a fitted model (from select_regime_k) to predict regimes.
+    If no fitted model, falls back to KMeans.
+    """
+    from sklearn.cluster import KMeans
+
+    if fitted_model is not None:
+        try:
+            labels = fitted_model.predict(market_vec_norm)
+            probs = fitted_model.predict_proba(market_vec_norm)
+            return labels, probs
+        except:
+            pass
+
+    # Fallback to KMeans if GMM not provided or failed
+    try:
+        km = KMeans(n_clusters=n_clusters, n_init=5, random_state=SEED)
+        labels = km.fit_predict(market_vec_norm)
+        return labels, None
+    except:
+        return np.zeros(len(market_vec_norm), dtype=int), None
+
+
+def select_regime_k(market_vec, min_state_frac=0.15, max_flip_rate=0.30):
+    """
+    K selection gate: evaluate K=3 and K=4, return best K that passes hard gates.
+    Returns: (selected K, fitted_model, scaler)
+    """
+    from sklearn.mixture import GaussianMixture
+    from sklearn.preprocessing import StandardScaler
+
+    scaler = StandardScaler()
+    market_vec_norm = scaler.fit_transform(market_vec)
+
+    best_model = None
+    best_k = 3
+
+    for k in [3, 4]:
+        try:
+            gmm = GaussianMixture(n_components=k, covariance_type='full',
+                                  max_iter=100, random_state=SEED, n_init=5)
+            gmm.fit(market_vec_norm)
+            labels = gmm.predict(market_vec_norm)
+        except:
+            continue
+
+        # Gate 1: State size
+        counts = np.bincount(labels, minlength=k) / len(labels)
+        if np.any(counts < min_state_frac):
+            continue
+
+        # Gate 2: Temporal stability
+        flips = np.mean(np.diff(labels) != 0) if len(labels) > 1 else 0.0
+        if flips > max_flip_rate:
+            continue
+
+        # If it passes, store as best
+        best_model = gmm
+        best_k = k
+
+    return best_k, best_model, scaler
 
 
 def make_sequences(scaled, targets_6m, targets_1y):
@@ -510,7 +705,7 @@ def confidence_score(cv_mape, history_years, imputed_fields, analyst_count):
 # ============================================================================
 # LEGACY METRIC ANALYSIS (kept for backward compat)
 # ============================================================================
-def metric_analysis(df, stock_metrics, news_sentiment, growth_rate, is_uptrend, earnings_beat_streak, external_tech_score=0.0, consensus_value=0.0):
+def metric_analysis(df, stock_metrics, news_sentiment, growth_rate, is_uptrend, earnings_beat_streak, external_tech_score=0.0, consensus_value=0.0, analyst_weighted=0.0):
     current_price = df['Close'].iloc[-1]
     rsi       = df['RSI_14'].iloc[-1] if 'RSI_14' in df.columns else 50.0
     sma20_val = df['SMA_20'].iloc[-1]  if 'SMA_20'  in df.columns else current_price
@@ -527,26 +722,30 @@ def metric_analysis(df, stock_metrics, news_sentiment, growth_rate, is_uptrend, 
 
     total_impact = 0.0
     # Internal heuristics (dampened to prevent double-counting with external_tech_score)
-    if rsi > 75:   total_impact -= 0.01
-    elif rsi < 25: total_impact += 0.01
+    if rsi > 75:   total_impact -= 0.015
+    elif rsi < 25: total_impact += 0.015
 
     if is_uptrend: total_impact += 0.02
-    else:          total_impact -= 0.02
+    else:          total_impact -= 0.01  # less penalizing for stable/consolidating stocks
 
-    total_impact += (growth_rate / 100) * 0.02
-    total_impact += news_sentiment * 0.01
+    total_impact += (growth_rate / 100) * 0.03
+    total_impact += news_sentiment * 0.015
     
     # ── External Technical Indicator Influence ──
-    # Scaled such that a max buy (+14) adds ~3.5% and max sell (-14) removes ~3.5%.
-    total_impact += external_tech_score * 0.0025
+    # Scaled such that a max buy (+14) adds ~7.0% (was 3.5%)
+    total_impact += external_tech_score * 0.005
 
     # ── Analyst Consensus Influence (0.0 to 1.0) ──
-    # A strong buy (1.0) adds ~2% to the target; a strong sell (-1.0) removes ~2%.
-    total_impact += consensus_value * 0.02
+    # A strong buy (1.0) adds ~5% (was 2%) to the target.
+    total_impact += consensus_value * 0.05
+
+    # ── Analyst Numerical Target Premium (0.0 to 1.0) ──
+    # Directly nudges prediction toward the analyst target mean.
+    total_impact += analyst_weighted * 0.05
 
     # ── Earnings Beat Streak influence (0-4 quarters) ──
-    # Adds ~0.5% per beat in the last 4 quarters. Max +2%.
-    total_impact += earnings_beat_streak * 0.005
+    # Adds ~1.0% per beat (was 0.5%). Max +4%.
+    total_impact += earnings_beat_streak * 0.01
 
     return {
         "rsi": {
@@ -698,13 +897,100 @@ def predict(ticker, input_data):
     # ---- Feature engineering ----
     feat_df = build_features(df, stock_metrics, macro_data,
                               news_sentiment, earnings_beat_streak, current_price, options_data, feature_metrics)
-    n_features = len(FEATURE_COLUMNS)   # automatically reflects the expanded set
+
+    # ── Phase 2-3: Regime detection and integration ─────────────────────────
+    # Build compact market-state vector for regime detector
+    regime_vec_cols = ['VIX', 'HistVol_30', 'HYG_LQD_Ratio', 'RS_vs_SPY_20d', 'DXY_Return_20d',
+                       'CurveSlope_10M3M', 'RollingMean_20d', 'RollingStd_20d']
+
+    # Ensure all regime features exist; fill missing with 0
+    for col in regime_vec_cols:
+        if col not in feat_df.columns:
+            feat_df[col] = 0.0
+
+    regime_vec = feat_df[regime_vec_cols].values.astype(np.float32)
+
+    # Select K using gate logic (now returns fitted model)
+    k, fitted_regime_model, regime_scaler = select_regime_k(regime_vec)
+    regime_vec_norm = regime_scaler.transform(regime_vec)
+
+    # Use already-fitted model — no re-training.
+    regime_labels, regime_probs = build_regime_detector(regime_vec_norm, fitted_regime_model, k)
+
+    # Add regime one-hot columns (pad to K=4 for consistent feature vector size)
+    for i in range(4):
+        if i < k:
+            feat_df[f'Regime_{i}'] = (regime_labels == i).astype(float)
+        else:
+            feat_df[f'Regime_{i}'] = 0.0
+
+    # Add regime probability columns (soft, from GMM; hard assignment if KMeans fallback)
+    if regime_probs is not None:
+        for i in range(4):
+            if i < k:
+                feat_df[f'Regime_Prob_{i}'] = regime_probs[:, i]
+            else:
+                feat_df[f'Regime_Prob_{i}'] = 0.0
+    else:
+        # KMeans fallback: hard one-hot assignment
+        for i in range(4):
+            if i < k:
+                feat_df[f'Regime_Prob_{i}'] = (regime_labels == i).astype(float)
+            else:
+                feat_df[f'Regime_Prob_{i}'] = 0.0
+
+    # Add interaction terms (regime × market signals)
+    feat_df['Regime_x_PC_Ratio'] = (feat_df.get('Regime_0', 0) *
+                                     feat_df.get('Put_Call_Ratio', 1.0).fillna(0))
+    feat_df['Regime_x_HYG_LQD'] = (feat_df.get('Regime_1', 0) *
+                                    feat_df.get('HYG_LQD_Ratio', 1.0).fillna(0))
+    feat_df['Regime_x_RS_SPY'] = (feat_df.get('Regime_2', 0) *
+                                   feat_df.get('RS_vs_SPY_20d', 0).fillna(0))
+
+    # Extend FEATURE_COLUMNS dynamically to include regime columns
+    regime_cols = ([f'Regime_{i}' for i in range(4)] +
+                   [f'Regime_Prob_{i}' for i in range(4)] +
+                   ['Regime_x_PC_Ratio', 'Regime_x_HYG_LQD', 'Regime_x_RS_SPY'])
+
+    # Only add regime columns that are actually computed (not already in FEATURE_COLUMNS)
+    extended_feature_cols = FEATURE_COLUMNS + [col for col in regime_cols if col not in FEATURE_COLUMNS]
+
+    # Reorder feat_df to match extended columns, fill missing with 0
+    for col in extended_feature_cols:
+        if col not in feat_df.columns:
+            feat_df[col] = 0.0
+    feat_df = feat_df[extended_feature_cols]
+    feat_df = feat_df.ffill().bfill().fillna(0)
+
+    n_features = len(extended_feature_cols)
     raw = feat_df.values.astype(np.float32)
+
+    # Store regime info for output
+    current_regime_idx = int(regime_labels[-1])
+    current_regime_probs = regime_probs[-1].tolist() if regime_probs is not None else (regime_labels[-1:] == np.arange(k)).astype(float).tolist()
+    # Pad to K=4 width
+    while len(current_regime_probs) < 4:
+        current_regime_probs.append(0.0)
+    regime_names = {0: 'risk_on_trending', 1: 'risk_off_stress', 2: 'high_vol_choppy', 3: 'low_vol_mean_reverting'}
+    regime_info = {
+        'k': k,
+        'current_regime': current_regime_idx,
+        'current_regime_probs': [round(p, 3) for p in current_regime_probs[:k]],
+        'regime_names': [regime_names[i] for i in range(k)]
+    }
 
     # ---- Scale features ----
     scaler = MinMaxScaler(feature_range=(0, 1))
     # Scale close separately for target inverse-transform
     close_col_idx = FEATURE_COLUMNS.index('Close')
+
+    # Get analyst_weighted for metric_analysis
+    cp_tmp = current_price if current_price > 0 else (df['Close'].iloc[-1] if len(df) > 0 else 1)
+    atm_tmp = safe(stock_metrics.get('analystTargetMean'), 0.0)
+    aoc_tmp = safe(stock_metrics.get('analystOpinionCount'), 0)
+    analyst_premium_tmp = (atm_tmp - cp_tmp) / (cp_tmp + 1e-9) if atm_tmp > 0 and cp_tmp > 0 else 0.0
+    reliability_tmp     = min(aoc_tmp / 40.0, 1.0)
+    analyst_weighted_val = analyst_premium_tmp * reliability_tmp
 
     scaled = scaler.fit_transform(raw)
 
@@ -758,7 +1044,7 @@ def predict(ticker, input_data):
 
     # ---- Legacy metric analysis ----
     m_analysis = metric_analysis(feat_df, stock_metrics, news_sentiment,
-                                  growth_rate, is_uptrend, earnings_beat_streak, external_tech_score, consensus_value)
+                                  growth_rate, is_uptrend, earnings_beat_streak, external_tech_score, consensus_value, analyst_weighted_val)
 
     # ── Final Price Adjustment ──
     # We apply the total_impact as a final multiplier to the MLP output.
@@ -874,12 +1160,11 @@ def predict(ticker, input_data):
     prange_low  = round(traj_6m['lower_bound'] - current_price, 2)
     prange_high = round(traj_6m['upper_bound']  - current_price, 2)
 
-    # ---- 1d trajectory point (extrapolated from initial movement toward 6m) ----
-    # For 1-day prediction, interpolate between current and 6m target with fraction 1/126
+    # ---- 1d trajectory point (interpolated from initial movement toward 6m) ----
     frac_1d = 1.0 / T6  # 1 trading day out of ~126 trading days to 6 months
     base_1d_return = (p6m_mean - current_price) / (current_price + 1e-9)
-    # tariff_adjustment and energy_adjustment removed
-    predicted_price_1d = current_price * (1.0 + base_1d_return)
+    # CORRECTED: 1-day prediction is now an interpolation, not the full 6m target
+    predicted_price_1d = current_price * (1.0 + base_1d_return * frac_1d)
     spread_1d = spread_6m * frac_1d
 
     # ---- 1m trajectory point (index 0 = waypoint t+21 ≈ 1 month) ----
@@ -936,6 +1221,8 @@ def predict(ticker, input_data):
         "data_quality":    data_quality,
         # Options data availability
         "options_data_available": bool(options_data and options_data.get('available')),
+        # Regime info (Phase 2-3)
+        "regime_info": regime_info,
         # Legacy metric analysis
         "metric_analysis": m_analysis,
     }
@@ -965,7 +1252,8 @@ if __name__ == '__main__':
                 "regularMarketPrice": result["regularMarketPrice"],
                 "outlook": args.outlook,
                 "data_quality": result["data_quality"],
-                "accuracy_metrics": result["accuracy_metrics"]
+                "accuracy_metrics": result["accuracy_metrics"],
+                "regime_info": result["regime_info"]
             }
 
             if args.outlook == '1_day':
