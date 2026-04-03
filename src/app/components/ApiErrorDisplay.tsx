@@ -64,7 +64,7 @@ export default function ApiErrorDisplay({
           <div className="mt-4 flex gap-3">
             {onRetryStock && (
               <button
-                onClick={error.onRetry}
+                onClick={onRetryStock}
                 style={{ backgroundColor: '#029b37' }}
                 className="flex-1 hover:opacity-90 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
               >
@@ -73,11 +73,10 @@ export default function ApiErrorDisplay({
             )}
             {selectedTicker && onRetryHistorical && (
               <button
-                onClick={error.onRetry}
+                onClick={onRetryHistorical}
                 style={{ backgroundColor: '#029b37' }}
                 className="flex-1 hover:opacity-90 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
               >
-
                 📊 Retry Historical Data
               </button>
             )}
