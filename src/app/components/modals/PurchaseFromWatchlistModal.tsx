@@ -128,7 +128,8 @@ export default function PurchaseFromWatchlistModal({ stock, onClose }: PurchaseF
             </button>
             <button
               type="submit"
-              className="px-6 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors font-semibold disabled:opacity-50"
+              style={{ backgroundColor: '#029b37' }}
+              className="px-6 py-2 text-white rounded-lg hover:opacity-90 transition-colors font-semibold disabled:opacity-50"
               disabled={loading}
             >
               {loading ? 'Adding...' : 'Add to Portfolio'}

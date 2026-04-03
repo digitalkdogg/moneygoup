@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
+import Image from 'next/image'
 
 export default function Navigation() {
   const pathname = usePathname()
@@ -76,11 +77,20 @@ export default function Navigation() {
 
   return (
     <>
-      <nav className="bg-green-700 shadow-lg sticky top-0 z-40 w-full">
+      <nav style={{ backgroundColor: '#029b37' }} className="shadow-lg sticky top-0 z-40 w-full">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
-              <Link href="/" className="text-2xl font-bold text-white">Money Go Up</Link>
+              <Link href="/" className="flex items-center gap-2 text-2xl font-bold text-white">
+                <Image
+                  src="/growmystock_logo.svg"
+                  alt="GrowMyStock logo"
+                  width={28}
+                  height={28}
+                  priority
+                />
+                <span>Grow<span style={{ color: '#034622', fontWeight: 'bold' }}>My</span>Stock</span>
+              </Link>
             </div>
 
             {/* Desktop Navigation */}
@@ -90,7 +100,8 @@ export default function Navigation() {
                 <div className="relative" ref={profileRef}>
                   <button
                     onClick={() => setIsProfileOpen(!isProfileOpen)}
-                    className="flex items-center justify-center h-9 w-9 rounded-full bg-green-800 text-white font-bold text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600"
+                    style={{ backgroundColor: '#016630' }}
+                    className="flex items-center justify-center h-9 w-9 rounded-full text-white font-bold text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600"
                   >
                     {initials}
                   </button>
@@ -147,11 +158,12 @@ export default function Navigation() {
         
         {/* Drawer Content */}
         <div 
-          className={`absolute top-0 right-0 h-full w-[80%] max-w-[320px] bg-green-700 shadow-xl transition-transform duration-200 ease-out transform ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}
+          style={{ backgroundColor: '#029b37' }}
+          className={`absolute top-0 right-0 h-full w-[80%] max-w-[320px] shadow-xl transition-transform duration-200 ease-out transform ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}
         >
           <div className="flex flex-col h-full pt-5 pb-6">
             <div className="px-5 mb-8 flex justify-between items-center">
-              <span className="text-xl font-bold text-white">Money Go Up</span>
+              <span className="text-xl font-bold text-white">Grow<span style={{ color: '#034622', fontWeight: 'bold' }}>My</span>Stock</span>
               <button 
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="text-white p-2 w-[44px] h-[44px] flex items-center justify-center"
@@ -164,7 +176,10 @@ export default function Navigation() {
 
             {session?.user && (
               <div className="px-5 mb-6 flex items-center space-x-3">
-                <div className="h-12 w-12 rounded-full bg-green-800 flex items-center justify-center text-white font-bold border-2 border-white/20">
+                <div 
+                  style={{ backgroundColor: '#016630' }}
+                  className="h-12 w-12 rounded-full flex items-center justify-center text-white font-bold border-2 border-white/20"
+                >
                   {initials}
                 </div>
                 <div className="text-white">

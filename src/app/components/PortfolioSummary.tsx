@@ -27,7 +27,8 @@ const PortfolioSummary: React.FC<PortfolioSummaryProps> = ({ portfolio, marketSt
           <h2 className="text-2xl font-bold text-gray-800">Portfolio Summary</h2>
           <button
             onClick={onToggleChart}
-            className="px-4 py-2 bg-green-700 text-white font-bold rounded-lg shadow hover:bg-green-800 transition-all flex items-center space-x-2 cursor-pointer text-sm"
+            style={{ backgroundColor: '#029b37' }}
+            className="px-4 py-2 text-white font-bold rounded-lg shadow hover:opacity-90 transition-all flex items-center space-x-2 cursor-pointer text-sm"
           >
             <span>{showChart ? 'Hide History' : 'View History Chart'}</span>
             <span>{showChart ? '▲' : '📈'}</span>
@@ -80,7 +81,8 @@ const PortfolioSummary: React.FC<PortfolioSummaryProps> = ({ portfolio, marketSt
         <h2 className="text-2xl font-bold text-gray-800">Portfolio Summary</h2>
         <button
           onClick={onToggleChart}
-          className="px-4 py-2 bg-green-700 text-white font-bold rounded-lg shadow hover:bg-green-800 transition-all flex items-center space-x-2 cursor-pointer text-sm"
+          style={{ backgroundColor: '#029b37' }}
+          className="px-4 py-2 text-white font-bold rounded-lg shadow hover:opacity-90 transition-all flex items-center space-x-2 cursor-pointer text-sm"
         >
           <span>{showChart ? 'Hide History' : 'View History Chart'}</span>
           <span>{showChart ? '▲' : '📈'}</span>

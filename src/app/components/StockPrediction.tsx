@@ -421,7 +421,8 @@ export default function StockPrediction({
       <button
         onClick={generate}
         disabled={loading || cooldown > 0}
-        className="bg-green-700 text-white font-semibold py-2 px-5 rounded-lg hover:bg-green-800 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+        style={{ backgroundColor: '#029b37' }}
+        className="text-white font-semibold py-2 px-5 rounded-lg hover:opacity-90 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
       >
         {btnLabel}
       </button>
@@ -501,7 +502,7 @@ export default function StockPrediction({
             </div>
 
             {/* 12-month card */}
-            <div className="p-5 bg-green-200 rounded-xl border border-green-500">
+            <div className="p-5 bg-white rounded-xl border border-green-300">
               <p className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-2">12-Month Price Target</p>
               <p className="text-3xl font-bold text-green-900 mb-1">
                 {formatCurrency(prediction.predicted_price_1y)}

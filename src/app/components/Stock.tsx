@@ -431,7 +431,7 @@ export default function Stock({
                 <button
                   onClick={() => handleWatchlistToggle(primaryTicker)}
                   disabled={addingToWatchlist}
-                  className="px-4 py-2 rounded-md text-white bg-green-700 hover:bg-green-800 disabled:opacity-50 border border-green-700"
+                  style={{ backgroundColor: '#029b37', borderColor: '#029b37' }} className="px-4 py-2 rounded-md text-white hover:opacity-90 disabled:opacity-50 border"
                 >
                   {addingToWatchlist ? 'Updating...' : 'Remove from Watchlist'}
                 </button>
@@ -439,7 +439,7 @@ export default function Stock({
                 <button
                   onClick={() => handleWatchlistToggle(primaryTicker)}
                   disabled={addingToWatchlist}
-                  className="px-4 py-2 rounded-md text-white bg-green-700 hover:bg-green-800 disabled:opacity-50"
+                  style={{ backgroundColor: '#029b37' }} className="px-4 py-2 rounded-md text-white hover:opacity-90 disabled:opacity-50"
                 >
                   {addingToWatchlist ? 'Adding...' : 'Add to Watchlist'}
                 </button>
@@ -764,7 +764,7 @@ export default function Stock({
                       <button
                         onClick={() => handleWatchlistToggle(t)}
                         disabled={addingToWatchlist}
-                        className="px-4 py-2 rounded-md text-white bg-green-700 hover:bg-green-800 disabled:opacity-50 border border-green-700"
+                        style={{ backgroundColor: '#029b37', borderColor: '#029b37' }} className="px-4 py-2 rounded-md text-white hover:opacity-90 disabled:opacity-50 border"
                       >
                         {addingToWatchlist ? 'Updating...' : 'Remove from Watchlist'}
                       </button>
@@ -772,7 +772,7 @@ export default function Stock({
                       <button
                         onClick={() => handleWatchlistToggle(t)}
                         disabled={addingToWatchlist}
-                        className="px-4 py-2 rounded-md text-white bg-green-700 hover:bg-green-800 disabled:opacity-50"
+                        style={{ backgroundColor: '#029b37' }} className="px-4 py-2 rounded-md text-white hover:opacity-90 disabled:opacity-50"
                       >
                         {addingToWatchlist ? 'Adding...' : 'Add to Watchlist'}
                       </button>

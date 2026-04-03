@@ -7,8 +7,8 @@ import Providers from './providers'; // Import the new Providers component
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Money Go Up',
-  description: 'Stock data visualization app',
+  title: 'GrowMyStock',
+  description: 'AI-powered stock data visualization and forecasting app',
 }
 
 export default function RootLayout({

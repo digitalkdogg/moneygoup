@@ -92,9 +92,10 @@ export default function StockChart({ ticker, historicalData }: StockChartProps) 
               onClick={() => handlePeriodChange(p)}
               className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors duration-200 cursor-pointer ${
                 period === p
-                  ? 'bg-green-700 text-white shadow'
+                  ? 'text-white shadow'
                   : 'text-gray-600 hover:bg-gray-200'
               }`}
+              style={period === p ? { backgroundColor: '#029b37' } : {}}
             >
               {p.toUpperCase()}
             </button>

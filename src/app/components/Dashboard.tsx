@@ -427,7 +427,8 @@ export default function Dashboard() {
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 text-white bg-green-700 rounded-lg hover:bg-green-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600 disabled:bg-gray-400 transition-colors cursor-pointer"
+                  style={{ backgroundColor: '#029b37' }}
+                  className="px-6 py-2 text-white rounded-lg hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600 disabled:bg-gray-400 transition-colors cursor-pointer"
                   disabled={isSubmittingPurchase || !shares || !purchasePrice}
                 >
                   {isSubmittingPurchase ? 'Purchasing...' : 'Confirm Purchase'}

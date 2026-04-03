@@ -213,7 +213,9 @@ export default function PortfolioSection({ portfolio, onRefresh }: PortfolioSect
         <span className="flex items-center justify-center space-x-2">
           <button
             onClick={(e) => { e.stopPropagation(); handleBuyMore(row); }}
-            className="px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-bold text-sm cursor-pointer min-h-[44px] min-w-[80px]" 
+            style={{ backgroundColor: '#029b37' }}
+            className="px-4 py-3 text-white rounded-lg hover:opacity-90 transition-colors font-bold text-sm cursor-pointer min-h-[44px] min-w-[80px]"
+ 
           >
             Buy More
           </button>
