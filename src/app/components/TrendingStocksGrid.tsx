@@ -43,7 +43,7 @@ function TrendingCard({ stock }: { stock: TrendingStock }) {
   return (
     <button
       onClick={handleClick}
-      className="text-left p-4 rounded-lg border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-green-500 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition duration-200 transform hover:scale-105"
+      className="text-left p-4 rounded-lg border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-green-500 dark:hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition duration-200 transform hover:scale-105"
       aria-label={`${stock.symbol}: ${stock.companyName}, $${priceStr}, ${percentStr}`}
     >
       <div className="flex justify-between items-start mb-2">
