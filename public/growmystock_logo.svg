@@ -1,7 +1,7 @@
 <svg width="120" height="120" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="36" height="36" rx="9" fill="#016630"/>
+  <circle cx="18" cy="18" r="18" fill="#016630"/>
   <!-- Chart line going up -->
-  <polyline points="5,26 11,20 17,23 23,13 29,8" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <polyline points="7,25 12,20 17,22 22,14 27,10" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
   <!-- Upward arrow tip -->
-  <polyline points="25,8 29,8 29,12" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <polyline points="23,10 27,10 27,14" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
 </svg>

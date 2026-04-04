@@ -167,17 +167,41 @@
         <h1>API Documentation</h1>
         <p>Comprehensive overview of MoneyGoUp API endpoints, logic flows, and testing coverage.</p>
 
-        <section id="stock-data-enriched" class="step-card">
-            <h3><span class="method get">GET</span> /api/stock_data/[ticker]/data</h3>
-            <div class="component-tag">Internal: Prediction Preprocessor</div>
-            <p>Assembles the complete 5-year data payload for the Prediction Engine (v3+).</p>
-            <strong>Logic Flow:</strong>
-            <ul class="flow">
-                <li>Fetches 5 years of OHLCV data.</li>
-                <li><strong>Macro + Regime:</strong> Fetches VIX, Treasury, Credit Spreads (HYG/LQD), and DXY.</li>
-                <li><strong>Options:</strong> Integrates IV and Put/Call ratios.</li>
-                <li>Calculates <code>dataQuality</code> metadata.</li>
-            </ul>
+        <section id="fundamentals">
+            <h2><span>0</span> Fundamentals</h2>
+            <div id="auth-overview" class="step-card">
+                <h3>Auth & Rate Limits</h3>
+                <div class="component-tag">Security Layer</div>
+                <p>Authentication is handled via NextAuth.js. Protected routes require a valid session token.</p>
+                <strong>Security Policy:</strong>
+                <ul class="flow">
+                    <li><strong>Rate Limiting:</strong> Standard 60 req/min limit per IP for public endpoints.</li>
+                    <li><strong>JWT:</strong> Encrypted session cookies for user-specific data access.</li>
+                    <li><strong>Origin Check:</strong> Strict CORS and CSRF protection on all POST/PATCH/DELETE actions.</li>
+                </ul>
+            </div>
+        </section>
+
+        <section id="stock-data">
+            <h2><span>1</span> Stock Data</h2>
+            <div id="stock-ticker" class="step-card">
+                <h3><span class="method get">GET</span> /api/stock_data/[ticker]</h3>
+                <div class="component-tag">Core: Market Snapshot</div>
+                <p>Returns real-time price, change %, and basic company metadata.</p>
+            </div>
+
+            <div id="stock-data-enriched" class="step-card">
+                <h3><span class="method get">GET</span> /api/stock_data/[ticker]/data</h3>
+                <div class="component-tag">Internal: Prediction Preprocessor</div>
+                <p>Assembles the complete 5-year data payload for the Prediction Engine (v3+).</p>
+                <strong>Logic Flow:</strong>
+                <ul class="flow">
+                    <li>Fetches 5 years of OHLCV data.</li>
+                    <li><strong>Macro + Regime:</strong> Fetches VIX, Treasury, Credit Spreads (HYG/LQD), and DXY.</li>
+                    <li><strong>Options:</strong> Integrates IV and Put/Call ratios.</li>
+                    <li>Calculates <code>dataQuality</code> metadata.</li>
+                </ul>
+            </div>
         </section>
 
         <section id="prediction-engine">
@@ -192,6 +216,91 @@
                     <li><strong>v3+ Logic:</strong> Integrates GMM-based Regime Detection and interaction terms.</li>
                     <li><strong>Heuristics:</strong> Strengthened weighting for Analyst Consensus, Premium, and Technical Scores.</li>
                     <li><strong>Horizons:</strong> Outputs 1-day (interpolated), 1-month, 6-month, and 1-year targets.</li>
+                </ul>
+            </div>
+
+            <div id="deepmoney" class="step-card">
+                <h3><span class="method get">GET</span> /api/prediction/deepmoney</h3>
+                <div class="component-tag">Discovery Engine (V2)</div>
+                <p>Advanced stock and ETF discovery engine using multi-factor analysis and ML validation.</p>
+                <strong>Logic Flow:</strong>
+                <ul class="flow">
+                    <li><strong>Recursive News Scraping:</strong> Pulls latest market sentiment from RSS/JSON feeds.</li>
+                    <li><strong>Social Sentiment:</strong> Pre-filtering via social trends (ApeWisdom integration).</li>
+                    <li><strong>Parallel Discovery:</strong> Executes Hot ETF Discovery (v2.1) in parallel for efficiency.</li>
+                    <li><strong>ML Validation Gate:</strong> Requires a minimum threshold of >= 1.5% projected growth.</li>
+                    <li><strong>Multi-factor GPS Scoring:</strong> Ranks assets based on Growth, Performance, and Sentiment.</li>
+                </ul>
+            </div>
+        </section>
+
+        <section id="dashboard-section">
+            <h2><span>3</span> Dashboard</h2>
+            <div id="dashboard1" class="step-card">
+                <h3><span class="method get">GET</span> /api/dashboard</h3>
+                <div class="component-tag">User Data Aggregator</div>
+                <p>Central hub for user-specific financial data and market overview.</p>
+                <strong>Logic Flow:</strong>
+                <ul class="flow">
+                    <li><strong>Data Aggregation:</strong> Consolidates user portfolio, watchlist, and personalized recommendations.</li>
+                    <li><strong>Live Market Data:</strong> Fetches real-time indices including DJI and S&P 500.</li>
+                    <li><strong>Top Picks:</strong> Returns the top 5 Hot Stocks and top 3 Hot ETFs from the discovery engine.</li>
+                </ul>
+            </div>
+        </section>
+
+        <section id="user-data-section">
+            <h2><span>4</span> User Data & Portfolio</h2>
+            
+            <div id="portfolio" class="step-card">
+                <h3>Portfolio Management</h3>
+                <div class="component-tag">Tracking & P&L</div>
+                <p>Manage active stock positions and track performance trajectory.</p>
+                <div class="grid">
+                    <div class="mini-card">
+                        <h4><span class="method get">GET</span> Fetch Portfolio</h4>
+                        <p>Retrieve all active positions with current P&L.</p>
+                    </div>
+                    <div class="mini-card">
+                        <h4><span class="method post">POST</span> Add Position</h4>
+                        <p>Record a new stock purchase in the portfolio.</p>
+                    </div>
+                    <div class="mini-card">
+                        <h4><span class="method patch">PATCH</span> / <span class="method put">PUT</span> Update</h4>
+                        <p>Modify existing position details or adjust quantities.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="watchlist" class="step-card">
+                <h3>Watchlist Monitor</h3>
+                <div class="component-tag">Stock Monitoring</div>
+                <p>Maintain a list of stocks for active monitoring and quick access.</p>
+                <div class="grid">
+                    <div class="mini-card">
+                        <h4><span class="method get">GET</span> View Watchlist</h4>
+                        <p>Fetch the user's current monitored stocks.</p>
+                    </div>
+                    <div class="mini-card">
+                        <h4><span class="method post">POST</span> Add to Watchlist</h4>
+                        <p>Add a new ticker to the monitoring list.</p>
+                    </div>
+                    <div class="mini-card">
+                        <h4><span class="method delete">DELETE</span> Remove Ticker</h4>
+                        <p>Remove a stock from the watchlist.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="historical-value" class="step-card">
+                <h3><span class="method get">GET</span> /api/user/portfolio/historical-value</h3>
+                <div class="component-tag">Performance Analytics</div>
+                <p>Calculates the portfolio value trajectory over time for charting.</p>
+                <strong>Logic Flow:</strong>
+                <ul class="flow">
+                    <li>Iterates through historical position states in the database.</li>
+                    <li>Fetches historical price data for each asset held at specific time points.</li>
+                    <li>Aggregates total value to provide a time-series growth chart for the dashboard.</li>
                 </ul>
             </div>
         </section>

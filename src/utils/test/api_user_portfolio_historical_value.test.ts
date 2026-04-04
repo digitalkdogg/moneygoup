@@ -3,10 +3,12 @@ import { GET } from '@/app/api/user/portfolio/historical-value/route';
 import { getServerSession } from 'next-auth';
 import { executeRawQuery } from '@/utils/databaseHelper';
 import { yahooFinance } from '@/utils/yahooFinanceHelper';
+import { checkOrigin } from '@/utils/originCheck';
 
 // Mock dependencies
 jest.mock('next-auth');
 jest.mock('@/utils/databaseHelper');
+jest.mock('@/utils/originCheck');
 jest.mock('@/utils/yahooFinanceHelper', () => ({
   yahooFinance: {
     historical: jest.fn(),
@@ -18,6 +20,7 @@ describe('GET /api/user/portfolio/historical-value', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (checkOrigin as jest.Mock).mockReturnValue(null);
     const url = 'http://localhost/api/user/portfolio/historical-value?period=1w';
     mockRequest = {
       headers: new Headers(),

@@ -458,7 +458,7 @@ export default function Stock({
                 {stockData.longBusinessSummary.length > TRUNCATE_LENGTH && (
                   <button
                     onClick={() => setShowFullSummary(!showFullSummary)}
-                    className="text-blue-600 hover:text-blue-800 font-semibold ml-1 focus:outline-none"
+                    className="text-green-600 hover:text-green-800 font-semibold ml-1 focus:outline-none"
                   >
                     {showFullSummary ? 'Read Less' : 'Read More'}
                   </button>

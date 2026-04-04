@@ -114,7 +114,7 @@ export default function BuyMoreModal({ stock, onClose }: BuyMoreModalProps) {
               min="0"
               value={shares}
               onChange={(e) => setShares(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
               placeholder="e.g., 5"
             />
           </div>
@@ -129,20 +129,20 @@ export default function BuyMoreModal({ stock, onClose }: BuyMoreModalProps) {
               min="0"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
               placeholder="e.g., 160.00"
             />
           </div>
 
           {newAvgPrice !== null && (
-            <div className="p-4 bg-blue-50 rounded-lg space-y-2">
+            <div className="p-4 bg-green-50 rounded-lg space-y-2">
               <p className="text-sm text-gray-600">
                 Total Cost of New Shares: <span className="font-semibold text-gray-800">
                   {formatCurrency(parseFloat(shares) * parseFloat(price))}
                 </span>
               </p>
               <p className="text-sm text-gray-600">
-                New Average Price: <span className="font-semibold text-blue-600">
+                New Average Price: <span className="font-semibold text-green-600">
                   {formatCurrency(newAvgPrice)}
                 </span>
               </p>
@@ -167,7 +167,7 @@ export default function BuyMoreModal({ stock, onClose }: BuyMoreModalProps) {
             </button>
             <button
               type="submit"
-              className="px-6 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors font-semibold disabled:opacity-50"
+              className="px-6 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors font-semibold disabled:opacity-50"
               disabled={loading}
             >
               {loading ? 'Buying...' : 'Confirm Buy'}

@@ -6,6 +6,7 @@ import { executeRawQuery } from '@/utils/databaseHelper';
 import { yahooFinance } from '@/utils/yahooFinanceHelper';
 import { createLogger } from '@/utils/logger';
 import { createErrorResponse } from '@/utils/errorResponse';
+import { checkOrigin } from '@/utils/originCheck';
 
 const logger = createLogger('api/user/portfolio/historical-value');
 
@@ -39,6 +40,11 @@ function getStartDate(period: Period, firstPurchaseDate: Date | null): Date {
 }
 
 export async function GET(req: NextRequest) {
+    const originCheckResponse = checkOrigin(req);
+    if (originCheckResponse) {
+        return originCheckResponse;
+    }
+
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

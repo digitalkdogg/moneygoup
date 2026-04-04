@@ -85,7 +85,7 @@ export default function PurchaseFromWatchlistModal({ stock, onClose }: PurchaseF
               min="0"
               value={shares}
               onChange={(e) => setShares(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
               placeholder="e.g., 10"
             />
           </div>
@@ -100,13 +100,13 @@ export default function PurchaseFromWatchlistModal({ stock, onClose }: PurchaseF
               min="0"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
               placeholder="e.g., 150.00"
             />
           </div>
 
           {price && shares && !isNaN(parseFloat(shares)) && !isNaN(parseFloat(price)) && (
-            <div className="p-3 bg-blue-50 rounded-lg">
+            <div className="p-3 bg-green-50 rounded-lg">
               <p className="text-sm text-gray-600">
                 Total Cost: <span className="font-semibold text-gray-800">
                   {formatCurrency(parseFloat(shares) * parseFloat(price))}

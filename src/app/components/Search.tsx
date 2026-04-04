@@ -69,39 +69,31 @@ export default function Search() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <div className="max-w-6xl mx-auto">
-        <header className="text-center mb-12">
-          <h2 className="text-4xl font-bold text-gray-800 mb-4">Stock Search</h2>
-          <p className="text-lg text-gray-600">Track your favorite stocks in real-time</p>
-        </header>
-
-        {/* Search Input */}
-        <form onSubmit={handleSubmit} className="mb-12 relative">
-          <input
-            type="text"
-            value={searchValue}
-            onChange={handleInputChange}
-            onKeyDown={handleKeyDown}
-            placeholder="Search for a stock ticker or company name..."
-            className="w-full p-4 text-lg border-2 border-gray-300 rounded-xl shadow-lg focus:outline-none focus:ring-4 focus:ring-blue-300 focus:border-blue-500 transition duration-200"
-          />
-          {filteredTickers.length > 0 && (
-            <ul className="absolute z-10 w-full bg-white border-2 border-gray-300 rounded-xl shadow-xl mt-2 max-h-64 overflow-y-auto">
-              {filteredTickers.map(t => (
-                <li
-                  key={t.ticker}
-                  onClick={() => handleSelectTicker(t)}
-                  className="p-4 hover:bg-blue-50 cursor-pointer border-b border-gray-200 last:border-b-0 transition duration-150"
-                >
-                  <div className="font-semibold text-gray-800">{t.ticker}</div>
-                  <div className="text-sm text-gray-600">{t.name}</div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </form>
-      </div>
+    <div className="w-full">
+      <form onSubmit={handleSubmit} className="relative w-full">
+        <input
+          type="text"
+          value={searchValue}
+          onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
+          placeholder="Search for a stock ticker or company name..."
+          className="w-full p-4 text-lg border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl shadow-lg focus:outline-none focus:ring-4 focus:ring-green-300 focus:border-green-500 dark:focus:ring-green-400 dark:focus:border-green-400 transition duration-200"
+        />
+        {filteredTickers.length > 0 && (
+          <ul className="absolute z-10 w-full bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 rounded-xl shadow-xl mt-2 max-h-64 overflow-y-auto">
+            {filteredTickers.map(t => (
+              <li
+                key={t.ticker}
+                onClick={() => handleSelectTicker(t)}
+                className="p-4 hover:bg-green-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-200 dark:border-gray-700 last:border-b-0 transition duration-150"
+              >
+                <div className="font-semibold text-gray-800 dark:text-white">{t.ticker}</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">{t.name}</div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </form>
     </div>
   )
 }

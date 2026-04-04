@@ -84,12 +84,18 @@ export default function Navigation() {
               <Link href="/" className="flex items-center gap-2 text-2xl font-bold text-white">
                 <Image
                   src="/growmystock_logo.svg"
-                  alt="GrowMyStock logo"
-                  width={28}
-                  height={28}
+                  alt="Grow My Stock logo"
+                  width={35}
+                  height={35}
                   priority
                 />
-                <span>Grow<span style={{ color: '#034622', fontWeight: 'bold' }}>My</span>Stock</span>
+                <span aria-hidden="true">
+                  Grow
+                  <span style={{ color: '#09522b', fontWeight: 'bold', fontSize: '1.1em', marginRight: '1px', marginLeft:'3px'}}>
+                    MY
+                  </span>
+                  <span >Stock</span>
+                </span>
               </Link>
             </div>
 

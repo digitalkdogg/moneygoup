@@ -1,6 +1,30 @@
 import YahooFinance from 'yahoo-finance2';
 
+// Instantiate once at module load time
+let yahooFinanceInstance: any = null;
+
+function getYahooFinance() {
+  if (!yahooFinanceInstance) {
+    yahooFinanceInstance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
+  }
+  return yahooFinanceInstance;
+}
+
 export const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
+
+export async function getTrendingStocks(count: number = 12) {
+  try {
+    const yf = getYahooFinance();
+    const result = await yf.screener({
+      scrIds: 'most_actives',
+      count: Math.min(count, 100)
+    });
+    return result?.quotes || [];
+  } catch (error) {
+    console.error('Error fetching trending stocks from Yahoo Finance:', error);
+    return [];
+  }
+}
 
 export async function fetchYahooQuotesForSymbols(
   symbols: string[],
