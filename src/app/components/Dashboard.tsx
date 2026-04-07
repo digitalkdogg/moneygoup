@@ -4,12 +4,15 @@
 import { useState, useEffect, useCallback } from 'react'; // Import useCallback
 import { useRouter } from 'next/navigation';
 import Link from 'next/link'; // Import Link
-import StockTable, { StockTableRow } from '../components/StockTable';
-import WatchlistSection from './WatchlistSection';
-import PortfolioSection from './PortfolioSection';
+import PortfolioSection from './PortfolioSection'; // Updated to use StockCardSection internally
+import WatchlistSection from './WatchlistSection'; // Updated to use StockCardSection internally
 import PortfolioSummary from './PortfolioSummary'; // NEW: Import PortfolioSummary
+import MarketOverviewCard from './MarketOverviewCard';
+import GainsBreakdownCard from './GainsBreakdownCard';
+import AnalystRatingsCard from './AnalystRatingsCard';
 import { formatNumber, formatCurrency as formatUtilityCurrency } from '@/utils/formatters'; // Import formatters
 import { PortfolioItem } from '@/types/portfolio'; // NEW: Import PortfolioItem
+import { PortfolioTotals, AnalystRatingsResponse } from '@/types/dashboard';
 import DeepMoneyPicksSection from './DeepMoneyPicksSection';
 import { PortfolioHistoryChart } from './PortfolioHistoryChart';
 
@@ -80,6 +83,8 @@ type ColumnDefinition<T> = {
 export default function Dashboard() {
   // NEW: Portfolio state and market status
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
+  const [portfolioTotals, setPortfolioTotals] = useState<PortfolioTotals | null>(null);
+  const [portfolioRatings, setPortfolioRatings] = useState<AnalystRatingsResponse | null>(null);
   const [marketStatus, setMarketStatus] = useState<'open' | 'closed'>('closed');
   const [loadingPortfolio, setLoadingPortfolio] = useState(true);
   const [portfolioError, setPortfolioError] = useState<string | null>(null);
@@ -91,27 +96,27 @@ export default function Dashboard() {
   const router = useRouter();
 
   // State for the purchase modal
-  const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false);
-  const [selectedStockForPurchase, setSelectedStockForPurchase] = useState<PortfolioItem | null>(null); // Use PortfolioItem
-  const [purchasePrice, setPurchasePrice] = useState('');
-  const [shares, setShares] = useState('');
-  const [isSubmittingPurchase, setIsSubmittingPurchase] = useState(false);
-  const [purchaseError, setPurchaseError] = useState<string | null>(null);
-  const [purchaseSuccess, setPurchaseSuccess] = useState<string | null>(null);
+  // const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false);
+  // const [selectedStockForPurchase, setSelectedStockForPurchase] = useState<PortfolioItem | null>(null); // Use PortfolioItem
+  // const [purchasePrice, setPurchasePrice] = useState('');
+  // const [shares, setShares] = useState('');
+  // const [isSubmittingPurchase, setIsSubmittingPurchase] = useState(false);
+  // const [purchaseError, setPurchaseError] = useState<string | null>(null);
+  // const [purchaseSuccess, setPurchaseSuccess] = useState<string | null>(null);
 
   // State for the sell modal
-  const [isSellModalOpen, setIsSellModalOpen] = useState(false);
-  const [selectedStockForSell, setSelectedStockForSell] = useState<PortfolioItem | null>(null); // Use PortfolioItem
-  const [isSubmittingSell, setIsSubmittingSell] = useState(false);
-  const [sellError, setSellError] = useState<string | null>(null);
-  const [sellSuccess, setSellSuccess] = useState<string | null>(null);
+  // const [isSellModalOpen, setIsSellModalOpen] = useState(false);
+  // const [selectedStockForSell, setSelectedStockForSell] = useState<PortfolioItem | null>(null); // Use PortfolioItem
+  // const [isSubmittingSell, setIsSubmittingSell] = useState(false);
+  // const [sellError, setSellError] = useState<string | null>(null);
+  // const [sellSuccess, setSellSuccess] = useState<string | null>(null);
 
   // State for the remove modal
-  const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
-  const [selectedStockForRemove, setSelectedStockForRemove] = useState<StockDashboardData | null>(null); // This is still StockDashboardData for watchlist
-  const [isSubmittingRemove, setIsSubmittingRemove] = useState(false);
-  const [removeError, setRemoveError] = useState<string | null>(null);
-  const [removeSuccess, setRemoveSuccess] = useState<string | null>(null);
+  // const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
+  // const [selectedStockForRemove, setSelectedStockForRemove] = useState<StockDashboardData | null>(null); // This is still StockDashboardData for watchlist
+  // const [isSubmittingRemove, setIsSubmittingRemove] = useState(false);
+  // const [removeError, setRemoveError] = useState<string | null>(null);
+  // const [removeSuccess, setRemoveSuccess] = useState<string | null>(null);
 
 
   // NEW: Fetch portfolio data
@@ -132,6 +137,13 @@ export default function Dashboard() {
         prev_close: typeof item.prev_close === 'number' ? item.prev_close : null,
       }));
       setPortfolio(fetchedPortfolio);
+      setPortfolioTotals(data.totals || null);
+      if (data.ratings) {
+        setPortfolioRatings({
+          ratings: data.ratings,
+          asOf: data.asOf || new Date().toISOString()
+        });
+      }
 
       // Determine market status: if any stock has a currentPrice different from prevClose, market is open
       const marketIsOpen = fetchedPortfolio.some(item =>
@@ -169,165 +181,11 @@ export default function Dashboard() {
     fetchDeepMoneyPicks(); // Fetch DeepMoney picks (consolidated endpoint)
   }, [fetchPortfolioData, fetchDeepMoneyPicks]);
 
-  const handleRowClick = (symbol: string) => {
-    router.push(`/search/${symbol}`);
-  };
+  // const handleRowClick = (symbol: string) => {
+  //   router.push(`/search/${symbol}`);
+  // };
 
-  const handlePurchaseClick = (e: React.MouseEvent, stock: PortfolioItem) => { // Use PortfolioItem
-    e.stopPropagation(); // Prevent row click from firing
-    setSelectedStockForPurchase(stock);
-    setIsPurchaseModalOpen(true);
-    setPurchaseError(null);
-    setPurchaseSuccess(null);
-    setPurchasePrice(''); // No longer pre-fill with current price
-    setShares('');
-  };
-
-  const handleClosePurchaseModal = () => {
-    setIsPurchaseModalOpen(false);
-    setSelectedStockForPurchase(null);
-    setPurchasePrice('');
-    setShares('');
-    setPurchaseError(null);
-    setPurchaseSuccess(null);
-  };
-
-  const handlePurchaseSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedStockForPurchase) return;
-
-    setIsSubmittingPurchase(true);
-    setPurchaseError(null);
-    setPurchaseSuccess(null);
-
-    try {
-      const response = await fetch('/api/user/stocks', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          stock_id: selectedStockForPurchase.stock_id,
-          shares: parseFloat(shares),
-          purchase_price: parseFloat(purchasePrice),
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to complete purchase.');
-      }
-
-      setPurchaseSuccess(`Successfully purchased ${shares} shares of ${selectedStockForPurchase.symbol}.`);
-      fetchPortfolioData(); // Refresh dashboard data
-      setTimeout(() => {
-        handleClosePurchaseModal();
-      }, 2000);
-
-    } catch (err) {
-      setPurchaseError(err instanceof Error ? err.message : 'An unknown error occurred.');
-    } finally {
-      setIsSubmittingPurchase(false);
-    }
-  };
-
-
-  const handleSellClick = (e: React.MouseEvent, stock: PortfolioItem) => { // Use PortfolioItem
-    e.stopPropagation(); // Prevent row click from firing
-    setSelectedStockForSell(stock);
-    setIsSellModalOpen(true);
-    setSellError(null);
-    setSellSuccess(null);
-  };
-
-  const handleCloseSellModal = () => {
-    setIsSellModalOpen(false);
-    setSelectedStockForSell(null);
-    setSellError(null);
-    setSellSuccess(null);
-  };
-
-  const handleConfirmSell = async () => {
-    if (!selectedStockForSell) return;
-
-    setIsSubmittingSell(true);
-    setSellError(null);
-    setSellSuccess(null);
-
-    try {
-      const response = await fetch(`/api/user/stocks/${selectedStockForSell.stock_id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to sell stock.');
-      }
-
-      setSellSuccess(`Successfully sold all shares of ${selectedStockForSell.symbol}.`);
-      fetchPortfolioData(); // Refresh dashboard data
-      setTimeout(() => {
-        handleCloseSellModal();
-      }, 2000);
-
-    } catch (err) {
-      setSellError(err instanceof Error ? err.message : 'An unknown error occurred.');
-    } finally {
-      setIsSubmittingSell(false);
-    }
-  };
-
-  const handleCloseRemoveModal = () => {
-    setIsRemoveModalOpen(false);
-    setSelectedStockForRemove(null);
-    setRemoveError(null);
-    setRemoveSuccess(null);
-  };
-
-  const handleConfirmRemove = async () => {
-    if (!selectedStockForRemove) return;
-
-    setIsSubmittingRemove(true);
-    setRemoveError(null);
-    setRemoveSuccess(null);
-
-    try {
-      const response = await fetch(`/api/user/watchlist?stockId=${selectedStockForRemove.symbol}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to remove stock.');
-      }
-
-      setRemoveSuccess(`Successfully removed ${selectedStockForRemove.symbol}.`);
-      fetchPortfolioData(); // Refresh portfolio data (if a watchlist item was owned, it might affect portfolio)
-      setTimeout(() => {
-        handleCloseRemoveModal();
-      }, 2000);
-
-    } catch (err) {
-      setRemoveError(err instanceof Error ? err.message : 'An unknown error occurred.');
-    } finally {
-      setIsSubmittingRemove(false);
-    }
-  };
-
-  const handleRemoveStock = (e: React.MouseEvent, stock: StockDashboardData) => { // This still takes StockDashboardData
-    e.stopPropagation(); // Prevent row click from firing
-    setSelectedStockForRemove(stock);
-    setIsRemoveModalOpen(true);
-    setRemoveError(null);
-    setRemoveSuccess(null);
-  };
-
+  // The modal logic has been moved to PortfolioSection and WatchlistSection
 
   if (loadingPortfolio) { // Use loadingPortfolio for overall loading
     return (
@@ -366,6 +224,13 @@ export default function Dashboard() {
 
           {showChart && <PortfolioHistoryChart />}
 
+          {/* New Dashboard Widgets Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
+            <MarketOverviewCard />
+            <GainsBreakdownCard totals={portfolioTotals} loading={loadingPortfolio} />
+            <AnalystRatingsCard initialData={portfolioRatings} />
+          </div>
+
           {/* Portfolio and Watchlist Sections */}
           <PortfolioSection portfolio={portfolio} onRefresh={fetchPortfolioData} />
           
@@ -377,134 +242,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Purchase Modal */}
-      {isPurchaseModalOpen && selectedStockForPurchase && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md m-4">
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">Purchase {selectedStockForPurchase.symbol}</h2>
-            <p className="text-gray-600 mb-6">{selectedStockForPurchase.companyName}</p>
-            
-            <form onSubmit={handlePurchaseSubmit}>
-              <div className="mb-4">
-                <label htmlFor="shares" className="block text-sm font-medium text-gray-700 mb-1">Number of Shares</label>
-                <input
-                  type="number"
-                  id="shares"
-                  value={shares}
-                  onChange={(e) => setShares(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-green-600 focus:border-green-600"
-                  placeholder="e.g., 10"
-                  required
-                  step="any"
-                />
-              </div>
-
-              <div className="mb-6">
-                <label htmlFor="purchasePrice" className="block text-sm font-medium text-gray-700 mb-1">Purchase Price per Share</label>
-                <input
-                  type="number"
-                  id="purchasePrice"
-                  value={purchasePrice}
-                  onChange={(e) => setPurchasePrice(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-green-600 focus:border-green-600"
-                  placeholder="e.g., 150.00"
-                  required
-                  step="any"
-                />
-              </div>
-              
-              {purchaseError && <p className="text-red-500 text-sm mb-4">{purchaseError}</p>}
-              {purchaseSuccess && <p className="text-green-500 text-sm mb-4">{purchaseSuccess}</p>}
-
-              <div className="flex justify-end space-x-4">
-                <button
-                  type="button"
-                  onClick={handleClosePurchaseModal}
-                  className="px-6 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors cursor-pointer"
-                  disabled={isSubmittingPurchase}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  style={{ backgroundColor: '#029b37' }}
-                  className="px-6 py-2 text-white rounded-lg hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600 disabled:bg-gray-400 transition-colors cursor-pointer"
-                  disabled={isSubmittingPurchase || !shares || !purchasePrice}
-                >
-                  {isSubmittingPurchase ? 'Purchasing...' : 'Confirm Purchase'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Sell Confirmation Modal */}
-      {isSellModalOpen && selectedStockForSell && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md m-4">
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">Confirm Sell</h2>
-            <p className="text-gray-600 mb-6">
-              Are you sure you want to sell all shares of <span className="font-semibold">{selectedStockForSell.symbol}</span> ({selectedStockForSell.companyName})?
-            </p>
-            
-            {sellError && <p className="text-red-500 text-sm mb-4">{sellError}</p>}
-            {sellSuccess && <p className="text-green-500 text-sm mb-4">{sellSuccess}</p>}
-
-            <div className="flex justify-end space-x-4">
-                              <button
-                                type="button"
-                                onClick={handleCloseSellModal}
-                                className="px-6 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors cursor-pointer"
-                                disabled={isSubmittingSell}
-                              >
-                                Cancel
-                              </button>              <button
-                type="button"
-                onClick={handleConfirmSell}
-                className="px-6 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:bg-gray-400 transition-colors cursor-pointer"
-                disabled={isSubmittingSell}
-              >
-                {isSubmittingSell ? 'Selling...' : 'Confirm Sell'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Remove Confirmation Modal */}
-      {isRemoveModalOpen && selectedStockForRemove && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md m-4">
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">Confirm Removal</h2>
-            <p className="text-gray-600 mb-6">
-              Are you sure you want to remove <span className="font-semibold">{selectedStockForRemove.symbol}</span> ({selectedStockForRemove.companyName}) from your tracked stocks?
-              This will also delete all associated historical data.
-            </p>
-            
-            {removeError && <p className="text-red-500 text-sm mb-4">{removeError}</p>}
-            {removeSuccess && <p className="text-green-500 text-sm mb-4">{removeSuccess}</p>}
-
-            <div className="flex justify-end space-x-4">
-                              <button
-                                type="button"
-                                onClick={handleCloseRemoveModal}
-                                className="px-6 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors cursor-pointer"
-                                disabled={isSubmittingRemove}
-                              >
-                                Cancel
-                              </button>                <button
-                  type="button"
-                  onClick={handleConfirmRemove}
-                  className="px-6 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:bg-gray-400 transition-colors cursor-pointer"
-                  disabled={isSubmittingRemove}
-                >
-                  {isSubmittingRemove ? 'Removing...' : 'Confirm Remove'}
-                </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Modals have been removed from here and are now handled within PortfolioSection and WatchlistSection */}
     </>
   );
 }

@@ -6,6 +6,7 @@ import { createErrorResponse, unauthorizedResponse } from '@/utils/errorResponse
 import { createLogger } from '@/utils/logger';
 import { checkOrigin } from '@/utils/originCheck';
 import { fetchYahooStockSummary } from '@/utils/yahooFinanceHelper';
+import { normalizeRecommendation } from '@/utils/formatters';
 
 const logger = createLogger('api/user/portfolio');
 
@@ -107,6 +108,7 @@ export async function GET(request: NextRequest) {
             regularMarketPrice: currentPrice, 
             prev_close: prevClose,
             recommendationKey: summary?.financialData?.recommendationKey || null,
+            recommendationMean: summary?.financialData?.recommendationMean || null,
             numberOfAnalystOpinions: summary?.financialData?.numberOfAnalystOpinions || null
           };
         } catch (dataError) {
@@ -122,7 +124,53 @@ export async function GET(request: NextRequest) {
       })
     );
 
-    return NextResponse.json({ portfolio: portfolioWithData || [] }, { status: 200 });
+    // Calculate totals
+    let costBasis = 0;
+    let marketValue = 0;
+    let unrealizedGain = 0;
+    let unrealizedLoss = 0;
+
+    portfolioWithData.forEach(item => {
+      const itemCost = item.shares * item.purchase_price;
+      const itemValue = item.shares * (item.regularMarketPrice || item.purchase_price);
+      const itemGain = itemValue - itemCost;
+
+      costBasis += itemCost;
+      marketValue += itemValue;
+      
+      if (itemGain > 0) {
+        unrealizedGain += itemGain;
+      } else {
+        unrealizedLoss += Math.abs(itemGain);
+      }
+    });
+
+    const unrealizedNet = marketValue - costBasis;
+    const unrealizedPct = costBasis !== 0 ? (unrealizedNet / costBasis) * 100 : 0;
+
+    // Build ratings summary for the response
+    const ratings = portfolioWithData.map(item => ({
+      symbol: item.symbol,
+      primary: normalizeRecommendation(item.recommendationKey),
+      score: item.recommendationMean || null,
+      count: item.numberOfAnalystOpinions || null
+    }));
+
+    const result = {
+      portfolio: portfolioWithData || [],
+      totals: {
+        costBasis,
+        marketValue,
+        unrealizedGain,
+        unrealizedLoss,
+        unrealizedNet,
+        unrealizedPct
+      },
+      ratings,
+      asOf: new Date().toISOString()
+    };
+
+    return NextResponse.json(result, { status: 200 });
   } catch (error: any) {
     logger.error('Error fetching user portfolio:', error);
     return createErrorResponse(error, 'Error fetching user portfolio', { status: 500 });

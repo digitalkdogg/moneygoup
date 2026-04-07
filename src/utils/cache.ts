@@ -153,4 +153,8 @@ export const deepmoneyCache = new Cache<any>(30 * 60 * 1000); // 30 minutes for 
 
 export const macroCache = new Cache<any>(24 * 60 * 60 * 1000); // 24 hours for macro data (VIX, TNX)
 
+export const marketIndicesCache = new Cache<any>(2 * 60 * 1000); // 2 minutes for major indices
+
+export const analystRatingsCache = new Cache<any>(30 * 60 * 1000); // 30 minutes for dashboard analyst ratings
+
 export default Cache;

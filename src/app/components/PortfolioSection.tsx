@@ -1,21 +1,13 @@
 // src/app/components/PortfolioSection.tsx
 'use client';
 
-import { useState, ReactNode } from 'react';
+import { useState } from 'react';
 import BuyMoreModal from './modals/BuyMoreModal';
 import SellModal from './modals/SellModal';
-import { useRouter } from 'next/navigation';
-import StockTable from './StockTable';
+import StockCard, { UnifiedStockCardProps, StockCardMetric, StockCardAction } from './StockCard';
+import StockCardSection from './StockCardSection';
 import { formatNumber, formatCurrency } from '@/utils/formatters';
 import { PortfolioItem } from '@/types/portfolio';
-
-// Define the type for a column definition for StockTable
-type ColumnDefinition<T> = {
-  key: keyof T | string;
-  label: string;
-  align?: 'left' | 'center' | 'right';
-  format?: (value: any, row: T) => ReactNode;
-};
 
 interface PortfolioSectionProps {
   portfolio: PortfolioItem[];
@@ -48,11 +40,6 @@ const formatRecommendationKey = (key: string | null | undefined): string => {
 export default function PortfolioSection({ portfolio, onRefresh }: PortfolioSectionProps) {
   const [selectedStock, setSelectedStock] = useState<PortfolioItem | null>(null);
   const [modalType, setModalType] = useState<'buy' | 'sell' | null>(null);
-  const router = useRouter();
-
-  const handleRowClick = (symbol: string) => {
-    router.push(`/search/${symbol}`);
-  };
 
   const handleBuyMore = (stock: PortfolioItem) => {
     setSelectedStock(stock);
@@ -70,174 +57,88 @@ export default function PortfolioSection({ portfolio, onRefresh }: PortfolioSect
     onRefresh();
   };
 
-  const portfolioColumns: ColumnDefinition<PortfolioItem>[] = [
-    { 
-      key: 'symbol', 
-      label: 'Symbol',
-      format: (value: string, row: PortfolioItem) => (
-        <>
-          <span className="block">{value}</span>
-          <span className="block text-xs font-normal text-gray-500">{formatNumber(row.shares, 2, true)}</span>
-        </>
-      )
-    },
-    {
-      key: 'recommendationKey',
-      label: 'Analyst Rec',
-      align: 'left',
-      format: (value: string | null, row: PortfolioItem) => (
-        <>
-          <span className="block font-bold text-gray-900">{formatRecommendationKey(value)}</span>
-          <span className="block text-xs font-normal text-gray-500">
-            {row.numberOfAnalystOpinions ? `${row.numberOfAnalystOpinions} analysts` : 'No analyst data'}
-          </span>
-        </>
-      )
-    },
-    {
-      key: 'purchase_price',
-      label: 'Avg Price',
-      align: 'right',
-      format: (value: number) => formatCurrency(value, 2),
-    },
-    {
-      key: 'regularMarketPrice',
-      label: 'Current Price',
-      align: 'right',
-      format: (value: number, row: PortfolioItem) => {
-        const { regularMarketPrice, prev_close } = row;
-        const formattedCurrentPrice = formatCurrency(regularMarketPrice, 2);
+  const mapPortfolioToCardProps = (item: PortfolioItem): UnifiedStockCardProps => {
+    const { shares, regularMarketPrice, prev_close, purchase_price } = item;
+    
+    const dailyEarnings = prev_close ? shares * (regularMarketPrice - prev_close) : null;
+    const lifetimeEarnings = purchase_price ? (regularMarketPrice * shares) - (purchase_price * shares) : null;
+    const positionValue = regularMarketPrice * shares;
+    const pctChange = prev_close ? ((regularMarketPrice - prev_close) / prev_close) * 100 : null;
 
-        let percentageDisplay: ReactNode;
+    const metrics: StockCardMetric[] = [];
+    
+    if (dailyEarnings !== null) {
+      metrics.push({
+        key: 'dailyEarnings',
+        label: 'Daily Earnings',
+        value: `${dailyEarnings >= 0 ? '+' : ''}${formatCurrency(dailyEarnings, 2)}`,
+        tone: dailyEarnings >= 0 ? 'positive' : 'negative'
+      });
+    }
 
-        if (prev_close === null || prev_close === undefined || prev_close === 0) {
-          percentageDisplay = <span className="block text-xs font-normal text-gray-500">(—)</span>;
-        } else {
-          const dailyPercentageChange = ((regularMarketPrice - prev_close) / prev_close) * 100;
-          let textColor = 'text-gray-500';
-          if (dailyPercentageChange > 0) {
-            textColor = 'text-green-600';
-          } else if (dailyPercentageChange < 0) {
-            textColor = 'text-red-600';
-          }
+    if (lifetimeEarnings !== null) {
+      metrics.push({
+        key: 'lifetimeEarnings',
+        label: 'Lifetime Earnings',
+        value: `${lifetimeEarnings >= 0 ? '+' : ''}${formatCurrency(lifetimeEarnings, 2)}`,
+        tone: lifetimeEarnings >= 0 ? 'positive' : 'negative'
+      });
+    }
 
-          const formattedPercentage = formatNumber(dailyPercentageChange, 2);
-          const displayPercentage = dailyPercentageChange > 0 ? `+${formattedPercentage}` : formattedPercentage;
-          
-          percentageDisplay = <span className={`block text-xs font-normal ${textColor}`}>({displayPercentage}%)</span>;
-        }
-
-        return (
-          <span className="font-semibold">
-            <span className="text-gray-600 block">{formattedCurrentPrice}</span>
-            {percentageDisplay}
-          </span>
-        );
-      },
-    },
-    {
-      key: 'dailyEarnings',
-      label: 'Daily Earnings',
-      align: 'right',
-      format: (value: any, row: PortfolioItem) => {
-        const { shares, regularMarketPrice, prev_close } = row;
-
-        if (shares === 0) {
-          return <span className="text-gray-500">{formatCurrency(0, 2)}</span>;
-        }
-
-        if (prev_close === null || prev_close === undefined) {
-          return <span className="text-gray-500">—</span>;
-        }
-
-        const dailyEarnings = shares * (regularMarketPrice - prev_close);
-        let textColor = 'text-gray-500';
-        if (dailyEarnings > 0) {
-          textColor = 'text-green-600';
-        } else if (dailyEarnings < 0) {
-          textColor = 'text-red-600';
-        }
-
-        const formattedEarnings = formatCurrency(dailyEarnings, 2);
-        const displayValue = dailyEarnings > 0 ? `+${formattedEarnings}` : formattedEarnings;
-
-        return <span className={`${textColor} font-semibold`}>{displayValue}</span>;
-      },
-    },
-    {
-      key: 'lifetimeEarnings',
-      label: 'Lifetime Earnings',
-      align: 'right',
-      format: (value: any, row: PortfolioItem) => {
-        const { shares, regularMarketPrice, purchase_price } = row;
-
-        if (shares === 0) {
-          return <span className="text-gray-500">{formatCurrency(0, 2)}</span>;
-        }
-
-        if (purchase_price === null || purchase_price === undefined || purchase_price === 0) {
-          return <span className="text-gray-500">—</span>;
-        }
-
-        const lifetimeEarnings = (regularMarketPrice * shares) - (purchase_price * shares);
-        let textColor = 'text-gray-500';
-        if (lifetimeEarnings > 0) {
-          textColor = 'text-green-600';
-        } else if (lifetimeEarnings < 0) {
-          textColor = 'text-red-600';
-        }
-
-        const formattedEarnings = formatCurrency(lifetimeEarnings, 2);
-        const displayValue = lifetimeEarnings > 0 ? `+${formattedEarnings}` : formattedEarnings;
-
-        return <span className={`${textColor} font-semibold`}>{displayValue}</span>;
-      },
-    },
-    {
+    metrics.push({
       key: 'positionValue',
       label: 'Position Value',
-      align: 'right',
-      format: (value: any, row: PortfolioItem) => {
-        const positionValue = row.shares * row.purchase_price;
-        if (row.regularMarketPrice !== 0) {
-          return <span className="text-green-600 font-semibold">{formatCurrency(row.shares * row.regularMarketPrice, 2)}</span>;
-        }
-        return <span className="text-gray-500 font-semibold">{formatCurrency(positionValue, 2)}</span>;
+      value: formatCurrency(positionValue, 2),
+      tone: 'neutral'
+    });
+
+    metrics.push({
+      key: 'totalShares',
+      label: 'Total Shares',
+      value: formatNumber(shares, 2, true),
+      tone: 'neutral'
+    });
+
+    const actions: StockCardAction[] = [
+      {
+        key: 'buyMore',
+        label: 'Buy More',
+        variant: 'primary',
+        onClick: () => handleBuyMore(item)
       },
-    },
-    {
-      key: 'actions',
-      label: 'Actions',
-      align: 'center',
-      format: (value: any, row: PortfolioItem) => (
-        <span className="flex items-center justify-center space-x-2">
-          <button
-            onClick={(e) => { e.stopPropagation(); handleBuyMore(row); }}
-            style={{ backgroundColor: '#029b37' }}
-            className="px-4 py-3 text-white rounded-lg hover:opacity-90 transition-colors font-bold text-sm cursor-pointer min-h-[44px] min-w-[80px]"
- 
-          >
-            Buy More
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); handleSell(row); }}
-            className="px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-500 transition-colors cursor-pointer font-bold text-sm min-h-[44px] min-w-[80px]"
-          >
-            Sell
-          </button>
-        </span>
-      ),
-    },
-  ];
+      {
+        key: 'sell',
+        label: 'Sell',
+        variant: 'secondary',
+        onClick: () => handleSell(item)
+      }
+    ];
+
+    return {
+      symbol: item.symbol,
+      companyName: item.company_name,
+      shares: item.shares,
+      analystRec: formatRecommendationKey(item.recommendationKey),
+      analysts: item.numberOfAnalystOpinions,
+      price: {
+        current: regularMarketPrice,
+        changePct: pctChange,
+        avgPrice: purchase_price
+      },
+      metrics,
+      actions
+    };
+  };
 
   return (
     <>
-      <StockTable<PortfolioItem>
+      <StockCardSection<PortfolioItem>
         title="My Portfolio"
         icon="📈"
         data={portfolio}
-        columns={portfolioColumns}
-        onRowClick={handleRowClick}
+        renderCard={(item) => (
+          <StockCard {...mapPortfolioToCardProps(item)} />
+        )}
         loading={false}
         error={null}
         emptyMessage="No stocks in your portfolio yet. Add stocks from your watchlist to get started!"

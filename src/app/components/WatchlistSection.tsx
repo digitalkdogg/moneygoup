@@ -1,19 +1,11 @@
 // src/app/components/WatchlistSection.tsx
 'use client';
 
-import { useState, useEffect, ReactNode } from 'react';
+import { useState, useEffect } from 'react';
 import PurchaseFromWatchlistModal from './modals/PurchaseFromWatchlistModal';
-import { useRouter } from 'next/navigation';
-import StockTable from './StockTable';
+import StockCard, { UnifiedStockCardProps, StockCardMetric, StockCardAction } from './StockCard';
+import StockCardSection from './StockCardSection';
 import { formatCurrency, formatNumber } from '@/utils/formatters';
-
-// Define the type for a column definition for StockTable
-type ColumnDefinition<T> = {
-  key: keyof T | string;
-  label: string;
-  align?: 'left' | 'center' | 'right';
-  format?: (value: any, row: T) => ReactNode;
-};
 
 interface WatchlistItem {
   stock_id: number;
@@ -66,7 +58,6 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [selectedStock, setSelectedStock] = useState<WatchlistItem | null>(null);
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
-  const router = useRouter();
 
   useEffect(() => {
     fetchWatchlist();
@@ -94,10 +85,6 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleRowClick = (symbol: string) => {
-    router.push(`/search/${symbol}`);
   };
 
   const handlePurchase = (stock: WatchlistItem) => {
@@ -138,95 +125,47 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
     onRefresh?.();
   };
 
-  const watchlistColumns: ColumnDefinition<WatchlistItem>[] = [
-    { 
-      key: 'symbol', 
-      label: 'Symbol',
-      format: (value: string, row: WatchlistItem) => (
-        <>
-          <span className="block font-bold text-gray-900">{value}</span>
-          <span className="block text-xs font-normal text-gray-500 truncate max-w-[150px]">{row.company_name}</span>
-        </>
-      )
-    },
-    {
-      key: 'recommendationKey',
-      label: 'Analyst Rec',
-      align: 'left',
-      format: (value: string | null, row: WatchlistItem) => (
-        <>
-          <span className="block font-bold text-gray-900">{formatRecommendationKey(value)}</span>
-          <span className="block text-xs font-normal text-gray-500">
-            {row.numberOfAnalystOpinions ? `${row.numberOfAnalystOpinions} analysts` : 'No analyst data'}
-          </span>
-        </>
-      )
-    },
-    {
-      key: 'regularMarketPrice',
-      label: 'Price',
-      align: 'right',
-      format: (value: number, row: WatchlistItem) => {
-        const { regularMarketPrice, prev_close } = row;
-        const formattedPrice = formatCurrency(regularMarketPrice, 2);
+  const mapWatchlistToCardProps = (item: WatchlistItem): UnifiedStockCardProps => {
+    const { regularMarketPrice, prev_close, ma6_month } = item;
+    const pctChange = prev_close ? ((regularMarketPrice - prev_close) / prev_close) * 100 : null;
 
-        let percentageDisplay: ReactNode;
-
-        if (prev_close === null || prev_close === undefined || prev_close === 0) {
-          percentageDisplay = <span className="block text-xs font-normal text-gray-500">(—)</span>;
-        } else {
-          const dailyPercentageChange = ((regularMarketPrice - prev_close) / prev_close) * 100;
-          let textColor = 'text-gray-500';
-          if (dailyPercentageChange > 0) {
-            textColor = 'text-green-600';
-          } else if (dailyPercentageChange < 0) {
-            textColor = 'text-red-600';
-          }
-
-          const formattedPercentage = formatNumber(dailyPercentageChange, 2);
-          const displayPercentage = dailyPercentageChange > 0 ? `+${formattedPercentage}` : formattedPercentage;
-          
-          percentageDisplay = <span className={`block text-xs font-normal ${textColor}`}>({displayPercentage}%)</span>;
-        }
-
-        return (
-          <span className="font-semibold">
-            <span className="text-gray-600 block">{formattedPrice}</span>
-            {percentageDisplay}
-          </span>
-        );
+    const metrics: StockCardMetric[] = [
+      {
+        key: 'ma6_month',
+        label: '6M MA',
+        value: formatCurrency(ma6_month, 2),
+        tone: 'neutral'
       }
-    },
-    {
-      key: 'ma6_month',
-      label: '6M MA',
-      align: 'right',
-      format: (value: number) =>
-        <span className="text-gray-500 font-medium">{formatCurrency(value, 2)}</span>,
-    },
-    {
-      key: 'actions',
-      label: 'Actions',
-      align: 'center',
-      format: (value: any, row: WatchlistItem) => (
-        <span className="flex items-center justify-center space-x-2">
-          <button
-            onClick={(e) => { e.stopPropagation(); handlePurchase(row); }}
-            style={{ backgroundColor: '#029b37' }}
-            className="px-4 py-3 text-white rounded-lg hover:opacity-90 transition-colors font-bold text-sm cursor-pointer min-h-[44px] min-w-[120px]"
-          >
-            Add to Portfolio
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); handleRemoveClick(row); }}
-            className="px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-500 transition-colors cursor-pointer font-bold text-sm min-h-[44px] min-w-[80px]"
-          >
-            Remove
-          </button>
-        </span>
-      ),
-    },
-  ];
+    ];
+
+    const actions: StockCardAction[] = [
+      {
+        key: 'addPortfolio',
+        label: 'Add to Portfolio',
+        variant: 'primary',
+        onClick: () => handlePurchase(item)
+      },
+      {
+        key: 'remove',
+        label: 'Remove',
+        variant: 'secondary',
+        onClick: () => handleRemoveClick(item)
+      }
+    ];
+
+    return {
+      symbol: item.symbol,
+      companyName: item.company_name,
+      analystRec: formatRecommendationKey(item.recommendationKey),
+      analysts: item.numberOfAnalystOpinions,
+      price: {
+        current: regularMarketPrice,
+        changePct: pctChange
+      },
+      metrics,
+      actions
+    };
+  };
 
   return (
     <>
@@ -237,12 +176,13 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
         </div>
       )}
 
-      <StockTable<WatchlistItem>
+      <StockCardSection<WatchlistItem>
         title="My Watchlist"
         icon="👀"
         data={watchlist}
-        columns={watchlistColumns}
-        onRowClick={handleRowClick}
+        renderCard={(item) => (
+          <StockCard {...mapWatchlistToCardProps(item)} />
+        )}
         loading={loading}
         error={error}
         emptyMessage="Your watchlist is empty. Search for stocks to add them!"

@@ -96,6 +96,15 @@ describe('GET /api/user/portfolio', () => {
     expect(data.portfolio[1].regularMarketPrice).toBe(210);
     expect(data.portfolio[1].recommendationKey).toBe('hold');
     expect(data.portfolio[1].numberOfAnalystOpinions).toBe(30);
+
+    // Verify totals
+    expect(data.totals).toBeDefined();
+    expect(data.totals.costBasis).toBe(10 * 150 + 5 * 200); // 1500 + 1000 = 2500
+    expect(data.totals.marketValue).toBe(10 * 170 + 5 * 210); // 1700 + 1050 = 2750
+    expect(data.totals.unrealizedNet).toBe(2750 - 2500); // 250
+    expect(data.totals.unrealizedPct).toBeCloseTo((250 / 2500) * 100, 2); // 10%
+    expect(data.totals.unrealizedGain).toBe(250);
+    expect(data.totals.unrealizedLoss).toBe(0);
   });
 
   test('handles errors gracefully', async () => {

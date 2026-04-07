@@ -37,3 +37,26 @@ export function formatCurrency(value: number | null | undefined, decimals: numbe
   }
   return `$${formatNumber(value, decimals)}`;
 }
+
+export function normalizeRecommendation(key: string | null | undefined): string {
+  if (!key) return 'Unknown';
+  
+  const mapping: Record<string, string> = {
+    'strongBuy': 'Strong Buy',
+    'buy': 'Buy',
+    'hold': 'Hold',
+    'sell': 'Sell',
+    'strongSell': 'Strong Sell',
+    'strong_buy': 'Strong Buy',
+    'strong_sell': 'Strong Sell'
+  };
+
+  if (mapping[key]) return mapping[key];
+  if (mapping[key.toLowerCase()]) return mapping[key.toLowerCase()];
+
+  return key
+    .replace(/_/g, ' ')
+    .replace(/([A-Z])/g, ' $1')
+    .trim()
+    .replace(/^\w/, (c) => c.toUpperCase());
+}

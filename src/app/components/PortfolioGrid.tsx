@@ -1,6 +1,7 @@
 'use client';
 
-import StockCard from './StockCard';
+import StockCard, { UnifiedStockCardProps, StockCardMetric, StockCardAction } from './StockCard';
+import { formatCurrency, formatNumber } from '@/utils/formatters';
 
 interface PortfolioGridItem {
   symbol: string;
@@ -22,6 +23,64 @@ interface PortfolioGridProps {
 }
 
 export default function PortfolioGrid({ holdings, onBuyMore, onSell }: PortfolioGridProps) {
+  const mapHoldingToCardProps = (holding: PortfolioGridItem): UnifiedStockCardProps => {
+    const metrics: StockCardMetric[] = [
+      {
+        key: 'dailyEarnings',
+        label: 'Daily Earnings',
+        value: `${holding.dailyEarnings >= 0 ? '+' : ''}${formatCurrency(holding.dailyEarnings, 2)}`,
+        tone: holding.dailyEarnings >= 0 ? 'positive' : 'negative'
+      },
+      {
+        key: 'lifetimeEarnings',
+        label: 'Lifetime Earnings',
+        value: `${holding.lifetimeEarnings >= 0 ? '+' : ''}${formatCurrency(holding.lifetimeEarnings, 2)}`,
+        tone: holding.lifetimeEarnings >= 0 ? 'positive' : 'negative'
+      },
+      {
+        key: 'positionValue',
+        label: 'Position Value',
+        value: formatCurrency(holding.positionValue, 2),
+        tone: 'neutral'
+      },
+      {
+        key: 'totalShares',
+        label: 'Total Shares',
+        value: formatNumber(holding.shares, 2, true),
+        tone: 'neutral'
+      }
+    ];
+
+    const actions: StockCardAction[] = [
+      {
+        key: 'buyMore',
+        label: 'Buy More',
+        variant: 'primary',
+        onClick: () => onBuyMore(holding.symbol)
+      },
+      {
+        key: 'sell',
+        label: 'Sell',
+        variant: 'secondary',
+        onClick: () => onSell(holding.symbol)
+      }
+    ];
+
+    return {
+      symbol: holding.symbol,
+      shares: holding.shares,
+      analystRec: holding.analystRec,
+      analysts: holding.analysts,
+      price: {
+        current: holding.currentPrice,
+        changePct: holding.pctChange,
+        avgPrice: holding.avgPrice
+      },
+      metrics,
+      actions
+    };
+  };
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-max">
       {holdings.map((holding, index) => (
@@ -31,20 +90,7 @@ export default function PortfolioGrid({ holdings, onBuyMore, onSell }: Portfolio
             animation: `slideUp 0.4s ease-out ${index * 0.05}s backwards`,
           }}
         >
-          <StockCard
-            symbol={holding.symbol}
-            shares={holding.shares}
-            analystRec={holding.analystRec}
-            analysts={holding.analysts}
-            avgPrice={holding.avgPrice}
-            currentPrice={holding.currentPrice}
-            pctChange={holding.pctChange}
-            dailyEarnings={holding.dailyEarnings}
-            lifetimeEarnings={holding.lifetimeEarnings}
-            positionValue={holding.positionValue}
-            onBuyMore={onBuyMore}
-            onSell={onSell}
-          />
+          <StockCard {...mapHoldingToCardProps(holding)} />
         </div>
       ))}
 
