@@ -84,10 +84,10 @@ const AnalystRatingsCard: React.FC<AnalystRatingsCardProps> = ({ initialData }) 
         <h3 className="font-bold text-gray-800">Analyst Ratings</h3>
       </div>
 
-      <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-200">
+      <div className="space-y-1 max-h-[220px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-200">
         {data?.ratings.map((rating) => (
           <div key={rating.symbol} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
-            <span className="font-bold text-gray-900">{rating.symbol}</span>
+            <span className="font-bold text-[10px] text-gray-900">{rating.symbol}</span>
             <div className="flex items-center gap-2">
               <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${getRatingColor(rating.primary)}`}>
                 {rating.primary}
