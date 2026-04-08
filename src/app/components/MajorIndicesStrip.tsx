@@ -19,7 +19,7 @@ const SKELETON_INDICES: IndexData[] = [
 
 function IndexSkeleton() {
   return (
-    <div className="p-4 rounded-lg border border-gray-200 bg-white animate-pulse">
+    <div className="p-4 bg-[#fbf9fa] border border-gray-200 rounded-2xl shadow-md animate-pulse">
       <div className="h-4 bg-gray-200 rounded w-24 mb-2"></div>
       <div className="h-6 bg-gray-200 rounded w-32 mb-2"></div>
       <div className="h-4 bg-gray-200 rounded w-20"></div>
@@ -41,7 +41,7 @@ function IndexCard({ index }: { index: IndexData }) {
 
   return (
     <div 
-      className="p-4 rounded-lg border-2 border-gray-200 t"
+      className="p-4 bg-[#fbf9fa] border border-gray-200 rounded-2xl shadow-md"
       role="region"
       aria-label={`${index.label}: $${priceStr}, ${percentStr}`}
     >
@@ -88,11 +88,13 @@ export default function MajorIndicesStrip() {
   if (error) {
     return (
       <div className="w-full">
-        <h2 className="text-2xl font-bold mb-6 text-gray-900 ">
-          Major Indices
-        </h2>
-        <div className="p-4 rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-800">
-          {error}
+        <div className="bg-white p-4 md:p-6 rounded-2xl shadow-lg">
+          <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
+            Major Indices
+          </h2>
+          <div className="p-4 rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-800">
+            {error}
+          </div>
         </div>
       </div>
     )
@@ -100,13 +102,15 @@ export default function MajorIndicesStrip() {
 
   return (
     <div className="w-full">
-      <h2 className="text-2xl font-bold mb-6 text-gray-900">
-        Major Indices
-      </h2>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {indices.map(index => (
-          <IndexCard key={index.symbol} index={index} />
-        ))}
+      <div className="bg-white p-4 md:p-6 rounded-2xl shadow-lg">
+        <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
+          Major Indices
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {indices.map(index => (
+            <IndexCard key={index.symbol} index={index} />
+          ))}
+        </div>
       </div>
     </div>
   )

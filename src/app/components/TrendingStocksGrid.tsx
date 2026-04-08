@@ -17,7 +17,7 @@ interface TrendingStock {
 
 function TrendingSkeleton() {
   return (
-    <div className="p-4 rounded-lg border border-gray-200 bg-white animate-pulse">
+    <div className="p-4 bg-[#fbf9fa] border border-gray-200 rounded-2xl shadow-md animate-pulse">
       <div className="h-5 bg-gray-200 rounded w-16 mb-2"></div>
       <div className="h-4 bg-gray-200 rounded w-24 mb-3"></div>
       <div className="h-4 bg-gray-200 rounded w-20"></div>
@@ -60,11 +60,13 @@ export default function TrendingStocksGrid() {
   if (error && !hasData) {
     return (
       <div className="w-full">
-        <h2 className="text-2xl font-bold mb-6 text-gray-900">
-          Trending (Last 48 Hours)
-        </h2>
-        <div className="p-4 rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-800">
-          {error}
+        <div className="bg-white p-4 md:p-6 rounded-2xl shadow-lg">
+          <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
+            Trending (Last 48 Hours)
+          </h2>
+          <div className="p-4 rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-800">
+            {error}
+          </div>
         </div>
       </div>
     )
@@ -89,21 +91,23 @@ export default function TrendingStocksGrid() {
 
   return (
     <div className="w-full">
-      <h2 className="text-2xl font-bold mb-6 text-gray-900">
-        Trending (Last 48 Hours)
-      </h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {displayStocks.slice(0, 12).map((stock, idx) => (
-          stock.price === null ? (
-            <TrendingSkeleton key={`skeleton-${idx}`} />
-          ) : (
-            <StockCard
-              key={stock.symbol}
-              card={mapToCardModel(stock)}
-              actions={{ onCardClick: handleCardClick }}
-            />
-          )
-        ))}
+      <div className="bg-white p-4 md:p-6 rounded-2xl shadow-lg">
+        <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
+          Trending (Last 48 Hours)
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {displayStocks.slice(0, 12).map((stock, idx) => (
+            stock.price === null ? (
+              <TrendingSkeleton key={`skeleton-${idx}`} />
+            ) : (
+              <StockCard
+                key={stock.symbol}
+                card={mapToCardModel(stock)}
+                actions={{ onCardClick: handleCardClick }}
+              />
+            )
+          ))}
+        </div>
       </div>
     </div>
   )

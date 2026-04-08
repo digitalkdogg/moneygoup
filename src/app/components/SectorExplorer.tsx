@@ -47,9 +47,9 @@ export default function SectorExplorer() {
   }
 
   return (
-    <div className="w-full">
-      <h2 className="text-2xl font-bold mb-6">
-        Explore by Sector
+    <div className="bg-white p-4 md:p-6 rounded-2xl shadow-lg">
+      <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
+        🧭 Explore by Sector
       </h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         {FEATURED_SECTORS.map(sector => (
@@ -57,7 +57,7 @@ export default function SectorExplorer() {
             key={sector}
             onClick={() => handleSectorClick(sector)}
             aria-label={`Browse ${SECTOR_DISPLAY_NAMES[sector] || sector} stocks`}
-            className="p-4 rounded-lg border-2 border-gray-200 transition duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition duration-200 text-left group hover:shadow-sm"
+            className="p-4 bg-[#fbf9fa] border border-gray-200 rounded-2xl transition-all duration-200 hover:shadow-lg hover:-translate-y-1 text-left"
           >
             <span className="font-semibold text-gray-900">
               {SECTOR_DISPLAY_NAMES[sector] || sector}
