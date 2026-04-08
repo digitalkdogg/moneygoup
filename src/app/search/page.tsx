@@ -3,6 +3,7 @@
 import Search from '../components/Search'
 import SectorExplorer from '../components/SectorExplorer'
 import MajorIndicesStrip from '../components/MajorIndicesStrip'
+import DeepMoneyPicksSection from '../components/DeepMoneyPicksSection'
 import TrendingStocksGrid from '../components/TrendingStocksGrid'
 
 export default function SearchPage() {
@@ -27,6 +28,10 @@ export default function SearchPage() {
 
         <section className="mb-16">
           <MajorIndicesStrip />
+        </section>
+
+        <section className="mb-16">
+          <DeepMoneyPicksSection />
         </section>
 
         <section>

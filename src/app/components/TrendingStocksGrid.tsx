@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { trackTrendingStockClick } from '@/utils/analytics'
+import StockCard from './cards/StockCard'
+import { SearchTrendingCard } from './cards/types'
 
 interface TrendingStock {
   symbol: string
@@ -23,58 +25,8 @@ function TrendingSkeleton() {
   )
 }
 
-function TrendingCard({ stock }: { stock: TrendingStock }) {
-  const router = useRouter()
-  const isLoading = stock.price === null
-  const isPositive = (stock.changePercent ?? 0) >= 0
-
-  if (isLoading) {
-    return <TrendingSkeleton />
-  }
-
-  const priceStr = stock.price ? stock.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'N/A'
-  const percentStr = stock.changePercent !== null ? (stock.changePercent >= 0 ? '+' : '') + stock.changePercent.toFixed(2) + '%' : 'N/A'
-
-  const handleClick = () => {
-    trackTrendingStockClick(stock.symbol, stock.trendScore)
-    router.push(`/search/${stock.symbol}`)
-  }
-
-  return (
-    <button
-      onClick={handleClick}
-      className="text-left p-4 rounded-lg border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-green-500 dark:hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition duration-200 transform hover:scale-105"
-      aria-label={`${stock.symbol}: ${stock.companyName}, $${priceStr}, ${percentStr}`}
-    >
-      <div className="flex justify-between items-start mb-2">
-        <div>
-          <div className="text-lg font-bold text-gray-900 dark:text-white">
-            {stock.symbol}
-          </div>
-          <div className="text-sm text-gray-600 dark:text-gray-400 line-clamp-1">
-            {stock.companyName}
-          </div>
-        </div>
-        {stock.trendScore !== null && (
-          <div className="text-xs font-semibold bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100 px-2 py-1 rounded whitespace-nowrap">
-            {stock.trendScore.toFixed(0)}
-          </div>
-        )}
-      </div>
-      <div className="flex justify-between items-end">
-        <div className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-          ${priceStr}
-        </div>
-        <div className={`text-sm font-semibold flex items-center gap-1 ${isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-          <span aria-hidden="true">{isPositive ? '↑' : '↓'}</span>
-          {percentStr}
-        </div>
-      </div>
-    </button>
-  )
-}
-
 export default function TrendingStocksGrid() {
+  const router = useRouter()
   const [stocks, setStocks] = useState<TrendingStock[]>(Array(12).fill({ symbol: '', companyName: '', price: null, changePercent: null, trendScore: null, source: '' }))
   const [error, setError] = useState<string | null>(null)
   const [hasData, setHasData] = useState(false)
@@ -120,6 +72,21 @@ export default function TrendingStocksGrid() {
 
   const displayStocks = hasData ? stocks : Array(12).fill({ symbol: '', companyName: '', price: null, changePercent: null, trendScore: null, source: '' })
 
+  const mapToCardModel = (stock: TrendingStock): SearchTrendingCard => ({
+    variant: 'search-trending',
+    symbol: stock.symbol,
+    companyName: stock.companyName,
+    price: stock.price,
+    changePercent: stock.changePercent,
+    hotRating: stock.trendScore
+  })
+
+  const handleCardClick = (symbol: string) => {
+    const stock = stocks.find(s => s.symbol === symbol)
+    trackTrendingStockClick(symbol, stock?.trendScore || null)
+    router.push(`/search/${symbol}`)
+  }
+
   return (
     <div className="w-full">
       <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">
@@ -127,10 +94,15 @@ export default function TrendingStocksGrid() {
       </h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {displayStocks.slice(0, 12).map((stock, idx) => (
-          <TrendingCard
-            key={stock.symbol || `skeleton-${idx}`}
-            stock={stock}
-          />
+          stock.price === null ? (
+            <TrendingSkeleton key={`skeleton-${idx}`} />
+          ) : (
+            <StockCard
+              key={stock.symbol}
+              card={mapToCardModel(stock)}
+              actions={{ onCardClick: handleCardClick }}
+            />
+          )
         ))}
       </div>
     </div>

@@ -2,10 +2,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import PurchaseFromWatchlistModal from './modals/PurchaseFromWatchlistModal';
-import StockCard, { UnifiedStockCardProps, StockCardMetric, StockCardAction } from './StockCard';
+import StockCard from './cards/StockCard';
+import { WatchlistCard } from './cards/types';
 import StockCardSection from './StockCardSection';
-import { formatCurrency, formatNumber } from '@/utils/formatters';
+import { formatCurrency, formatNumber, normalizeRecommendation } from '@/utils/formatters';
 
 interface WatchlistItem {
   stock_id: number;
@@ -27,29 +29,6 @@ interface WatchlistSectionProps {
   onRefresh?: () => void;
 }
 
-const formatRecommendationKey = (key: string | null | undefined): string => {
-  if (!key) return 'N/A';
-  
-  const mapping: Record<string, string> = {
-    'strongBuy': 'Strong Buy',
-    'buy': 'Buy',
-    'hold': 'Hold',
-    'sell': 'Sell',
-    'strongSell': 'Strong Sell',
-    'strong_buy': 'Strong Buy',
-    'strong_sell': 'Strong Sell'
-  };
-
-  if (mapping[key]) return mapping[key];
-  if (mapping[key.toLowerCase()]) return mapping[key.toLowerCase()];
-
-  return key
-    .replace(/_/g, ' ')
-    .replace(/([A-Z])/g, ' $1')
-    .trim()
-    .replace(/^\w/, (c) => c.toUpperCase());
-};
-
 export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,6 +37,7 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [selectedStock, setSelectedStock] = useState<WatchlistItem | null>(null);
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     fetchWatchlist();
@@ -125,45 +105,19 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
     onRefresh?.();
   };
 
-  const mapWatchlistToCardProps = (item: WatchlistItem): UnifiedStockCardProps => {
+  const mapWatchlistToCardModel = (item: WatchlistItem): WatchlistCard => {
     const { regularMarketPrice, prev_close, ma6_month } = item;
     const pctChange = prev_close ? ((regularMarketPrice - prev_close) / prev_close) * 100 : null;
 
-    const metrics: StockCardMetric[] = [
-      {
-        key: 'ma6_month',
-        label: '6M MA',
-        value: formatCurrency(ma6_month, 2),
-        tone: 'neutral'
-      }
-    ];
-
-    const actions: StockCardAction[] = [
-      {
-        key: 'addPortfolio',
-        label: 'Add to Portfolio',
-        variant: 'primary',
-        onClick: () => handlePurchase(item)
-      },
-      {
-        key: 'remove',
-        label: 'Remove',
-        variant: 'secondary',
-        onClick: () => handleRemoveClick(item)
-      }
-    ];
-
     return {
+      variant: 'watchlist',
       symbol: item.symbol,
       companyName: item.company_name,
-      analystRec: formatRecommendationKey(item.recommendationKey),
+      price: regularMarketPrice,
+      changePercent: pctChange,
+      analystFeedback: normalizeRecommendation(item.recommendationKey),
       analysts: item.numberOfAnalystOpinions,
-      price: {
-        current: regularMarketPrice,
-        changePct: pctChange
-      },
-      metrics,
-      actions
+      ma6m: ma6_month
     };
   };
 
@@ -181,7 +135,14 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
         icon="👀"
         data={watchlist}
         renderCard={(item) => (
-          <StockCard {...mapWatchlistToCardProps(item)} />
+          <StockCard 
+            card={mapWatchlistToCardModel(item)} 
+            actions={{
+              onAddToPortfolio: () => handlePurchase(item),
+              onRemoveFromWatchlist: () => handleRemoveClick(item),
+              onCardClick: (symbol) => router.push(`/search/${symbol}`)
+            }}
+          />
         )}
         loading={loading}
         error={error}

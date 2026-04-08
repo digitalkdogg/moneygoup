@@ -13,7 +13,6 @@ import AnalystRatingsCard from './AnalystRatingsCard';
 import { formatNumber, formatCurrency as formatUtilityCurrency } from '@/utils/formatters'; // Import formatters
 import { PortfolioItem } from '@/types/portfolio'; // NEW: Import PortfolioItem
 import { PortfolioTotals, AnalystRatingsResponse } from '@/types/dashboard';
-import DeepMoneyPicksSection from './DeepMoneyPicksSection';
 import { PortfolioHistoryChart } from './PortfolioHistoryChart';
 
 interface StockData {
@@ -89,8 +88,6 @@ export default function Dashboard() {
   const [loadingPortfolio, setLoadingPortfolio] = useState(true);
   const [portfolioError, setPortfolioError] = useState<string | null>(null);
 
-  const [deepMoneyError, setDeepMoneyError] = useState<string | null>(null);
-  const [deepMoneyLoading, setDeepMoneyLoading] = useState(false);
   const [showChart, setShowChart] = useState(false);
   
   const router = useRouter();
@@ -158,28 +155,9 @@ export default function Dashboard() {
     }
   }, []); // Empty dependency array as it doesn't depend on any props or state from Dashboard directly
 
-  const fetchDeepMoneyPicks = useCallback(async () => {
-    setDeepMoneyLoading(true);
-    setDeepMoneyError(null);
-    try {
-      const res = await fetch('/api/dashboard/deepmoney-picks');
-      if (!res.ok) {
-        throw new Error('Failed to fetch DeepMoney picks');
-      }
-      // Data is now handled by DeepMoneyPicksSection component directly
-      // but we keep the consolidate fetch error handling if needed.
-    } catch (err) {
-      setDeepMoneyError(err instanceof Error ? err.message : 'An unknown error occurred while fetching DeepMoney picks');
-    } finally {
-      setDeepMoneyLoading(false);
-    }
-  }, []);
-
-
   useEffect(() => {
     fetchPortfolioData(); // Fetch portfolio data when component mounts
-    fetchDeepMoneyPicks(); // Fetch DeepMoney picks (consolidated endpoint)
-  }, [fetchPortfolioData, fetchDeepMoneyPicks]);
+  }, [fetchPortfolioData]);
 
   // const handleRowClick = (symbol: string) => {
   //   router.push(`/search/${symbol}`);
@@ -237,8 +215,6 @@ export default function Dashboard() {
           <WatchlistSection onRefresh={() => {
             // Optional: refresh other data if needed
           }} />
-
-          <DeepMoneyPicksSection />
         </div>
       </div>
 

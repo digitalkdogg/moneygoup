@@ -1,7 +1,8 @@
 'use client';
 
-import StockCard, { UnifiedStockCardProps, StockCardMetric, StockCardAction } from './StockCard';
-import { formatCurrency, formatNumber } from '@/utils/formatters';
+import StockCard from './cards/StockCard';
+import { PortfolioCard } from './cards/types';
+import { formatCurrency, formatNumber, normalizeRecommendation } from '@/utils/formatters';
 
 interface PortfolioGridItem {
   symbol: string;
@@ -23,61 +24,16 @@ interface PortfolioGridProps {
 }
 
 export default function PortfolioGrid({ holdings, onBuyMore, onSell }: PortfolioGridProps) {
-  const mapHoldingToCardProps = (holding: PortfolioGridItem): UnifiedStockCardProps => {
-    const metrics: StockCardMetric[] = [
-      {
-        key: 'dailyEarnings',
-        label: 'Daily Earnings',
-        value: `${holding.dailyEarnings >= 0 ? '+' : ''}${formatCurrency(holding.dailyEarnings, 2)}`,
-        tone: holding.dailyEarnings >= 0 ? 'positive' : 'negative'
-      },
-      {
-        key: 'lifetimeEarnings',
-        label: 'Lifetime Earnings',
-        value: `${holding.lifetimeEarnings >= 0 ? '+' : ''}${formatCurrency(holding.lifetimeEarnings, 2)}`,
-        tone: holding.lifetimeEarnings >= 0 ? 'positive' : 'negative'
-      },
-      {
-        key: 'positionValue',
-        label: 'Position Value',
-        value: formatCurrency(holding.positionValue, 2),
-        tone: 'neutral'
-      },
-      {
-        key: 'totalShares',
-        label: 'Total Shares',
-        value: formatNumber(holding.shares, 2, true),
-        tone: 'neutral'
-      }
-    ];
-
-    const actions: StockCardAction[] = [
-      {
-        key: 'buyMore',
-        label: 'Buy More',
-        variant: 'primary',
-        onClick: () => onBuyMore(holding.symbol)
-      },
-      {
-        key: 'sell',
-        label: 'Sell',
-        variant: 'secondary',
-        onClick: () => onSell(holding.symbol)
-      }
-    ];
-
+  const mapHoldingToCardModel = (holding: PortfolioGridItem): PortfolioCard => {
     return {
+      variant: 'portfolio',
       symbol: holding.symbol,
-      shares: holding.shares,
-      analystRec: holding.analystRec,
-      analysts: holding.analysts,
-      price: {
-        current: holding.currentPrice,
-        changePct: holding.pctChange,
-        avgPrice: holding.avgPrice
-      },
-      metrics,
-      actions
+      companyName: '', // PortfolioGridItem doesn't have companyName, could be added if needed
+      sharesHeld: holding.shares,
+      price: holding.currentPrice,
+      changePercent: holding.pctChange,
+      analystFeedback: normalizeRecommendation(holding.analystRec),
+      analysts: holding.analysts
     };
   };
 
@@ -90,7 +46,13 @@ export default function PortfolioGrid({ holdings, onBuyMore, onSell }: Portfolio
             animation: `slideUp 0.4s ease-out ${index * 0.05}s backwards`,
           }}
         >
-          <StockCard {...mapHoldingToCardProps(holding)} />
+          <StockCard 
+            card={mapHoldingToCardModel(holding)} 
+            actions={{
+              onBuyMore: () => onBuyMore(holding.symbol),
+              onSell: () => onSell(holding.symbol)
+            }}
+          />
         </div>
       ))}
 
