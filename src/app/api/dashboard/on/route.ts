@@ -29,21 +29,27 @@ export async function GET(request: NextRequest) {
     const query = `
       SELECT 
         MAX(CASE WHEN us.is_purchased = 0 THEN 1 ELSE 0 END) AS onWatchlist,
-        MAX(CASE WHEN us.is_purchased = 1 THEN 1 ELSE 0 END) AS onPortfolio
+        MAX(CASE WHEN us.is_purchased = 1 THEN 1 ELSE 0 END) AS onPortfolio,
+        SUM(CASE WHEN us.is_purchased = 1 THEN us.shares ELSE 0 END) AS shares,
+        MIN(CASE WHEN us.is_purchased = 1 THEN us.initial_purchase_date ELSE NULL END) AS purchaseDate,
+        MAX(CASE WHEN us.is_purchased = 1 THEN us.purchase_price ELSE 0 END) AS purchasePrice
       FROM user_stocks us
       JOIN stocks s ON us.stock_id = s.id
       WHERE us.user_id = ? AND s.symbol = ?;
     `;
     const [rows] = await executeRawQuery(query, [userId, normalizedTicker]);
     
-    const result = (rows as any[])[0] || { onWatchlist: 0, onPortfolio: 0 };
+    const result = (rows as any[])[0] || { onWatchlist: 0, onPortfolio: 0, shares: 0, purchaseDate: null, purchasePrice: 0 };
     const onWatchlist = result.onWatchlist === 1;
     const onPortfolio = result.onPortfolio === 1;
 
     return NextResponse.json({ 
       ticker: normalizedTicker, 
       onWatchlist, 
-      onPortfolio 
+      onPortfolio,
+      shares: result.shares || 0,
+      purchaseDate: result.purchaseDate,
+      purchasePrice: result.purchasePrice || 0
     });
 
   } catch (error) {

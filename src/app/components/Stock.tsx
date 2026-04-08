@@ -109,6 +109,7 @@ export default function Stock({
   const [watchlistError, setWatchlistError] = useState<string | null>(null)
   const [watchlistStatus, setWatchlistStatus] = useState<Record<string, boolean>>({})
   const [portfolioStatus, setPortfolioStatus] = useState<Record<string, boolean>>({})
+  const [portfolioData, setPortfolioData] = useState<Record<string, { shares: number; purchaseDate: string | null; purchasePrice: number }>>({})
   const [earningsData, setEarningsData] = useState<EarningsData | null>(null);
   const [showFullSummary, setShowFullSummary] = useState(false); // State for showing full summary
   const TRUNCATE_LENGTH = 300; // Define truncation length
@@ -155,15 +156,17 @@ export default function Stock({
       if (isSingleTicker) {
         const watchlistRes = await fetch(`/api/dashboard/on?ticker=${primaryTicker}`);
         if (watchlistRes.ok) {
-          const { onWatchlist, onPortfolio } = await watchlistRes.json();
+          const { onWatchlist, onPortfolio, shares, purchaseDate, purchasePrice } = await watchlistRes.json();
           // If stock is in portfolio, treat it as on watchlist
           const effectiveWatchlistStatus = onWatchlist || onPortfolio;
           setWatchlistStatus({ [primaryTicker]: effectiveWatchlistStatus });
           setPortfolioStatus({ [primaryTicker]: onPortfolio });
+          setPortfolioData({ [primaryTicker]: { shares, purchaseDate, purchasePrice } });
         } else {
           logger.error('Failed to fetch single stock watchlist status');
           setWatchlistStatus({ [primaryTicker]: false });
           setPortfolioStatus({ [primaryTicker]: false });
+          setPortfolioData({ [primaryTicker]: { shares: 0, purchaseDate: null, purchasePrice: 0 } });
         }
       } else {
         const watchlistCheckRes = await fetch('/api/user/watchlist');
@@ -522,9 +525,59 @@ export default function Stock({
           {watchlistError && (
             <p className="text-red-600 mt-2 text-center">{watchlistError}</p>
           )}
-        </div>
+          </div>
 
-        {/* Price History Chart */}
+          {/* Portfolio Position Section */}
+          {portfolioStatus[primaryTicker] && portfolioData[primaryTicker] && portfolioData[primaryTicker].shares > 0 && (
+          <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
+            <h2 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
+              <span>💼</span> Your Portfolio Position
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                <p className="text-sm text-gray-500 uppercase font-medium mb-1">Shares Owned</p>
+                <p className="text-2xl font-bold text-gray-900">{formatNumber(portfolioData[primaryTicker].shares)}</p>
+                {portfolioData[primaryTicker].purchaseDate && (
+                  <p className="text-xs text-gray-400 mt-2 text-gray-500">First purchased on {formatDate(portfolioData[primaryTicker].purchaseDate)}</p>
+                )}
+              </div>
+
+              <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                <p className="text-sm text-gray-500 uppercase font-medium mb-1">Today's Gain/Loss</p>
+                {stockData.prevClose && currentPrice ? (
+                  <>
+                    <p className={`text-2xl font-bold ${(currentPrice - stockData.prevClose) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {formatCurrency((currentPrice - stockData.prevClose) * portfolioData[primaryTicker].shares)}
+                    </p>
+                    <p className={`text-xs mt-2 ${(currentPrice - stockData.prevClose) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      {((currentPrice - stockData.prevClose) / stockData.prevClose * 100).toFixed(2)}% today
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-2xl font-bold text-gray-400">N/A</p>
+                )}
+              </div>
+
+              <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                <p className="text-sm text-gray-500 uppercase font-medium mb-1">Total Gain/Loss</p>
+                {portfolioData[primaryTicker].purchasePrice > 0 ? (
+                  <>
+                    <p className={`text-2xl font-bold ${(currentPrice - portfolioData[primaryTicker].purchasePrice) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {formatCurrency((currentPrice - portfolioData[primaryTicker].purchasePrice) * portfolioData[primaryTicker].shares)}
+                    </p>
+                    <p className={`text-xs mt-2 ${(currentPrice - portfolioData[primaryTicker].purchasePrice) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      {(((currentPrice - portfolioData[primaryTicker].purchasePrice) / portfolioData[primaryTicker].purchasePrice) * 100).toFixed(2)}% lifetime
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-2xl font-bold text-gray-400">N/A</p>
+                )}
+              </div>
+            </div>
+          </div>
+          )}
+
+          {/* Price History Chart */}
         {historical && historical.length > 0 && (
           <div className="mb-8">
             <StockChart ticker={primaryTicker} historicalData={historical} />
