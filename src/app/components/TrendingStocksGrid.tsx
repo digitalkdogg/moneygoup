@@ -17,10 +17,10 @@ interface TrendingStock {
 
 function TrendingSkeleton() {
   return (
-    <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 animate-pulse">
-      <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded w-16 mb-2"></div>
-      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-24 mb-3"></div>
-      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-20"></div>
+    <div className="p-4 rounded-lg border border-gray-200 bg-white animate-pulse">
+      <div className="h-5 bg-gray-200 rounded w-16 mb-2"></div>
+      <div className="h-4 bg-gray-200 rounded w-24 mb-3"></div>
+      <div className="h-4 bg-gray-200 rounded w-20"></div>
     </div>
   )
 }
@@ -60,10 +60,10 @@ export default function TrendingStocksGrid() {
   if (error && !hasData) {
     return (
       <div className="w-full">
-        <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">
+        <h2 className="text-2xl font-bold mb-6 text-gray-900">
           Trending (Last 48 Hours)
         </h2>
-        <div className="p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 text-yellow-800 dark:text-yellow-200">
+        <div className="p-4 rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-800">
           {error}
         </div>
       </div>
@@ -89,7 +89,7 @@ export default function TrendingStocksGrid() {
 
   return (
     <div className="w-full">
-      <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">
+      <h2 className="text-2xl font-bold mb-6 text-gray-900">
         Trending (Last 48 Hours)
       </h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

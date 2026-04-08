@@ -19,19 +19,19 @@ export const formatShares = (value: number | null) => {
 
 export const getChangeColor = (value: number | null) => {
   if (value === null) return 'text-gray-500'
-  return value >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+  return value >= 0 ? 'text-green-900 ' : 'text-red-900'
 }
 
 export const getChangeBg = (value: number | null) => {
-  if (value === null) return 'bg-gray-100 dark:bg-gray-800'
-  return value >= 0 ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'
+  if (value === null) return 'bg-gray-100'
+  return value >= 0 ? 'bg-green-100' : 'bg-red-100 '
 }
 
 export const getAnalystColor = (rec: string | null): string => {
-  if (!rec) return 'text-gray-600 dark:text-gray-400'
+  if (!rec) return 'text-gray-600'
   const lower = rec.toLowerCase()
-  if (lower.includes('strong buy')) return 'text-green-600 dark:text-green-400'
-  if (lower.includes('buy')) return 'text-teal-600 dark:text-teal-400'
-  if (lower.includes('sell')) return 'text-red-600 dark:text-red-400'
-  return 'text-gray-600 dark:text-gray-400'
+  if (lower.includes('strong buy')) return 'text-green-600'
+  if (lower.includes('buy')) return 'text-teal-600'
+  if (lower.includes('sell')) return 'text-red-600'
+  return 'text-gray-600'
 }

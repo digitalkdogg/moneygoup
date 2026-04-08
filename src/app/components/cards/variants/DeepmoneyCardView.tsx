@@ -16,11 +16,11 @@ export const DeepmoneyCardView: React.FC<DeepmoneyCardViewProps> = ({ card }) =>
   const getPredictionColor = (pred: string | number | null) => {
     if (pred === null || pred === undefined) return 'text-gray-500'
     if (typeof pred === 'number') {
-      return pred >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+      return pred >= 0 ? 'text-green-600' : 'text-red-600'
     }
-    if (pred === 'Bullish') return 'text-green-600 dark:text-green-400'
-    if (pred === 'Bearish') return 'text-red-600 dark:text-red-400'
-    return 'text-amber-600 dark:text-amber-400'
+    if (pred === 'Bullish') return 'text-green-600'
+    if (pred === 'Bearish') return 'text-red-600'
+    return 'text-amber-600'
   }
 
   const displayValue = isNumeric 
@@ -44,7 +44,7 @@ export const DeepmoneyCardView: React.FC<DeepmoneyCardViewProps> = ({ card }) =>
         <CardMetricRow 
           label="GPS Score" 
           value={card.gpsScore !== null ? `${card.gpsScore.toFixed(1)}/10` : 'N/A'} 
-          valueClassName="text-purple-600 dark:text-purple-400"
+          valueClassName="text-purple-600"
         />
       </div>
     </>

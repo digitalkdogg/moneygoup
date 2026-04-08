@@ -13,12 +13,12 @@ export const CardHeader: React.FC<CardHeaderProps> = ({ symbol, companyName, cha
   const isPositive = (changePercent ?? 0) >= 0
 
   return (
-    <div className="flex items-start justify-between p-5 border-b border-gray-100 dark:border-gray-700">
+    <div className="flex items-start justify-between p-5 border-b border-gray-100">
       <div>
-        <div className="text-2xl font-bold text-gray-900 dark:text-white leading-tight">
+        <div className="text-2xl font-bold text-gray-900 leading-tight">
           {symbol}
         </div>
-        <div className="text-xs text-gray-500 dark:text-gray-400 font-medium mt-1 truncate max-w-[180px]">
+        <div className="text-xs text-gray-500 font-medium mt-1 truncate max-w-[180px]">
           {companyName}
         </div>
       </div>

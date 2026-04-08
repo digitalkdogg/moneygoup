@@ -23,7 +23,7 @@ export const SearchTrendingCardView: React.FC<SearchTrendingCardViewProps> = ({ 
         <CardMetricRow 
           label="Hot Rating" 
           value={card.hotRating !== null ? card.hotRating.toFixed(0) : 'N/A'} 
-          valueClassName="text-blue-600 dark:text-blue-400"
+          valueClassName="text-blue-600"
         />
       </div>
     </>

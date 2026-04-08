@@ -14,7 +14,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({ label, onClick, variant = '
       case 'primary': return 'bg-green-600 text-white hover:bg-green-700'
       case 'secondary': return 'bg-gray-600 text-white hover:bg-gray-700'
       case 'danger': return 'bg-red-600 text-white hover:bg-red-700'
-      case 'neutral': return 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
+      case 'neutral': return 'bg-gray-100 text-gray-700 hover:bg-gray-200'
       default: return 'bg-gray-100 text-gray-700 hover:bg-gray-200'
     }
   }
@@ -35,7 +35,7 @@ interface CardActionsProps {
 
 export const CardActions: React.FC<CardActionsProps> = ({ children }) => {
   return (
-    <div className="flex gap-2 p-5 mt-auto border-t border-gray-50 dark:border-gray-700" onClick={(e) => e.stopPropagation()}>
+    <div className="flex gap-2 p-5 mt-auto border-t border-gray-50" onClick={(e) => e.stopPropagation()}>
       {children}
     </div>
   )

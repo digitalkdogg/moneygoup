@@ -19,10 +19,10 @@ const SKELETON_INDICES: IndexData[] = [
 
 function IndexSkeleton() {
   return (
-    <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 animate-pulse">
-      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-24 mb-2"></div>
-      <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-32 mb-2"></div>
-      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-20"></div>
+    <div className="p-4 rounded-lg border border-gray-200 bg-white animate-pulse">
+      <div className="h-4 bg-gray-200 rounded w-24 mb-2"></div>
+      <div className="h-6 bg-gray-200 rounded w-32 mb-2"></div>
+      <div className="h-4 bg-gray-200 rounded w-20"></div>
     </div>
   )
 }
@@ -41,17 +41,17 @@ function IndexCard({ index }: { index: IndexData }) {
 
   return (
     <div 
-      className="p-4 rounded-lg border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-green-300 dark:hover:border-green-500 transition duration-200 transform hover:scale-105"
+      className="p-4 rounded-lg border-2 border-gray-200 t"
       role="region"
       aria-label={`${index.label}: $${priceStr}, ${percentStr}`}
     >
-      <div className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
+      <div className="text-sm font-medium text-gray-500 mb-1">
         {index.label}
       </div>
-      <div className="text-lg font-bold text-gray-900 dark:text-white mb-2">
+      <div className="text-lg font-bold text-gray-900 mb-2">
         ${priceStr}
       </div>
-      <div className={`text-sm font-semibold ${isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+      <div className={`text-sm font-semibold ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
         <span aria-hidden="true">{isPositive ? '↑' : '↓'}</span>
         {' '}{changeStr} ({percentStr})
       </div>
@@ -88,10 +88,10 @@ export default function MajorIndicesStrip() {
   if (error) {
     return (
       <div className="w-full">
-        <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">
+        <h2 className="text-2xl font-bold mb-6 text-gray-900 ">
           Major Indices
         </h2>
-        <div className="p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 text-yellow-800 dark:text-yellow-200">
+        <div className="p-4 rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-800">
           {error}
         </div>
       </div>
@@ -100,7 +100,7 @@ export default function MajorIndicesStrip() {
 
   return (
     <div className="w-full">
-      <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">
+      <h2 className="text-2xl font-bold mb-6 text-gray-900">
         Major Indices
       </h2>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
