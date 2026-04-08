@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoneyGoUp Exhaustive Component Documentation</title>
+    <style>
+        :root {
+            --primary: #15803d;
+            --primary-dark: #166534;
+            --bg: #f8fafc;
+            --text: #1e293b;
+            --border: #e2e8f0;
+            --card-bg: #ffffff;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background-color: var(--bg);
+            margin: 0;
+            display: flex;
+        }
+        aside {
+            width: 280px;
+            height: 100vh;
+            background: white;
+            border-right: 1px solid var(--border);
+            position: fixed;
+            padding: 1.5rem;
+            overflow-y: auto;
+        }
+        main {
+            margin-left: 280px;
+            padding: 3rem;
+            max-width: 1000px;
+            width: 100%;
+        }
+        h1 { color: var(--primary-dark); border-bottom: 2px solid var(--primary); padding-bottom: 0.5rem; }
+        h2 { color: var(--primary); margin-top: 3rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+        h3 { color: #334155; margin-top: 2rem; }
+        
+        .nav-header {
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            color: #64748b;
+            margin-top: 1.5rem;
+            display: block;
+            letter-spacing: 0.05em;
+        }
+        .nav-link {
+            display: block;
+            padding: 0.4rem 0;
+            color: #475569;
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+        .nav-link:hover { color: var(--primary); }
+
+        .component-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .component-title {
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: var(--primary-dark);
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .file-path {
+            font-family: ui-monospace, monospace;
+            font-size: 0.75rem;
+            color: #64748b;
+            background: #f1f5f9;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+        }
+        .prop-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            font-size: 0.85rem;
+        }
+        .prop-table th, .prop-table td {
+            text-align: left;
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+        .prop-table th {
+            background: #f8fafc;
+            color: #64748b;
+            text-transform: uppercase;
+            font-size: 0.7rem;
+        }
+        code {
+            font-family: ui-monospace, monospace;
+            background: #f1f5f9;
+            padding: 0.1rem 0.3rem;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }
+        .tag {
+            font-size: 0.7rem;
+            padding: 0.1rem 0.4rem;
+            border-radius: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .tag-required { background: #fee2e2; color: #991b1b; }
+        .tag-optional { background: #f1f5f9; color: #475569; }
+
+        @media (max-width: 768px) {
+            aside { display: none; }
+            main { margin-left: 0; padding: 1.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <aside>
+        <h2 style="font-size: 1.1rem; margin-top: 0; border: none;">Components</h2>
+        <nav>
+            <span class="nav-header">Main Layouts & Logic</span>
+            <a href="#Dashboard" class="nav-link">Dashboard</a>
+            <a href="#Stock" class="nav-link">Stock View</a>
+            
+            <span class="nav-header">Dashboard Widgets</span>
+            <a href="#MarketOverviewCard" class="nav-link">Market Overview</a>
+            <a href="#GainsBreakdownCard" class="nav-link">Gains Breakdown</a>
+            <a href="#AnalystRatingsCard" class="nav-link">Analyst Ratings</a>
+            <a href="#PortfolioSummary" class="nav-link">Portfolio Summary</a>
+            <a href="#SummaryCard" class="nav-link">Summary Card</a>
+            
+            <span class="nav-header">Sections & Grids</span>
+            <a href="#PortfolioSection" class="nav-link">Portfolio Section</a>
+            <a href="#WatchlistSection" class="nav-link">Watchlist Section</a>
+            <a href="#DeepMoneyPicksSection" class="nav-link">DeepMoney Engine</a>
+            <a href="#TrendingStocksGrid" class="nav-link">Trending Grid</a>
+            <a href="#MajorIndicesStrip" class="nav-link">Major Indices Strip</a>
+            <a href="#SectorExplorer" class="nav-link">Sector Explorer</a>
+            <a href="#IndustryStocks" class="nav-link">Industry Stocks</a>
+            <a href="#PortfolioGrid" class="nav-link">Portfolio Grid</a>
+            
+            <span class="nav-header">Analytics & Charts</span>
+            <a href="#PortfolioHistoryChart" class="nav-link">Portfolio History Chart</a>
+            <a href="#StockChart" class="nav-link">Price History Chart</a>
+            <a href="#StockPrediction" class="nav-link">AI Stock Prediction</a>
+            <a href="#TechnicalIndicatorsDisplay" class="nav-link">Technical Indicators</a>
+            
+            <span class="nav-header">Core UI & Navigation</span>
+            <a href="#Navigation" class="nav-link">Main Navigation</a>
+            <a href="#Search" class="nav-link">Search Bar</a>
+            <a href="#StockCard" class="nav-link">Stock Card (Unified)</a>
+            <a href="#StockCardSection" class="nav-link">Card Section Wrapper</a>
+            <a href="#StockTable" class="nav-link">Stock Table (Generalized)</a>
+            <a href="#ApiErrorDisplay" class="nav-link">API Error Display</a>
+            <a href="#StockNews" class="nav-link">Stock News List</a>
+            
+            <span class="nav-header">Internal Card Components</span>
+            <a href="#BaseCardShell" class="nav-link">Base Card Shell</a>
+            <a href="#CardHeader" class="nav-link">Card Header</a>
+            <a href="#CardMetricRow" class="nav-link">Card Metric Row</a>
+            <a href="#CardActions" class="nav-link">Card Actions Row</a>
+            
+            <span class="nav-header">Modals</span>
+            <a href="#BuyMoreModal" class="nav-link">Buy More Modal</a>
+            <a href="#SellModal" class="nav-link">Sell Modal</a>
+            <a href="#PurchaseFromWatchlistModal" class="nav-link">Purchase Modal</a>
+        </nav>
+    </aside>
+
+    <main>
+        <h1>Complete Component Registry</h1>
+        <p>A comprehensive technical catalog of all 37 components within the MoneyGoUp application.</p>
+
+        <section id="main-layouts">
+            <h2>Main Layouts & Logic</h2>
+            
+            <div id="Dashboard" class="component-card">
+                <div class="component-title">
+                    Dashboard
+                    <span class="file-path">src/app/components/Dashboard.tsx</span>
+                </div>
+                <p>The central orchestrator for the user's dashboard view. Fetches combined portfolio data, manages state for market status, and coordinates the display of summary widgets and sections.</p>
+            </div>
+
+            <div id="Stock" class="component-card">
+                <div class="component-title">
+                    Stock
+                    <span class="file-path">src/app/components/Stock.tsx</span>
+                </div>
+                <p>The primary container for the stock detail page. Manages consolidated data fetching for a ticker (quotes, news, history, earnings, analyst data) and provides a multi-ticker comparison view.</p>
+            </div>
+        </section>
+
+        <section id="dashboard-widgets">
+            <h2>Dashboard Widgets</h2>
+            
+            <div id="MarketOverviewCard" class="component-card">
+                <div class="component-title">
+                    MarketOverviewCard
+                    <span class="file-path">src/app/components/MarketOverviewCard.tsx</span>
+                </div>
+                <p>Displays a summary of major market indices (S&P 500, NASDAQ, DOW, VIX) with their current prices and daily percentage changes.</p>
+            </div>
+
+            <div id="GainsBreakdownCard" class="component-card">
+                <div class="component-title">
+                    GainsBreakdownCard
+                    <span class="file-path">src/app/components/GainsBreakdownCard.tsx</span>
+                </div>
+                <p>Provides a visual breakdown of portfolio performance, including unrealized gains, losses, and cost basis using a donut chart.</p>
+            </div>
+
+            <div id="AnalystRatingsCard" class="component-card">
+                <div class="component-title">
+                    AnalystRatingsCard
+                    <span class="file-path">src/app/components/AnalystRatingsCard.tsx</span>
+                </div>
+                <p>Summarizes analyst sentiment for stocks currently held in the user's portfolio.</p>
+            </div>
+
+            <div id="PortfolioSummary" class="component-card">
+                <div class="component-title">
+                    PortfolioSummary
+                    <span class="file-path">src/app/components/PortfolioSummary.tsx</span>
+                </div>
+                <p>Calculates and displays top-level portfolio totals: Position Value, Daily Earnings, and Lifetime Earnings. Includes a toggle for the history chart.</p>
+            </div>
+
+            <div id="SummaryCard" class="component-card">
+                <div class="component-title">
+                    SummaryCard
+                    <span class="file-path">src/app/components/SummaryCard.tsx</span>
+                </div>
+                <p>Generic card for single metrics with label, value, and optional status indicators.</p>
+            </div>
+        </section>
+
+        <section id="sections">
+            <h2>Sections & Grids</h2>
+
+            <div id="PortfolioSection" class="component-card">
+                <div class="component-title">
+                    PortfolioSection
+                    <span class="file-path">src/app/components/PortfolioSection.tsx</span>
+                </div>
+                <p>Renders the "My Portfolio" area using a grid of cards. Handles transaction modal states.</p>
+            </div>
+
+            <div id="WatchlistSection" class="component-card">
+                <div class="component-title">
+                    WatchlistSection
+                    <span class="file-path">src/app/components/WatchlistSection.tsx</span>
+                </div>
+                <p>Manages the user's watchlist display and removal logic.</p>
+            </div>
+
+            <div id="DeepMoneyPicksSection" class="component-card">
+                <div class="component-title">
+                    DeepMoneyPicksSection
+                    <span class="file-path">src/app/components/DeepMoneyPicksSection.tsx</span>
+                </div>
+                <p>The "Brain" section showing AI-suggested growth candidates and hot ETFs.</p>
+            </div>
+
+            <div id="TrendingStocksGrid" class="component-card">
+                <div class="component-title">
+                    TrendingStocksGrid
+                    <span class="file-path">src/app/components/TrendingStocksGrid.tsx</span>
+                </div>
+                <p>Shows the top trending stocks from the last 48 hours in a responsive grid.</p>
+            </div>
+
+            <div id="MajorIndicesStrip" class="component-card">
+                <div class="component-title">
+                    MajorIndicesStrip
+                    <span class="file-path">src/app/components/MajorIndicesStrip.tsx</span>
+                </div>
+                <p>A secondary index display strip primarily used on the search page.</p>
+            </div>
+
+            <div id="SectorExplorer" class="component-card">
+                <div class="component-title">
+                    SectorExplorer
+                    <span class="file-path">src/app/components/SectorExplorer.tsx</span>
+                </div>
+                <p>Allows users to browse stocks by industry sectors (Technology, Healthcare, etc.).</p>
+            </div>
+
+            <div id="IndustryStocks" class="component-card">
+                <div class="component-title">
+                    IndustryStocks
+                    <span class="file-path">src/app/components/IndustryStocks.tsx</span>
+                </div>
+                <p>Displays a table of active stocks within a specific industry context.</p>
+            </div>
+
+            <div id="PortfolioGrid" class="component-card">
+                <div class="component-title">
+                    PortfolioGrid
+                    <span class="file-path">src/app/components/PortfolioGrid.tsx</span>
+                </div>
+                <p>A specialized grid layout for portfolio items, used in the test-cards page.</p>
+            </div>
+        </section>
+
+        <section id="analytics">
+            <h2>Analytics & Charts</h2>
+
+            <div id="PortfolioHistoryChart" class="component-card">
+                <div class="component-title">
+                    PortfolioHistoryChart
+                    <span class="file-path">src/app/components/PortfolioHistoryChart.tsx</span>
+                </div>
+                <p>Visualizes the total portfolio value over time. Supports time period selection (1W, 1M, 6M, 1Y).</p>
+            </div>
+
+            <div id="StockChart" class="component-card">
+                <div class="component-title">
+                    StockChart
+                    <span class="file-path">src/app/components/StockChart.tsx</span>
+                </div>
+                <p>Price history chart for individual stocks with interactive tooltips and period filtering.</p>
+            </div>
+
+            <div id="StockPrediction" class="component-card">
+                <div class="component-title">
+                    StockPrediction
+                    <span class="file-path">src/app/components/StockPrediction.tsx</span>
+                </div>
+                <p>Displays AI-generated price targets and trajectory. Includes a confidence badge and detailed signal impact breakdown.</p>
+            </div>
+
+            <div id="TechnicalIndicatorsDisplay" class="component-card">
+                <div class="component-title">
+                    TechnicalIndicatorsDisplay
+                    <span class="file-path">src/app/components/TechnicalIndicatorsDisplay.tsx</span>
+                </div>
+                <p>Shows a comprehensive breakdown of technical signals (SMA, RSI, Momentum, Volatility) and the resulting Trading Signal.</p>
+            </div>
+        </section>
+
+        <section id="core-ui">
+            <h2>Core UI & Navigation</h2>
+
+            <div id="Navigation" class="component-card">
+                <div class="component-title">
+                    Navigation
+                    <span class="file-path">src/app/components/Navigation.tsx</span>
+                </div>
+                <p>The main site header. Handles desktop/mobile menus, user profile dropdown, and logout logic.</p>
+            </div>
+
+            <div id="Search" class="component-card">
+                <div class="component-title">
+                    Search
+                    <span class="file-path">src/app/components/Search.tsx</span>
+                </div>
+                <p>Global search bar with autocomplete functionality. Loads ticker list from <code>company_tickers.json</code>.</p>
+            </div>
+
+            <div id="StockCard" class="component-card">
+                <div class="component-title">
+                    StockCard
+                    <span class="file-path">src/app/components/cards/StockCard.tsx</span>
+                </div>
+                <p>A unified card component that adapts its layout and actions based on a <code>variant</code> prop.</p>
+            </div>
+
+            <div id="StockCardSection" class="component-card">
+                <div class="component-title">
+                    StockCardSection
+                    <span class="file-path">src/app/components/StockCardSection.tsx</span>
+                </div>
+                <p>A reusable wrapper for card grids that handles title, loading, error, and empty states consistently.</p>
+            </div>
+
+            <div id="StockTable" class="component-card">
+                <div class="component-title">
+                    StockTable
+                    <span class="file-path">src/app/components/StockTable.tsx</span>
+                </div>
+                <p>Generalized table component for listing stocks with custom formatting per column.</p>
+            </div>
+
+            <div id="ApiErrorDisplay" class="component-card">
+                <div class="component-title">
+                    ApiErrorDisplay
+                    <span class="file-path">src/app/components/ApiErrorDisplay.tsx</span>
+                </div>
+                <p>A standardized error banner for API failures, featuring retry buttons and troubleshooting tips.</p>
+            </div>
+
+            <div id="StockNews" class="component-card">
+                <div class="component-title">
+                    StockNews
+                    <span class="file-path">src/app/components/StockNews.tsx</span>
+                </div>
+                <p>Lists recent news articles for a stock with sentiment indicators.</p>
+            </div>
+        </section>
+
+        <section id="internal-cards">
+            <h2>Internal Card Components</h2>
+            <p>These components are used internally by the <code>StockCard</code> system to ensure UI consistency.</p>
+            
+            <div id="BaseCardShell" class="component-card">
+                <div class="component-title">
+                    BaseCardShell
+                    <span class="file-path">src/app/components/cards/BaseCardShell.tsx</span>
+                </div>
+                <p>The shared outer container for all stock cards, managing background color, borders, and hover animations.</p>
+            </div>
+
+            <div id="CardHeader" class="component-card">
+                <div class="component-title">
+                    CardHeader
+                    <span class="file-path">src/app/components/cards/CardHeader.tsx</span>
+                </div>
+                <p>Unified header for cards showing ticker, name, and price change percentage.</p>
+            </div>
+
+            <div id="CardMetricRow" class="component-card">
+                <div class="component-title">
+                    CardMetricRow
+                    <span class="file-path">src/app/components/cards/CardMetricRow.tsx</span>
+                </div>
+                <p>Standardized labeled row for displaying data points inside cards.</p>
+            </div>
+
+            <div id="CardActions" class="component-card">
+                <div class="component-title">
+                    CardActions
+                    <span class="file-path">src/app/components/cards/CardActions.tsx</span>
+                </div>
+                <p>The bottom action area for cards, containing context-specific buttons.</p>
+            </div>
+        </section>
+
+        <section id="modals">
+            <h2>Modals</h2>
+
+            <div id="BuyMoreModal" class="component-card">
+                <div class="component-title">
+                    BuyMoreModal
+                    <span class="file-path">src/app/components/modals/BuyMoreModal.tsx</span>
+                </div>
+                <p>Form for logging additional shares purchased for an existing position. Calculates the new average price in real-time.</p>
+            </div>
+
+            <div id="SellModal" class="component-card">
+                <div class="component-title">
+                    SellModal
+                    <span class="file-path">src/app/components/modals/SellModal.tsx</span>
+                </div>
+                <p>Form for logging partial or full sales of a position. Calculates realized gain/loss.</p>
+            </div>
+
+            <div id="PurchaseFromWatchlistModal" class="component-card">
+                <div class="component-title">
+                    PurchaseFromWatchlistModal
+                    <span class="file-path">src/app/components/modals/PurchaseFromWatchlistModal.tsx</span>
+                </div>
+                <p>Form for making an initial purchase of a stock currently on the user's watchlist.</p>
+            </div>
+        </section>
+
+        <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem; text-align: center;">
+            MoneyGoUp Component Registry &copy; 2026
+        </footer>
+    </main>
+</body>
+</html>
