@@ -156,7 +156,7 @@
                 <ul>
                     <li><strong>Primary Pass:</strong> Scrapes 15+ global RSS and JSON feeds (Yahoo, MarketBeat, ApeWisdom).</li>
                     <li><strong>Secondary Pass:</strong> For each discovered ticker, it performs a deep-dive on that ticker's specific news feed to find co-mentioned stocks.</li>
-                    <li><strong>Stock ML Validation:</strong> The <code>analyzer.ts</code> process sequentially runs a 1-month ML prediction for each stock candidate (Threshold >= 1.5%).</li>
+                    <li><strong>Stock ML Validation:</strong> The <code>analyzer.ts</code> process sequentially runs a 1-month ML prediction for each stock candidate (Threshold >= 0.1%).</li>
                     <li><strong>Hot ETF Discovery Module:</strong> In parallel, <code>etfDiscovery.ts</code> scans thematic watchlists and dynamic screeners for ETFs under $400 with high volume and AUM (Threshold GPS >= 55).</li>
                 </ul>
             </div>
@@ -316,12 +316,13 @@
             <h2><span>7</span> API Structure</h2>
             <div class="step-card">
                 <div class="component-tag">Endpoint: GET /api/prediction/deepmoney</div>
-                <p>This endpoint returns a JSON object containing various lists of recommendations and market data, powered by the V2 engine.</p>
+                <p>This endpoint returns a JSON object containing various lists of recommendations and market data, powered by the V2.1 engine.</p>
                 <pre><code>{
   "success": true,
   "timestamp": "...",
   "count": 5,
   "stocks": [ ... ],
+  "hot_etfs": [ ... ],
   "meta": { ... }
 }</code></pre>
                 <h3>stocks</h3>

@@ -533,7 +533,15 @@ export default function Stock({
             <h2 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
               <span>💼</span> Your Portfolio Position
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                <p className="text-sm text-gray-500 uppercase font-medium mb-1">Total Portfolio Value</p>
+                <p className="text-2xl font-bold text-gray-900">{formatCurrency(portfolioData[primaryTicker].shares * currentPrice)}</p>
+                {portfolioData[primaryTicker].purchaseDate && (
+                  <p className="text-xs text-gray-400 mt-2 text-gray-500">Current position value</p>
+                )}
+              </div>
+
               <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                 <p className="text-sm text-gray-500 uppercase font-medium mb-1">Shares Owned</p>
                 <p className="text-2xl font-bold text-gray-900">{formatNumber(portfolioData[primaryTicker].shares)}</p>

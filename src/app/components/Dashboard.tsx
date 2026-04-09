@@ -9,7 +9,7 @@ import WatchlistSection from './WatchlistSection'; // Updated to use StockCardSe
 import PortfolioSummary from './PortfolioSummary'; // NEW: Import PortfolioSummary
 import MarketOverviewCard from './MarketOverviewCard';
 import GainsBreakdownCard from './GainsBreakdownCard';
-import AnalystRatingsCard from './AnalystRatingsCard';
+
 import { formatNumber, formatCurrency as formatUtilityCurrency } from '@/utils/formatters'; // Import formatters
 import { PortfolioItem } from '@/types/portfolio'; // NEW: Import PortfolioItem
 import { PortfolioTotals, AnalystRatingsResponse } from '@/types/dashboard';
@@ -91,29 +91,6 @@ export default function Dashboard() {
   const [showChart, setShowChart] = useState(false);
   
   const router = useRouter();
-
-  // State for the purchase modal
-  // const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false);
-  // const [selectedStockForPurchase, setSelectedStockForPurchase] = useState<PortfolioItem | null>(null); // Use PortfolioItem
-  // const [purchasePrice, setPurchasePrice] = useState('');
-  // const [shares, setShares] = useState('');
-  // const [isSubmittingPurchase, setIsSubmittingPurchase] = useState(false);
-  // const [purchaseError, setPurchaseError] = useState<string | null>(null);
-  // const [purchaseSuccess, setPurchaseSuccess] = useState<string | null>(null);
-
-  // State for the sell modal
-  // const [isSellModalOpen, setIsSellModalOpen] = useState(false);
-  // const [selectedStockForSell, setSelectedStockForSell] = useState<PortfolioItem | null>(null); // Use PortfolioItem
-  // const [isSubmittingSell, setIsSubmittingSell] = useState(false);
-  // const [sellError, setSellError] = useState<string | null>(null);
-  // const [sellSuccess, setSellSuccess] = useState<string | null>(null);
-
-  // State for the remove modal
-  // const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
-  // const [selectedStockForRemove, setSelectedStockForRemove] = useState<StockDashboardData | null>(null); // This is still StockDashboardData for watchlist
-  // const [isSubmittingRemove, setIsSubmittingRemove] = useState(false);
-  // const [removeError, setRemoveError] = useState<string | null>(null);
-  // const [removeSuccess, setRemoveSuccess] = useState<string | null>(null);
 
 
   // NEW: Fetch portfolio data
@@ -203,10 +180,15 @@ export default function Dashboard() {
           {showChart && <PortfolioHistoryChart />}
 
           {/* New Dashboard Widgets Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
+           {/* Analyst Ratings Row */}
+          <div className="mb-6">
+
+          </div>
+
+          {/* Market Overview + Gains Breakdown Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
             <MarketOverviewCard />
             <GainsBreakdownCard totals={portfolioTotals} loading={loadingPortfolio} />
-            <AnalystRatingsCard initialData={portfolioRatings} />
           </div>
 
           {/* Portfolio and Watchlist Sections */}

@@ -17,6 +17,7 @@ export const SearchTrendingCardView: React.FC<SearchTrendingCardViewProps> = ({ 
         symbol={card.symbol} 
         companyName={card.companyName} 
         changePercent={card.changePercent} 
+        changeAmount={card.changeAmount}
       />
       <div className="px-5 py-4">
         <CardMetricRow label="Price" value={formatPrice(card.price)} />

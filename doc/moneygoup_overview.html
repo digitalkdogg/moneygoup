@@ -105,13 +105,14 @@
             <h3>2.1 AI-Powered Stock & ETF Discovery (DeepMoney Engine)</h3>
             <p>The DeepMoney engine is the heart of MoneyGoUp's discovery capabilities, identifying trending stocks and ETFs. It operates in two main versions:</p>
 
-            <h4>DeepMoney V2 (Next-Generation Discovery)</h4>
-            <p>This advanced engine uses a multi-stage process for high-precision stock discovery:</p>
+            <h4>DeepMoney V2.1 (Next-Generation Discovery)</h4>
+            <p>This advanced engine uses a multi-stage process for high-precision stock and ETF discovery:</p>
             <ul>
                 <li><strong>Recursive News Discovery</strong>: Scrapes numerous global financial RSS feeds to find trending tickers and then recursively scans company-specific feeds for co-mentioned peers.</li>
                 <li><strong>Social Sentiment Pre-Filter</strong>: Filters tickers based on social media mentions (e.g., from ApeWisdom) to reduce noise.</li>
                 <li><strong>Technical Validation (Gate 1)</strong>: Requires candidates to have a non-negative <code>tradingSignalScore</code> derived from technical indicators (SMA, RSI, Volume).</li>
                 <li><strong>Sequential ML Validation (Gate 2)</strong>: For stocks passing Gate 1, a 5-year data payload is used to run a 1-month ML prediction; only stocks with a predicted growth of ≥ 0.1% are considered.</li>
+                <li><strong>Hot ETF Discovery (Parallel)</strong>: Executes in parallel, scanning thematic watchlists and dynamic screeners for ETFs under $400 with high volume and AUM.</li>
                 <li><strong>DB-Ready Enrichment</strong>: Results are enriched with sector information, GPS scores, and ML trajectories for database persistence.</li>
             </ul>
 

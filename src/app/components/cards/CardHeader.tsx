@@ -1,19 +1,20 @@
 // src/app/components/cards/CardHeader.tsx
 
 import React from 'react'
-import { formatPercent, getChangeColor, getChangeBg } from './formatters'
+import { formatPercent, getChangeColor, getChangeBg, formatPrice } from './formatters'
 
 interface CardHeaderProps {
   symbol: string
   companyName: string
   changePercent: number | null
+  changeAmount?: number | null
 }
 
-export const CardHeader: React.FC<CardHeaderProps> = ({ symbol, companyName, changePercent }) => {
+export const CardHeader: React.FC<CardHeaderProps> = ({ symbol, companyName, changePercent, changeAmount }) => {
   const isPositive = (changePercent ?? 0) >= 0
 
   return (
-    <div className="flex items-start justify-between p-5 border-b border-gray-100">
+    <div className="flex items-start justify-between px-5 py-3 border-b border-gray-200">
       <div>
         <div className="text-2xl font-bold text-gray-900 leading-tight">
           {symbol}
@@ -22,14 +23,21 @@ export const CardHeader: React.FC<CardHeaderProps> = ({ symbol, companyName, cha
           {companyName}
         </div>
       </div>
-      {changePercent !== null && (
-        <div
-          className={`px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${getChangeColor(changePercent)} ${getChangeBg(changePercent)} bg-opacity-10`}
-        >
-          <span aria-hidden="true">{isPositive ? '↑' : '↓'}</span>
-          {formatPercent(changePercent)}
-        </div>
-      )}
+      <div className="flex flex-col items-end">
+        {changePercent !== null && (
+          <div
+            className={`px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${getChangeColor(changePercent)} ${getChangeBg(changePercent)} bg-opacity-10`}
+          >
+            <span aria-hidden="true">{isPositive ? '↑' : '↓'}</span>
+            {formatPercent(changePercent)}
+          </div>
+        )}
+        {changeAmount !== undefined && changeAmount !== null && (
+          <div className={`text-[10px] font-medium mt-1 ${getChangeColor(changeAmount)}`}>
+            {isPositive ? '+' : ''}{formatPrice(changeAmount)}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

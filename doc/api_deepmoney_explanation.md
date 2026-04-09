@@ -17,7 +17,7 @@ The V2 engine represents a major leap in precision, combining recursive news scr
 
 ---
 
-## 2. Legacy Engine (V1)
+## 2. Current & Legacy Engine
 **Endpoint:** `/api/prediction/deepmoney`
 
 The legacy endpoint follows a four-stage process to arrive at its recommendations.

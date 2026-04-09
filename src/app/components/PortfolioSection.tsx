@@ -38,8 +38,9 @@ export default function PortfolioSection({ portfolio, onRefresh }: PortfolioSect
   };
 
   const mapPortfolioToCardModel = (item: PortfolioItem): PortfolioCard => {
-    const { regularMarketPrice, prev_close } = item;
+    const { regularMarketPrice, prev_close, shares } = item;
     const pctChange = prev_close ? ((regularMarketPrice - prev_close) / prev_close) * 100 : null;
+    const dollarChange = prev_close ? (regularMarketPrice - prev_close) * shares : null;
 
     return {
       variant: 'portfolio',
@@ -48,6 +49,7 @@ export default function PortfolioSection({ portfolio, onRefresh }: PortfolioSect
       sharesHeld: item.shares,
       price: regularMarketPrice,
       changePercent: pctChange,
+      changeAmount: dollarChange,
       analystFeedback: normalizeRecommendation(item.recommendationKey),
       analysts: item.numberOfAnalystOpinions
     };

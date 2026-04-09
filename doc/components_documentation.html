@@ -135,7 +135,7 @@
             <span class="nav-header">Dashboard Widgets</span>
             <a href="#MarketOverviewCard" class="nav-link">Market Overview</a>
             <a href="#GainsBreakdownCard" class="nav-link">Gains Breakdown</a>
-            <a href="#AnalystRatingsCard" class="nav-link">Analyst Ratings</a>
+            
             <a href="#PortfolioSummary" class="nav-link">Portfolio Summary</a>
             <a href="#SummaryCard" class="nav-link">Summary Card</a>
             
@@ -251,19 +251,7 @@
                 </table>
             </div>
 
-            <div id="AnalystRatingsCard" class="component-card">
-                <div class="component-title">
-                    AnalystRatingsCard
-                    <span class="file-path">src/app/components/AnalystRatingsCard.tsx</span>
-                </div>
-                <p>Summarizes analyst sentiment for stocks (primary rating, count, score) based on provided data or by fetching from an API.</p>
-                <table class="prop-table">
-                    <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
-                    <tbody>
-                        <tr><td><code>initialData</code></td><td><code>AnalystRatingsResponse | null</code></td><td><span class="tag tag-optional">Optional</span> Pre-fetched ratings data. If provided, local fetch is skipped.</td></tr>
-                    </tbody>
-                </table>
-            </div>
+            
 
             <div id="PortfolioSummary" class="component-card">
                 <div class="component-title">
@@ -698,13 +686,14 @@
                     CardHeader
                     <span class="file-path">src/app/components/cards/CardHeader.tsx</span>
                 </div>
-                <p>Unified header for cards showing ticker, company name, and price change percentage.</p>
+                <p>Unified header for cards showing ticker, company name, price change percentage, and daily dollar change.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
                         <tr><td><code>symbol</code></td><td><code>string</code></td><td>Stock ticker symbol.</td></tr>
                         <tr><td><code>companyName</code></td><td><code>string</code></td><td>Company name.</td></tr>
-                        <tr><td><code>changePercent</code></td><td><code>number | null</code></td><td>Percentage change for the day.</td></tr>
+                        <tr><td><td><code>changePercent</code></td><td><code>number | null</code></td><td>Percentage change for the day.</td></tr>
+                        <tr><td><code>changeAmount</code></td><td><code>number | null</code></td><td><span class="tag tag-optional">Optional</span> Daily dollar change.</td></tr>
                     </tbody>
                 </table>
             </div>

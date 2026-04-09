@@ -147,8 +147,8 @@
             <a href="#auth-overview" class="nav-link">0. Auth & Rate Limits</a>
             
             <span class="nav-header">Stock Data</span>
-            <a href="#stock-ticker" class="nav-link">GET /stock/[ticker]</a>
-            <a href="#stock-data-enriched" class="nav-link">GET /stock/[ticker]/data</a>
+            <a href="#stock-ticker" class="nav-link">GET /api/stock_data/[ticker]</a>
+            <a href="#stock-data-enriched" class="nav-link">GET /api/stock_data/[ticker]/data</a>
             
             <span class="nav-header">Prediction</span>
             <a href="#prediction" class="nav-link">POST /stock/predict</a>
@@ -221,14 +221,13 @@
 
             <div id="deepmoney" class="step-card">
                 <h3><span class="method get">GET</span> /api/prediction/deepmoney</h3>
-                <div class="component-tag">Discovery Engine (V2)</div>
-                <p>Advanced stock and ETF discovery engine using multi-factor analysis and ML validation.</p>
+                <div class="component-tag">Discovery Engine (V2.1)</div>
+                <p>Advanced stock and ETF discovery engine using multi-factor analysis and ML validation. Returns both hot stocks and hot ETFs.</p>
                 <strong>Logic Flow:</strong>
                 <ul class="flow">
-                    <li><strong>Recursive News Scraping:</strong> Pulls latest market sentiment from RSS/JSON feeds.</li>
-                    <li><strong>Social Sentiment:</strong> Pre-filtering via social trends (ApeWisdom integration).</li>
-                    <li><strong>Parallel Discovery:</strong> Executes Hot ETF Discovery (v2.1) in parallel for efficiency.</li>
-                    <li><strong>ML Validation Gate:</strong> Requires a minimum threshold of >= 1.5% projected growth.</li>
+                    <li><strong>Stock Discovery:</strong> Utilizes recursive news scraping, social sentiment pre-filtering, and technical validation.</li>
+                    <li><strong>Stock ML Validation:</strong> Requires a minimum threshold of >= 0.1% projected 1-month growth.</li>
+                    <li><strong>Hot ETF Discovery:</strong> Executes in parallel, scanning thematic watchlists and dynamic screeners for ETFs under $400 with high volume and AUM (Threshold GPS >= 55).</li>
                     <li><strong>Multi-factor GPS Scoring:</strong> Ranks assets based on Growth, Performance, and Sentiment.</li>
                 </ul>
             </div>
@@ -258,15 +257,15 @@
                 <p>Manage active stock positions and track performance trajectory.</p>
                 <div class="grid">
                     <div class="mini-card">
-                        <h4><span class="method get">GET</span> Fetch Portfolio</h4>
+                        <h4><span class="method get">GET</span> /api/user/portfolio</h4>
                         <p>Retrieve all active positions with current P&L.</p>
                     </div>
                     <div class="mini-card">
-                        <h4><span class="method post">POST</span> Add Position</h4>
+                        <h4><span class="method post">POST</span> /api/user/stocks</h4>
                         <p>Record a new stock purchase in the portfolio.</p>
                     </div>
                     <div class="mini-card">
-                        <h4><span class="method patch">PATCH</span> / <span class="method put">PUT</span> Update</h4>
+                        <h4><span class="method patch">PATCH</span> / <span class="method put">PUT</span> /api/user/stocks/[id]</h4>
                         <p>Modify existing position details or adjust quantities.</p>
                     </div>
                 </div>
@@ -278,15 +277,15 @@
                 <p>Maintain a list of stocks for active monitoring and quick access.</p>
                 <div class="grid">
                     <div class="mini-card">
-                        <h4><span class="method get">GET</span> View Watchlist</h4>
+                        <h4><span class="method get">GET</span> /api/user/watchlist</h4>
                         <p>Fetch the user's current monitored stocks.</p>
                     </div>
                     <div class="mini-card">
-                        <h4><span class="method post">POST</span> Add to Watchlist</h4>
+                        <h4><span class="method post">POST</span> /api/user/watchlist</h4>
                         <p>Add a new ticker to the monitoring list.</p>
                     </div>
                     <div class="mini-card">
-                        <h4><span class="method delete">DELETE</span> Remove Ticker</h4>
+                        <h4><span class="method delete">DELETE</span> /api/user/watchlist/[ticker]</h4>
                         <p>Remove a stock from the watchlist.</p>
                     </div>
                 </div>
