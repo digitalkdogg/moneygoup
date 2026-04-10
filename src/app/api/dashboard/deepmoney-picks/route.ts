@@ -4,9 +4,11 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { executeRawQuery } from '@/utils/databaseHelper';
 import { checkOrigin } from '@/utils/originCheck';
+import YahooFinance from 'yahoo-finance2';
 
 // Define ETF_GPS_THRESHOLD directly, as config.ts is no longer in deepmoney/v2
 const ETF_GPS_THRESHOLD = 55;
+const yahooFinance = new YahooFinance();
 
 export async function GET(request: NextRequest) {
   const originCheckResponse = checkOrigin(request);
@@ -57,10 +59,50 @@ export async function GET(request: NextRequest) {
       allEtfs = rows as any[];
     }
 
+    const enrichedHotStocks = await Promise.all(
+      allStocks.filter(s => s.type === 'hot_stocks').map(async (stock: any) => {
+        try {
+          const summary = await yahooFinance.quoteSummary(stock.ticker, { modules: ['summaryDetail'] }).catch(() => null);
+          const previousClose = summary?.summaryDetail?.previousClose?.raw;
+          const currentPrice = stock.current_price;
+          const changeAmount = previousClose !== undefined && previousClose !== null ? currentPrice - previousClose : null;
+          const changePercent = previousClose !== undefined && previousClose !== null && previousClose !== 0 ? (changeAmount! / previousClose) * 100 : null;
+
+          return {
+            ...stock,
+            changeAmount,
+            changePercent,
+          };
+        } catch (e) {
+          console.error(`Error enriching stock ${stock.ticker}:`, e);
+          return { ...stock, changeAmount: null, changePercent: null };
+        }
+      })
+    );
+
+    const enrichedHotEtfs = await Promise.all(
+      allEtfs.map(async (etf: any) => {
+        try {
+          const summary = await yahooFinance.quoteSummary(etf.ticker, { modules: ['summaryDetail'] }).catch(() => null);
+          const previousClose = summary?.summaryDetail?.previousClose?.raw;
+          const currentPrice = etf.current_price;
+          const changeAmount = previousClose !== undefined && previousClose !== null ? currentPrice - previousClose : null;
+          const changePercent = previousClose !== undefined && previousClose !== null && previousClose !== 0 ? (changeAmount! / previousClose) * 100 : null;
+
+          return {
+            ...etf,
+            changeAmount,
+            changePercent,
+          };
+        } catch (e) {
+          console.error(`Error enriching ETF ${etf.ticker}:`, e);
+          return { ...etf, changeAmount: null, changePercent: null };
+        }
+      })
+    );
     return NextResponse.json({
-      // Existing — shape unchanged so DeepMoneyPicksSection keeps working
-      hot_stocks:         allStocks.filter(s => s.type === 'hot_stocks'),
-      hot_etfs:           allEtfs,
+      hot_stocks: enrichedHotStocks,
+      hot_etfs: enrichedHotEtfs,
     });
 
   } catch (error) {

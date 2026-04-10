@@ -17,6 +17,8 @@ interface RecommendedStock {
   classification: string;
   trading_signal?: string;
   metric_value?: number;
+  changeAmount?: number | null; // Add changeAmount
+  changePercent?: number | null; // Add changePercent
 }
 
 interface RecommendedETF {
@@ -26,6 +28,8 @@ interface RecommendedETF {
   current_price: number;
   etf_gps_score: number;
   theme: string;
+  changeAmount?: number | null; // Add changeAmount
+  changePercent?: number | null; // Add changePercent
 }
 
 interface DeepMoneyData {
@@ -65,7 +69,8 @@ export default function DeepMoneyPicksSection() {
     symbol: stock.ticker,
     companyName: stock.company_name,
     price: stock.current_price,
-    changePercent: null, // Not directly available in this endpoint
+    changePercent: stock.changePercent !== undefined ? stock.changePercent : null,
+    changeAmount: stock.changeAmount !== undefined ? stock.changeAmount : null,
     prediction: stock.metric_value !== undefined && stock.metric_value !== null ? stock.metric_value : (stock.trading_signal === 'BUY' ? 'Bullish' : stock.trading_signal === 'SELL' ? 'Bearish' : 'Neutral'),
     gpsScore: stock.gps_score / 10 // Convert 0-100 to 0-10 scale
   });
@@ -75,7 +80,8 @@ export default function DeepMoneyPicksSection() {
     symbol: etf.ticker,
     companyName: etf.etf_name,
     price: etf.current_price,
-    changePercent: null,
+    changePercent: etf.changePercent !== undefined ? etf.changePercent : null,
+    changeAmount: etf.changeAmount !== undefined ? etf.changeAmount : null,
     prediction: 'Bullish', // ETFs in this section are picked because they are "hot"
     gpsScore: etf.etf_gps_score / 10
   });
