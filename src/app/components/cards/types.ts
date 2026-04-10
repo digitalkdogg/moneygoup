@@ -7,7 +7,7 @@ export interface CardBase {
   companyName: string
   price: number | null
   changePercent: number | null
-  changeAmount: number | null
+  changeAmount?: number | null
 }
 
 export interface SearchTrendingCard extends CardBase {

@@ -63,7 +63,10 @@ export async function GET(request: NextRequest) {
       allStocks.filter(s => s.type === 'hot_stocks').map(async (stock: any) => {
         try {
           const summary = await yahooFinance.quoteSummary(stock.ticker, { modules: ['summaryDetail'] }).catch(() => null);
-          const previousClose = summary?.summaryDetail?.previousClose?.raw;
+          const rawPreviousClose = summary?.summaryDetail?.previousClose;
+          const previousClose = typeof rawPreviousClose === 'number'
+            ? rawPreviousClose
+            : (rawPreviousClose && typeof rawPreviousClose === 'object' ? (rawPreviousClose as any).raw : null);
           const currentPrice = stock.current_price;
           const changeAmount = previousClose !== undefined && previousClose !== null ? currentPrice - previousClose : null;
           const changePercent = previousClose !== undefined && previousClose !== null && previousClose !== 0 ? (changeAmount! / previousClose) * 100 : null;
@@ -84,7 +87,10 @@ export async function GET(request: NextRequest) {
       allEtfs.map(async (etf: any) => {
         try {
           const summary = await yahooFinance.quoteSummary(etf.ticker, { modules: ['summaryDetail'] }).catch(() => null);
-          const previousClose = summary?.summaryDetail?.previousClose?.raw;
+          const rawPreviousClose = summary?.summaryDetail?.previousClose;
+          const previousClose = typeof rawPreviousClose === 'number'
+            ? rawPreviousClose
+            : (rawPreviousClose && typeof rawPreviousClose === 'object' ? (rawPreviousClose as any).raw : null);
           const currentPrice = etf.current_price;
           const changeAmount = previousClose !== undefined && previousClose !== null ? currentPrice - previousClose : null;
           const changePercent = previousClose !== undefined && previousClose !== null && previousClose !== 0 ? (changeAmount! / previousClose) * 100 : null;

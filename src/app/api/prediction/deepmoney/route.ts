@@ -29,6 +29,10 @@ const PRIMARY_FEED_URLS = [
     'https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EDJI',
     'https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EGSPC',
     'https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EIXIC',
+    'https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=small_cap_gainers&count=25',
+    'https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?count=25&scrIds=most_actives',
+    'https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?count=25&scrIds=undervalued_growth_stocks',
+    'https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?count=25&scrIds=aggressive_small_caps',
     'https://www.marketbeat.com/feed/',
     'https://www.thestreet.com/.rss/feed/a4a58455-5a41-4dfa-899c-86c49b653ed8.xml',
     'https://www.fool.com/a/feeds/partner/googlechromefollow?apikey=5e092c1f-c5f9-4428-9219-908a47d2e2de',
@@ -131,6 +135,25 @@ function extractTickers(text: string): Set<string> {
 }
 
 /**
+ * Extract tickers from Yahoo Finance screener JSON response.
+ */
+function extractTickersFromYahooScreenerJson(jsonData: any): Set<string> {
+    const found = new Set<string>();
+    try {
+        if (jsonData?.finance?.result?.[0]?.quotes) {
+            for (const item of jsonData.finance.result[0].quotes) {
+                if (item.symbol && !TICKER_STOPLIST.has(item.symbol.toUpperCase())) {
+                    found.add(item.symbol.toUpperCase());
+                }
+            }
+        }
+    } catch (err) {
+        logger.error('Failed to parse Yahoo screener JSON', err instanceof Error ? { message: err.message, stack: err.stack } : { error: String(err) });
+    }
+    return found;
+}
+
+/**
  * Fetch all primary feeds concurrently and return a combined set of tickers.
  */
 async function fetchPrimaryTickers(): Promise<Set<string>> {
@@ -177,6 +200,11 @@ async function fetchPrimaryTickers(): Promise<Set<string>> {
                             allTickers.add(item.ticker.toUpperCase());
                         }
                     });
+                } else if (data?.finance?.result?.[0]?.quotes) {
+                    // Handler for Yahoo Finance screener JSON structure
+                    for (const ticker of extractTickersFromYahooScreenerJson(data)) {
+                        allTickers.add(ticker);
+                    }
                 }
             } else {
                 const text = extractTextFromRSS(data);
