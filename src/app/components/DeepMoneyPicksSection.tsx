@@ -51,9 +51,12 @@ export default function DeepMoneyPicksSection() {
       if (!res.ok) throw new Error('Failed to fetch DeepMoney picks');
       const json = await res.json();
       
+      const sortedHotStocks = (json.hot_stocks || []).sort((a: RecommendedStock, b: RecommendedStock) => (b.metric_value || 0) - (a.metric_value || 0));
+      const sortedHotEtfs = (json.hot_etfs || []).sort((a: RecommendedETF, b: RecommendedETF) => (b.etf_gps_score || 0) - (a.etf_gps_score || 0)); // Keep ETFs sorted by GPS for now
+
       setData({
-        hot_stocks: json.hot_stocks || [],
-        hot_etfs: json.hot_etfs || []
+        hot_stocks: sortedHotStocks,
+        hot_etfs: sortedHotEtfs
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');

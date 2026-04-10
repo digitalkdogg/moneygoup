@@ -44,7 +44,12 @@ const PRIMARY_FEED_URLS = [
     'https://tipranks.com/news',
     'https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&dateb=&owner=include&count=40&search_text=&output=atom',
     'https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=4&dateb=&owner=include&count=40&output=atom',
-    'https://apewisdom.io/api/v1.0/filter/all-stocks'
+    'https://apewisdom.io/api/v1.0/filter/all-stocks',
+    'https://feeds.feedburner.com/typepad/alleyinsider/silicon_alley_insider', // Tech
+    'https://www.fiercebiotech.com/rss/xml',                                   // Biotech
+    'https://www.fierceelectronics.com/rss/xml',                               // Semiconductors
+    'https://www.spacenews.com/feed/',                                         // Aerospace/Defense
+    'https://ir.stockanalysis.com/feed/',                                      // Small/Mid cap
 ];
 
 const YAHOO_TICKER_FEED_BASE = 'https://feeds.finance.yahoo.com/rss/2.0/headline?s=';
@@ -154,6 +159,32 @@ function extractTickersFromYahooScreenerJson(jsonData: any): Set<string> {
 }
 
 /**
+ * Extract tickers from SEC Form 4 XML response.
+ */
+function extractTickersFromSECForm4Xml(xmlData: string): Set<string> {
+    const found = new Set<string>();
+    try {
+        const jsonObj = xmlParser.parse(xmlData);
+        const entries = jsonObj?.feed?.entry;
+
+        if (entries) {
+            // Ensure entries is an array, even if there's only one entry
+            const entryList = Array.isArray(entries) ? entries : [entries];
+
+            for (const entry of entryList) {
+                const ticker = entry?.['edgar:issuerTradingSymbol'];
+                if (ticker && typeof ticker === 'string' && !TICKER_STOPLIST.has(ticker.toUpperCase())) {
+                    found.add(ticker.toUpperCase());
+                }
+            }
+        }
+    } catch (err) {
+        logger.error('Failed to parse SEC Form 4 XML', err instanceof Error ? { message: err.message, stack: err.stack } : { error: String(err) });
+    }
+    return found;
+}
+
+/**
  * Fetch all primary feeds concurrently and return a combined set of tickers.
  */
 async function fetchPrimaryTickers(): Promise<Set<string>> {
@@ -168,7 +199,9 @@ async function fetchPrimaryTickers(): Promise<Set<string>> {
             const contentType = res.headers.get('content-type') || '';
             const body = await res.text();
 
-            if (contentType.includes('application/json') || body.trim().startsWith('{')) {
+            if (url.includes('type=4') && url.includes('output=atom')) {
+                return { type: 'sec_form_4_xml', data: body };
+            } else if (contentType.includes('application/json') || body.trim().startsWith('{')) {
                 try {
                     return { type: 'json', data: JSON.parse(body) };
                 } catch {
@@ -205,6 +238,10 @@ async function fetchPrimaryTickers(): Promise<Set<string>> {
                     for (const ticker of extractTickersFromYahooScreenerJson(data)) {
                         allTickers.add(ticker);
                     }
+                }
+            } else if (type === 'sec_form_4_xml') {
+                for (const ticker of extractTickersFromSECForm4Xml(data)) {
+                    allTickers.add(ticker);
                 }
             } else {
                 const text = extractTextFromRSS(data);
