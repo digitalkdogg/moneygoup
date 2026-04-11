@@ -18,6 +18,7 @@ export interface UserRow {
   username: string;
   email: string;
   password_hash: string;
+  last_login: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -64,11 +64,23 @@ export const authOptions: NextAuthOptions = {
 
           logger.info('User authorized successfully:', {
             userId: user.id,
-            username: user.username,
-          });
+            username: credentials.username,
+            });
 
-          return {
+            // Update last_login asynchronously - don't block the login response
+            executeRawQuery(
+            'UPDATE users SET last_login = NOW() WHERE id = ?',
+            [user.id]
+            ).catch((err) => {
+            logger.error('Failed to update last_login for user:', {
+              userId: user.id,
+              error: err instanceof Error ? err : String(err),
+            });
+            });
+
+            return {
             id: user.id.toString(),
+
             name: user.username,
             role: user.role || 'user',
           };
