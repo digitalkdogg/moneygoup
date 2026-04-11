@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoneyGoUp Database Documentation</title>
+    <style>
+        :root {
+            --primary: #15803d;
+            --primary-dark: #166534;
+            --bg: #f8fafc;
+            --text: #1e293b;
+            --border: #e2e8f0;
+            --card-bg: #ffffff;
+            --accent: #0ea5e9;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background-color: var(--bg);
+            margin: 0;
+            display: flex;
+        }
+        aside {
+            width: 280px;
+            height: 100vh;
+            background: white;
+            border-right: 1px solid var(--border);
+            position: fixed;
+            padding: 1.5rem;
+            overflow-y: auto;
+        }
+        main {
+            margin-left: 280px;
+            padding: 3rem;
+            max-width: 1000px;
+            width: 100%;
+        }
+        h1 { color: var(--primary-dark); border-bottom: 2px solid var(--primary); padding-bottom: 0.5rem; }
+        h2 { color: var(--primary); margin-top: 3rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+        h3 { color: #334155; margin-top: 2rem; background: #f1f5f9; padding: 0.5rem 1rem; border-radius: 6px; }
+        
+        .nav-header {
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            color: #64748b;
+            margin-top: 1.5rem;
+            display: block;
+            letter-spacing: 0.05em;
+        }
+        .nav-link {
+            display: block;
+            padding: 0.4rem 0;
+            color: #475569;
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+        .nav-link:hover { color: var(--primary); }
+
+        .table-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .table-title {
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: var(--primary-dark);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .schema-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+        .schema-table th, .schema-table td {
+            text-align: left;
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+        .schema-table th {
+            background: #f8fafc;
+            color: #64748b;
+            text-transform: uppercase;
+            font-size: 0.7rem;
+        }
+        code {
+            font-family: ui-monospace, monospace;
+            background: #f1f5f9;
+            padding: 0.1rem 0.3rem;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }
+        .highlight-box {
+            background: #f0fdf4;
+            border-left: 4px solid var(--primary);
+            padding: 1rem; margin: 1.5rem 0;
+        }
+        .logic-card {
+            background: #fff;
+            border: 1px solid var(--accent);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+        }
+        .logic-card h4 { margin-top: 0; color: var(--accent); }
+
+        @media (max-width: 768px) {
+            aside { display: none; }
+            main { margin-left: 0; padding: 1.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <aside>
+        <h2 style="font-size: 1.1rem; margin-top: 0; border: none;">Database Map</h2>
+        <nav>
+            <span class="nav-header">Key Logic</span>
+            <a href="#portfolio-logic" class="nav-link">Portfolio vs Watchlist</a>
+            <a href="#auth-logic" class="nav-link">Auth & Session Tracking</a>
+            
+            <span class="nav-header">Core Tables</span>
+            <a href="#users" class="nav-link">users</a>
+            <a href="#stocks" class="nav-link">stocks</a>
+            <a href="#user_stocks" class="nav-link">user_stocks</a>
+            <a href="#stocksdailyprice" class="nav-link">stocksdailyprice</a>
+            
+            <span class="nav-header">Discovery & AI</span>
+            <a href="#recommended_stocks" class="nav-link">recommended_stocks</a>
+            <a href="#recommended_markets" class="nav-link">recommended_markets</a>
+            <a href="#hot_etfs" class="nav-link">hot_etfs</a>
+            <a href="#user_stock_predictions" class="nav-link">user_stock_predictions</a>
+            
+            <span class="nav-header">News & Social</span>
+            <a href="#news" class="nav-link">news</a>
+            <a href="#user_stock_news" class="nav-link">user_stock_news</a>
+        </nav>
+    </aside>
+
+    <main>
+        <h1>Database Documentation</h1>
+        <p>This document provides a complete overview of the MoneyGoUp MySQL database schema, relationships, and the core business logic governing user data.</p>
+
+        <section id="core-logic">
+            <h2>Core Business Logic</h2>
+            
+            <div id="portfolio-logic" class="logic-card">
+                <h4>Portfolio vs. Watchlist Logic</h4>
+                <p>The system uses a single table, <code>user_stocks</code>, to manage both owned positions and monitored tickers. The distinction is handled by the <code>is_purchased</code> flag and the <code>shares</code> count:</p>
+                <ul>
+                    <li><strong>Watchlist State:</strong> 
+                        <code>is_purchased = 0</code> AND <code>shares = 0</code>. 
+                        The user is "watching" the stock for news and price alerts but has no financial stake.
+                    </li>
+                    <li><strong>Portfolio State:</strong> 
+                        <code>is_purchased = 1</code> AND <code>shares > 0</code>. 
+                        The user owns a position. The <code>purchase_price</code> field stores the weighted average cost basis.
+                    </li>
+                    <li><strong>Transition (Buying):</strong> When a user buys a stock from their watchlist, <code>is_purchased</code> is flipped to 1, and <code>shares</code> is incremented.</li>
+                    <li><strong>Transition (Selling All):</strong> When a user sells their entire position, the application typically moves the ticker back to the watchlist state (<code>is_purchased = 0</code>, <code>shares = 0</code>) rather than deleting the row, preserving the user's interest in the ticker.</li>
+                </ul>
+            </div>
+
+            <div id="auth-logic" class="logic-card" style="border-color: var(--primary);">
+                <h4 style="color: var(--primary);">Authentication & Session Tracking</h4>
+                <p>User accounts are managed in the <code>users</code> table. Password security uses <code>bcrypt</code> hashing.</p>
+                <ul>
+                    <li><strong>Last Login:</strong> The <code>last_login</code> field is updated asynchronously every time a user successfully authenticates via the <code>/api/auth/login</code> process.</li>
+                    <li><strong>Roles:</strong> The <code>role</code> field (default 'user') determines access to administrative features like <code>/api/cache-stats</code>.</li>
+                </ul>
+            </div>
+        </section>
+
+        <section id="tables">
+            <h2>Table Definitions</h2>
+
+            <!-- USERS -->
+            <div id="users" class="table-card">
+                <div class="table-title">users</div>
+                <p>Stores core user account data and authentication metadata.</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key (Auto-increment)</td></tr>
+                        <tr><td><code>username</code></td><td><code>VARCHAR(255)</code></td><td>Unique. Used for login.</td></tr>
+                        <tr><td><code>password_hash</code></td><td><code>VARCHAR(255)</code></td><td>Bcrypt hashed password.</td></tr>
+                        <tr><td><code>role</code></td><td><code>VARCHAR(50)</code></td><td>'user' or 'admin'.</td></tr>
+                        <tr><td><code>last_login</code></td><td><code>DATETIME</code></td><td>Updated on successful login.</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Account creation date.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- STOCKS -->
+            <div id="stocks" class="table-card">
+                <div class="table-title">stocks</div>
+                <p>The master list of all stock tickers tracked by the system.</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key (Auto-increment)</td></tr>
+                        <tr><td><code>symbol</code></td><td><code>VARCHAR(10)</code></td><td>Unique Ticker (e.g., AAPL).</td></tr>
+                        <tr><td><code>company_name</code></td><td><code>VARCHAR(255)</code></td><td>Full legal name of the company.</td></tr>
+                        <tr><td><code>price</code></td><td><code>DECIMAL(10,2)</code></td><td>Last cached market price.</td></tr>
+                        <tr><td><code>market_cap</code></td><td><code>BIGINT</code></td><td>Last cached market capitalization.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- USER_STOCKS -->
+            <div id="user_stocks" class="table-card">
+                <div class="table-title">user_stocks</div>
+                <p>The relationship table linking users to their monitored and owned stocks.</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>Foreign Key to <code>users.id</code></td></tr>
+                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>Foreign Key to <code>stocks.id</code></td></tr>
+                        <tr><td><code>is_purchased</code></td><td><code>TINYINT(1)</code></td><td>0 = Watchlist, 1 = Portfolio.</td></tr>
+                        <tr><td><code>shares</code></td><td><code>DECIMAL(10,4)</code></td><td>Quantity owned (0 for watchlist).</td></tr>
+                        <tr><td><code>purchase_price</code></td><td><code>DECIMAL(10,2)</code></td><td>Average cost basis.</td></tr>
+                        <tr><td><code>last_transaction_date</code></td><td><code>DATETIME</code></td><td>Updated on buy/sell actions.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- USER_STOCK_PREDICTIONS -->
+            <div id="user_stock_predictions" class="table-card">
+                <div class="table-title">user_stock_predictions</div>
+                <p>Persists AI-generated price predictions requested by users.</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>Foreign Key to <code>users.id</code></td></tr>
+                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>Foreign Key to <code>stocks.id</code></td></tr>
+                        <tr><td><code>predicted_price_1m</code></td><td><code>DECIMAL(12,4)</code></td><td>AI 1-month target.</td></tr>
+                        <tr><td><code>last_requested_at</code></td><td><code>DATETIME</code></td><td>When the prediction was last generated.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- HOT_ETFS -->
+            <div id="hot_etfs" class="table-card">
+                <div class="table-title">hot_etfs</div>
+                <p>Stores the results of the automated DeepMoney ETF discovery cycles.</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>ticker</code></td><td><code>VARCHAR(20)</code></td><td>ETF Symbol.</td></tr>
+                        <tr><td><code>etf_gps_score</code></td><td><code>DECIMAL(5,1)</code></td><td>Discovery engine score (0-100).</td></tr>
+                        <tr><td><code>theme</code></td><td><code>VARCHAR(100)</code></td><td>Thematic category (e.g., AI).</td></tr>
+                        <tr><td><code>is_leveraged</code></td><td><code>TINYINT(1)</code></td><td>Flag for high-volatility funds.</td></tr>
+                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>The discovery cycle date.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- STOCKSDAILYPRICE -->
+            <div id="stocksdailyprice" class="table-card">
+                <div class="table-title">stocksdailyprice</div>
+                <p>Historical OHLCV data for charting and ML training sequences.</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>Foreign Key to <code>stocks.id</code></td></tr>
+                        <tr><td><code>date</code></td><td><code>DATE</code></td><td>Trading day.</td></tr>
+                        <tr><td><code>close</code></td><td><code>DECIMAL(10,2)</code></td><td>Unadjusted closing price.</td></tr>
+                        <tr><td><code>adj_close</code></td><td><code>DECIMAL(10,2)</code></td><td>Split/dividend adjusted price.</td></tr>
+                        <tr><td><code>volume</code></td><td><code>INT</code></td><td>Shares traded.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem; text-align: center;">
+            MoneyGoUp Database Documentation &copy; 2026
+        </footer>
+    </main>
+</body>
+</html>
