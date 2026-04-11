@@ -151,8 +151,9 @@
             <a href="#stock-data-enriched" class="nav-link">GET /api/stock_data/[ticker]/data</a>
             
             <span class="nav-header">Prediction</span>
-            <a href="#prediction" class="nav-link">POST /stock/predict</a>
-            <a href="#deepmoney" class="nav-link">GET /deepmoney</a>
+            <a href="#prediction" class="nav-link">POST /api/prediction/[ticker]</a>
+            <a href="#prediction-save" class="nav-link">POST /api/prediction/save</a>
+            <a href="#deepmoney" class="nav-link">GET /api/prediction/deepmoney</a>
             
             <span class="nav-header">Dashboard</span>
             <a href="#dashboard1" class="nav-link">GET /dashboard</a>
@@ -216,6 +217,20 @@
                     <li><strong>v3+ Logic:</strong> Integrates GMM-based Regime Detection and interaction terms.</li>
                     <li><strong>Heuristics:</strong> Strengthened weighting for Analyst Consensus, Premium, and Technical Scores.</li>
                     <li><strong>Horizons:</strong> Outputs 1-day (interpolated), 1-month, 6-month, and 1-year targets.</li>
+                    <li><strong>Persistence:</strong> Automatically triggers a call to <code>/api/prediction/save</code> upon success.</li>
+                </ul>
+            </div>
+
+            <div id="prediction-save" class="step-card">
+                <h3><span class="method post">POST</span> /api/prediction/save</h3>
+                <div class="component-tag">Persistence Layer</div>
+                <p>Saves or updates a user's prediction for a specific stock. Primarily called internally by the prediction engine.</p>
+                <strong>Logic Flow:</strong>
+                <ul class="flow">
+                    <li><strong>Authentication:</strong> Requires a valid session OR an internal API key.</li>
+                    <li><strong>Resolution:</strong> Resolves the ticker to a numeric <code>stock_id</code>.</li>
+                    <li><strong>Upsert:</strong> Performs an "On Duplicate Key Update" in the <code>user_stock_predictions</code> table.</li>
+                    <li><strong>Tracking:</strong> Updates <code>predicted_price_1m</code> and <code>last_requested_at</code> (formatted for MySQL).</li>
                 </ul>
             </div>
 

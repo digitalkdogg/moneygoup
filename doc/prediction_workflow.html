@@ -375,18 +375,35 @@ python3 predict_weighted_analysis.py NU --input_file /tmp/tf_prediction_input_{u
             </div>
         </section>
 
+        <a href="#step6" class="nav-link">6. Final Signal Weighting</a>
+        <a href="#step7" class="nav-link">7. Persistence (Save Prediction)</a>
+        ...
+        <section id="step6">
+        <h2><span>6</span> Final Signal Weighting</h2>
+        <div class="step-card">
+            <div class="component-tag">Logic: metric_analysis() adjustment</div>
+            <p>The neural network result is nudged by high-level market and analyst signals:</p>
+            <div class="formula">
+                Final Price = AI_Output * (1.0 + Total_Impact)
+            </div>
+        </div>
+        </section>
+
         <div class="flow-arrow">↓</div>
 
-        <section id="step6">
-            <h2><span>6</span> Final Signal Weighting</h2>
-            <div class="step-card">
-                <div class="component-tag">Logic: metric_analysis() adjustment</div>
-                <p>The neural network result is nudged by high-level market and analyst signals:</p>
-                <div class="formula">
-                    Final Price = AI_Output * (1.0 + Total_Impact)
-                </div>
-            </div>
+        <section id="step7">
+        <h2><span>7</span> Persistence Layer</h2>
+        <div class="step-card">
+            <div class="component-tag">Backend Utility: POST /api/prediction/save</div>
+            <p>To ensure insights are available for the dashboard, the resulting prediction is persisted to the database.</p>
+            <ul>
+                <li><strong>Trigger:</strong> After the Python process completes, the API asynchronously calls the save endpoint.</li>
+                <li><strong>Data:</strong> Persists <code>user_id</code>, <code>stock_id</code>, and <code>predicted_price_1m</code>.</li>
+                <li><strong>Temporal Tracking:</strong> Updates the <code>last_requested_at</code> timestamp to track the freshness of the insight.</li>
+            </ul>
+        </div>
         </section>
+
 
         <section id="heuristic-logic">
             <h3 style="color: var(--primary-dark);">-- Heuristic Weighting Logic (Strengthened)</h3>

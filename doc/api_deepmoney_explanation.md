@@ -2,18 +2,19 @@
 
 The `/api/prediction/deepmoney` endpoint family is designed for automated AI and Tech stock discovery, analysis, and scoring. It consists of two versions: the original legacy algorithm and the next-generation V2 engine.
 
-## 1. Next-Generation Discovery (V2)
-**Endpoint:** `/api/prediction/deepmoney/v2`
+## 1. Next-Generation Discovery (V2.1)
+**Endpoint:** `/api/prediction/deepmoney`
 
-The V2 engine represents a major leap in precision, combining recursive news scraping with individual machine learning momentum validation for every candidate.
+The V2.1 engine represents a major leap in precision, combining recursive news scraping with individual machine learning momentum validation for every candidate.
 
 ### Workflow:
-1.  **Recursive News Discovery**: Scrapes 15+ global financial RSS feeds. For every trending ticker found, it recursively scans that specific company's feed to discover co-mentioned peers.
-2.  **Social Sentiment Pre-Filter**: To reduce noise from social bots, tickers from ApeWisdom are only accepted if they have `mentions_24h_ago >= 5`.
-3.  **Gate 1: Technical Validation**: Every candidate must have a non-negative `tradingSignalScore` (calculated from SMA, RSI, and Volume trends).
-4.  **Gate 2: Sequential ML Validation**: For stocks passing Gate 1, the system assembles a complete 5-year data payload (Historical, Macro, and Earnings) and runs a 1-month ML prediction.
+1.  **Recursive News Discovery**: Scrapes 15+ global financial RSS feeds.
+2.  **Social Sentiment Pre-Filter**: To reduce noise, tickers from ApeWisdom are only accepted if they have `mentions_24h_ago >= 5`.
+3.  **Gate 1: Technical Validation**: Every candidate must have a non-negative `tradingSignalScore`.
+4.  **Gate 2: Sequential ML Validation**: For stocks passing Gate 1, the system runs a 1-month ML prediction.
     *   **Threshold**: Only stocks with a predicted 1-month growth of **≥ 0.1%** are returned.
-5.  **DB-Ready Enrichment**: Results are enriched with Sectors, GPS scores, and full ML trajectories, optimized for direct persistence into the `recommended_stocks` table.
+5.  **Hot ETF Discovery (Parallel)**: Scans thematic watchlists and dynamic screeners for ETFs under $400 with high volume and AUM (Threshold GPS >= 55).
+6.  **DB-Ready Enrichment**: Results are enriched with Sectors, GPS scores, and full ML trajectories, optimized for persistence into `recommended_stocks` and `hot_etfs` tables.
 
 ---
 

@@ -172,6 +172,20 @@ export async function POST(
     // Python script CLI signature (predict_weighted_analysis.py argparse):
     //   python3 predict_weighted_analysis.py <ticker> --input_file <path> --outlook <outlook>
     const result = await runPythonPrediction(validatedTicker, tempFile, validatedOutlook);
+
+    // Save prediction asynchronously without blocking the response.
+    // Extract predicted_price_1m from result (available for all outlooks).
+    const predictedPrice = (result as any)?.predicted_price_1m;
+    if (predictedPrice && typeof predictedPrice === 'number') {
+      savePredictionAsync(validatedTicker, predictedPrice, userId)
+        .catch((err) => {
+          logger.error('Failed to save prediction asynchronously', {
+            ticker: validatedTicker,
+            error: err instanceof Error ? err : String(err),
+          });
+        });
+    }
+
     return NextResponse.json(result);
   } catch (error) {
     logger.error('Prediction failed', {
@@ -237,4 +251,42 @@ function runPythonPrediction(ticker: string, inputFile: string, outlook: string)
       reject(new Error(`Failed to start prediction process: ${err.message}`));
     });
   });
+}
+
+// ---------------------------------------------------------------------------
+// Helper to save prediction asynchronously (fire-and-forget).
+// ---------------------------------------------------------------------------
+async function savePredictionAsync(
+  ticker: string,
+  predictedPrice: number,
+  userId: string
+): Promise<void> {
+  try {
+    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+    const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
+    
+    const response = await fetch(`${baseUrl}/api/prediction/save`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Origin': baseUrl,
+        ...(internalSecret && { 'x-api-key': internalSecret }),
+      },
+      body: JSON.stringify({
+        ticker,
+        predicted_price_1m: predictedPrice,
+        user_id: userId,
+      }),
+    });
+
+    if (!response.ok) {
+      logger.warn('Save endpoint returned non-200 status', {
+        ticker,
+        status: response.status,
+        statusText: response.statusText,
+      });
+    }
+  } catch (err) {
+    throw err;
+  }
 }

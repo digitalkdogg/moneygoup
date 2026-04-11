@@ -61,3 +61,13 @@ export interface WatchlistWithDetailsRow extends WatchlistRow {
   company_name: string;
   price: number | null;
 }
+
+export interface UserStockPredictionRow {
+  id: number;
+  user_id: string;
+  stock_id: number;
+  predicted_price_1m: number;
+  last_requested_at: string;
+  created_at: string;
+  updated_at: string;
+}
