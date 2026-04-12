@@ -421,8 +421,9 @@ export default function StockPrediction({
       <button
         onClick={generate}
         disabled={loading || cooldown > 0}
-        style={{ backgroundColor: '#029b37' }}
-        className="text-white font-semibold py-2 px-5 rounded-lg hover:opacity-90 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+        className={`text-white font-semibold py-2 px-5 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-wait ${
+          loading || cooldown > 0 ? 'bg-gray-400' : 'bg-[#029b37] hover:opacity-90'
+        }`}
       >
         {btnLabel}
       </button>

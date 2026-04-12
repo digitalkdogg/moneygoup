@@ -3,12 +3,14 @@
 import React, { useEffect, useState } from 'react';
 import { MarketOverviewResponse } from '@/types/dashboard';
 import { formatNumber } from '@/utils/formatters';
+import { getMarketStatus } from '@/utils/marketStatus';
 import MiniDataCard from './cards/MiniDataCard';
 
 const MarketOverviewCard: React.FC = () => {
   const [data, setData] = useState<MarketOverviewResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [marketStatus, setMarketStatus] = useState(getMarketStatus());
 
   const fetchData = async () => {
     try {
@@ -18,6 +20,7 @@ const MarketOverviewCard: React.FC = () => {
       const json = await res.json();
       setData(json);
       setError(null);
+      setMarketStatus(getMarketStatus());
     } catch (err) {
       setError('Market data unavailable');
     } finally {
@@ -55,9 +58,16 @@ const MarketOverviewCard: React.FC = () => {
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm h-full">
-      <div className="flex items-center gap-2 mb-4">
-        <div className="w-2.5 h-2.5 rounded-full bg-green-500"></div>
-        <h3 className="font-bold text-gray-800">Market Overview</h3>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <div className={`w-2.5 h-2.5 rounded-full ${marketStatus.isOpen ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+          <h3 className="font-bold text-gray-800">Market Overview</h3>
+        </div>
+        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+          marketStatus.isOpen ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
+        }`}>
+          {marketStatus.message}
+        </span>
       </div>
       
       <div className="grid grid-cols-2 gap-3">

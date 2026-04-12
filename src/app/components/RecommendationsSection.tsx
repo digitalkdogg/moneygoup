@@ -87,7 +87,17 @@ const RecommendationsSection: React.FC = () => {
                   primaryText={`Current ${formatCurrency(rec.currentPrice)}`}
                   secondaryText={`1M Pred ${formatCurrency(rec.predictedPrice1m)} • ${rec.deltaPct >= 0 ? '+' : ''}${formatNumber(rec.deltaPct, 2)}%`}
                   tone={rec.action === 'BUY' ? 'positive' : 'negative'}
-                  subLabel={`Updated: ${new Date(rec.lastRequestedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • ${rec.scope}`}
+                  subLabel={
+                    <span className="flex items-center gap-1">
+                      <span>Updated: {new Date(rec.lastRequestedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      <span className="mx-1">•</span>
+                      <span className={`px-1 rounded-sm uppercase text-[8px] font-bold ${
+                        rec.scope === 'portfolio' ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-amber-100 text-amber-700 border border-amber-200'
+                      }`}>
+                        {rec.scope}
+                      </span>
+                    </span>
+                  }
                 />
               </Link>
             ))}

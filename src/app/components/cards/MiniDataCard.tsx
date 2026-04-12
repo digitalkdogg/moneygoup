@@ -10,7 +10,7 @@ interface MiniDataCardProps {
   primaryText: string;
   secondaryText: string;
   tone?: MiniDataCardTone;
-  subLabel?: string;
+  subLabel?: React.ReactNode;
   primaryClassOverride?: string;
 }
 
