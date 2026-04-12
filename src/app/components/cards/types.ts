@@ -26,6 +26,7 @@ export interface PortfolioCard extends CardBase {
   sharesHeld: number | null
   analystFeedback: string | null
   analysts?: number | null
+  predictedPrice1m?: number | null
 }
 
 export interface WatchlistCard extends CardBase {

@@ -20,16 +20,50 @@
             color: var(--text);
             background-color: var(--bg);
             margin: 0;
+        }
+        .top-nav {
+            position: sticky;
+            top: 0;
+            width: 100%;
+            background: white;
+            border-bottom: 1px solid var(--border);
+            padding: 0.75rem 2rem;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .top-nav a {
+            text-decoration: none;
+            color: #64748b;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            padding: 0.25rem 0;
+            border-bottom: 2px solid transparent;
+        }
+        .top-nav a:hover {
+            color: var(--primary);
+        }
+        .top-nav a.active {
+            color: var(--primary);
+            border-bottom: 2px solid var(--primary);
+        }
+        .page-container {
             display: flex;
         }
         aside {
             width: 280px;
-            height: 100vh;
+            height: calc(100vh - 60px);
             background: white;
             border-right: 1px solid var(--border);
             position: fixed;
+            top: 60px;
             padding: 1.5rem;
             overflow-y: auto;
+            z-index: 10;
         }
         main {
             margin-left: 280px;
@@ -125,11 +159,22 @@
     </style>
 </head>
 <body>
+    <nav class="top-nav">
+        <a href="moneygoup_overview.html">Overview</a>
+        <a href="api_documentation.html">API Docs</a>
+        <a href="components_documentation.html" class="active">Components</a>
+        <a href="database_documentation.html">Database</a>
+        <a href="prediction_workflow.html">Prediction Flow</a>
+        <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
+        <a href="technical_indicators_guide.html">Technical Guide</a>
+    </nav>
+    <div class="page-container">
     <aside>
         <h2 style="font-size: 1.1rem; margin-top: 0; border: none;">Components</h2>
         <nav>
             <span class="nav-header">Main Layouts & Logic</span>
             <a href="#Dashboard" class="nav-link">Dashboard</a>
+            <a href="#RecommendationsSection" class="nav-link">Recommendations Section</a>
             <a href="#Stock" class="nav-link">Stock View</a>
             
             <span class="nav-header">Dashboard Widgets</span>
@@ -138,6 +183,7 @@
             
             <a href="#PortfolioSummary" class="nav-link">Portfolio Summary</a>
             <a href="#SummaryCard" class="nav-link">Summary Card</a>
+            <a href="#MiniDataCard" class="nav-link">Mini Data Card</a>
             
             <span class="nav-header">Sections & Grids</span>
             <a href="#PortfolioSection" class="nav-link">Portfolio Section</a>
@@ -193,11 +239,25 @@
                     Dashboard
                     <span class="file-path">src/app/components/Dashboard.tsx</span>
                 </div>
-                <p>The central orchestrator for the user's dashboard view. Fetches combined portfolio data, manages state for market status, and coordinates the display of summary widgets and sections.</p>
+                <p>The central orchestrator for the user's dashboard view. Fetches combined portfolio data, manages state for market status, and coordinates the display of summary widgets and sections. Now integrates the <code>RecommendationsSection</code> for AI alerts.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
                         <tr><td>None</td><td>-</td><td>Manages internal state for portfolio, totals, ratings, market status, loading, and errors. Fetches data via <code>fetchPortfolioData</code>. Renders various summary cards and sections.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="RecommendationsSection" class="component-card">
+                <div class="component-title">
+                    RecommendationsSection
+                    <span class="file-path">src/app/components/RecommendationsSection.tsx</span>
+                </div>
+                <p>Displays AI-driven BUY/SELL alerts for the user's active portfolio and watchlist stocks. Shows a carousel of high-conviction signals (threshold &ge; 3%).</p>
+                <table class="prop-table">
+                    <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>portfolio</code></td><td><code>PortfolioItem[]</code></td><td>User's current holdings for signal analysis.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -287,6 +347,22 @@
                     </tbody>
                 </table>
             </div>
+
+            <div id="MiniDataCard" class="component-card">
+                <div class="component-title">
+                    MiniDataCard
+                    <span class="file-path">src/app/components/cards/MiniDataCard.tsx</span>
+                </div>
+                <p>A compact UI tile used for displaying secondary metrics (like AI Growth % or PE) within larger card layouts or grids.</p>
+                <table class="prop-table">
+                    <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>label</code></td><td><code>string</code></td><td>Small label for the metric.</td></tr>
+                        <tr><td><code>value</code></td><td><code>string | number</code></td><td>The value to display.</td></tr>
+                        <tr><td><code>trend</code></td><td><code>'up' | 'down' | 'neutral'</code></td><td><span class="tag tag-optional">Optional</span> Color-coding for the value.</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </section>
 
         <section id="sections">
@@ -331,6 +407,20 @@
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
                         <tr><td>None</td><td>-</td><td>Manages its own loading, error, and data states.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="RecommendationsSection" class="component-card">
+                <div class="component-title">
+                    RecommendationsSection
+                    <span class="file-path">src/app/components/RecommendationsSection.tsx</span>
+                </div>
+                <p>A smart dashboard section that compares current prices against 1-month predictions to surface BUY/SELL signals for all tracked stocks.</p>
+                <table class="prop-table">
+                    <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
+                    <tbody>
+                        <tr><td>None</td><td>-</td><td>Uses <code>/api/dashboard/recommendations</code> and renders <code>MiniDataCard</code> tiles for actionable signals (&plusmn;3% threshold).</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -626,7 +716,7 @@
                     PortfolioCardView
                     <span class="file-path">src/app/components/cards/variants/PortfolioCardView.tsx</span>
                 </div>
-                <p>Renders the 'portfolio' card variant, including shares held, price, analyst feedback, and buy/sell actions.</p>
+                <p>Renders the 'portfolio' card variant, including shares held, price, analyst feedback, and buy/sell actions. Now explicitly displays the <strong>1M Prediction</strong> metric to show AI price trajectory.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -769,5 +859,6 @@
             MoneyGoUp Component Registry &copy; 2026
         </footer>
     </main>
+    </div>
 </body>
 </html>

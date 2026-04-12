@@ -35,9 +35,13 @@ export async function GET(request: NextRequest) {
         us.shares,
         us.purchase_price,
         us.initial_purchase_date,
-        us.last_transaction_date
+        us.last_transaction_date,
+        usp.predicted_price_1m
       FROM user_stocks us
       JOIN stocks s ON us.stock_id = s.id
+      LEFT JOIN user_stock_predictions usp 
+        ON us.user_id = usp.user_id 
+       AND us.stock_id = usp.stock_id
       WHERE us.user_id = ? 
         AND us.is_purchased = 1 
         AND us.is_active = 1 

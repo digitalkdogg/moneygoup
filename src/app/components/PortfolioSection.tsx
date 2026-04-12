@@ -51,7 +51,8 @@ export default function PortfolioSection({ portfolio, onRefresh }: PortfolioSect
       changePercent: pctChange,
       changeAmount: dollarChange,
       analystFeedback: normalizeRecommendation(item.recommendationKey),
-      analysts: item.numberOfAnalystOpinions
+      analysts: item.numberOfAnalystOpinions,
+      predictedPrice1m: item.predicted_price_1m ? parseFloat(item.predicted_price_1m as string) : null
     };
   };
 

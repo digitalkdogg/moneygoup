@@ -32,6 +32,22 @@ export interface PortfolioWithTotalsResponse {
   asOf?: string;
 }
 
+export interface DashboardRecommendation {
+  stockId: number;
+  symbol: string;
+  action: 'BUY' | 'SELL';
+  currentPrice: number;
+  predictedPrice1m: number;
+  deltaPct: number;
+  lastRequestedAt: string;
+  scope: 'portfolio' | 'watchlist';
+}
+
+export interface DashboardRecommendationsResponse {
+  recommendations: DashboardRecommendation[];
+  asOf: string;
+}
+
 export interface AnalystRatingItem {
   symbol: string;
   primary: string; // Strong Buy, Buy, Hold, Sell, Strong Sell

@@ -9,6 +9,7 @@ import WatchlistSection from './WatchlistSection'; // Updated to use StockCardSe
 import PortfolioSummary from './PortfolioSummary'; // NEW: Import PortfolioSummary
 import MarketOverviewCard from './MarketOverviewCard';
 import GainsBreakdownCard from './GainsBreakdownCard';
+import RecommendationsSection from './RecommendationsSection';
 
 import { formatNumber, formatCurrency as formatUtilityCurrency } from '@/utils/formatters'; // Import formatters
 import { PortfolioItem } from '@/types/portfolio'; // NEW: Import PortfolioItem
@@ -193,6 +194,9 @@ export default function Dashboard() {
 
           {/* Portfolio and Watchlist Sections */}
           <PortfolioSection portfolio={portfolio} onRefresh={fetchPortfolioData} />
+          
+          {/* Recommendations Section */}
+          <RecommendationsSection />
           
           <WatchlistSection onRefresh={() => {
             // Optional: refresh other data if needed

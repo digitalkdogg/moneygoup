@@ -25,14 +25,47 @@
             color: var(--text);
             background-color: var(--bg);
             margin: 0;
+        }
+        .top-nav {
+            position: sticky;
+            top: 0;
+            width: 100%;
+            background: white;
+            border-bottom: 1px solid var(--border);
+            padding: 0.75rem 2rem;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .top-nav a {
+            text-decoration: none;
+            color: #64748b;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            padding: 0.25rem 0;
+            border-bottom: 2px solid transparent;
+        }
+        .top-nav a:hover {
+            color: var(--primary);
+        }
+        .top-nav a.active {
+            color: var(--primary);
+            border-bottom: 2px solid var(--primary);
+        }
+        .page-container {
             display: flex;
         }
         aside {
             width: 300px;
-            height: 100vh;
+            height: calc(100vh - 60px);
             background: white;
             border-right: 1px solid var(--border);
             position: fixed;
+            top: 60px;
             padding: 2rem;
             box-sizing: border-box;
             overflow-y: auto;
@@ -140,6 +173,16 @@
     </style>
 </head>
 <body>
+    <nav class="top-nav">
+        <a href="moneygoup_overview.html">Overview</a>
+        <a href="api_documentation.html" class="active">API Docs</a>
+        <a href="components_documentation.html">Components</a>
+        <a href="database_documentation.html">Database</a>
+        <a href="prediction_workflow.html">Prediction Flow</a>
+        <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
+        <a href="technical_indicators_guide.html">Technical Guide</a>
+    </nav>
+    <div class="page-container">
     <aside>
         <h2 style="font-size: 1.2rem; margin-top: 0; border: none;">API Map</h2>
         <nav>
@@ -157,6 +200,7 @@
             
             <span class="nav-header">Dashboard</span>
             <a href="#dashboard1" class="nav-link">GET /dashboard</a>
+            <a href="#recommendations" class="nav-link">GET /dashboard/recommendations</a>
             
             <span class="nav-header">User Data</span>
             <a href="#watchlist" class="nav-link">Watchlist APIs</a>
@@ -261,6 +305,17 @@
                     <li><strong>Top Picks:</strong> Returns the top 5 Hot Stocks and top 3 Hot ETFs from the discovery engine.</li>
                 </ul>
             </div>
+
+            <div id="recommendations" class="step-card">
+                <h3><span class="method get">GET</span> /api/dashboard/recommendations</h3>
+                <div class="component-tag">Signal Engine</div>
+                <p>Returns automated BUY/SELL signals for the user's portfolio and watchlist based on predicted price thresholds.</p>
+                <strong>Logic Flow:</strong>
+                <ul class="flow">
+                    <li><strong>Threshold:</strong> Generates a BUY signal if the 1-month predicted growth is &ge; 3%.</li>
+                    <li><strong>Threshold:</strong> Generates a SELL signal if the 1-month predicted growth is &le; -3%.</li>
+                </ul>
+            </div>
         </section>
 
         <section id="user-data-section">
@@ -273,7 +328,7 @@
                 <div class="grid">
                     <div class="mini-card">
                         <h4><span class="method get">GET</span> /api/user/portfolio</h4>
-                        <p>Retrieve all active positions with current P&L.</p>
+                        <p>Retrieve all active positions with current P&L. Now includes <code>predicted_price_1m</code> for every holding to drive UI indicators.</p>
                     </div>
                     <div class="mini-card">
                         <h4><span class="method post">POST</span> /api/user/stocks</h4>
@@ -323,5 +378,6 @@
             MoneyGoUp API Documentation &copy; 2026
         </footer>
     </main>
+    </div>
 </body>
 </html>

@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { MarketOverviewResponse } from '@/types/dashboard';
 import { formatNumber } from '@/utils/formatters';
+import MiniDataCard from './cards/MiniDataCard';
 
 const MarketOverviewCard: React.FC = () => {
   const [data, setData] = useState<MarketOverviewResponse | null>(null);
@@ -61,19 +62,14 @@ const MarketOverviewCard: React.FC = () => {
       
       <div className="grid grid-cols-2 gap-3">
         {data?.indices.map((idx) => (
-          <div key={idx.symbol} className="border border-gray-100 bg-gray-50 rounded-lg p-3">
-            <div className="text-[10px] uppercase font-bold text-gray-500 tracking-wider mb-1">{idx.label}</div>
-            <div className="flex flex-col">
-              <span className="text-lg font-extrabold text-gray-900 leading-none mb-1">
-                {idx.price ? formatNumber(idx.price, idx.symbol === '^VIX' ? 1 : 0) : '—'}
-              </span>
-              <span className={`text-xs font-bold ${idx.changePercent && idx.changePercent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {idx.changePercent !== null ? (
-                  `${idx.changePercent >= 0 ? '+' : ''}${formatNumber(idx.changePercent, 2)}%`
-                ) : '—'}
-              </span>
-            </div>
-          </div>
+          <MiniDataCard
+            key={idx.symbol}
+            label={idx.label}
+            primaryText={idx.price ? formatNumber(idx.price, idx.symbol === '^VIX' ? 1 : 0) : '—'}
+            secondaryText={idx.changePercent !== null ? `${idx.changePercent >= 0 ? '+' : ''}${formatNumber(idx.changePercent, 2)}%` : '—'}
+            tone={idx.changePercent && idx.changePercent >= 0 ? 'positive' : 'negative'}
+            primaryClassOverride="text-lg font-extrabold text-gray-900 leading-none mb-1"
+          />
         ))}
       </div>
       

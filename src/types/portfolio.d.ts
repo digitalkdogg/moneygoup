@@ -7,6 +7,7 @@ export interface PortfolioItem {
   name?: string;
   shares: number;
   purchase_price: number;
+  predicted_price_1m?: number | string | null;
   initial_purchase_date?: string;
   last_transaction_date?: string;
   regularMarketPrice: number;

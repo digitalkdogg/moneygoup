@@ -26,6 +26,9 @@ export const PortfolioCardView: React.FC<PortfolioCardViewProps> = ({ card, acti
       <div className="px-5 py-0">
         <CardMetricRow label="Shares Held" value={formatShares(card.sharesHeld)} />
         <CardMetricRow label="Price" value={formatPrice(card.price)} />
+        {card.predictedPrice1m !== null && card.predictedPrice1m !== undefined && (
+          <CardMetricRow label="1M Prediction" value={formatPrice(card.predictedPrice1m)} />
+        )}
         <CardMetricRow 
           label="Analyst" 
           value={

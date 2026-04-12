@@ -25,11 +25,41 @@
             color: var(--text);
             background-color: var(--bg);
             margin: 0;
-            padding: 3rem;
+            padding: 0;
+        }
+        .top-nav {
+            position: sticky;
+            top: 0;
+            width: 100%;
+            background: white;
+            border-bottom: 1px solid var(--border);
+            padding: 0.75rem 2rem;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .top-nav a {
+            text-decoration: none;
+            color: #64748b;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            padding: 0.25rem 0;
+            border-bottom: 2px solid transparent;
+        }
+        .top-nav a:hover {
+            color: var(--primary);
+        }
+        .top-nav a.active {
+            color: var(--primary);
+            border-bottom: 2px solid var(--primary);
         }
         main {
             max-width: 1100px;
-            margin: 0 auto;
+            margin: 3rem auto;
             background: white;
             padding: 2rem;
             border-radius: 8px;
@@ -89,6 +119,15 @@
     </style>
 </head>
 <body>
+    <nav class="top-nav">
+        <a href="moneygoup_overview.html" class="active">Overview</a>
+        <a href="api_documentation.html">API Docs</a>
+        <a href="components_documentation.html">Components</a>
+        <a href="database_documentation.html">Database</a>
+        <a href="prediction_workflow.html">Prediction Flow</a>
+        <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
+        <a href="technical_indicators_guide.html">Technical Guide</a>
+    </nav>
     <main>
         <h1>MoneyGoUp Web Application Overview</h1>
         <p>This document provides a general overview of the MoneyGoUp web application, detailing its purpose, core features, underlying architecture, and key operational workflows. MoneyGoUp is an intelligent financial analysis platform designed to help users discover hot stocks and ETFs, track their portfolios, and leverage AI-powered predictions for informed decision-making.</p>
@@ -116,25 +155,15 @@
                 <li><strong>DB-Ready Enrichment</strong>: Results are enriched with sector information, GPS scores, and ML trajectories for database persistence.</li>
             </ul>
 
-            <h4>DeepMoney V1 (Legacy Engine)</h4>
-            <p>The original engine follows a four-stage process:</p>
-            <ol>
-                <li><strong>News Aggregation & Sentiment Analysis</strong>: Fetches headlines from major indices, uses NLP to extract organizations, performs sentiment analysis, and resolves tickers. It also identifies AI sub-sector keywords.</li>
-                <li><strong>Dynamic Screener Discovery</strong>: Queries Yahoo Finance screeners for growth and undervalued stocks, filtering by market cap.</li>
-                <li><strong>Enrichment & Scoring (GPS)</strong>: Combines candidates from news, screeners, and watchlists. It then fetches Yahoo Finance summaries and calculates a multi-factor GPS (Growth, Performance, Sentiment) score, incorporating bonuses for AI/Tech, R&D spend, and small-cap status.</li>
-                <li><strong>Final Results Compilation</strong>: Sorts and filters the results into categories like "Hot Stocks" and "Hot Markets".</li>
-            </ol>
-
-            <h4>Hard Gates & Classifications</h4>
-            <p>All stocks must pass hard gates:</p>
+            <h3>2.2 Automated Trade Recommendations</h3>
+            <p>MoneyGoUp features a personalized Recommendation engine that surfaces actionable BUY and SELL signals directly on the user dashboard. This module bridge the gap between AI predictions and trading decisions:</p>
             <ul>
-                <li><strong>Stock Price Cap</strong>: Under $150/share.</li>
-                <li><strong>ETF Price Cap</strong>: Under $400/share.</li>
-                <li><strong>Market Cap</strong>: Between $150M and $50B (for stocks), with specific rules for watchlist items.</li>
+                <li><strong>Real-time Signal Logic</strong>: Compares the latest market quotes with 1-month AI price targets.</li>
+                <li><strong>Dynamic Thresholds</strong>: Triggers a <strong>BUY</strong> signal if the predicted upside is &ge; 3%, and a <strong>SELL</strong> signal if the predicted downside is &le; -3%.</li>
+                <li><strong>Smart Badging</strong>: Intelligent labels distinguish between new opportunities (BUY) and recommended additions to existing holdings (BUY MORE).</li>
             </ul>
-            <p>Stocks are classified into "Established Growth", "Up-and-Coming Stable", or "AI/Tech Hyper-Growth" profiles.</p>
 
-            <h3>2.2 Hot ETF Discovery Module</h3>
+            <h3>2.3 Hot ETF Discovery Module</h3>
             <p>A new module in v2.1, it identifies trending ETFs (under $400/share) with momentum and thematic alignment.</p>
             <ul>
                 <li><strong>Hard Gates</strong>: ETFs must be under $400/share, have average daily volume > 50,000, AUM > $50M, and are typically not leveraged.</li>

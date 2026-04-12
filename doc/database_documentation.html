@@ -21,16 +21,50 @@
             color: var(--text);
             background-color: var(--bg);
             margin: 0;
+        }
+        .top-nav {
+            position: sticky;
+            top: 0;
+            width: 100%;
+            background: white;
+            border-bottom: 1px solid var(--border);
+            padding: 0.75rem 2rem;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .top-nav a {
+            text-decoration: none;
+            color: #64748b;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            padding: 0.25rem 0;
+            border-bottom: 2px solid transparent;
+        }
+        .top-nav a:hover {
+            color: var(--primary);
+        }
+        .top-nav a.active {
+            color: var(--primary);
+            border-bottom: 2px solid var(--primary);
+        }
+        .page-container {
             display: flex;
         }
         aside {
             width: 280px;
-            height: 100vh;
+            height: calc(100vh - 60px);
             background: white;
             border-right: 1px solid var(--border);
             position: fixed;
+            top: 60px;
             padding: 1.5rem;
             overflow-y: auto;
+            z-index: 10;
         }
         main {
             margin-left: 280px;
@@ -121,6 +155,16 @@
     </style>
 </head>
 <body>
+    <nav class="top-nav">
+        <a href="moneygoup_overview.html">Overview</a>
+        <a href="api_documentation.html">API Docs</a>
+        <a href="components_documentation.html">Components</a>
+        <a href="database_documentation.html" class="active">Database</a>
+        <a href="prediction_workflow.html">Prediction Flow</a>
+        <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
+        <a href="technical_indicators_guide.html">Technical Guide</a>
+    </nav>
+    <div class="page-container">
     <aside>
         <h2 style="font-size: 1.1rem; margin-top: 0; border: none;">Database Map</h2>
         <nav>
@@ -285,5 +329,6 @@
             MoneyGoUp Database Documentation &copy; 2026
         </footer>
     </main>
+    </div>
 </body>
 </html>
