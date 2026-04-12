@@ -60,7 +60,7 @@ describe('GET /api/dashboard/recommendations', () => {
     // 1. Mock predictions (current 100, predicted 97 -> -3%)
     (executeRawQuery as jest.Mock).mockResolvedValueOnce([
       [
-        { stock_id: 2, symbol: 'TSLA', predicted_price_1m: '97', last_requested_at: '2026-04-11T12:00:00Z', is_purchased: 0 }
+        { stock_id: 2, symbol: 'TSLA', predicted_price_1m: '97', last_requested_at: '2026-04-11T12:00:00Z', is_purchased: 1 }
       ]
     ]);
 
@@ -77,7 +77,7 @@ describe('GET /api/dashboard/recommendations', () => {
     expect(data.recommendations[0].symbol).toBe('TSLA');
     expect(data.recommendations[0].action).toBe('SELL');
     expect(data.recommendations[0].deltaPct).toBe(-3);
-    expect(data.recommendations[0].scope).toBe('watchlist');
+    expect(data.recommendations[0].scope).toBe('portfolio');
   });
 
   test('returns no recommendation when delta is between -3% and 3%', async () => {
