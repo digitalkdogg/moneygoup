@@ -240,6 +240,7 @@
                     <span class="file-path">src/app/components/Dashboard.tsx</span>
                 </div>
                 <p>The central orchestrator for the user's dashboard view. Fetches combined portfolio data, manages state for market status, and coordinates the display of summary widgets and sections. Now integrates the <code>RecommendationsSection</code> for AI alerts.</p>
+                <p><strong>Example usage:</strong> Used on the Dashboard route at <code>src/app/dashboard/page.tsx</code>, where it renders the authenticated user's main portfolio experience.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -254,6 +255,7 @@
                     <span class="file-path">src/app/components/RecommendationsSection.tsx</span>
                 </div>
                 <p>Displays AI-driven BUY/SELL alerts for the user's active portfolio and watchlist stocks. Shows a carousel of high-conviction signals (threshold &ge; 3%).</p>
+                <p><strong>Example usage:</strong> Used inside <code>Dashboard</code> on the dashboard page to surface AI BUY/SELL signals for tracked positions.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -268,6 +270,7 @@
                     <span class="file-path">src/app/components/Stock.tsx</span>
                 </div>
                 <p>The primary container for the stock detail page. Manages consolidated data fetching for a ticker (quotes, news, history, earnings, analyst data) and provides a multi-ticker comparison view.</p>
+                <p><strong>Example usage:</strong> Used on the stock detail route at <code>src/app/search/[ticker]/page.tsx</code> when a user opens a specific ticker.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -288,6 +291,7 @@
                     <span class="file-path">src/app/components/MarketOverviewCard.tsx</span>
                 </div>
                 <p>Displays a summary of major market indices (S&P 500, NASDAQ, DOW, VIX) with their current prices and daily percentage changes. Refreshes periodically.</p>
+                <p><strong>Example usage:</strong> Used in <code>Dashboard</code> on <code>/dashboard</code> as a top-level market snapshot widget.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -302,6 +306,7 @@
                     <span class="file-path">src/app/components/GainsBreakdownCard.tsx</span>
                 </div>
                 <p>Provides a visual breakdown of portfolio performance, including unrealized gains, losses, and cost basis using a donut chart.</p>
+                <p><strong>Example usage:</strong> Used in <code>Dashboard</code> on <code>/dashboard</code> to visualize unrealized gains, losses, and cost basis.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -319,6 +324,7 @@
                     <span class="file-path">src/app/components/PortfolioSummary.tsx</span>
                 </div>
                 <p>Calculates and displays top-level portfolio totals: Position Value, Daily Earnings, and Lifetime Earnings. Includes a toggle for the history chart.</p>
+                <p><strong>Example usage:</strong> Used in <code>Dashboard</code> on <code>/dashboard</code> to display aggregate portfolio totals and chart controls.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -336,6 +342,7 @@
                     <span class="file-path">src/app/components/SummaryCard.tsx</span>
                 </div>
                 <p>Generic card for single metrics with label, value, and optional status indicators.</p>
+                <p><strong>Example usage:</strong> Used by <code>Dashboard</code> and <code>PortfolioSummary</code> to render key KPI tiles like value and earnings.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -354,6 +361,7 @@
                     <span class="file-path">src/app/components/cards/MiniDataCard.tsx</span>
                 </div>
                 <p>A compact UI tile used for displaying secondary metrics (like AI Growth % or PE) within larger card layouts or grids.</p>
+                <p><strong>Example usage:</strong> Used in <code>RecommendationsSection</code> and card variants to render compact supporting metrics in grids.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -374,6 +382,7 @@
                     <span class="file-path">src/app/components/PortfolioSection.tsx</span>
                 </div>
                 <p>Main section for managing the user's active portfolio. Renders a grid of <code>StockCard</code> components and handles buy/sell modals.</p>
+                <p><strong>Example usage:</strong> Used in <code>Dashboard</code> on <code>/dashboard</code> to show the user's owned positions and trade actions.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -389,6 +398,7 @@
                     <span class="file-path">src/app/components/WatchlistSection.tsx</span>
                 </div>
                 <p>Displays the user's monitored stocks. Supports adding to portfolio and removing from watchlist. Handles its own data fetching and modals.</p>
+                <p><strong>Example usage:</strong> Used in <code>Dashboard</code> on <code>/dashboard</code> to show watchlisted symbols and quick actions.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -403,6 +413,7 @@
                     <span class="file-path">src/app/components/DeepMoneyPicksSection.tsx</span>
                 </div>
                 <p>Displays AI-powered recommendations for top growth stocks and hot ETFs. Fetches data from <code>/api/dashboard/deepmoney-picks</code>.</p>
+                <p><strong>Example usage:</strong> Used on the Discover/Search page at <code>src/app/search/page.tsx</code> for AI stock and ETF picks.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -417,6 +428,7 @@
                     <span class="file-path">src/app/components/RecommendationsSection.tsx</span>
                 </div>
                 <p>A smart dashboard section that compares current prices against 1-month predictions to surface BUY/SELL signals for all tracked stocks.</p>
+                <p><strong>Example usage:</strong> Used inside <code>Dashboard</code> on the dashboard page to surface AI BUY/SELL signals for tracked positions.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -431,6 +443,7 @@
                     <span class="file-path">src/app/components/TrendingStocksGrid.tsx</span>
                 </div>
                 <p>Shows the top trending stocks from the last 48 hours using the <code>SearchTrendingCardView</code> variant of the <code>StockCard</code>.</p>
+                <p><strong>Example usage:</strong> Used on the Discover/Search page at <code>src/app/search/page.tsx</code> to show currently trending tickers.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -445,6 +458,7 @@
                     <span class="file-path">src/app/components/MajorIndicesStrip.tsx</span>
                 </div>
                 <p>Displays key market indices (Dow, S&P 500, Nasdaq) in a compact horizontal strip.</p>
+                <p><strong>Example usage:</strong> Used on the Discover/Search page at <code>src/app/search/page.tsx</code> to show major market benchmarks.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -459,6 +473,7 @@
                     <span class="file-path">src/app/components/SectorExplorer.tsx</span>
                 </div>
                 <p>Allows users to browse stocks by industry sectors. Renders buttons for featured sectors.</p>
+                <p><strong>Example usage:</strong> Used on the Discover/Search page at <code>src/app/search/page.tsx</code> for sector-based browsing.</p>
                  <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -473,6 +488,7 @@
                     <span class="file-path">src/app/components/IndustryStocks.tsx</span>
                 </div>
                 <p>Displays a table of active stocks within a specific industry context, fetched via <code>/api/stock_data/[ticker]/industry</code>.</p>
+                <p><strong>Example usage:</strong> Used on the industry route <code>src/app/search/industry/[ticker]/page.tsx</code> for peer tables.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -493,6 +509,7 @@
                     <span class="file-path">src/app/components/PortfolioHistoryChart.tsx</span>
                 </div>
                 <p>Visualizes the total portfolio value over time, fetching data from <code>/api/user/portfolio/historical-value</code>. Supports time period selection (1W, 1M, 6M, 1Y).</p>
+                <p><strong>Example usage:</strong> Used in <code>Dashboard</code> (via <code>PortfolioSummary</code> toggle flow) to visualize account value over time.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -508,6 +525,7 @@
                     <span class="file-path">src/app/components/StockChart.tsx</span>
                 </div>
                 <p>Displays a price history chart for a single stock, fetching data from an API and allowing period selection.</p>
+                <p><strong>Example usage:</strong> Used in <code>Stock</code> on the ticker detail page to display historical price movement by period.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -523,6 +541,7 @@
                     <span class="file-path">src/app/components/StockPrediction.tsx</span>
                 </div>
                 <p>Triggers AI prediction workflow and displays results (price targets, trajectory, confidence scores, metric analysis) for a given stock.</p>
+                <p><strong>Example usage:</strong> Used in <code>Stock</code> on the ticker detail page to run and display AI forecast outputs.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -549,6 +568,7 @@
                     <span class="file-path">src/app/components/TechnicalIndicatorsDisplay.tsx</span>
                 </div>
                 <p>Presents a detailed breakdown of technical indicator scores and their impact on the overall trading signal.</p>
+                <p><strong>Example usage:</strong> Used by <code>StockPrediction</code> within the stock detail experience to explain scoring inputs.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -567,6 +587,7 @@
                     <span class="file-path">src/app/components/Navigation.tsx</span>
                 </div>
                 <p>The main site header component, handling both desktop and mobile navigation, user profile dropdown, and logout functionality.</p>
+                <p><strong>Example usage:</strong> Used globally in <code>src/app/layout.tsx</code>, so it appears on all app routes.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -581,6 +602,7 @@
                     <span class="file-path">src/app/components/Search.tsx</span>
                 </div>
                 <p>Global search input with autocomplete functionality. Fetches ticker data from <code>company_tickers.json</code>.</p>
+                <p><strong>Example usage:</strong> Used on the Discover/Search route at <code>src/app/search/page.tsx</code> as the primary ticker lookup input.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -595,6 +617,7 @@
                     <span class="file-path">src/app/components/cards/StockCard.tsx</span>
                 </div>
                 <p>The unified entry point for displaying stock information. It switches rendering based on the <code>variant</code> prop (<code>search-trending</code>, <code>deepmoney</code>, <code>portfolio</code>, <code>watchlist</code>).</p>
+                <p><strong>Example usage:</strong> Used by <code>PortfolioSection</code>, <code>WatchlistSection</code>, <code>TrendingStocksGrid</code>, and <code>DeepMoneyPicksSection</code> for unified card rendering.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -611,6 +634,7 @@
                     <span class="file-path">src/app/components/StockCardSection.tsx</span>
                 </div>
                 <p>A reusable wrapper for displaying lists of cards in a grid. Manages loading, error, and empty states for sections.</p>
+                <p><strong>Example usage:</strong> Used by list-style sections such as <code>TrendingStocksGrid</code> and <code>DeepMoneyPicksSection</code> to standardize layout states.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -631,6 +655,7 @@
                     <span class="file-path">src/app/components/StockTable.tsx</span>
                 </div>
                 <p>A generalized, responsive table component used for displaying lists of stocks with customizable columns and formatting.</p>
+                <p><strong>Example usage:</strong> Used in <code>Stock</code> and <code>IndustryStocks</code> contexts to render responsive stock lists with configurable columns.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -652,6 +677,7 @@
                     <span class="file-path">src/app/components/ApiErrorDisplay.tsx</span>
                 </div>
                 <p>A standardized error banner for API failures, featuring retry buttons and troubleshooting tips.</p>
+                <p><strong>Example usage:</strong> Used in <code>Stock</code> to present retryable API failure states when data services return errors.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -669,6 +695,7 @@
                     <span class="file-path">src/app/components/StockNews.tsx</span>
                 </div>
                 <p>Displays a list of recent news articles for a stock, including title, publication date, source, and sentiment score.</p>
+                <p><strong>Example usage:</strong> Used in <code>Stock</code> on the ticker detail page to show recent related news and sentiment.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -689,6 +716,7 @@
                     <span class="file-path">src/app/components/cards/variants/SearchTrendingCardView.tsx</span>
                 </div>
                 <p>Renders the 'search-trending' card variant, showing ticker, company name, price, hot rating, and percentage change.</p>
+                <p><strong>Example usage:</strong> Used by <code>StockCard</code> when <code>variant="search-trending"</code>, typically in <code>TrendingStocksGrid</code>.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -703,6 +731,7 @@
                     <span class="file-path">src/app/components/cards/variants/DeepmoneyCardView.tsx</span>
                 </div>
                 <p>Renders the 'deepmoney' card variant, displaying prediction/growth, GPS score, price, and change.</p>
+                <p><strong>Example usage:</strong> Used by <code>StockCard</code> when <code>variant="deepmoney"</code>, typically in <code>DeepMoneyPicksSection</code>.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -717,6 +746,7 @@
                     <span class="file-path">src/app/components/cards/variants/PortfolioCardView.tsx</span>
                 </div>
                 <p>Renders the 'portfolio' card variant, including shares held, price, analyst feedback, and buy/sell actions. Now explicitly displays the <strong>1M Prediction</strong> metric to show AI price trajectory.</p>
+                <p><strong>Example usage:</strong> Used by <code>StockCard</code> when <code>variant="portfolio"</code>, typically in <code>PortfolioSection</code>.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -732,6 +762,7 @@
                     <span class="file-path">src/app/components/cards/variants/WatchlistCardView.tsx</span>
                 </div>
                 <p>Renders the 'watchlist' card variant, showing price, analyst feedback, 6M MA, and actions for adding to portfolio or removing.</p>
+                <p><strong>Example usage:</strong> Used by <code>StockCard</code> when <code>variant="watchlist"</code>, typically in <code>WatchlistSection</code>.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -747,6 +778,7 @@
                     <span class="file-path">src/app/components/cards/BaseCardShell.tsx</span>
                 </div>
                 <p>The shared outer container for all stock cards, managing background color, borders, and hover effects.</p>
+                <p><strong>Example usage:</strong> Used internally by all <code>StockCard</code> variant views to apply consistent container structure and interaction states.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -763,6 +795,7 @@
                     <span class="file-path">src/app/components/cards/CardHeader.tsx</span>
                 </div>
                 <p>Unified header for cards showing ticker, company name, price change percentage, and daily dollar change.</p>
+                <p><strong>Example usage:</strong> Used internally by <code>StockCard</code> variant views to render standardized symbol/name/change headers.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -780,6 +813,7 @@
                     <span class="file-path">src/app/components/cards/CardMetricRow.tsx</span>
                 </div>
                 <p>Standardized labeled row for displaying data points inside cards.</p>
+                <p><strong>Example usage:</strong> Used internally across card variants to keep metric label/value rows consistent.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -797,6 +831,7 @@
                     <span class="file-path">src/app/components/cards/CardActions.tsx</span>
                 </div>
                 <p>The bottom action area for cards, containing context-specific buttons.</p>
+                <p><strong>Example usage:</strong> Used internally across card variants to align and style action button rows consistently.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -815,6 +850,7 @@
                     <span class="file-path">src/app/components/modals/BuyMoreModal.tsx</span>
                 </div>
                 <p>Form for logging additional shares purchased for an existing position. Calculates the new average price in real-time.</p>
+                <p><strong>Example usage:</strong> Used by <code>PortfolioSection</code> when a user adds shares to an existing position.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -830,6 +866,7 @@
                     <span class="file-path">src/app/components/modals/SellModal.tsx</span>
                 </div>
                 <p>Form for logging partial or full sales of a position. Calculates realized gain/loss.</p>
+                <p><strong>Example usage:</strong> Used by <code>PortfolioSection</code> when a user sells all or part of an owned position.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -845,6 +882,7 @@
                     <span class="file-path">src/app/components/modals/PurchaseFromWatchlistModal.tsx</span>
                 </div>
                 <p>Form for making an initial purchase of a stock currently on the user's watchlist.</p>
+                <p><strong>Example usage:</strong> Used by <code>WatchlistSection</code> when a user buys a stock directly from the watchlist.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
