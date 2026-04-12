@@ -20,6 +20,7 @@ interface WatchlistItem {
   regularMarketPrice: number;
   prev_close?: number;
   ma6_month: number;
+  predicted_price_1m?:number | string | null;
   recommendationKey?: string | null;
   numberOfAnalystOpinions?: number | null;
   [key: string]: any;
@@ -43,6 +44,13 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
     fetchWatchlist();
   }, []);
 
+   const toNullableNumber = (value: unknown): number | null => {
+    if (value === null || value === undefined || value === '') return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+
   const fetchWatchlist = async () => {
     try {
       setLoading(true);
@@ -54,12 +62,19 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
       }
 
       const data = await response.json();
-      setWatchlist(data.watchlist.map((item: any) => ({
-        ...item,
-        name: item.company_name,
-        regularMarketPrice: item.regularMarketPrice !== null ? parseFloat(item.regularMarketPrice) : 0,
-        ma6_month: item.ma6_month !== null ? parseFloat(item.ma6_month) : 0
-      })) || []);
+      const rawWatchlist = Array.isArray(data?.watchlist) ? data.watchlist : [];
+
+      setWatchlist(
+        rawWatchlist
+          .filter((item: any) => item && typeof item === 'object')
+          .map((item: any) => ({
+            ...item,
+            name: item.company_name,
+            regularMarketPrice: toNullableNumber(item.regularMarketPrice) ?? 0,
+            ma6_month: toNullableNumber(item.ma6_month) ?? 0,
+            predicted_price_1m: toNullableNumber(item.predicted_price_1m),
+          }))
+      );
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -117,7 +132,8 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
       changePercent: pctChange,
       analystFeedback: normalizeRecommendation(item.recommendationKey),
       analysts: item.numberOfAnalystOpinions,
-      ma6m: ma6_month
+      ma6m: ma6_month,
+      predictedPrice1m: toNullableNumber(item.predicted_price_1m)
     };
   };
 

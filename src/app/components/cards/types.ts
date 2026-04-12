@@ -34,6 +34,7 @@ export interface WatchlistCard extends CardBase {
   analystFeedback: string | null
   analysts?: number | null
   ma6m: number | null
+  predictedPrice1m?: number | null
 }
 
 export type StockCardModel =

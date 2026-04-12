@@ -25,6 +25,9 @@ export const WatchlistCardView: React.FC<WatchlistCardViewProps> = ({ card, acti
       />
       <div className="px-5 py-4">
         <CardMetricRow label="Price" value={formatPrice(card.price)} />
+        {card.predictedPrice1m !== null && card.predictedPrice1m !== undefined && (
+          <CardMetricRow label="1M Prediction" value={formatPrice(card.predictedPrice1m)} />
+        )}
         <CardMetricRow 
           label="Analyst" 
           value={
