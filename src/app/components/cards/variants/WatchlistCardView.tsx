@@ -37,7 +37,6 @@ export const WatchlistCardView: React.FC<WatchlistCardViewProps> = ({ card, acti
             </div>
           }
         />
-        <CardMetricRow label="6M MA" value={formatPrice(card.ma6m)} />
       </div>
       <CardActions>
         <ActionButton 

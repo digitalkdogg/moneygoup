@@ -69,7 +69,7 @@ export default function Navigation() {
             : 'text-white hover:bg-green-800'
         } ${mobile ? 'w-full text-lg h-[56px]' : ''}`}
       >
-        <span>Search</span>
+        <span>Deepmoney Search</span>
         {mobile && <span className="text-xl">›</span>}
       </Link>
     </>
