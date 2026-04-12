@@ -92,9 +92,11 @@ ACTIVE_PORTFOLIO_QUERY = """
     JOIN user_stocks us ON us.user_id = u.id
     JOIN stocks      s  ON s.id       = us.stock_id
     WHERE u.last_login >= NOW() - INTERVAL 7 DAY
-      AND us.is_purchased = 1
-      AND us.shares       > 0
-      AND us.is_active    = 1
+      AND (
+          (us.is_purchased = 1 AND us.shares > 0 AND us.is_active = 1) -- Portfolio
+          OR 
+          (us.is_purchased = 0 AND us.shares = 0)                     -- Watchlist
+      )
     ORDER BY s.symbol, u.id
 """
  
