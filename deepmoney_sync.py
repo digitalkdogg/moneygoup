@@ -62,6 +62,12 @@ def sync_deepmoney():
         print("Clearing existing recommendation data...")
         cursor.execute("DELETE FROM recommended_stocks")
 
+        # 3.5 Fetch active users (login in past 7 days)
+        print("Fetching active users...")
+        cursor.execute("SELECT id FROM users WHERE last_login >= DATE_SUB(NOW(), INTERVAL 7 DAY)")
+        active_user_ids = [row[0] for row in cursor.fetchall()]
+        print(f"Found {len(active_user_ids)} active users.")
+
         # 4. Process Stocks from (stocks array)
         stocks = data.get('stocks', [])
         print(f"Processing {len(stocks)} hot stocks...")
@@ -135,6 +141,44 @@ def sync_deepmoney():
                 metric_lbl,         # 21. metric_label
                 today               # 22. snapshot_date
             ))
+
+            # 5. Check qualification for user_stock_predictions
+            # Thresholds from environment or defaults
+            pred_env = os.getenv('DEEPMONEY_RECOMMENDATION_PREDICTION_VALUE')
+            pred_threshold = float(pred_env) if pred_env else 5.0
+            
+            gps_env = os.getenv('DEEPMONEY_RECOMMENDATION_GPS_VALUE')
+            gps_threshold = float(gps_env) if gps_env else 6.0
+            
+            predicted_change_pct = pred_input.get('predicted_change_pct', 0)
+            predicted_price_1m = pred_input.get('predicted_price')
+
+            if predicted_change_pct > pred_threshold and gps > gps_threshold and predicted_price_1m is not None:
+                print(f"    - Qualifying stock found: {ticker} (GPS: {gps}, Pred: {predicted_change_pct}%)")
+                
+                # a. Ensure stock exists in 'stocks' table
+                cursor.execute("SELECT id FROM stocks WHERE symbol = %s", (ticker,))
+                stock_row = cursor.fetchone()
+                if stock_row:
+                    stock_id = stock_row[0]
+                else:
+                    print(f"    - Adding {ticker} to stocks table...")
+                    cursor.execute(
+                        "INSERT INTO stocks (symbol, company_name, price) VALUES (%s, %s, %s)",
+                        (ticker, name, price)
+                    )
+                    stock_id = cursor.lastrowid
+
+                # b. Add prediction for all active users
+                for user_id in active_user_ids:
+                    cursor.execute("""
+                        INSERT INTO user_stock_predictions 
+                        (user_id, stock_id, predicted_price_1m, last_requested_at)
+                        VALUES (%s, %s, %s, NOW())
+                        ON DUPLICATE KEY UPDATE 
+                        predicted_price_1m = VALUES(predicted_price_1m),
+                        last_requested_at = VALUES(last_requested_at)
+                    """, (user_id, stock_id, predicted_price_1m))
 
         conn.commit()
         print(f"[{datetime.now()}] Sync completed successfully.")

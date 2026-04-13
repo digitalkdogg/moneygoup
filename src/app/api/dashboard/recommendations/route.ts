@@ -64,8 +64,18 @@ export async function GET(request: NextRequest) {
       }
     });
  
-    // 3. Compute recommendations based on 5% threshold
+    // 3. Compute recommendations based on thresholds from environment
     const recommendations: DashboardRecommendation[] = [];
+    
+    const getThreshold = (envVar: string | undefined, defaultValue: number) => {
+      if (!envVar) return defaultValue;
+      const parsed = parseFloat(envVar);
+      return isNaN(parsed) ? defaultValue : parsed;
+    };
+
+    const portfolioPositiveThreshold = getThreshold(process.env.RECOMMENDATION_PORTFOLIO_POSITIVE_THRESHOLD, 3);
+    const portfolioNegativeThreshold = getThreshold(process.env.RECOMMENDATION_PORTFOLIO_NEGATIVE_THRESHOLD, -3);
+    const watchlistThreshold = getThreshold(process.env.RECOMMENDATION_WATCHLIST_THRESHOLD, 5);
  
     for (const pred of predictions) {
       const quote = quoteMap.get(pred.stock_id);
@@ -80,15 +90,15 @@ export async function GET(request: NextRequest) {
       const isPortfolio = pred.is_purchased === 1;
       let action: 'BUY' | 'SELL' | null = null;
       if (isPortfolio) {
-        // Portfolio: BUY signal at +3%, SELL signal at -3%
-        if (deltaPct >= +3) {
+        // Portfolio: BUY signal at positive threshold, SELL signal at negative threshold
+        if (deltaPct >= portfolioPositiveThreshold) {
           action = 'BUY';
-        } else if (deltaPct <= -3) {
+        } else if (deltaPct <= portfolioNegativeThreshold) {
           action = 'SELL';
         }
       } else {
-        // Watchlist: BUY-only signal at +5%, no SELL logic
-        if (deltaPct >= 5) {
+        // Watchlist: BUY-only signal at watchlist threshold, no SELL logic
+        if (deltaPct >= watchlistThreshold) {
           action = 'BUY';
         }
       }

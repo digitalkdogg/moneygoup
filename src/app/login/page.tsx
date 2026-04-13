@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { signIn } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -11,7 +11,16 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [expiredMessage, setExpiredMessage] = useState(false);
+  
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get('reason') === 'expired') {
+      setExpiredMessage(true);
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,6 +59,11 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={handleSubmit}>
+          {expiredMessage && (
+            <div className="bg-amber-100 border-2 border-amber-400 text-amber-700 px-4 py-3 rounded-lg relative mb-4 text-sm font-medium" role="alert">
+              <span className="block sm:inline">Your session expired. Please sign in again.</span>
+            </div>
+          )}
           <div className="mb-4">
             <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">Username</label>
             <input
