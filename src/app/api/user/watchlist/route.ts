@@ -39,7 +39,10 @@ export async function GET(request: NextRequest) {
       FROM user_stocks us
       JOIN stocks s ON us.stock_id = s.id
       LEFT JOIN user_stock_predictions usp ON us.user_id = usp.user_id AND us.stock_id = usp.stock_id
-      WHERE us.user_id = ? AND us.is_purchased = 0
+      WHERE us.user_id = ? 
+        AND us.is_active = 1
+        AND us.is_purchased = 0
+        AND us.user_confirmed = 1
     `, [userId]);
 
     // Dynamically import yahoo-finance2
@@ -137,8 +140,10 @@ export const POST = validate(addStockSchema)(
         user_id: userId,
         stock_id: stockId,
         is_purchased: 0, // Mark as watchlist item
-        shares: 0, // No shares for watchlist
-        purchase_price: 0, // No purchase price for watchlist
+        shares: 1, // Set 1 share to indicate watchlist interest (shares > 0)
+        purchase_price: 0, 
+        user_confirmed: 1, // Mark as confirmed by user
+        is_active: 1
       }, ['user_id', 'stock_id']); // Use upsert behavior for user_stocks
 
       return NextResponse.json(

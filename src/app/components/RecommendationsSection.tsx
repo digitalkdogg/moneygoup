@@ -92,7 +92,11 @@ const RecommendationsSection: React.FC = () => {
                       <span>Updated: {new Date(rec.lastRequestedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                       <span className="mx-1">•</span>
                       <span className={`px-1 rounded-sm uppercase text-[8px] font-bold ${
-                        rec.scope === 'portfolio' ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-amber-100 text-amber-700 border border-amber-200'
+                        rec.scope === 'portfolio' 
+                          ? 'bg-blue-100 text-blue-700 border border-blue-200' 
+                          : rec.scope === 'watchlist'
+                            ? 'bg-amber-100 text-amber-700 border border-amber-200'
+                            : 'bg-purple-100 text-purple-700 border border-purple-200'
                       }`}>
                         {rec.scope}
                       </span>

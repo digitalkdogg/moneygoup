@@ -122,6 +122,7 @@
     <nav class="top-nav">
         <a href="moneygoup_overview.html" class="active">Overview</a>
         <a href="api_documentation.html">API Docs</a>
+        <a href="recommendation_buckets.html">Rec Buckets</a>
         <a href="components_documentation.html">Components</a>
         <a href="database_documentation.html">Database</a>
         <a href="prediction_workflow.html">Prediction Flow</a>
@@ -155,13 +156,14 @@
                 <li><strong>DB-Ready Enrichment</strong>: Results are enriched with sector information, GPS scores, and ML trajectories for database persistence.</li>
             </ul>
 
-            <h3>2.2 Automated Trade Recommendations</h3>
-            <p>MoneyGoUp features a personalized Recommendation engine that surfaces actionable BUY and SELL signals directly on the user dashboard. This module bridge the gap between AI predictions and trading decisions:</p>
+            <h3>2.2 Automated Trade Recommendations (3-Bucket Strategy)</h3>
+            <p>MoneyGoUp features a personalized Recommendation engine that surfaces actionable BUY and SELL signals directly on the user dashboard. Tickers are classified into three categories:</p>
             <ul>
-                <li><strong>Real-time Signal Logic</strong>: Compares the latest market quotes with 1-month AI price targets.</li>
-                <li><strong>Dynamic Thresholds</strong>: Triggers a <strong>BUY</strong> signal if the predicted upside is &ge; 3%, and a <strong>SELL</strong> signal if the predicted downside is &le; -3%.</li>
-                <li><strong>Smart Badging</strong>: Intelligent labels distinguish between new opportunities (BUY) and recommended additions to existing holdings (BUY MORE).</li>
+                <li><strong>Portfolio</strong>: Active owned positions. Surfaces BUY and SELL signals based on AI price targets vs cost basis.</li>
+                <li><strong>Watchlist</strong>: User-confirmed monitored stocks. Surfaces high-conviction BUY signals.</li>
+                <li><strong>Discovery</strong>: AI-identified stocks from <code>deepmoney_sync.py</code>. Surfaces new opportunities that haven't been reviewed by the user.</li>
             </ul>
+            <p>Detailed logic for these buckets can be found in the <a href="recommendation_buckets.html">Recommendation Buckets Guide</a>.</p>
 
             <h3>2.3 Hot ETF Discovery Module</h3>
             <p>A new module in v2.1, it identifies trending ETFs (under $400/share) with momentum and thematic alignment.</p>

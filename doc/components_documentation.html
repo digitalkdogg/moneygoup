@@ -162,6 +162,7 @@
     <nav class="top-nav">
         <a href="moneygoup_overview.html">Overview</a>
         <a href="api_documentation.html">API Docs</a>
+        <a href="recommendation_buckets.html">Rec Buckets</a>
         <a href="components_documentation.html" class="active">Components</a>
         <a href="database_documentation.html">Database</a>
         <a href="prediction_workflow.html">Prediction Flow</a>
@@ -254,8 +255,8 @@
                     RecommendationsSection
                     <span class="file-path">src/app/components/RecommendationsSection.tsx</span>
                 </div>
-                <p>Displays AI-driven BUY/SELL alerts for the user's active portfolio and watchlist stocks. Shows a carousel of high-conviction signals (threshold &ge; 3%).</p>
-                <p><strong>Example usage:</strong> Used inside <code>Dashboard</code> on the dashboard page to surface AI BUY/SELL signals for tracked positions.</p>
+                <p>Displays AI-driven BUY/SELL alerts across three buckets: **Portfolio** (owned), **Watchlist** (user-monitored), and **Discovery** (AI-identified). Signals are generated based on configurable thresholds using 1-month predictions.</p>
+                <p><strong>Example usage:</strong> Used inside <code>Dashboard</code> on the dashboard page to surface actionable signals for all tracked assets.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>

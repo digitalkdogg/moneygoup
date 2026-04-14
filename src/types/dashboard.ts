@@ -40,7 +40,7 @@ export interface DashboardRecommendation {
   predictedPrice1m: number;
   deltaPct: number;
   lastRequestedAt: string;
-  scope: 'portfolio' | 'watchlist';
+  scope: 'portfolio' | 'watchlist' | 'discovery';
 }
 
 export interface DashboardRecommendationsResponse {

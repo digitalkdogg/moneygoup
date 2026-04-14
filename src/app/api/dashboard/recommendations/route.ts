@@ -28,21 +28,23 @@ export async function GET(request: NextRequest) {
       return unauthorizedResponse('Unauthorized: User ID missing from session.');
     }
  
-    // 1. Fetch predictions and user stock status
-    // We join with stocks to get symbols and user_stocks to get is_purchased status
+    // 1. Fetch predictions and user stock status with extended flags
     const [rows] = await executeRawQuery(`
       SELECT
         usp.stock_id,
         s.symbol,
         usp.predicted_price_1m,
         usp.last_requested_at,
-        us.is_purchased
+        us.is_purchased,
+        us.user_confirmed,
+        us.shares,
+        us.is_active
       FROM user_stock_predictions usp
       JOIN stocks s ON s.id = usp.stock_id
       JOIN user_stocks us
         ON us.user_id = usp.user_id
        AND us.stock_id = usp.stock_id
-      WHERE usp.user_id = ?
+      WHERE usp.user_id = ? AND us.is_active = 1
       ORDER BY usp.last_requested_at DESC;
     `, [userId]);
  
@@ -87,23 +89,36 @@ export async function GET(request: NextRequest) {
       // Calculate percentage difference
       const deltaPct = ((predictedPrice1m - currentPrice) / currentPrice) * 100;
  
-      const isPortfolio = pred.is_purchased === 1;
+      const isConfirmed = pred.user_confirmed === 1;
+      const isPurchased = pred.is_purchased === 1;
+      const hasShares = pred.shares > 0;
+
       let action: 'BUY' | 'SELL' | null = null;
-      if (isPortfolio) {
-        // Portfolio: BUY signal at positive threshold, SELL signal at negative threshold
+      let scope: 'portfolio' | 'watchlist' | 'discovery' | null = null;
+
+      if (isPurchased && isConfirmed && hasShares) {
+        // Bucket 1: Portfolio (Must have shares)
+        scope = 'portfolio';
         if (deltaPct >= portfolioPositiveThreshold) {
           action = 'BUY';
         } else if (deltaPct <= portfolioNegativeThreshold) {
           action = 'SELL';
         }
-      } else {
-        // Watchlist: BUY-only signal at watchlist threshold, no SELL logic
+      } else if (!isPurchased && isConfirmed) {
+        // Bucket 2: Watchlist (Confirmed by user, 0 shares allowed)
+        scope = 'watchlist';
+        if (deltaPct >= watchlistThreshold) {
+          action = 'BUY';
+        }
+      } else if (!isPurchased && !isConfirmed) {
+        // Bucket 3: Discovery (Unconfirmed items, 0 shares allowed)
+        scope = 'discovery';
         if (deltaPct >= watchlistThreshold) {
           action = 'BUY';
         }
       }
  
-      if (action) {
+      if (action && scope) {
         recommendations.push({
           stockId: pred.stock_id,
           symbol: pred.symbol,
@@ -112,7 +127,7 @@ export async function GET(request: NextRequest) {
           predictedPrice1m,
           deltaPct,
           lastRequestedAt: pred.last_requested_at,
-          scope: isPortfolio ? 'portfolio' : 'watchlist'
+          scope
         });
       }
     }

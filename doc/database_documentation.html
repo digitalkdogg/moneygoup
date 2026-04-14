@@ -158,6 +158,7 @@
     <nav class="top-nav">
         <a href="moneygoup_overview.html">Overview</a>
         <a href="api_documentation.html">API Docs</a>
+        <a href="recommendation_buckets.html">Rec Buckets</a>
         <a href="components_documentation.html">Components</a>
         <a href="database_documentation.html" class="active">Database</a>
         <a href="prediction_workflow.html">Prediction Flow</a>
@@ -198,19 +199,21 @@
             <h2>Core Business Logic</h2>
             
             <div id="portfolio-logic" class="logic-card">
-                <h4>Portfolio vs. Watchlist Logic</h4>
-                <p>The system uses a single table, <code>user_stocks</code>, to manage both owned positions and monitored tickers. The distinction is handled by the <code>is_purchased</code> flag and the <code>shares</code> count:</p>
+                <h4>Portfolio vs. Watchlist vs. Discovery Logic</h4>
+                <p>The system uses the <code>user_stocks</code> table to manage all stock relationships. Status is determined by a combination of <code>is_purchased</code> and <code>user_confirmed</code>:</p>
                 <ul>
                     <li><strong>Watchlist State:</strong> 
-                        <code>is_purchased = 0</code> AND <code>shares = 0</code>. 
-                        The user is "watching" the stock for news and price alerts but has no financial stake.
+                        <code>is_purchased = 0</code> AND <code>user_confirmed = 1</code>. 
+                        The user has explicitly added this stock to their monitoring list. Shows in "My Watchlist".
                     </li>
                     <li><strong>Portfolio State:</strong> 
-                        <code>is_purchased = 1</code> AND <code>shares > 0</code>. 
-                        The user owns a position. The <code>purchase_price</code> field stores the weighted average cost basis.
+                        <code>is_purchased = 1</code> AND <code>user_confirmed = 1</code> AND <code>shares > 0</code>. 
+                        The user owns a confirmed position.
                     </li>
-                    <li><strong>Transition (Buying):</strong> When a user buys a stock from their watchlist, <code>is_purchased</code> is flipped to 1, and <code>shares</code> is incremented.</li>
-                    <li><strong>Transition (Selling All):</strong> When a user sells their entire position, the application typically moves the ticker back to the watchlist state (<code>is_purchased = 0</code>, <code>shares = 0</code>) rather than deleting the row, preserving the user's interest in the ticker.</li>
+                    <li><strong>Discovery State:</strong> 
+                        <code>is_purchased = 0</code> AND <code>user_confirmed = 0</code>. 
+                        Stocks automatically identified by the AI engine. These generate recommendations but remain hidden from the user's primary watchlist until confirmed.
+                    </li>
                 </ul>
             </div>
 
@@ -269,9 +272,11 @@
                     <tbody>
                         <tr><td><code>user_id</code></td><td><code>INT</code></td><td>Foreign Key to <code>users.id</code></td></tr>
                         <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>Foreign Key to <code>stocks.id</code></td></tr>
-                        <tr><td><code>is_purchased</code></td><td><code>TINYINT(1)</code></td><td>0 = Watchlist, 1 = Portfolio.</td></tr>
-                        <tr><td><code>shares</code></td><td><code>DECIMAL(10,4)</code></td><td>Quantity owned (0 for watchlist).</td></tr>
+                        <tr><td><code>is_purchased</code></td><td><code>TINYINT(1)</code></td><td>0 = Watchlist/Discovery, 1 = Portfolio.</td></tr>
+                        <tr><td><code>shares</code></td><td><code>DECIMAL(10,4)</code></td><td>Quantity owned.</td></tr>
                         <tr><td><code>purchase_price</code></td><td><code>DECIMAL(10,2)</code></td><td>Average cost basis.</td></tr>
+                        <tr><td><code>user_confirmed</code></td><td><code>TINYINT(1)</code></td><td>1 = Added by user, 0 = Auto-synced discovery.</td></tr>
+                        <tr><td><code>is_active</code></td><td><code>TINYINT(1)</code></td><td>1 = Active, 0 = Inactive/Deleted.</td></tr>
                         <tr><td><code>last_transaction_date</code></td><td><code>DATETIME</code></td><td>Updated on buy/sell actions.</td></tr>
                     </tbody>
                 </table>

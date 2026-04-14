@@ -95,7 +95,7 @@ ACTIVE_PORTFOLIO_QUERY = """
       AND (
           (us.is_purchased = 1 AND us.shares > 0 AND us.is_active = 1) -- Portfolio
           OR 
-          (us.is_purchased = 0 AND us.shares = 0)                     -- Watchlist
+          (us.is_purchased = 0 AND us.shares = 0 and us.user_confirmed = 1)                     -- Watchlist
       )
     ORDER BY s.symbol, u.id
 """

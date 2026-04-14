@@ -28,11 +28,11 @@ export async function GET(request: NextRequest) {
   try {
     const query = `
       SELECT 
-        MAX(CASE WHEN us.is_purchased = 0 THEN 1 ELSE 0 END) AS onWatchlist,
-        MAX(CASE WHEN us.is_purchased = 1 THEN 1 ELSE 0 END) AS onPortfolio,
-        SUM(CASE WHEN us.is_purchased = 1 THEN us.shares ELSE 0 END) AS shares,
-        MIN(CASE WHEN us.is_purchased = 1 THEN us.initial_purchase_date ELSE NULL END) AS purchaseDate,
-        MAX(CASE WHEN us.is_purchased = 1 THEN us.purchase_price ELSE 0 END) AS purchasePrice
+        MAX(CASE WHEN us.is_purchased = 0 AND us.user_confirmed = 1 AND us.shares > 0 AND us.is_active = 1 THEN 1 ELSE 0 END) AS onWatchlist,
+        MAX(CASE WHEN us.is_purchased = 1 AND us.shares > 0 AND us.is_active = 1 THEN 1 ELSE 0 END) AS onPortfolio,
+        SUM(CASE WHEN us.is_purchased = 1 AND us.is_active = 1 THEN us.shares ELSE 0 END) AS shares,
+        MIN(CASE WHEN us.is_purchased = 1 AND us.is_active = 1 THEN us.initial_purchase_date ELSE NULL END) AS purchaseDate,
+        MAX(CASE WHEN us.is_purchased = 1 AND us.is_active = 1 THEN us.purchase_price ELSE 0 END) AS purchasePrice
       FROM user_stocks us
       JOIN stocks s ON us.stock_id = s.id
       WHERE us.user_id = ? AND s.symbol = ?;

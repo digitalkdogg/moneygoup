@@ -171,6 +171,7 @@ def sync_deepmoney():
 
                 # b. Add prediction for all active users
                 for user_id in active_user_ids:
+                    # Update or insert prediction
                     cursor.execute("""
                         INSERT INTO user_stock_predictions 
                         (user_id, stock_id, predicted_price_1m, last_requested_at)
@@ -179,6 +180,15 @@ def sync_deepmoney():
                         predicted_price_1m = VALUES(predicted_price_1m),
                         last_requested_at = VALUES(last_requested_at)
                     """, (user_id, stock_id, predicted_price_1m))
+
+                    # Add to user_stocks as unconfirmed if not already a purchased position
+                    cursor.execute("""
+                        INSERT INTO user_stocks 
+                        (user_id, stock_id, is_purchased, user_confirmed)
+                        VALUES (%s, %s, 0, 0)
+                        ON DUPLICATE KEY UPDATE 
+                        user_confirmed = IF(is_purchased = 0, 0, user_confirmed)
+                    """, (user_id, stock_id))
 
         conn.commit()
         print(f"[{datetime.now()}] Sync completed successfully.")

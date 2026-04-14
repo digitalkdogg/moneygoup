@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoneyGoUp Recommendation Engine - 3 Bucket Strategy</title>
+    <style>
+        :root {
+            --primary: #15803d;
+            --primary-dark: #166534;
+            --portfolio: #1d4ed8;
+            --watchlist: #b45309;
+            --discovery: #7c3aed;
+            --bg: #f8fafc;
+            --text: #1e293b;
+            --border: #e2e8f0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background-color: var(--bg);
+            margin: 0;
+        }
+        .top-nav {
+            position: sticky;
+            top: 0;
+            width: 100%;
+            background: white;
+            border-bottom: 1px solid var(--border);
+            padding: 0.75rem 2rem;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .top-nav a {
+            text-decoration: none;
+            color: #64748b;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            padding: 0.25rem 0;
+            border-bottom: 2px solid transparent;
+        }
+        .top-nav a:hover { color: var(--primary); }
+        .top-nav a.active { color: var(--primary); border-bottom: 2px solid var(--primary); }
+        
+        main {
+            max-width: 900px;
+            margin: 3rem auto;
+            background: white;
+            padding: 3rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        }
+        h1 { color: var(--primary-dark); border-bottom: 2px solid var(--primary); padding-bottom: 0.5rem; margin-bottom: 2rem; }
+        h2 { color: var(--primary); margin-top: 3rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+        
+        .bucket-card {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 2rem 0;
+            position: relative;
+            overflow: hidden;
+        }
+        .bucket-card::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 6px;
+            height: 100%;
+        }
+        .portfolio-bucket { border-color: #bfdbfe; background: #eff6ff; }
+        .portfolio-bucket::before { background: var(--portfolio); }
+        .watchlist-bucket { border-color: #fde68a; background: #fffbeb; }
+        .watchlist-bucket::before { background: var(--watchlist); }
+        .discovery-bucket { border-color: #ddd6fe; background: #f5f3ff; }
+        .discovery-bucket::before { background: var(--discovery); }
+
+        .bucket-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+        .bucket-title { font-size: 1.25rem; font-weight: 800; text-transform: uppercase; }
+        .portfolio-text { color: var(--portfolio); }
+        .watchlist-text { color: var(--watchlist); }
+        .discovery-text { color: var(--discovery); }
+
+        .criteria-box {
+            background: rgba(255,255,255,0.6);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+            font-family: ui-monospace, SFMono-Regular, monospace;
+            font-size: 0.85rem;
+        }
+        .threshold-pill {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+            background: white;
+            border: 1px solid var(--border);
+        }
+
+        .logic-list { margin-top: 1rem; padding-left: 1.2rem; }
+        .logic-list li { margin-bottom: 0.5rem; }
+
+        footer { margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem; text-align: center; }
+    </style>
+</head>
+<body>
+    <nav class="top-nav">
+        <a href="moneygoup_overview.html">Overview</a>
+        <a href="api_documentation.html">API Docs</a>
+        <a href="recommendation_buckets.html" class="active">Rec Buckets</a>
+        <a href="database_documentation.html">Database</a>
+        <a href="prediction_workflow.html">Prediction Flow</a>
+        <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
+    </nav>
+    <main>
+        <h1>Recommendation Engine: The 3-Bucket Strategy</h1>
+        <p>MoneyGoUp's recommendation engine classifies stocks into three distinct buckets to provide tailored BUY/SELL signals. This system ensures that user-owned positions, monitored interests, and AI-discovered opportunities are treated with the appropriate level of urgency and validation.</p>
+
+        <!-- BUCKET 1: PORTFOLIO -->
+        <div class="bucket-card portfolio-bucket">
+            <div class="bucket-header">
+                <span style="font-size: 1.5rem;">📊</span>
+                <span class="bucket-title portfolio-text">Bucket 1: Portfolio</span>
+            </div>
+            <p>Positions that the user has officially purchased and confirmed. These represent real financial stakes and require the highest precision for signals.</p>
+            <ul class="logic-list">
+                <li><strong>Signals:</strong> Surfaces both <strong>BUY</strong> (add to position) and <strong>SELL</strong> (exit/trim) alerts.</li>
+                <li><strong>Logic:</strong> Compares the AI 1-month prediction against the current live market price.</li>
+            </ul>
+            <div class="criteria-box">
+                is_purchased = 1 AND user_confirmed = 1 AND shares > 0 AND is_active = 1
+            </div>
+            <div class="threshold-pill">Positive: +3% (default)</div>
+            <div class="threshold-pill">Negative: -3% (default)</div>
+        </div>
+
+        <!-- BUCKET 2: WATCHLIST -->
+        <div class="bucket-card watchlist-bucket">
+            <div class="bucket-header">
+                <span style="font-size: 1.5rem;">👀</span>
+                <span class="bucket-title watchlist-text">Bucket 2: Watchlist</span>
+            </div>
+            <p>Stocks that the user is actively monitoring but does not yet own. These items have been explicitly "confirmed" by the user (e.g., by clicking "Add to Watchlist").</p>
+            <ul class="logic-list">
+                <li><strong>Signals:</strong> Surfaces <strong>BUY</strong> alerts only.</li>
+                <li><strong>Logic:</strong> Monitors for significant upward breakouts predicted by the AI.</li>
+            </ul>
+            <div class="criteria-box">
+                is_purchased = 0 AND user_confirmed = 1 AND is_active = 1
+            </div>
+            <div class="threshold-pill">Threshold: +5% (default)</div>
+        </div>
+
+        <!-- BUCKET 3: DISCOVERY -->
+        <div class="bucket-card discovery-bucket">
+            <div class="bucket-header">
+                <span style="font-size: 1.5rem;">✨</span>
+                <span class="bucket-title discovery-text">Bucket 3: Discovery</span>
+            </div>
+            <p>High-potential stocks identified automatically by the <code>deepmoney_sync.py</code> engine. These appear as "unconfirmed" and do not show up in the "My Watchlist" section until the user interacts with them.</p>
+            <ul class="logic-list">
+                <li><strong>Discovery Logic:</strong> Stocks qualify for this bucket if they meet the following sync thresholds (configurable via <code>.env.local</code>):
+                    <ul>
+                        <li><strong>GPS Score</strong> &gt; 6 (tied to <code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code>)</li>
+                        <li><strong>Predicted Change %</strong> &gt; 5% (tied to <code>DEEPMONEY_RECOMMENDATION_PREDICTION_VALUE</code>)</li>
+                    </ul>
+                </li>
+                <li><strong>Target Users:</strong> Qualifying stocks are added to the DB for every user who has logged in within the <strong>past 7 days</strong>.</li>
+                <li><strong>Signals:</strong> Surfaces <strong>BUY</strong> alerts only.</li>
+            </ul>
+            <div class="criteria-box">
+                is_purchased = 0 AND user_confirmed = 0 AND is_active = 1
+            </div>
+            <div class="threshold-pill">Threshold: +5% (default)</div>
+        </div>
+
+        <section>
+            <h2>Environment Configuration</h2>
+            <p>The signal thresholds for these buckets are fully configurable via <code>.env.local</code>:</p>
+            <ul>
+                <li><code>RECOMMENDATION_PORTFOLIO_POSITIVE_THRESHOLD</code>: Target % for portfolio BUY signals.</li>
+                <li><code>RECOMMENDATION_PORTFOLIO_NEGATIVE_THRESHOLD</code>: Target % for portfolio SELL signals.</li>
+                <li><code>RECOMMENDATION_WATCHLIST_THRESHOLD</code>: Target % for both Watchlist and Discovery BUY signals.</li>
+            </ul>
+        </section>
+
+        <footer>
+            MoneyGoUp Recommendation Logic &copy; 2026
+        </footer>
+    </main>
+</body>
+</html>

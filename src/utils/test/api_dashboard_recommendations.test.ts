@@ -36,7 +36,7 @@ describe('GET /api/dashboard/recommendations', () => {
     // 1. Mock predictions (current 100, predicted 103 -> +3%)
     (executeRawQuery as jest.Mock).mockResolvedValueOnce([
       [
-        { stock_id: 1, symbol: 'AAPL', predicted_price_1m: '103', last_requested_at: '2026-04-11T12:00:00Z', is_purchased: 1 }
+        { stock_id: 1, symbol: 'AAPL', predicted_price_1m: '103', last_requested_at: '2026-04-11T12:00:00Z', is_purchased: 1, user_confirmed: 1, shares: 10, is_active: 1 }
       ]
     ]);
 
@@ -60,7 +60,7 @@ describe('GET /api/dashboard/recommendations', () => {
     // 1. Mock predictions (current 100, predicted 97 -> -3%)
     (executeRawQuery as jest.Mock).mockResolvedValueOnce([
       [
-        { stock_id: 2, symbol: 'TSLA', predicted_price_1m: '97', last_requested_at: '2026-04-11T12:00:00Z', is_purchased: 1 }
+        { stock_id: 2, symbol: 'TSLA', predicted_price_1m: '97', last_requested_at: '2026-04-11T12:00:00Z', is_purchased: 1, user_confirmed: 1, shares: 5, is_active: 1 }
       ]
     ]);
 
@@ -80,11 +80,34 @@ describe('GET /api/dashboard/recommendations', () => {
     expect(data.recommendations[0].scope).toBe('portfolio');
   });
 
+  test('returns discovery recommendation when user_confirmed is 0', async () => {
+    // 1. Mock predictions (current 100, predicted 110 -> +10%)
+    (executeRawQuery as jest.Mock).mockResolvedValueOnce([
+      [
+        { stock_id: 4, symbol: 'NVDA', predicted_price_1m: '110', last_requested_at: '2026-04-11T12:00:00Z', is_purchased: 0, user_confirmed: 0, shares: 0, is_active: 1 }
+      ]
+    ]);
+
+    // 2. Mock Yahoo Finance utility (current price 100)
+    (fetchYahooQuotesForSymbols as jest.Mock).mockResolvedValue([
+      { stock_id: 4, symbol: 'NVDA', price: 100, companyName: 'NVIDIA' }
+    ]);
+
+    const response = await GET(mockRequest);
+    expect(response.status).toBe(200);
+    const data = await response.json();
+
+    expect(data.recommendations).toHaveLength(1);
+    expect(data.recommendations[0].symbol).toBe('NVDA');
+    expect(data.recommendations[0].scope).toBe('discovery');
+    expect(data.recommendations[0].action).toBe('BUY');
+  });
+
   test('returns no recommendation when delta is between -3% and 3%', async () => {
     // 1. Mock predictions (current 100, predicted 102 -> +2%)
     (executeRawQuery as jest.Mock).mockResolvedValueOnce([
       [
-        { stock_id: 3, symbol: 'MSFT', predicted_price_1m: '102', last_requested_at: '2026-04-11T12:00:00Z', is_purchased: 1 }
+        { stock_id: 3, symbol: 'MSFT', predicted_price_1m: '102', last_requested_at: '2026-04-11T12:00:00Z', is_purchased: 1, user_confirmed: 1, shares: 1, is_active: 1 }
       ]
     ]);
 

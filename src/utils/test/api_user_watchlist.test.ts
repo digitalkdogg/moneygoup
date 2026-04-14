@@ -68,7 +68,7 @@ describe('GET /api/user/watchlist', () => {
     // First call: watchlist items. Subsequent calls: daily prices per stock.
     (executeRawQuery as jest.Mock)
       .mockResolvedValueOnce([
-        [{ stock_id: 1, symbol: 'AAPL', company_name: 'Apple Inc.', shares: 0, purchase_price: 0, is_purchased: 0, db_price: 170, predicted_price_1m: 180 }],
+        [{ stock_id: 1, symbol: 'AAPL', company_name: 'Apple Inc.', shares: 1, purchase_price: 0, is_purchased: 0, user_confirmed: 1, is_active: 1, db_price: 170, predicted_price_1m: 180 }],
       ])
       .mockResolvedValueOnce([
         [{ close: '168' }, { close: '170' }, { close: '172' }],
@@ -92,6 +92,12 @@ describe('GET /api/user/watchlist', () => {
       numberOfAnalystOpinions: 32,
       ma6_month: (168 + 170 + 172) / 3,
     });
+
+    // Verify the SQL contains the new filters
+    expect(executeRawQuery).toHaveBeenCalledWith(
+      expect.stringContaining('AND us.user_confirmed = 1'),
+      expect.any(Array)
+    );
   });
  
   test('falls back to db_price when Yahoo quote fails', async () => {
