@@ -21,11 +21,46 @@ INTERNAL_SECRET = os.getenv('DEEPMONEY_INTERNAL_SECRET')
 NEXTAUTH_URL = os.getenv('NEXTAUTH_URL', 'http://localhost:3001')
 API_URL = f"{NEXTAUTH_URL}/api/prediction/deepmoney?refresh=true"
 
+# Global cache for market indices
+_indices_cache = None
+
+def get_market_indices(headers: dict) -> dict | None:
+    """Fetch major indices from the internal API with local caching."""
+    global _indices_cache
+    if _indices_cache is not None:
+        return _indices_cache
+    
+    url = f"{NEXTAUTH_URL}/api/market/indices"
+    print(f"  [indices] Fetching major indices from {url}...")
+    try:
+        response = requests.get(url, headers=headers)
+        
+        # Handle environment variable quote mismatch
+        if response.status_code == 401 and INTERNAL_SECRET:
+            if not (INTERNAL_SECRET.startswith('"') and INTERNAL_SECRET.endswith('"')):
+                print("  [indices] Retrying with quoted secret...")
+                headers['x-api-key'] = f'"{INTERNAL_SECRET}"'
+                response = requests.get(url, headers=headers)
+        
+        response.raise_for_status()
+        _indices_cache = response.json()
+        return _indices_cache
+    except Exception as e:
+        print(f"  [indices] Warning: Error fetching market indices: {e}")
+        return None
+
 def sync_deepmoney():
     print(f"[{datetime.now()}] Starting DeepMoney sync...")
     
     # 1. Fetch data from API (V2)
     headers = {'x-api-key': INTERNAL_SECRET}
+
+    # Optional: Log market status at the beginning
+    indices_data = get_market_indices(headers)
+    if indices_data and 'indices' in indices_data:
+        indices_summary = ", ".join([f"{idx['label']}: {idx['price']} ({idx['changePercent']:.2f}%)" for idx in indices_data['indices'] if idx['price'] is not None])
+        print(f"  [indices] Market Status: {indices_summary}")
+
     try:
         response = requests.get(API_URL, headers=headers)
         
