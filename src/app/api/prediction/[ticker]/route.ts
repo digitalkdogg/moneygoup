@@ -175,8 +175,9 @@ export async function POST(
 
     // Save prediction asynchronously without blocking the response.
     // Extract predicted_price_1m from result (available for all outlooks).
+    // ONLY save for real users, skip internal/system calls.
     const predictedPrice = (result as any)?.predicted_price_1m;
-    if (predictedPrice && typeof predictedPrice === 'number') {
+    if (!isInternal && predictedPrice && typeof predictedPrice === 'number') {
       savePredictionAsync(validatedTicker, predictedPrice, userId)
         .catch((err) => {
           logger.error('Failed to save prediction asynchronously', {

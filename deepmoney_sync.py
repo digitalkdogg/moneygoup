@@ -186,7 +186,7 @@ def sync_deepmoney():
             gps_threshold = float(gps_env) if gps_env else 6.0
             
             predicted_change_pct = pred_input.get('predicted_change_pct', 0)
-            predicted_price_1m = pred_input.get('predicted_price')
+            predicted_price_1m = pred_input.get('predicted_price_1m')
 
             if predicted_change_pct > pred_threshold and gps > gps_threshold and predicted_price_1m is not None:
                 print(f"    - Qualifying stock found: {ticker} (GPS: {gps}, Pred: {predicted_change_pct}%)")

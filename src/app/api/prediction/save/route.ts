@@ -16,7 +16,7 @@ const savePredictionSchema = z.object({
   ticker: tickerSchema,
   predicted_price_1m: z.number().positive('predicted_price_1m must be a positive number'),
   last_requested_at: z.string().datetime().optional(),
-  user_id: z.string().optional(), // Only used for internal API calls
+  user_id: z.string().regex(/^\d+$/, 'user_id must be a numeric string').optional(), // Only used for internal API calls
 });
 
 type SavePredictionPayload = z.infer<typeof savePredictionSchema>;
