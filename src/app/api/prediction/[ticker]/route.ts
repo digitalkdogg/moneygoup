@@ -213,7 +213,7 @@ function runPythonPrediction(ticker: string, inputFile: string, outlook: string)
   return new Promise((resolve, reject) => {
     const python = spawn(
       'python3',
-      ['predict_weighted_analysis.py', ticker, '--input_file', inputFile, '--outlook', outlook],
+      ['scripts/predict_weighted_analysis.py', ticker, '--input_file', inputFile, '--outlook', outlook],
       {
         cwd: process.cwd(),
         env: { ...process.env },

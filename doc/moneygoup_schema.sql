@@ -1,8 +1,8 @@
 -- MySQL dump 10.13  Distrib 8.0.36, for Linux (x86_64)
 --
--- Host: localhost    Database: moneygoup
+-- Host: 192.168.2.172    Database: moneygoup
 -- ------------------------------------------------------
--- Server version	8.0.45-0ubuntu0.24.04.1
+-- Server version	5.5.5-10.3.28-MariaDB
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -23,18 +23,18 @@ DROP TABLE IF EXISTS `etf_cycle_summary`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `etf_cycle_summary` (
-  `id` bigint NOT NULL AUTO_INCREMENT,
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
   `cycle_date` date NOT NULL,
-  `etfs_evaluated` int NOT NULL,
-  `etfs_qualified` int NOT NULL,
-  `etfs_persisted` int NOT NULL,
+  `etfs_evaluated` int(11) NOT NULL,
+  `etfs_qualified` int(11) NOT NULL,
+  `etfs_persisted` int(11) NOT NULL,
   `avg_etf_gps_score` decimal(5,1) DEFAULT NULL,
   `top_theme` varchar(100) DEFAULT NULL,
-  `cycle_duration_ms` int DEFAULT NULL,
-  `errors` text,
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `cycle_duration_ms` int(11) DEFAULT NULL,
+  `errors` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=23 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=23 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -55,7 +55,7 @@ DROP TABLE IF EXISTS `hot_etfs`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `hot_etfs` (
-  `id` bigint NOT NULL AUTO_INCREMENT,
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
   `ticker` varchar(20) NOT NULL,
   `etf_name` varchar(255) NOT NULL,
   `snapshot_date` date NOT NULL,
@@ -66,18 +66,18 @@ CREATE TABLE `hot_etfs` (
   `expense_ratio_pct` decimal(5,3) DEFAULT NULL,
   `52wk_return_pct` decimal(7,2) DEFAULT NULL,
   `3mo_return_pct` decimal(7,2) DEFAULT NULL,
-  `avg_daily_volume` bigint DEFAULT NULL,
+  `avg_daily_volume` bigint(20) DEFAULT NULL,
   `momentum_score` decimal(5,1) DEFAULT NULL,
   `news_signal_score` decimal(5,1) DEFAULT NULL,
   `discovery_source` varchar(100) DEFAULT NULL,
   `is_leveraged` tinyint(1) NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   UNIQUE KEY `idx_hot_etfs_ticker_date` (`ticker`,`snapshot_date`),
   KEY `idx_hot_etfs_snapshot_date` (`snapshot_date`),
   KEY `idx_hot_etfs_theme` (`theme`,`snapshot_date`),
   KEY `idx_hot_etfs_gps_score` (`etf_gps_score`)
-) ENGINE=InnoDB AUTO_INCREMENT=235 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=235 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -98,16 +98,16 @@ DROP TABLE IF EXISTS `news`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `news` (
-  `id` int NOT NULL AUTO_INCREMENT,
+  `id` int(11) NOT NULL AUTO_INCREMENT,
   `title` varchar(512) NOT NULL,
   `link` varchar(1024) NOT NULL,
   `pub_date` datetime DEFAULT NULL,
   `source` varchar(255) DEFAULT NULL,
   `sentiment_score` decimal(5,2) DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   UNIQUE KEY `link` (`link`)
-) ENGINE=InnoDB AUTO_INCREMENT=1130 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=1130 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -128,19 +128,19 @@ DROP TABLE IF EXISTS `recommended_markets`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `recommended_markets` (
-  `id` int NOT NULL AUTO_INCREMENT,
+  `id` int(11) NOT NULL AUTO_INCREMENT,
   `type` varchar(50) NOT NULL COMMENT 'hot_markets | hot_ai_sectors',
   `name` varchar(255) NOT NULL COMMENT 'industry (hot_markets) or sub_sector (hot_ai_sectors)',
   `average_sentiment` decimal(5,2) DEFAULT NULL,
-  `count` int DEFAULT NULL COMMENT 'mention count (hot_markets) or article_count (hot_ai_sectors)',
+  `count` int(11) DEFAULT NULL COMMENT 'mention count (hot_markets) or article_count (hot_ai_sectors)',
   `snapshot_date` date NOT NULL,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
   `metric_value` decimal(12,4) DEFAULT NULL,
   `metric_label` varchar(100) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_rm_type` (`type`),
   KEY `idx_rm_snapshot_date` (`snapshot_date`)
-) ENGINE=InnoDB AUTO_INCREMENT=95 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=95 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -162,8 +162,8 @@ DROP TABLE IF EXISTS `recommended_stocks`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `recommended_stocks` (
   `trading_signal` varchar(20) DEFAULT NULL,
-  `trading_signal_score` int DEFAULT NULL,
-  `id` int NOT NULL AUTO_INCREMENT,
+  `trading_signal_score` int(11) DEFAULT NULL,
+  `id` int(11) NOT NULL AUTO_INCREMENT,
   `type` varchar(50) NOT NULL COMMENT 'hot_stocks | hot_ai_tech_stocks',
   `ticker` varchar(10) NOT NULL,
   `company_name` varchar(255) NOT NULL,
@@ -179,18 +179,18 @@ CREATE TABLE `recommended_stocks` (
   `metric_value` decimal(12,4) DEFAULT NULL,
   `metric_label` varchar(100) DEFAULT NULL,
   `market_cap_m` decimal(16,2) DEFAULT NULL COMMENT 'Market cap in millions',
-  `mention_count` int DEFAULT '0',
+  `mention_count` int(11) DEFAULT 0,
   `discovery_source` varchar(100) DEFAULT NULL,
   `upcoming_earnings` varchar(50) DEFAULT NULL,
-  `prediction_input` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin,
+  `prediction_input` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
   `snapshot_date` date NOT NULL,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `idx_rs_type` (`type`),
   KEY `idx_rs_ticker` (`ticker`),
   KEY `idx_rs_snapshot_date` (`snapshot_date`),
   KEY `idx_rs_type_date` (`type`,`snapshot_date`)
-) ENGINE=InnoDB AUTO_INCREMENT=660 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=913 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -199,7 +199,7 @@ CREATE TABLE `recommended_stocks` (
 
 LOCK TABLES `recommended_stocks` WRITE;
 /*!40000 ALTER TABLE `recommended_stocks` DISABLE KEYS */;
-INSERT INTO `recommended_stocks` VALUES ('HOLD',2,641,'hot_stocks','AIXI','Xiao-I Corporation',0.9913,5.00,'Technology',0.00,-65.10,68.49,0.00,NULL,NULL,3.9000,'CS: 30',13.23,0,'v2_engine',NULL,'{\"ticker\": \"AIXI\", \"regularMarketPrice\": 0.99, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 773, \"historyYears\": 3.1, \"fundamentalsComplete\": false, \"analystDataAvailable\": false, \"macroDataAvailable\": true, \"imputedFields\": [\"peRatio\", \"pbRatio\", \"debtToEquity\", \"returnOnEquity\"], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 0.66, \"rmse\": 0.66, \"cv_mae\": 0.66}}, \"regime_info\": {\"k\": 3, \"current_regime\": 1, \"current_regime_probs\": [0, 1, 0], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\"]}, \"predicted_price\": 1.03, \"predicted_change_pct\": 3.9, \"confidence_score\": 30}','2026-04-10','2026-04-10 06:36:26'),('HOLD',4,642,'hot_stocks','ATI','ATI Inc.',159.6300,9.00,'Industrials',4.41,0.40,22.47,0.00,55.81,12.02,2.4100,'CS: 100',21859.14,0,'v2_engine',NULL,'{\"ticker\": \"ATI\", \"regularMarketPrice\": 159.63, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1255, \"historyYears\": 5, \"fundamentalsComplete\": true, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 5.25, \"rmse\": 5.25, \"cv_mae\": 5.25}}, \"regime_info\": {\"k\": 3, \"current_regime\": 0, \"current_regime_probs\": [0.999, 0.001, 0], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\"]}, \"predicted_price\": 163.47, \"predicted_change_pct\": 2.41, \"confidence_score\": 100}','2026-04-10','2026-04-10 06:36:26'),('HOLD',4,643,'hot_stocks','CRWD','CrowdStrike Holdings, Inc.',394.6800,44.50,'Technology',24.12,23.30,74.81,0.00,63.94,22.58,3.9900,'CS: 100',100096.41,0,'v2_engine',NULL,'{\"ticker\": \"CRWD\", \"regularMarketPrice\": 394.68, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1255, \"historyYears\": 5, \"fundamentalsComplete\": false, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [\"peRatio\"], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 11.34, \"rmse\": 11.34, \"cv_mae\": 11.34}}, \"regime_info\": {\"k\": 4, \"current_regime\": 3, \"current_regime_probs\": [0, 0, 0.011, 0.989], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\", \"low_vol_mean_reverting\"]}, \"predicted_price\": 410.43, \"predicted_change_pct\": 3.99, \"confidence_score\": 100}','2026-04-10','2026-04-10 06:36:26'),('HOLD',4,644,'hot_stocks','DOCN','DigitalOcean Holdings, Inc.',87.1700,45.30,'Technology',-3.64,18.30,59.86,0.00,34.59,NULL,1.8100,'CS: 98',9060.81,0,'v2_engine',NULL,'{\"ticker\": \"DOCN\", \"regularMarketPrice\": 87.17, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1255, \"historyYears\": 5, \"fundamentalsComplete\": false, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [\"pbRatio\", \"debtToEquity\", \"returnOnEquity\"], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 2.94, \"rmse\": 2.94, \"cv_mae\": 2.94}}, \"regime_info\": {\"k\": 3, \"current_regime\": 0, \"current_regime_probs\": [0.999, 0.001, 0], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\"]}, \"predicted_price\": 88.75, \"predicted_change_pct\": 1.81, \"confidence_score\": 98}','2026-04-10','2026-04-10 06:36:26'),('HOLD',3,645,'hot_stocks','GSAT','Globalstar, Inc.',73.1300,19.70,'Communication Services',-5.19,17.60,63.81,0.00,211.18,26.32,2.0800,'CS: 94',9403.87,0,'v2_engine',NULL,'{\"ticker\": \"GSAT\", \"regularMarketPrice\": 73.13, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1255, \"historyYears\": 5, \"fundamentalsComplete\": false, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [\"peRatio\"], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 1.89, \"rmse\": 1.89, \"cv_mae\": 1.89}}, \"regime_info\": {\"k\": 3, \"current_regime\": 1, \"current_regime_probs\": [0, 1, 0], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\"]}, \"predicted_price\": 74.65, \"predicted_change_pct\": 2.08, \"confidence_score\": 94}','2026-04-10','2026-04-10 06:36:26'),('BUY',5,646,'hot_stocks','IMO','Imperial Oil Limited',128.3100,5.00,'Energy',-26.09,-10.30,17.32,0.00,27.53,3.88,1.8000,'CS: 100',63800.60,0,'v2_engine',NULL,'{\"ticker\": \"IMO\", \"regularMarketPrice\": 128.31, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1255, \"historyYears\": 5, \"fundamentalsComplete\": true, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 1.96, \"rmse\": 1.96, \"cv_mae\": 1.96}}, \"regime_info\": {\"k\": 3, \"current_regime\": 0, \"current_regime_probs\": [1, 0, 0], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\"]}, \"predicted_price\": 130.62, \"predicted_change_pct\": 1.8, \"confidence_score\": 100}','2026-04-10','2026-04-10 06:36:26'),('HOLD',0,647,'hot_stocks','IOVA','Iovance Biotherapeutics, Inc.',4.0100,44.80,'Healthcare',124.44,17.70,34.28,0.00,-16.64,2.36,5.2400,'CS: 94',1651.97,0,'v2_engine',NULL,'{\"ticker\": \"IOVA\", \"regularMarketPrice\": 4.01, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1254, \"historyYears\": 5, \"fundamentalsComplete\": false, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [\"peRatio\"], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 0.39, \"rmse\": 0.39, \"cv_mae\": 0.39}}, \"regime_info\": {\"k\": 3, \"current_regime\": 1, \"current_regime_probs\": [0, 1, 0], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\"]}, \"predicted_price\": 4.22, \"predicted_change_pct\": 5.24, \"confidence_score\": 94}','2026-04-10','2026-04-10 06:36:26'),('BUY',7,648,'hot_stocks','JD','JD.com, Inc.',28.3400,31.30,'Consumer Cyclical',37.08,1.50,9.31,0.00,15.07,1.18,1.9400,'CS: 100',40999.33,0,'v2_engine',NULL,'{\"ticker\": \"JD\", \"regularMarketPrice\": 28.34, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1254, \"historyYears\": 5, \"fundamentalsComplete\": true, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 1.02, \"rmse\": 1.02, \"cv_mae\": 1.02}}, \"regime_info\": {\"k\": 4, \"current_regime\": 3, \"current_regime_probs\": [0, 0, 0, 1], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\", \"low_vol_mean_reverting\"]}, \"predicted_price\": 28.89, \"predicted_change_pct\": 1.94, \"confidence_score\": 100}','2026-04-10','2026-04-10 06:36:26'),('HOLD',3,649,'hot_stocks','LITE','Lumentum Holdings Inc.',894.1300,30.00,'Technology',-16.35,65.50,37.12,0.00,256.20,75.41,3.0400,'CS: 100',63840.88,0,'v2_engine',NULL,'{\"ticker\": \"LITE\", \"regularMarketPrice\": 894.13, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1254, \"historyYears\": 5, \"fundamentalsComplete\": true, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 20.78, \"rmse\": 20.78, \"cv_mae\": 20.78}}, \"regime_info\": {\"k\": 4, \"current_regime\": 3, \"current_regime_probs\": [0, 0, 0, 1], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\", \"low_vol_mean_reverting\"]}, \"predicted_price\": 921.35, \"predicted_change_pct\": 3.04, \"confidence_score\": 100}','2026-04-10','2026-04-10 06:36:26'),('HOLD',0,650,'hot_stocks','LXU','LSB Industries, Inc.',13.4900,33.50,'Basic Materials',11.93,22.30,16.95,0.00,39.68,1.86,3.4800,'CS: 100',970.53,0,'v2_engine',NULL,'{\"ticker\": \"LXU\", \"regularMarketPrice\": 13.49, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1254, \"historyYears\": 5, \"fundamentalsComplete\": true, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 0.46, \"rmse\": 0.46, \"cv_mae\": 0.46}}, \"regime_info\": {\"k\": 3, \"current_regime\": 0, \"current_regime_probs\": [0.983, 0, 0.017], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\"]}, \"predicted_price\": 13.96, \"predicted_change_pct\": 3.48, \"confidence_score\": 100}','2026-04-10','2026-04-10 06:36:26'),('BUY',6,651,'hot_stocks','MARA','MARA Holdings, Inc.',9.6700,30.00,'Financial Services',70.40,-5.60,48.04,0.00,-7.96,1.06,3.7200,'CS: 79',3676.87,0,'v2_engine',NULL,'{\"ticker\": \"MARA\", \"regularMarketPrice\": 9.67, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1254, \"historyYears\": 5, \"fundamentalsComplete\": false, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [\"peRatio\"], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 1.59, \"rmse\": 1.59, \"cv_mae\": 1.59}}, \"regime_info\": {\"k\": 4, \"current_regime\": 1, \"current_regime_probs\": [0, 1, 0, 0], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\", \"low_vol_mean_reverting\"]}, \"predicted_price\": 10.03, \"predicted_change_pct\": 3.72, \"confidence_score\": 79}','2026-04-10','2026-04-10 06:36:26'),('HOLD',0,652,'hot_stocks','NET','Cloudflare, Inc.',193.0500,47.40,'Technology',20.94,33.60,74.51,0.00,133.90,46.55,2.5100,'CS: 100',67949.80,0,'v2_engine',NULL,'{\"ticker\": \"NET\", \"regularMarketPrice\": 193.05, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1254, \"historyYears\": 5, \"fundamentalsComplete\": false, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [\"peRatio\"], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 4.95, \"rmse\": 4.95, \"cv_mae\": 4.95}}, \"regime_info\": {\"k\": 3, \"current_regime\": 0, \"current_regime_probs\": [1, 0, 0], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\"]}, \"predicted_price\": 197.9, \"predicted_change_pct\": 2.51, \"confidence_score\": 100}','2026-04-10','2026-04-10 06:36:26'),('HOLD',4,653,'hot_stocks','NIO','NIO Inc.',6.0700,37.10,'Consumer Cyclical',8.47,75.90,13.71,0.00,-19.53,24.85,4.9400,'CS: 94',15348.96,0,'v2_engine',NULL,'{\"ticker\": \"NIO\", \"regularMarketPrice\": 6.07, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1254, \"historyYears\": 5, \"fundamentalsComplete\": false, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [\"peRatio\"], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 0.58, \"rmse\": 0.58, \"cv_mae\": 0.58}}, \"regime_info\": {\"k\": 3, \"current_regime\": 0, \"current_regime_probs\": [1, 0, 0], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\"]}, \"predicted_price\": 6.37, \"predicted_change_pct\": 4.94, \"confidence_score\": 94}','2026-04-10','2026-04-10 06:36:26'),('BUY',5,654,'hot_stocks','PLUG','Plug Power Inc.',2.7400,22.40,'Industrials',3.33,17.60,-37.56,0.00,-14.17,3.90,6.2000,'CS: 79',3819.44,0,'v2_engine',NULL,'{\"ticker\": \"PLUG\", \"regularMarketPrice\": 2.74, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1254, \"historyYears\": 5, \"fundamentalsComplete\": false, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [\"peRatio\"], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 0.33, \"rmse\": 0.33, \"cv_mae\": 0.33}}, \"regime_info\": {\"k\": 4, \"current_regime\": 3, \"current_regime_probs\": [0, 0.015, 0, 0.985], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\", \"low_vol_mean_reverting\"]}, \"predicted_price\": 2.91, \"predicted_change_pct\": 6.2, \"confidence_score\": 79}','2026-04-10','2026-04-10 06:36:26'),('HOLD',1,655,'hot_stocks','PYPL','PayPal Holdings, Inc.',45.9800,45.70,'Financial Services',15.10,3.70,41.48,0.00,8.50,2.09,4.6800,'CS: 100',42332.15,0,'v2_engine',NULL,'{\"ticker\": \"PYPL\", \"regularMarketPrice\": 45.98, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1254, \"historyYears\": 5, \"fundamentalsComplete\": true, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 3.69, \"rmse\": 3.69, \"cv_mae\": 3.69}}, \"regime_info\": {\"k\": 3, \"current_regime\": 0, \"current_regime_probs\": [1, 0, 0], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\"]}, \"predicted_price\": 48.13, \"predicted_change_pct\": 4.68, \"confidence_score\": 100}','2026-04-10','2026-04-10 06:36:26'),('HOLD',3,656,'hot_stocks','STX','Seagate Technology Holdings plc',500.7700,47.90,'Technology',-1.59,21.50,38.78,0.00,56.52,238.01,1.9400,'CS: 100',112185.19,0,'v2_engine',NULL,'{\"ticker\": \"STX\", \"regularMarketPrice\": 500.77, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1254, \"historyYears\": 5, \"fundamentalsComplete\": false, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [\"returnOnEquity\"], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 12.11, \"rmse\": 12.11, \"cv_mae\": 12.11}}, \"regime_info\": {\"k\": 4, \"current_regime\": 3, \"current_regime_probs\": [0, 0, 0, 1], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\", \"low_vol_mean_reverting\"]}, \"predicted_price\": 510.5, \"predicted_change_pct\": 1.94, \"confidence_score\": 100}','2026-04-10','2026-04-10 06:36:26'),('BUY',6,657,'hot_stocks','SU','Suncor Energy Inc.',63.3900,30.00,'Energy',-4.10,-3.90,59.08,0.00,18.06,2.33,1.5100,'CS: 100',75479.26,0,'v2_engine',NULL,'{\"ticker\": \"SU\", \"regularMarketPrice\": 63.39, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1254, \"historyYears\": 5, \"fundamentalsComplete\": true, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\", \"shortFloatPct\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 0.72, \"rmse\": 0.72, \"cv_mae\": 0.72}}, \"regime_info\": {\"k\": 3, \"current_regime\": 1, \"current_regime_probs\": [0, 1, 0], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\"]}, \"predicted_price\": 64.35, \"predicted_change_pct\": 1.51, \"confidence_score\": 100}','2026-04-10','2026-04-10 06:36:26'),('HOLD',3,658,'hot_stocks','VET','Vermilion Energy Inc.',12.4400,13.20,'Energy',0.00,9.80,62.31,0.00,8.64,1.19,1.8500,'CS: 89',1906.38,0,'v2_engine',NULL,'{\"ticker\": \"VET\", \"regularMarketPrice\": 12.44, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1254, \"historyYears\": 5, \"fundamentalsComplete\": false, \"analystDataAvailable\": false, \"macroDataAvailable\": true, \"imputedFields\": [\"peRatio\"], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\", \"shortFloatPct\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 0.22, \"rmse\": 0.22, \"cv_mae\": 0.22}}, \"regime_info\": {\"k\": 4, \"current_regime\": 1, \"current_regime_probs\": [0, 1, 0, 0], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\", \"low_vol_mean_reverting\"]}, \"predicted_price\": 12.67, \"predicted_change_pct\": 1.85, \"confidence_score\": 89}','2026-04-10','2026-04-10 06:36:27'),('HOLD',0,659,'hot_stocks','WTI','W&T Offshore, Inc.',2.7700,30.90,'Energy',33.57,1.10,35.28,0.00,-6.52,NULL,8.3000,'CS: 78',412.11,0,'v2_engine',NULL,'{\"ticker\": \"WTI\", \"regularMarketPrice\": 2.77, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1254, \"historyYears\": 5, \"fundamentalsComplete\": false, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [\"peRatio\", \"pbRatio\", \"debtToEquity\", \"returnOnEquity\"], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 0.2, \"rmse\": 0.2, \"cv_mae\": 0.2}}, \"regime_info\": {\"k\": 4, \"current_regime\": 1, \"current_regime_probs\": [0, 1, 0, 0], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\", \"low_vol_mean_reverting\"]}, \"predicted_price\": 3, \"predicted_change_pct\": 8.3, \"confidence_score\": 78}','2026-04-10','2026-04-10 06:36:27');
+INSERT INTO `recommended_stocks` VALUES ('HOLD',3,896,'hot_stocks','APA','APA Corporation',37.0300,9.20,'Energy',5.03,-28.00,68.01,0.00,9.28,2.15,2.8900,'CS: 100',13086.42,0,'v2_engine',NULL,'{\"ticker\": \"APA\", \"regularMarketPrice\": 37.03, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1255, \"historyYears\": 5, \"fundamentalsComplete\": true, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 0.72, \"rmse\": 0.72, \"cv_mae\": 0.72}}, \"regime_info\": {\"k\": 3, \"current_regime\": 1, \"current_regime_probs\": [0, 1, 0], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\"]}, \"predicted_price\": 38.1, \"predicted_change_pct\": 2.89, \"confidence_score\": 100}','2026-04-15','2026-04-15 06:34:35'),('BUY',6,897,'hot_stocks','BMBL','Bumble Inc.',3.7700,16.20,'Communication Services',13.40,-14.30,70.94,0.00,3.63,0.86,7.4300,'CS: 79',663.62,0,'v2_engine',NULL,'{\"ticker\": \"BMBL\", \"regularMarketPrice\": 3.77, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1255, \"historyYears\": 5, \"fundamentalsComplete\": false, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [\"peRatio\"], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 0.47, \"rmse\": 0.47, \"cv_mae\": 0.47}}, \"regime_info\": {\"k\": 3, \"current_regime\": 1, \"current_regime_probs\": [0, 1, 0], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\"]}, \"predicted_price\": 4.05, \"predicted_change_pct\": 7.43, \"confidence_score\": 79}','2026-04-15','2026-04-15 06:34:35'),('HOLD',3,898,'hot_stocks','CC','The Chemours Company',22.8900,5.00,'Basic Materials',-8.26,-2.10,15.65,0.00,10.00,13.72,2.2300,'CS: 89',3436.05,0,'v2_engine',NULL,'{\"ticker\": \"CC\", \"regularMarketPrice\": 22.89, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1255, \"historyYears\": 5, \"fundamentalsComplete\": false, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [\"peRatio\"], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 1.17, \"rmse\": 1.17, \"cv_mae\": 1.17}}, \"regime_info\": {\"k\": 3, \"current_regime\": 0, \"current_regime_probs\": [0.999, 0, 0.001], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\"]}, \"predicted_price\": 23.4, \"predicted_change_pct\": 2.23, \"confidence_score\": 89}','2026-04-15','2026-04-15 06:34:35'),('HOLD',2,899,'hot_stocks','COIN','Coinbase Global, Inc.',184.4100,29.20,'Financial Services',29.01,-22.20,85.18,0.00,41.53,3.34,3.8400,'CS: 100',49727.56,0,'v2_engine',NULL,'{\"ticker\": \"COIN\", \"regularMarketPrice\": 184.41, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1255, \"historyYears\": 5, \"fundamentalsComplete\": true, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 9.06, \"rmse\": 9.06, \"cv_mae\": 9.06}}, \"regime_info\": {\"k\": 3, \"current_regime\": 1, \"current_regime_probs\": [0, 1, 0], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\"]}, \"predicted_price\": 191.5, \"predicted_change_pct\": 3.84, \"confidence_score\": 100}','2026-04-15','2026-04-15 06:34:35'),('HOLD',0,900,'hot_stocks','DOCN','DigitalOcean Holdings, Inc.',73.4500,57.20,'Technology',14.36,18.30,59.86,0.00,31.66,NULL,2.2100,'CS: 98',7634.70,0,'v2_engine',NULL,'{\"ticker\": \"DOCN\", \"regularMarketPrice\": 73.45, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1255, \"historyYears\": 5, \"fundamentalsComplete\": false, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [\"pbRatio\", \"debtToEquity\", \"returnOnEquity\"], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 2.65, \"rmse\": 2.65, \"cv_mae\": 2.65}}, \"regime_info\": {\"k\": 3, \"current_regime\": 0, \"current_regime_probs\": [0.973, 0.027, 0], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\"]}, \"predicted_price\": 75.07, \"predicted_change_pct\": 2.21, \"confidence_score\": 98}','2026-04-15','2026-04-15 06:34:35'),('HOLD',0,901,'hot_stocks','FIVE','Five Below, Inc.',219.8500,66.00,'Consumer Cyclical',18.86,24.30,35.99,0.00,34.03,5.54,2.9500,'CS: 100',12144.17,0,'v2_engine',NULL,'{\"ticker\": \"FIVE\", \"regularMarketPrice\": 219.85, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1255, \"historyYears\": 5, \"fundamentalsComplete\": true, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 5, \"rmse\": 5, \"cv_mae\": 5}}, \"regime_info\": {\"k\": 3, \"current_regime\": 0, \"current_regime_probs\": [0.992, 0, 0.008], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\"]}, \"predicted_price\": 226.33, \"predicted_change_pct\": 2.95, \"confidence_score\": 100}','2026-04-15','2026-04-15 06:34:35'),('BUY',5,902,'hot_stocks','GEV','GE Vernova Inc.',987.5000,33.20,'Industrials',-6.47,3.80,20.08,0.00,55.85,23.81,1.6500,'CS: 90',266160.36,0,'v2_engine',NULL,'{\"ticker\": \"GEV\", \"regularMarketPrice\": 987.5, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 512, \"historyYears\": 2, \"fundamentalsComplete\": true, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 15.52, \"rmse\": 15.52, \"cv_mae\": 15.52}}, \"regime_info\": {\"k\": 4, \"current_regime\": 0, \"current_regime_probs\": [1, 0, 0, 0], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\", \"low_vol_mean_reverting\"]}, \"predicted_price\": 1003.82, \"predicted_change_pct\": 1.65, \"confidence_score\": 90}','2026-04-15','2026-04-15 06:34:35'),('HOLD',1,903,'hot_stocks','IMO','Imperial Oil Limited',127.1000,5.00,'Energy',-25.08,-10.30,17.32,0.00,27.27,3.82,2.0800,'CS: 100',63198.95,0,'v2_engine',NULL,'{\"ticker\": \"IMO\", \"regularMarketPrice\": 127.1, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1255, \"historyYears\": 5, \"fundamentalsComplete\": true, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 1.66, \"rmse\": 1.66, \"cv_mae\": 1.66}}, \"regime_info\": {\"k\": 3, \"current_regime\": 0, \"current_regime_probs\": [1, 0, 0], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\"]}, \"predicted_price\": 129.74, \"predicted_change_pct\": 2.08, \"confidence_score\": 100}','2026-04-15','2026-04-15 06:34:35'),('HOLD',1,904,'hot_stocks','KRP','Kimbell Royalty Partners, LP',14.2000,29.90,'Energy',21.13,8.80,93.65,0.00,22.90,2.49,1.5500,'CS: 100',1549.29,0,'v2_engine',NULL,'{\"ticker\": \"KRP\", \"regularMarketPrice\": 14.2, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1254, \"historyYears\": 5, \"fundamentalsComplete\": true, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 0.22, \"rmse\": 0.22, \"cv_mae\": 0.22}}, \"regime_info\": {\"k\": 3, \"current_regime\": 0, \"current_regime_probs\": [1, 0, 0], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\"]}, \"predicted_price\": 14.42, \"predicted_change_pct\": 1.55, \"confidence_score\": 100}','2026-04-15','2026-04-15 06:34:35'),('HOLD',0,905,'hot_stocks','LXU','LSB Industries, Inc.',13.8300,31.20,'Basic Materials',9.18,22.30,16.95,0.00,40.68,1.91,2.1700,'CS: 100',993.64,0,'v2_engine',NULL,'{\"ticker\": \"LXU\", \"regularMarketPrice\": 13.83, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1254, \"historyYears\": 5, \"fundamentalsComplete\": true, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 0.35, \"rmse\": 0.35, \"cv_mae\": 0.35}}, \"regime_info\": {\"k\": 3, \"current_regime\": 2, \"current_regime_probs\": [0, 0, 1], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\"]}, \"predicted_price\": 14.13, \"predicted_change_pct\": 2.17, \"confidence_score\": 100}','2026-04-15','2026-04-15 06:34:35'),('HOLD',4,906,'hot_stocks','NTLA','Intellia Therapeutics, Inc.',14.7800,55.00,'Healthcare',71.08,78.80,0.00,0.00,-5.06,2.56,3.9900,'CS: 79',1746.01,0,'v2_engine',NULL,'{\"ticker\": \"NTLA\", \"regularMarketPrice\": 14.78, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1254, \"historyYears\": 5, \"fundamentalsComplete\": false, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [\"peRatio\", \"profitMargins\"], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 2.15, \"rmse\": 2.15, \"cv_mae\": 2.15}}, \"regime_info\": {\"k\": 3, \"current_regime\": 0, \"current_regime_probs\": [1, 0, 0], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\"]}, \"predicted_price\": 15.37, \"predicted_change_pct\": 3.99, \"confidence_score\": 79}','2026-04-15','2026-04-15 06:34:35'),('HOLD',4,907,'hot_stocks','PL','Planet Labs PBC',33.9300,32.60,'Industrials',3.15,41.10,56.15,0.00,-1696.50,60.37,1.5000,'CS: 94',11744.84,0,'v2_engine',NULL,'{\"ticker\": \"PL\", \"regularMarketPrice\": 33.93, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1247, \"historyYears\": 4.9, \"fundamentalsComplete\": false, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [\"peRatio\"], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 0.68, \"rmse\": 0.68, \"cv_mae\": 0.68}}, \"regime_info\": {\"k\": 3, \"current_regime\": 2, \"current_regime_probs\": [0, 0, 1], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\"]}, \"predicted_price\": 34.44, \"predicted_change_pct\": 1.5, \"confidence_score\": 94}','2026-04-15','2026-04-15 06:34:35'),('BUY',5,908,'hot_stocks','PLUG','Plug Power Inc.',2.9400,19.70,'Industrials',-3.70,17.60,-37.56,0.00,-14.31,4.19,4.7600,'CS: 79',4098.23,0,'v2_engine',NULL,'{\"ticker\": \"PLUG\", \"regularMarketPrice\": 2.94, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1254, \"historyYears\": 5, \"fundamentalsComplete\": false, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [\"peRatio\"], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 0.3, \"rmse\": 0.3, \"cv_mae\": 0.3}}, \"regime_info\": {\"k\": 4, \"current_regime\": 1, \"current_regime_probs\": [0, 0.996, 0, 0.004], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\", \"low_vol_mean_reverting\"]}, \"predicted_price\": 3.08, \"predicted_change_pct\": 4.76, \"confidence_score\": 79}','2026-04-15','2026-04-15 06:34:35'),('HOLD',3,909,'hot_stocks','PTLO','Portillo\'s Inc.',5.5600,30.50,'Consumer Cyclical',34.89,0.60,21.64,0.00,20.59,0.86,7.7300,'CS: 80',400.68,0,'v2_engine',NULL,'{\"ticker\": \"PTLO\", \"regularMarketPrice\": 5.56, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1122, \"historyYears\": 4.5, \"fundamentalsComplete\": true, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 0.61, \"rmse\": 0.61, \"cv_mae\": 0.61}}, \"regime_info\": {\"k\": 3, \"current_regime\": 1, \"current_regime_probs\": [0, 1, 0], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\"]}, \"predicted_price\": 5.99, \"predicted_change_pct\": 7.73, \"confidence_score\": 80}','2026-04-15','2026-04-15 06:34:35'),('BUY',7,910,'hot_stocks','PYPL','PayPal Holdings, Inc.',47.9700,41.80,'Financial Services',10.48,3.70,41.48,0.00,8.87,2.18,3.0600,'CS: 100',44164.28,0,'v2_engine',NULL,'{\"ticker\": \"PYPL\", \"regularMarketPrice\": 47.97, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1254, \"historyYears\": 5, \"fundamentalsComplete\": true, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 3.73, \"rmse\": 3.73, \"cv_mae\": 3.73}}, \"regime_info\": {\"k\": 3, \"current_regime\": 0, \"current_regime_probs\": [1, 0, 0], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\"]}, \"predicted_price\": 49.44, \"predicted_change_pct\": 3.06, \"confidence_score\": 100}','2026-04-15','2026-04-15 06:34:35'),('HOLD',3,911,'hot_stocks','VISN','Vistance Networks, Inc.',18.9800,23.20,'Technology',21.84,0.00,49.49,0.00,17.10,NULL,3.0600,'CS: 88',4279.28,0,'v2_engine',NULL,'{\"ticker\": \"VISN\", \"regularMarketPrice\": 18.98, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1254, \"historyYears\": 5, \"fundamentalsComplete\": false, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [\"pbRatio\", \"revenueGrowth\", \"returnOnEquity\"], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 0.68, \"rmse\": 0.68, \"cv_mae\": 0.68}}, \"regime_info\": {\"k\": 3, \"current_regime\": 1, \"current_regime_probs\": [0.002, 0.998, 0], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\"]}, \"predicted_price\": 19.56, \"predicted_change_pct\": 3.06, \"confidence_score\": 88}','2026-04-15','2026-04-15 06:34:35'),('HOLD',0,912,'hot_stocks','WTI','W&T Offshore, Inc.',2.8000,30.90,'Energy',32.14,1.10,35.28,0.00,-6.59,NULL,7.5000,'CS: 78',416.58,0,'v2_engine',NULL,'{\"ticker\": \"WTI\", \"regularMarketPrice\": 2.8, \"outlook\": \"1_month\", \"data_quality\": {\"historyDays\": 1254, \"historyYears\": 5, \"fundamentalsComplete\": false, \"analystDataAvailable\": true, \"macroDataAvailable\": true, \"imputedFields\": [\"peRatio\", \"pbRatio\", \"debtToEquity\", \"returnOnEquity\"], \"missingFeatureMetrics\": [\"epsSurpriseAvg4Q\", \"revenueSurpriseAvg4Q\"], \"earningsSurpriseQuarterCount\": 0}, \"accuracy_metrics\": {\"model\": {\"mae\": 0.16, \"rmse\": 0.16, \"cv_mae\": 0.16}}, \"regime_info\": {\"k\": 4, \"current_regime\": 1, \"current_regime_probs\": [0, 0.972, 0.028, 0], \"regime_names\": [\"risk_on_trending\", \"risk_off_stress\", \"high_vol_choppy\", \"low_vol_mean_reverting\"]}, \"predicted_price\": 3.01, \"predicted_change_pct\": 7.5, \"confidence_score\": 78}','2026-04-15','2026-04-15 06:34:35');
 /*!40000 ALTER TABLE `recommended_stocks` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -211,17 +211,17 @@ DROP TABLE IF EXISTS `stocks`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `stocks` (
-  `id` int NOT NULL AUTO_INCREMENT,
+  `id` int(11) NOT NULL AUTO_INCREMENT,
   `symbol` varchar(10) NOT NULL,
   `company_name` varchar(255) NOT NULL,
   `price` decimal(10,2) DEFAULT NULL,
   `pe_ratio` decimal(10,2) DEFAULT NULL,
   `pb_ratio` decimal(10,2) DEFAULT NULL,
-  `market_cap` bigint DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `market_cap` bigint(20) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   UNIQUE KEY `symbol` (`symbol`)
-) ENGINE=InnoDB AUTO_INCREMENT=39 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=47 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -230,7 +230,7 @@ CREATE TABLE `stocks` (
 
 LOCK TABLES `stocks` WRITE;
 /*!40000 ALTER TABLE `stocks` DISABLE KEYS */;
-INSERT INTO `stocks` VALUES (4,'WMT','Walmart Inc.',116.94,25.00,5.00,400000000000,'2026-01-17 21:16:09'),(5,'CIEN','CIENA CORP',247.52,30.00,6.00,50000000000,'2026-01-17 21:16:19'),(6,'VALE','Vale S.A.',16.44,10.00,1.50,80000000000,'2026-01-17 21:16:28'),(7,'ASTS','AST SpaceMobile, Inc.',111.34,15.00,2.50,1500000000,'2026-01-18 02:50:27'),(8,'SLV','iShares Silver Trust',101.59,NULL,NULL,NULL,'2026-01-24 21:09:18'),(10,'SAMG','Silvercrest Asset Management Group Inc.',15.72,NULL,NULL,NULL,'2026-01-27 00:41:48'),(11,'USAU','U.S. Gold Corp.',21.57,NULL,NULL,NULL,'2026-01-27 13:37:43'),(12,'CWAN','Clearwater Analytics Holdings, Inc.',24.13,NULL,NULL,NULL,'2026-01-27 15:16:44'),(13,'AGNC','AGNC Investment Corp.',12.17,NULL,NULL,NULL,'2026-01-28 01:08:53'),(14,'BCE','BCE Inc.',NULL,NULL,NULL,NULL,'2026-02-06 01:47:09'),(15,'IONQ','IonQ, Inc.',NULL,NULL,NULL,NULL,'2026-02-27 23:00:13'),(16,'NU','Nu Holdings Ltd.',NULL,NULL,NULL,NULL,'2026-02-28 01:32:08'),(17,'ELDN','Eledon Pharmaceuticals, Inc.',NULL,NULL,NULL,NULL,'2026-03-09 01:05:19'),(18,'ADEA','Adeia Inc.',NULL,NULL,NULL,NULL,'2026-03-09 22:10:48'),(19,'CDE','Coeur Mining, Inc.',NULL,NULL,NULL,NULL,'2026-03-11 00:39:23'),(20,'AP','Ampco-Pittsburgh Corporation',NULL,NULL,NULL,NULL,'2026-03-18 23:13:45'),(21,'CALM','Cal-Maine Foods, Inc.',NULL,NULL,NULL,NULL,'2026-03-18 23:58:21'),(22,'DAVE','Dave Inc.',NULL,NULL,NULL,NULL,'2026-03-21 00:47:17'),(23,'JBL','Jabil Inc.',NULL,NULL,NULL,NULL,'2026-03-21 14:56:18'),(24,'SGC','Superior Group of Companies, Inc.',NULL,NULL,NULL,NULL,'2026-03-23 10:36:03'),(25,'USO','United States Oil Fund, LP',NULL,NULL,NULL,NULL,'2026-03-23 23:50:36'),(26,'PL','Planet Labs PBC',NULL,NULL,NULL,NULL,'2026-03-24 23:28:56'),(27,'IBRX','ImmunityBio, Inc.',NULL,NULL,NULL,NULL,'2026-03-25 01:50:04'),(28,'FRPT','Freshpet, Inc.',NULL,NULL,NULL,NULL,'2026-03-25 23:43:54'),(29,'LITE','Lumentum Holdings Inc.',NULL,NULL,NULL,NULL,'2026-03-26 10:45:55'),(30,'SOUN','SoundHound AI, Inc.',NULL,NULL,NULL,NULL,'2026-03-26 20:18:18'),(31,'BEP','Brookfield Renewable Partners L.P.',NULL,NULL,NULL,NULL,'2026-03-30 23:27:08'),(32,'JD','JD.com, Inc.',NULL,NULL,NULL,NULL,'2026-03-31 10:06:19'),(33,'BATL','Battalion Oil Corporation',NULL,NULL,NULL,NULL,'2026-04-01 10:08:13'),(34,'O','Realty Income Corporation',NULL,NULL,NULL,NULL,'2026-04-01 23:48:10'),(35,'MOD','Modine Manufacturing Company',NULL,NULL,NULL,NULL,'2026-04-08 23:43:24'),(36,'MKTW','MarketWise, Inc.',NULL,NULL,NULL,NULL,'2026-04-09 10:25:44'),(37,'SEDG','SolarEdge Technologies, Inc.',NULL,NULL,NULL,NULL,'2026-04-10 01:55:12'),(38,'FSLEX','Fidelity Environment & Alternative Engy',NULL,NULL,NULL,NULL,'2026-04-10 21:45:01');
+INSERT INTO `stocks` VALUES (4,'WMT','Walmart Inc.',116.94,25.00,5.00,400000000000,'2026-01-17 21:16:09'),(5,'CIEN','CIENA CORP',247.52,30.00,6.00,50000000000,'2026-01-17 21:16:19'),(6,'VALE','Vale S.A.',16.44,10.00,1.50,80000000000,'2026-01-17 21:16:28'),(7,'ASTS','AST SpaceMobile, Inc.',111.34,15.00,2.50,1500000000,'2026-01-18 02:50:27'),(8,'SLV','iShares Silver Trust',101.59,NULL,NULL,NULL,'2026-01-24 21:09:18'),(10,'SAMG','Silvercrest Asset Management Group Inc.',15.72,NULL,NULL,NULL,'2026-01-27 00:41:48'),(11,'USAU','U.S. Gold Corp.',21.57,NULL,NULL,NULL,'2026-01-27 13:37:43'),(12,'CWAN','Clearwater Analytics Holdings, Inc.',24.13,NULL,NULL,NULL,'2026-01-27 15:16:44'),(13,'AGNC','AGNC Investment Corp.',12.17,NULL,NULL,NULL,'2026-01-28 01:08:53'),(14,'BCE','BCE Inc.',NULL,NULL,NULL,NULL,'2026-02-06 01:47:09'),(15,'IONQ','IonQ, Inc.',NULL,NULL,NULL,NULL,'2026-02-27 23:00:13'),(16,'NU','Nu Holdings Ltd.',NULL,NULL,NULL,NULL,'2026-02-28 01:32:08'),(17,'ELDN','Eledon Pharmaceuticals, Inc.',NULL,NULL,NULL,NULL,'2026-03-09 01:05:19'),(18,'ADEA','Adeia Inc.',NULL,NULL,NULL,NULL,'2026-03-09 22:10:48'),(19,'CDE','Coeur Mining, Inc.',NULL,NULL,NULL,NULL,'2026-03-11 00:39:23'),(20,'AP','Ampco-Pittsburgh Corporation',NULL,NULL,NULL,NULL,'2026-03-18 23:13:45'),(21,'CALM','Cal-Maine Foods, Inc.',NULL,NULL,NULL,NULL,'2026-03-18 23:58:21'),(22,'DAVE','Dave Inc.',NULL,NULL,NULL,NULL,'2026-03-21 00:47:17'),(23,'JBL','Jabil Inc.',NULL,NULL,NULL,NULL,'2026-03-21 14:56:18'),(24,'SGC','Superior Group of Companies, Inc.',NULL,NULL,NULL,NULL,'2026-03-23 10:36:03'),(25,'USO','United States Oil Fund, LP',NULL,NULL,NULL,NULL,'2026-03-23 23:50:36'),(26,'PL','Planet Labs PBC',NULL,NULL,NULL,NULL,'2026-03-24 23:28:56'),(27,'IBRX','ImmunityBio, Inc.',NULL,NULL,NULL,NULL,'2026-03-25 01:50:04'),(28,'FRPT','Freshpet, Inc.',NULL,NULL,NULL,NULL,'2026-03-25 23:43:54'),(29,'LITE','Lumentum Holdings Inc.',NULL,NULL,NULL,NULL,'2026-03-26 10:45:55'),(30,'SOUN','SoundHound AI, Inc.',NULL,NULL,NULL,NULL,'2026-03-26 20:18:18'),(31,'BEP','Brookfield Renewable Partners L.P.',NULL,NULL,NULL,NULL,'2026-03-30 23:27:08'),(32,'JD','JD.com, Inc.',NULL,NULL,NULL,NULL,'2026-03-31 10:06:19'),(33,'BATL','Battalion Oil Corporation',NULL,NULL,NULL,NULL,'2026-04-01 10:08:13'),(34,'O','Realty Income Corporation',NULL,NULL,NULL,NULL,'2026-04-01 23:48:10'),(35,'MOD','Modine Manufacturing Company',NULL,NULL,NULL,NULL,'2026-04-08 23:43:24'),(36,'MKTW','MarketWise, Inc.',NULL,NULL,NULL,NULL,'2026-04-09 10:25:44'),(37,'SEDG','SolarEdge Technologies, Inc.',NULL,NULL,NULL,NULL,'2026-04-10 01:55:12'),(38,'FSLEX','Fidelity Environment & Alternative Engy',NULL,NULL,NULL,NULL,'2026-04-10 21:45:01'),(39,'PLUG','Plug Power Inc.',2.74,NULL,NULL,NULL,'2026-04-13 06:21:42'),(40,'CDLX','Cardlytics, Inc.',0.90,NULL,NULL,NULL,'2026-04-13 11:44:05'),(41,'AEHR','Aehr Test Systems, Inc.',NULL,NULL,NULL,NULL,'2026-04-13 11:51:00'),(42,'ED','Consolidated Edison, Inc.',NULL,NULL,NULL,NULL,'2026-04-14 00:59:37'),(43,'TEAM','Atlassian Corporation',NULL,NULL,NULL,NULL,'2026-04-14 01:24:02'),(44,'COIN','Coinbase Global, Inc.',174.53,NULL,NULL,NULL,'2026-04-14 06:21:36'),(45,'OHI','Omega Healthcare Investors, Inc.',NULL,NULL,NULL,NULL,'2026-04-15 00:22:35'),(46,'GLW','Corning Incorporated',NULL,NULL,NULL,NULL,'2026-04-15 00:36:18');
 /*!40000 ALTER TABLE `stocks` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -242,24 +242,24 @@ DROP TABLE IF EXISTS `stocksdailyprice`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `stocksdailyprice` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `stock_id` int NOT NULL,
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `stock_id` int(11) NOT NULL,
   `date` date NOT NULL,
   `open` decimal(10,2) NOT NULL,
   `high` decimal(10,2) NOT NULL,
   `low` decimal(10,2) NOT NULL,
   `close` decimal(10,2) NOT NULL,
-  `volume` int NOT NULL,
+  `volume` int(11) NOT NULL,
   `adj_open` decimal(10,2) DEFAULT NULL,
   `adj_high` decimal(10,2) DEFAULT NULL,
   `adj_low` decimal(10,2) DEFAULT NULL,
   `adj_close` decimal(10,2) DEFAULT NULL,
-  `adj_volume` int DEFAULT NULL,
+  `adj_volume` int(11) DEFAULT NULL,
   `daily_change` decimal(10,2) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `stock_id` (`stock_id`,`date`),
   CONSTRAINT `stocksdailyprice_ibfk_1` FOREIGN KEY (`stock_id`) REFERENCES `stocks` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=38598 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=38598 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -280,14 +280,14 @@ DROP TABLE IF EXISTS `user_stock_news`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `user_stock_news` (
-  `user_id` int NOT NULL,
-  `stock_id` int NOT NULL,
-  `news_id` int NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `stock_id` int(11) NOT NULL,
+  `news_id` int(11) NOT NULL,
   PRIMARY KEY (`user_id`,`stock_id`,`news_id`),
   KEY `news_id` (`news_id`),
   CONSTRAINT `user_stock_news_ibfk_1` FOREIGN KEY (`user_id`, `stock_id`) REFERENCES `user_stocks` (`user_id`, `stock_id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `user_stock_news_ibfk_2` FOREIGN KEY (`news_id`) REFERENCES `news` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -296,7 +296,7 @@ CREATE TABLE `user_stock_news` (
 
 LOCK TABLES `user_stock_news` WRITE;
 /*!40000 ALTER TABLE `user_stock_news` DISABLE KEYS */;
-INSERT INTO `user_stock_news` VALUES (1,4,13),(1,4,14),(1,4,15),(1,4,16),(1,4,17),(1,4,18),(1,5,19),(1,5,20),(1,5,21),(1,5,22),(1,5,23),(1,5,24),(1,4,170),(1,4,171),(1,4,172),(1,4,173),(1,4,174),(1,4,175),(1,5,176),(1,5,177),(1,5,178),(1,5,179),(1,5,180),(1,5,181);
+INSERT INTO `user_stock_news` VALUES (1,4,13),(1,4,14),(1,4,15),(1,4,16),(1,4,17),(1,4,18),(1,4,170),(1,4,171),(1,4,172),(1,4,173),(1,4,174),(1,4,175),(1,5,19),(1,5,20),(1,5,21),(1,5,22),(1,5,23),(1,5,24),(1,5,176),(1,5,177),(1,5,178),(1,5,179),(1,5,180),(1,5,181);
 /*!40000 ALTER TABLE `user_stock_news` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -308,20 +308,20 @@ DROP TABLE IF EXISTS `user_stock_predictions`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `user_stock_predictions` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `user_id` int NOT NULL,
-  `stock_id` int NOT NULL,
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `stock_id` int(11) NOT NULL,
   `predicted_price_1m` decimal(12,4) NOT NULL,
   `last_requested_at` datetime NOT NULL,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
   UNIQUE KEY `uniq_user_stock_prediction` (`user_id`,`stock_id`),
   KEY `idx_last_requested` (`last_requested_at`),
   KEY `fk_usp_stock` (`stock_id`),
   CONSTRAINT `fk_usp_stock` FOREIGN KEY (`stock_id`) REFERENCES `stocks` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `fk_usp_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=150 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -330,6 +330,7 @@ CREATE TABLE `user_stock_predictions` (
 
 LOCK TABLES `user_stock_predictions` WRITE;
 /*!40000 ALTER TABLE `user_stock_predictions` DISABLE KEYS */;
+INSERT INTO `user_stock_predictions` VALUES (1,1,18,27.4900,'2026-04-15 05:31:36','2026-04-11 17:07:09','2026-04-15 05:31:37'),(2,1,31,34.7500,'2026-04-15 05:32:29','2026-04-11 17:09:10','2026-04-15 05:32:29'),(3,1,5,483.0800,'2026-04-15 05:32:54','2026-04-11 17:11:15','2026-04-15 05:32:54'),(4,1,23,309.7500,'2026-04-15 05:34:09','2026-04-11 17:15:03','2026-04-15 05:34:09'),(5,1,4,125.4200,'2026-04-15 05:36:21','2026-04-11 17:17:16','2026-04-15 05:36:21'),(21,1,38,49.6400,'2026-04-15 05:33:47','2026-04-12 01:15:33','2026-04-15 05:33:47'),(23,1,33,3.4800,'2026-04-15 05:32:02','2026-04-12 05:32:03','2026-04-15 05:32:02'),(26,1,28,68.8700,'2026-04-15 05:33:22','2026-04-12 05:33:23','2026-04-15 05:33:22'),(29,1,32,31.5600,'2026-04-15 05:34:38','2026-04-12 05:34:46','2026-04-15 05:34:38'),(30,1,36,16.0800,'2026-04-15 00:30:37','2026-04-12 05:35:10','2026-04-15 00:30:37'),(31,1,35,259.4400,'2026-04-15 05:35:05','2026-04-12 05:35:38','2026-04-15 05:35:05'),(32,1,34,63.6100,'2026-04-15 00:28:01','2026-04-12 05:36:07','2026-04-15 00:28:01'),(33,1,37,43.1500,'2026-04-15 05:35:32','2026-04-12 05:36:34','2026-04-15 05:35:32'),(34,1,24,10.6300,'2026-04-15 05:36:00','2026-04-12 05:37:08','2026-04-15 05:36:00'),(35,1,25,124.5700,'2026-04-15 00:23:45','2026-04-12 05:37:34','2026-04-15 00:23:45'),(52,1,39,2.9500,'2026-04-13 05:44:05','2026-04-13 06:21:42','2026-04-13 11:44:05'),(68,1,40,1.1400,'2026-04-13 05:44:05','2026-04-13 11:44:05','2026-04-13 11:44:05'),(70,1,41,74.8200,'2026-04-15 00:36:56','2026-04-13 20:51:48','2026-04-15 00:36:56'),(87,1,42,113.9800,'2026-04-15 00:38:44','2026-04-14 01:00:05','2026-04-15 00:38:44'),(105,1,44,185.7700,'2026-04-14 11:33:29','2026-04-14 06:21:36','2026-04-14 11:33:29');
 /*!40000 ALTER TABLE `user_stock_predictions` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -341,20 +342,21 @@ DROP TABLE IF EXISTS `user_stocks`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `user_stocks` (
-  `user_id` int NOT NULL,
-  `stock_id` int NOT NULL,
-  `shares` decimal(10,4) NOT NULL DEFAULT '0.0000',
-  `purchase_price` decimal(10,2) NOT NULL DEFAULT '0.00',
-  `is_purchased` tinyint(1) NOT NULL DEFAULT '0',
+  `user_id` int(11) NOT NULL,
+  `stock_id` int(11) NOT NULL,
+  `shares` decimal(10,4) NOT NULL DEFAULT 0.0000,
+  `purchase_price` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `is_purchased` tinyint(1) NOT NULL DEFAULT 0,
   `initial_purchase_date` datetime DEFAULT NULL COMMENT 'When stock was first purchased',
   `last_transaction_date` datetime DEFAULT NULL COMMENT 'When shares were last added/removed',
-  `is_active` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'False when position is closed (shares = 0)',
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1 COMMENT 'False when position is closed (shares = 0)',
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  `user_confirmed` tinyint(1) NOT NULL DEFAULT 1,
   PRIMARY KEY (`user_id`,`stock_id`),
   KEY `stock_id` (`stock_id`),
   CONSTRAINT `user_stocks_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `user_stocks_ibfk_2` FOREIGN KEY (`stock_id`) REFERENCES `stocks` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -363,7 +365,7 @@ CREATE TABLE `user_stocks` (
 
 LOCK TABLES `user_stocks` WRITE;
 /*!40000 ALTER TABLE `user_stocks` DISABLE KEYS */;
-INSERT INTO `user_stocks` VALUES (1,4,2096.0110,120.11,1,NULL,'2026-04-09 18:58:44',1,'2026-01-26 16:31:29'),(1,5,14.0000,243.93,1,NULL,'2026-02-20 18:41:49',1,'2026-01-26 16:31:29'),(1,18,100.0000,20.58,1,NULL,'2026-03-09 16:11:26',1,'2026-03-09 22:10:49'),(1,23,11.0000,277.85,1,NULL,'2026-03-26 18:52:42',1,'2026-03-21 14:56:19'),(1,24,0.0000,0.00,0,NULL,NULL,1,'2026-03-23 10:36:04'),(1,25,0.0000,0.00,0,NULL,NULL,1,'2026-03-23 23:50:36'),(1,28,0.0000,0.00,0,NULL,NULL,1,'2026-03-25 23:43:54'),(1,31,93.0000,32.65,1,NULL,'2026-03-31 18:05:04',1,'2026-03-30 23:27:08'),(1,32,0.0000,0.00,0,NULL,NULL,1,'2026-03-31 21:08:13'),(1,33,0.0000,0.00,0,NULL,NULL,1,'2026-04-01 10:08:13'),(1,34,0.0000,0.00,0,NULL,NULL,1,'2026-04-01 23:48:10'),(1,35,0.0000,0.00,0,NULL,NULL,1,'2026-04-08 23:43:25'),(1,36,0.0000,0.00,0,NULL,NULL,1,'2026-04-09 10:25:44'),(1,37,0.0000,0.00,0,NULL,NULL,1,'2026-04-10 01:55:12'),(1,38,0.0000,0.00,0,NULL,NULL,1,'2026-04-10 21:45:01');
+INSERT INTO `user_stocks` VALUES (1,4,2096.0110,120.11,1,NULL,'2026-04-09 18:58:44',1,'2026-01-26 16:31:29',1),(1,5,14.0000,243.93,1,NULL,'2026-02-20 18:41:49',1,'2026-01-26 16:31:29',1),(1,18,100.0000,20.58,1,NULL,'2026-03-09 16:11:26',1,'2026-03-09 22:10:49',1),(1,23,11.0000,277.85,1,NULL,'2026-03-26 18:52:42',1,'2026-03-21 14:56:19',1),(1,24,0.0000,0.00,0,NULL,NULL,1,'2026-03-23 10:36:04',1),(1,28,0.0000,0.00,0,NULL,NULL,1,'2026-03-25 23:43:54',1),(1,31,93.0000,32.65,1,NULL,'2026-03-31 18:05:04',1,'2026-03-30 23:27:08',1),(1,32,0.0000,0.00,0,NULL,NULL,1,'2026-03-31 21:08:13',1),(1,33,0.0000,0.00,0,NULL,NULL,1,'2026-04-01 10:08:13',1),(1,35,0.0000,0.00,0,NULL,NULL,1,'2026-04-08 23:43:25',1),(1,37,0.0000,0.00,0,NULL,NULL,1,'2026-04-10 01:55:12',1),(1,38,0.0000,0.00,0,NULL,NULL,1,'2026-04-10 21:45:01',1),(1,42,1.0000,0.00,0,NULL,NULL,1,'2026-04-14 00:59:37',1),(1,43,1.0000,0.00,0,NULL,NULL,1,'2026-04-14 01:24:02',1),(1,44,0.0000,0.00,0,NULL,NULL,1,'2026-04-14 06:21:36',0),(1,45,1.0000,0.00,0,NULL,NULL,1,'2026-04-15 00:22:36',1),(1,46,1.0000,0.00,0,NULL,NULL,1,'2026-04-15 00:36:18',1);
 /*!40000 ALTER TABLE `user_stocks` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -375,16 +377,16 @@ DROP TABLE IF EXISTS `users`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `users` (
-  `id` int NOT NULL AUTO_INCREMENT,
+  `id` int(11) NOT NULL AUTO_INCREMENT,
   `username` varchar(255) NOT NULL,
   `password_hash` varchar(255) NOT NULL,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `modified_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  `modified_at` timestamp NULL DEFAULT current_timestamp(),
   `role` varchar(50) NOT NULL DEFAULT 'user',
   `last_login` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `username` (`username`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -393,9 +395,57 @@ CREATE TABLE `users` (
 
 LOCK TABLES `users` WRITE;
 /*!40000 ALTER TABLE `users` DISABLE KEYS */;
-INSERT INTO `users` VALUES (1,'KevinBollman','$2b$10$F3jIRti55NDMJd2z/d2RR.Yi4mXl18QfL8F6qIgjdo6lIGd90EGvC','2026-01-17 20:12:31','2026-01-25 02:15:46','admin','2026-04-10 20:05:59'),(3,'testuser','$2b$10$F3jIRti55NDMJd2z/d2RR.Yi4mXl18QfL8F6qIgjdo6lIGd90EGvC','2026-01-26 16:32:49','2026-01-26 16:32:49','user',NULL);
+INSERT INTO `users` VALUES (1,'KevinBollman','$2b$10$F3jIRti55NDMJd2z/d2RR.Yi4mXl18QfL8F6qIgjdo6lIGd90EGvC','2026-01-17 20:12:31','2026-01-25 02:15:46','admin','2026-04-13 18:59:16'),(3,'testuser','$2b$10$F3jIRti55NDMJd2z/d2RR.Yi4mXl18QfL8F6qIgjdo6lIGd90EGvC','2026-01-26 16:32:49','2026-01-26 16:32:49','user',NULL);
 /*!40000 ALTER TABLE `users` ENABLE KEYS */;
 UNLOCK TABLES;
+
+-- Table structure for table `world_bank_macro_data`
+--
+-- Stores annual macro series used as features for GMM regime detection.
+-- NY.GDP.MKTP.KD.ZG: GDP Growth (annual %)
+-- FP.CPI.TOTL.ZG: Inflation, consumer prices (annual %)
+-- NE.CON.PRVT.KD.ZG: Household consumption growth (%)
+--
+
+DROP TABLE IF EXISTS `world_bank_macro_data`;
+CREATE TABLE `world_bank_macro_data` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `indicator_code` varchar(50) NOT NULL,
+  `country_code` varchar(3) DEFAULT 'USA',
+  `year` int(4) NOT NULL,
+  `value` decimal(15,5) DEFAULT NULL,
+  `last_updated` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_wb_indicator_year` (`indicator_code`, `country_code`, `year`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `world_bank_etf_gps_factors`
+--
+-- Stores thematic and sector-specific signals for ETF GPS scoring.
+-- BX.KLT.DINV.WD.GD.ZS: FDI inflows (% of GDP)
+-- TG.VAL.TOTL.GD.ZS: Trade volume
+-- IT.NET.USER.ZS: Internet penetration (Tech/AI bonus points)
+--
+
+DROP TABLE IF EXISTS `world_bank_etf_gps_factors`;
+CREATE TABLE `world_bank_etf_gps_factors` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `theme_or_sector` varchar(100) NOT NULL,
+  `indicator_code` varchar(50) NOT NULL,
+  `country_code` varchar(3) DEFAULT 'USA',
+  `latest_value` decimal(15,5) DEFAULT NULL,
+  `multiplier_effect` decimal(5,2) DEFAULT 1.00,
+  `last_updated` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_wb_theme_indicator` (`theme_or_sector`, `indicator_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- ------------------------------------------------------
+-- Seed Data for Indicator Mappings
+-- ------------------------------------------------------
+
+
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -406,4 +456,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-04-10 20:06:50
+-- Dump completed on 2026-04-15 18:23:55

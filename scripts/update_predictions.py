@@ -10,10 +10,11 @@ from dotenv import load_dotenv
 # mirroring the convention used in deepmoney_sync.py.
 # ---------------------------------------------------------------------------
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
- 
-if os.path.exists(os.path.join(SCRIPT_DIR, '.env.production')):
-    load_dotenv(os.path.join(SCRIPT_DIR, '.env.production'))
-load_dotenv(os.path.join(SCRIPT_DIR, '.env.local'))
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+
+if os.path.exists(os.path.join(PROJECT_ROOT, '.env.production')):
+    load_dotenv(os.path.join(PROJECT_ROOT, '.env.production'))
+load_dotenv(os.path.join(PROJECT_ROOT, '.env.local'))
  
 DB_HOST     = os.getenv('DB_HOST', 'localhost')
 DB_USER     = os.getenv('DB_USER')

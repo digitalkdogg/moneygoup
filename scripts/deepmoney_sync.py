@@ -5,13 +5,13 @@ import mysql.connector
 from datetime import datetime
 from dotenv import load_dotenv
 
-# Load environment variables relative to this script's directory,
-# not the current working directory of the calling process.
+# Load environment variables from project root
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 
-if os.path.exists(os.path.join(SCRIPT_DIR, '.env.production')):
-    load_dotenv(os.path.join(SCRIPT_DIR, '.env.production'))
-load_dotenv(os.path.join(SCRIPT_DIR, '.env.local'))
+if os.path.exists(os.path.join(PROJECT_ROOT, '.env.production')):
+    load_dotenv(os.path.join(PROJECT_ROOT, '.env.production'))
+load_dotenv(os.path.join(PROJECT_ROOT, '.env.local'))
 
 DB_HOST = os.getenv('DB_HOST', 'localhost')
 DB_USER = os.getenv('DB_USER')
