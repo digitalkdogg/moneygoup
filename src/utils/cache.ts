@@ -157,4 +157,6 @@ export const marketIndicesCache = new Cache<any>(2 * 60 * 1000); // 2 minutes fo
 
 export const analystRatingsCache = new Cache<any>(30 * 60 * 1000); // 30 minutes for dashboard analyst ratings
 
+export const worldBankCache = new Cache<any>(6 * 60 * 60 * 1000); // 6 hours for World Bank data
+
 export default Cache;

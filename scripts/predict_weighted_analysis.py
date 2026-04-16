@@ -213,6 +213,11 @@ FEATURE_COLUMNS = [
     'Earnings_In_Window',
     'Days_Since_Last_Earnings',
     'Days_To_Next_Earnings',
+    # ── World Bank Macro (annual, broadcast) ──────────────────────────────────
+    'WorldBank_GDP',
+    'WorldBank_Inflation',
+    'WorldBank_Consumption',
+    'WorldBank_Real_GDP',
 ]
 
 
@@ -313,8 +318,15 @@ def _add_macro_features(f, date_strs, macro_data, close_s, hist_vol, stock_metri
     f['Days_Since_Last_Earnings'] = 0.0
     f['Days_To_Next_Earnings'] = np.nan
 
-    # For now, fill these with NaN (will be handled by final fillna)
-    # They require historicalEarnings and exact date parsing, which we'll defer
+    # ── World Bank Macro (Phase 4) ───────────────────────────────────────────
+    wb = macro_data.get('worldBank', {}) or {}
+    indicators = wb.get('indicators', {}) or {}
+
+    # Broadcast scalar annual values to all rows
+    f['WorldBank_GDP'] = safe(indicators.get('gdpGrowth'), 2.0)
+    f['WorldBank_Inflation'] = safe(indicators.get('inflation'), 2.5)
+    f['WorldBank_Consumption'] = safe(indicators.get('consumptionGrowth'), 2.0)
+    f['WorldBank_Real_GDP'] = f['WorldBank_GDP'] - f['WorldBank_Inflation']
 
     return f
 
@@ -901,7 +913,8 @@ def predict(ticker, input_data):
     # ── Phase 2-3: Regime detection and integration ─────────────────────────
     # Build compact market-state vector for regime detector
     regime_vec_cols = ['VIX', 'HistVol_30', 'HYG_LQD_Ratio', 'RS_vs_SPY_20d', 'DXY_Return_20d',
-                       'CurveSlope_10M3M', 'RollingMean_20d', 'RollingStd_20d']
+                       'CurveSlope_10M3M', 'RollingMean_20d', 'RollingStd_20d',
+                       'WorldBank_GDP', 'WorldBank_Inflation']
 
     # Ensure all regime features exist; fill missing with 0
     for col in regime_vec_cols:
@@ -1048,9 +1061,20 @@ def predict(ticker, input_data):
 
     # ── Final Price Adjustment ──
     # We apply the total_impact as a final multiplier to the MLP output.
-    # This allows the heuristics (RSI, News, Technical Score) to nudge the 
+    # This allows the heuristics (RSI, News, Technical Score) to nudge the
     # sophisticated neural network result.
     impact_multiplier = 1.0 + m_analysis['total_metric_impact']
+
+    # ── World Bank Consumption Heuristic (Phase 4) ──
+    # Only applies to 'Consumer Cyclical' and 'Consumer Defensive' sectors.
+    consumer_multiplier = 1.0
+    sector = stock_metrics.get('sector', '')
+    if sector in ['Consumer Cyclical', 'Consumer Defensive']:
+        cons_growth = feat_df['WorldBank_Consumption'].iloc[-1]
+        # 1% growth adds 0.5% price premium, capped at +/- 3%
+        consumer_multiplier = 1.0 + max(-0.03, min(0.03, cons_growth * 0.005))
+
+    impact_multiplier *= consumer_multiplier
 
     # ---- Deterministic 6m / 12m predictions ----
     last_seq = scaled[-SEQ_LEN:].flatten().reshape(1, -1)
@@ -1225,6 +1249,11 @@ def predict(ticker, input_data):
         "regime_info": regime_info,
         # Legacy metric analysis
         "metric_analysis": m_analysis,
+        # Phase 4 Observability
+        "observability": {
+            "macro_features_used": ["WorldBank_GDP", "WorldBank_Inflation", "WorldBank_Consumption"],
+            "consumer_multiplier_applied": round(float(consumer_multiplier), 4)
+        }
     }
     return result
 

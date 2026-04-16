@@ -227,6 +227,50 @@
             </div>
         </section>
 
+        <section id="macro-data">
+            <h2>Macroeconomic Data</h2>
+            <div id="world-bank-macro-data" class="table-card">
+                <div class="table-title">world_bank_macro_data</div>
+                <p>Stores annual macro series used as features for GMM regime detection.</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key (Auto-increment)</td></tr>
+                        <tr><td><code>indicator_code</code></td><td><code>VARCHAR(50)</code></td><td>Code for the indicator (e.g., NY.GDP.MKTP.KD.ZG).</td></tr>
+                        <tr><td><code>country_code</code></td><td><code>VARCHAR(3)</code></td><td>ISO country code (default 'USA').</td></tr>
+                        <tr><td><code>year</code></td><td><code>INT(4)</code></td><td>The year for the data point.</td></tr>
+                        <tr><td><code>value</code></td><td><code>DECIMAL(15,5)</code></td><td>The numerical value of the indicator for that year.</td></tr>
+                        <tr><td><code>last_updated</code></td><td><code>TIMESTAMP</code></td><td>Timestamp of the last update.</td></tr>
+                    </tbody>
+                </table>
+                <div class="highlight-box">
+                    <strong>Key Indicators Mapped:</strong>
+                    <ul>
+                        <li><code>NY.GDP.MKTP.KD.ZG</code>: GDP Growth (annual %)</li>
+                        <li><code>FP.CPI.TOTL.ZG</code>: Inflation, consumer prices (annual %)</li>
+                        <li><code>NE.CON.PRVT.KD.ZG</code>: Household consumption growth (%)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div id="world-bank-etf-gps-factors" class="table-card">
+                <div class="table-title">world_bank_etf_gps_factors</div>
+                <p>Stores thematic and sector-specific signals for ETF GPS scoring.</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key (Auto-increment)</td></tr>
+                        <tr><td><code>theme_or_sector</code></td><td><code>VARCHAR(100)</code></td><td>Thematic category (e.g., AI, Technology).</td></tr>
+                        <tr><td><code>indicator_code</code></td><td><code>VARCHAR(50)</code></td><td>Code for the indicator.</td></tr>
+                        <tr><td><code>country_code</code></td><td><code>VARCHAR(3)</code></td><td>ISO country code (default 'USA').</td></tr>
+                        <tr><td><code>latest_value</code></td><td><code>DECIMAL(15,5)</code></td><td>The latest available value for the indicator.</td></tr>
+                        <tr><td><code>multiplier_effect</code></td><td><code>DECIMAL(5,2)</code></td><td>A multiplier applied to the indicator's effect on GPS score.</td></tr>
+                        <tr><td><code>last_updated</code></td><td><code>TIMESTAMP</code></td><td>Timestamp of the last update.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
         <section id="tables">
             <h2>Table Definitions</h2>
 

@@ -3,16 +3,24 @@ import { NextRequest, NextResponse } from 'next/server';
 import { executeRawQuery } from '@/utils/databaseHelper';
 import { checkOrigin } from '@/utils/originCheck';
 import { createErrorResponse } from '@/utils/errorResponse';
+import { worldBankCache } from '@/utils/cache';
 
 const logger = createLogger('api/worldbank');
 
 /**
  * Consolidated World Bank Data Endpoint
  * Returns Macro indicators, ETF factors, and Global Risk Index in a single response.
+ * Cached for 6 hours.
  */
 export async function GET(request: NextRequest) {
   const originCheckResponse = checkOrigin(request);
   if (originCheckResponse) return originCheckResponse;
+
+  // Check cache
+  const cachedData = worldBankCache.get('consolidated_data');
+  if (cachedData) {
+    return NextResponse.json(cachedData);
+  }
 
   try {
     // 1. Fetch all required data in parallel
@@ -111,7 +119,7 @@ export async function GET(request: NextRequest) {
     const globalHealthScore = scoredCountries > 0 ? parseFloat((totalScore / scoredCountries).toFixed(1)) : null;
 
     // ── RETURN CONSOLIDATED PAYLOAD ──
-    return NextResponse.json({
+    const responseData = {
       success: true,
       macro: {
         country: 'USA',
@@ -125,7 +133,12 @@ export async function GET(request: NextRequest) {
         globalHealthScore
       },
       asOf: new Date().toISOString()
-    });
+    };
+
+    // Store in cache
+    worldBankCache.set('consolidated_data', responseData);
+
+    return NextResponse.json(responseData);
 
   } catch (error: any) {
     logger.error("Failed to fetch consolidated World Bank data.", error);

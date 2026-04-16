@@ -325,6 +325,52 @@
             </div>
         </section>
 
+        <section id="market-data">
+            <h2><span>2</span> Market Data</h2>
+            <div id="market-indices" class="step-card">
+                <h3><span class="method get">GET</span> /api/market/indices</h3>
+                <div class="component-tag">Global Market Health</div>
+                <p>Returns current prices and daily change % for major indices (DJI, S&P 500, Nasdaq, Russell 2000, VIX).</p>
+            </div>
+            <div id="market-trending" class="step-card">
+                <h3><span class="method get">GET</span> /api/market/trending</h3>
+                <div class="component-tag">Market Momentum</div>
+                <p>Identifies stocks with high volume or significant price movement across the broader market.</p>
+            </div>
+            <div id="worldbank-data" class="step-card">
+                <h3><span class="method get">GET</span> /api/worldbank</h3>
+                <div class="component-tag">Macroeconomic Indicators</div>
+                <p>Provides consolidated World Bank macro indicators for the USA, including GDP growth, inflation, and consumption growth. Also includes ETF GPS factors and a global risk index.</p>
+                <strong>Response Structure:</strong>
+                <pre><code>{
+  "success": true,
+  "macro": {
+    "country": "USA",
+    "indicators": {
+      "gdpGrowth": 2.5,
+      "inflation": 1.8,
+      "consumptionGrowth": 2.1
+    }
+  },
+  "etf_factors": {
+    "themes": {
+      "Artificial Intelligence": [
+        {"indicator": "IT.NET.USER.ZS", "value": 85.0, "multiplier": 1.1}
+      ]
+    }
+  },
+  "risk_index": {
+    "countries": {
+      "USA": {"gdp": 2.5, "inflation": 1.8, "unemployment": 3.9},
+      // ... other countries
+    },
+    "globalHealthScore": 78.5
+  },
+  "asOf": "2026-04-16T12:00:00.000Z"
+}</code></pre>
+            </div>
+        </section>
+
         <section id="prediction-engine">
             <h2><span>3</span> Prediction Engine</h2>
             <div id="prediction" class="step-card">
@@ -333,7 +379,7 @@
                 <p>Generates an AI price prediction using a local MLP neural network.</p>
                 <strong>Logic Flow:</strong>
                 <ul class="flow">
-                    <li>Spawns <code>predict_weighted_analysis.py</code>.</li>
+                    <li>Spawns <code>scripts/predict_weighted_analysis.py</code>.</li>
                     <li><strong>v3+ Logic:</strong> Integrates GMM-based Market Regime Detection.</li>
                     <li><strong>Persistence:</strong> Automatically triggers a call to <code>/api/prediction/save</code>.</li>
                 </ul>
@@ -343,6 +389,19 @@
                 <h3><span class="method post">POST</span> /api/prediction/save</h3>
                 <div class="component-tag">Persistence Layer</div>
                 <p>Saves or updates a user's prediction for a specific stock in the <code>user_stock_predictions</code> table.</p>
+                <strong>Payload Fields:</strong>
+                <pre><code>{
+  "ticker": "string",
+  "predicted_price_1d": "number | null",
+  "predicted_price_1m": "number", // Required
+  "predicted_price_6m": "number | null",
+  "predicted_price_1y": "number | null",
+  "macro_features_used": ["string"] | null,
+  "consumer_multiplier_applied": "number | null",
+  "last_requested_at": "string (ISO format)",
+  "user_id": "string (internal use only)"
+}</code></pre>
+                <strong>Database Update:</strong> Persists the provided prediction horizons and observability data.
             </div>
 
             <div id="deepmoney" class="step-card">
@@ -387,7 +446,7 @@
             <div id="deepmoney-picks" class="step-card">
                 <h3><span class="method get">GET</span> /api/dashboard/deepmoney-picks</h3>
                 <div class="component-tag">AI Recommendations</div>
-                <p>Returns the highest-scoring stocks from the latest <code>deepmoney_sync.py</code> run.</p>
+                <p>Returns the highest-scoring stocks from the latest <code>scripts/deepmoney_sync.py</code> run.</p>
             </div>
         </section>
 

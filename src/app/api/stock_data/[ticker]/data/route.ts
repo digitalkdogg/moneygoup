@@ -251,6 +251,35 @@ async function fetchOptionsData(ticker: string): Promise<any> {
   }
 }
 
+async function fetchWorldBankData(): Promise<any> {
+  try {
+    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3001';
+    const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+
+    if (internalSecret) {
+      headers['x-api-key'] = internalSecret;
+    }
+
+    const response = await fetch(`${baseUrl}/api/worldbank`, {
+      method: 'GET',
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error(`World Bank data fetch failed with status ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (err) {
+    logger.warn('Failed to fetch World Bank data', { error: err });
+    return null;
+  }
+}
+
 async function fetchOhlcv(ticker: string) {
   const fiveYearsAgo = new Date(Date.now() - 5 * 365.25 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const now = new Date();
@@ -480,6 +509,16 @@ export async function GET(
       fetchMacroSeries('ZW=F'),       // Wheat futures
     ]);
 
+    // ---- 4b. World Bank Data ----
+    let worldBankData = null;
+    const wbResponse = await fetchWorldBankData();
+    if (wbResponse && wbResponse.success && wbResponse.macro) {
+      worldBankData = {
+        indicators: wbResponse.macro.indicators,
+        asOf: wbResponse.asOf
+      };
+    }
+
     const macroData = {
       vix:         vixData,
       treasury10y: tnxData,
@@ -492,6 +531,7 @@ export async function GET(
       wti:         wtiData,
       copper:      copperData,
       wheat:       wheatData,
+      worldBank:   worldBankData,
     };
 
     // ---- 5. Earnings history ----
