@@ -3,19 +3,19 @@ import { XMLParser } from 'fast-xml-parser';
 import Sentiment from 'sentiment';
 import { createLogger } from '@/utils/logger';
 import { checkOrigin } from '@/utils/originCheck';
-import YahooFinance from 'yahoo-finance2'; // Import YahooFinance
-import { getServerSession } from 'next-auth'; // Add this import
-import { authOptions } from '@/lib/auth'; // Add this import
+import YahooFinance from 'yahoo-finance2';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { tickerSchema } from '@/utils/validationSchemas';
 import { validationErrorResponse } from '@/utils/errorResponse';
 import { newsLimiter } from '@/utils/rateLimiter';
 import { checkRateLimit } from '@/utils/rateLimitMiddleware';
 import { z } from 'zod';
+import { newsDataCache } from '@/utils/cache';
 
 const logger = createLogger('api/stock/[ticker]/news');
-const yahooFinance = new YahooFinance(); // Initialize YahooFinance
+const yahooFinance = new YahooFinance();
 
-// NOTE: This endpoint requires authentication.
 export async function GET(
   request: NextRequest,
   { params }: { params: { ticker: string } }
@@ -26,143 +26,101 @@ export async function GET(
 
   if (!isInternal) {
     const originCheckResponse = checkOrigin(request);
-    if (originCheckResponse) {
-      return originCheckResponse;
-    }
+    if (originCheckResponse) return originCheckResponse;
 
     const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-    }
+    if (!session) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
 
-  // Check rate limit (per-IP)
   const rateLimitResponse = checkRateLimit(request, newsLimiter, 'news');
   if (rateLimitResponse) return rateLimitResponse;
 
-  // Validate and normalize ticker input
+  let validatedTicker: string;
   try {
-    var validatedTicker = tickerSchema.parse(params.ticker);
+    validatedTicker = tickerSchema.parse(params.ticker);
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      const message = error.issues && error.issues.length > 0 
-        ? error.issues[0].message 
-        : 'Invalid ticker';
-      return validationErrorResponse(message);
-    }
     return validationErrorResponse('Invalid ticker format');
   }
 
   const tickerArray = validatedTicker.split(',').map(t => t.trim());
+  const { searchParams } = new URL(request.url);
+  const forceRefresh = searchParams.get('refresh') === 'true';
 
   try {
     const sentiment = new Sentiment();
     const articlesByTicker: Record<string, any[]> = {};
+    const tickersToFetch: string[] = [];
+    let allFromCache = true;
     
-    // Initialize empty arrays for all requested tickers
-    tickerArray.forEach(ticker => {
-      articlesByTicker[ticker] = [];
-    });
-
-    // Fetch RSS feed for each ticker individually
-    const fetchPromises = tickerArray.map(async (ticker) => {
-      try {
-        // 1. Get company longName for filtering
-        let companyName: string | undefined;
-        try {
-          const quoteSummary = await yahooFinance.quoteSummary(ticker, { modules: ["price"] });
-          companyName = quoteSummary.price?.longName || undefined;
-        } catch (e) {
-          logger.warn(`Could not fetch longName for ${ticker} from Yahoo Finance. Will filter by ticker only.`, e as Error);
+    for (const ticker of tickerArray) {
+      if (!forceRefresh) {
+        const cached = newsDataCache.get(ticker);
+        if (cached) {
+          articlesByTicker[ticker] = cached;
+          continue;
         }
-
-        const relevantKeywords: string[] = [ticker.toLowerCase()];
-        if (companyName) {
-            // Add full name and common variations
-            relevantKeywords.push(companyName.toLowerCase());
-            // Remove common corporate suffixes for broader matching
-            relevantKeywords.push(
-                companyName.toLowerCase()
-                    .replace(/,?\s+(inc|corporation|corp|ltd|llc|co)\.?$/g, '')
-                    .trim()
-            );
-        }
-
-        const url = `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${ticker}&region=US&lang=en-US`;
-        const response = await fetch(url);
-
-        if (!response.ok) {
-          console.warn(`Failed to fetch RSS feed for ${ticker}: ${response.statusText}`);
-          return;
-        }
-
-        const xmlText = await response.text();
-        const parser = new XMLParser();
-        const parsed = parser.parse(xmlText);
-
-        if (!parsed.rss || !parsed.rss.channel || !parsed.rss.channel.item) {
-          return;
-        }
-
-        const items = Array.isArray(parsed.rss.channel.item)
-          ? parsed.rss.channel.item
-          : [parsed.rss.channel.item];
-
-        // Process and filter articles for this ticker
-        items.slice(0, 10).forEach((item: any) => { // Increased to 10 to allow for filtering
-          const title = item.title ? item.title.toLowerCase() : '';
-          const description = item.description ? item.description.toLowerCase() : '';
-
-          // Filter: check if title or description contains relevant keywords
-          const isRelevant = relevantKeywords.some(keyword => 
-              title.includes(keyword) || description.includes(keyword)
-          );
-
-          if (!isRelevant) {
-              return; // Skip this article if not relevant
-          }
-
-          const sentimentResult = sentiment.analyze(item.title);
-
-          // Sanitize link: Ensure it's a safe HTTP/HTTPS URL
-          let sanitizedLink = item.link;
-          if (sanitizedLink) {
-            if (!sanitizedLink.startsWith('http://') && !sanitizedLink.startsWith('https://')) {
-              sanitizedLink = '#';
-            } else if (sanitizedLink.toLowerCase().startsWith('javascript:')) {
-              sanitizedLink = '#';
-            }
-          } else {
-            sanitizedLink = '#';
-          }
-
-          const article = {
-            title: item.title,
-            link: sanitizedLink,
-            pubDate: item.pubDate,
-            publishedAt: item.pubDate, // Python script expects publishedAt
-            source: item.source,
-            sentiment_score: sentimentResult.score,
-          };
-
-          articlesByTicker[ticker].push(article);
-        });
-      } catch (error) {
-        console.warn(`Error fetching news for ${ticker}:`, error);
       }
-    });
+      allFromCache = false;
+      tickersToFetch.push(ticker);
+      articlesByTicker[ticker] = [];
+    }
 
-    await Promise.all(fetchPromises);
+    if (tickersToFetch.length > 0) {
+      const fetchPromises = tickersToFetch.map(async (ticker) => {
+        try {
+          let companyName: string | undefined;
+          try {
+            const quoteSummary = await yahooFinance.quoteSummary(ticker, { modules: ["price"] });
+            companyName = quoteSummary.price?.longName || undefined;
+          } catch (e) {
+            logger.warn(`Could not fetch longName for ${ticker}`);
+          }
 
-    return NextResponse.json({ articles: articlesByTicker, source: ['Yahoo Finance'] });
+          const relevantKeywords: string[] = [ticker.toLowerCase()];
+          if (companyName) {
+              relevantKeywords.push(companyName.toLowerCase());
+              relevantKeywords.push(companyName.toLowerCase().replace(/,?\s+(inc|corporation|corp|ltd|llc|co)\.?$/g, '').trim());
+          }
+
+          const url = `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${ticker}&region=US&lang=en-US`;
+          const response = await fetch(url);
+          if (!response.ok) return;
+
+          const xmlText = await response.text();
+          const parser = new XMLParser();
+          const parsed = parser.parse(xmlText);
+          if (!parsed.rss || !parsed.rss.channel || !parsed.rss.channel.item) return;
+
+          const items = Array.isArray(parsed.rss.channel.item) ? parsed.rss.channel.item : [parsed.rss.channel.item];
+          const tickerArticles: any[] = [];
+          items.slice(0, 10).forEach((item: any) => {
+            const title = item.title ? item.title.toLowerCase() : '';
+            const description = item.description ? item.description.toLowerCase() : '';
+            const isRelevant = relevantKeywords.some(keyword => title.includes(keyword) || description.includes(keyword));
+            if (!isRelevant) return;
+
+            const sentimentResult = sentiment.analyze(item.title);
+            let sanitizedLink = item.link;
+            if (sanitizedLink && !sanitizedLink.startsWith('http')) sanitizedLink = '#';
+
+            tickerArticles.push({
+              title: item.title, link: sanitizedLink || '#', pubDate: item.pubDate, publishedAt: item.pubDate, source: item.source, sentiment_score: sentimentResult.score,
+            });
+          });
+
+          articlesByTicker[ticker] = tickerArticles;
+          newsDataCache.set(ticker, tickerArticles);
+        } catch (error) {
+          console.warn(`Error fetching news for ${ticker}:`, error);
+        }
+      });
+      await Promise.all(fetchPromises);
+    }
+
+    const source = allFromCache ? 'cache' : 'livedata';
+    return NextResponse.json({ articles: articlesByTicker, source: ['Yahoo Finance'], cache_status: source });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Error fetching news:', { error: error instanceof Error ? error : String(error) });
-    return NextResponse.json(
-      {
-        error: 'Failed to fetch or parse news feed'
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to fetch or parse news feed' }, { status: 500 });
   }
 }

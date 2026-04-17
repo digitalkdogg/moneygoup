@@ -10,11 +10,12 @@ const ETF_AUM_FLOOR = 50_000_000; // $50M
 const ETF_GPS_THRESHOLD = 55;
 
 const ETF_GPS_WEIGHTS = {
-  FIFTY_TWO_WEEK_RETURN: 0.30,
-  THEMATIC_NEWS_SIGNAL: 0.25,
-  MOMENTUM_3MO: 0.20,
-  LIQUIDITY: 0.15,
-  EXPENSE_RATIO: 0.10,
+  FIFTY_TWO_WEEK_RETURN: 0.255,
+  THEMATIC_NEWS_SIGNAL: 0.2125,
+  MOMENTUM_3MO: 0.17,
+  LIQUIDITY: 0.1275,
+  EXPENSE_RATIO: 0.085,
+  MACRO_TAILWIND: 0.15,
 };
 
 const ETF_GPS_BONUS = {
@@ -22,6 +23,7 @@ const ETF_GPS_BONUS = {
   TRENDING_THEME: 5,
   HIGH_MOMENTUM: 4,
   UNDER_THE_RADAR: 3,
+  TECH_ADOPTION_VALIDATION: 6, // 0-6 pts
 };
 
 const THEME_TO_SUB_SECTORS: { [key: string]: string[] } = {
@@ -29,9 +31,40 @@ const THEME_TO_SUB_SECTORS: { [key: string]: string[] } = {
   "Semiconductors": ["Semiconductors"],
   "Cloud & SaaS": ["Cloud & SaaS", "Cybersecurity"],
   "Cybersecurity": ["Cybersecurity"],
-  "Clean Energy & Tech": ["Data Infrastructure"], // Assumption based on context
+  "Clean Energy & Tech": ["Data Infrastructure"],
   "Broad Technology": ["Artificial Intelligence", "Semiconductors", "Cloud & SaaS", "Cybersecurity", "Data Infrastructure", "Robotics & Automation"],
   "Small/Mid Cap Growth": [],
+};
+
+const THEME_MACRO_MAPPING: { [key: string]: { tailwind: string[], validation: string[] } } = {
+  "Artificial Intelligence": { 
+    tailwind: ['BX.KLT.DINV.WD.GD.ZS', 'TG.VAL.TOTL.GD.ZS'], 
+    validation: ['IT.NET.USER.ZS', 'IT.CEL.SETS.P2'] 
+  },
+  "Semiconductors": { 
+    tailwind: ['BX.KLT.DINV.WD.GD.ZS', 'TG.VAL.TOTL.GD.ZS'], 
+    validation: ['TX.VAL.ICTG.ZS.UN'] 
+  },
+  "Cloud & SaaS": { 
+    tailwind: ['BX.KLT.DINV.WD.GD.ZS'], 
+    validation: ['IT.NET.USER.ZS'] 
+  },
+  "Cybersecurity": { 
+    tailwind: ['BX.KLT.DINV.WD.GD.ZS'], 
+    validation: ['IT.NET.USER.ZS'] 
+  },
+  "Clean Energy & Tech": { 
+    tailwind: ['BX.KLT.DINV.WD.GD.ZS', 'TG.VAL.TOTL.GD.ZS'], 
+    validation: [] 
+  },
+  "Broad Technology": { 
+    tailwind: ['BX.KLT.DINV.WD.GD.ZS', 'TG.VAL.TOTL.GD.ZS'], 
+    validation: ['IT.NET.USER.ZS', 'TX.VAL.ICTG.ZS.UN'] 
+  },
+  "Small/Mid Cap Growth": { 
+    tailwind: ['TG.VAL.TOTL.GD.ZS'], 
+    validation: [] 
+  },
 };
 // --- End ETF Constants ---
 
@@ -54,9 +87,12 @@ export interface ETFDiscoveryResult {
   avg_daily_volume: number;
   momentum_score: number;
   news_signal_score: number;
+  macro_tailwind_score: number;
+  theme_validation_bonus: number;
   discovery_source: string;
   is_leveraged: boolean;
   snapshot_date: string;
+  macro_data_asof: string;
 }
 
 export interface ETFCycleSummary {
@@ -74,6 +110,21 @@ export interface ETFCycleSummary {
 // ETF Module Implementation
 // ---------------------------------------------------------------------------
 
+async function fetchWorldBankTrendData(): Promise<any> {
+    try {
+        const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3001';
+        const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
+        const res = await fetch(`${baseUrl}/api/worldbank`, {
+            headers: { 'x-api-key': internalSecret || '' }
+        });
+        if (!res.ok) return null;
+        return await res.json();
+    } catch (err) {
+        logger.error('Failed to fetch World Bank trend data for ETF discovery', { error: err });
+        return null;
+    }
+}
+
 export async function performETFDiscovery(
   hotStocks: any[],
   trendingSubSectors: string[],
@@ -89,6 +140,11 @@ export async function performETFDiscovery(
     newsTickersCount: trendingTickers.length,
     trendingSubSectors 
   });
+
+  // Fetch World Bank Macro Context
+  const wbData = await fetchWorldBankTrendData();
+  const themeTrends = wbData?.etf_factors?.theme_trends || {};
+  const macroAsOf = wbData?.asOf;
 
   const evaluatedTickers = new Set<string>();
   const candidates: { ticker: string; theme: string; source: string }[] = [];
@@ -180,24 +236,44 @@ export async function performETFDiscovery(
       const hotStocksOverlap = holdingsTickers.filter(t => hotStockTickers.has(t));
       
       let score = 0;
-      // 52-Week Price Return (30%)
+      // 1. 52-Week Price Return (25.5%)
       score += Math.min(Math.max(fiftyTwoWkReturn / 0.3, 0), 1) * 100 * ETF_GPS_WEIGHTS.FIFTY_TWO_WEEK_RETURN;
       
-      // Thematic News Signal Alignment (25%)
+      // 2. Thematic News Signal Alignment (21.25%)
       const newsSignalScore = Math.min(newsOverlap.length / 2, 1) * 100;
       score += (newsSignalScore / 100) * 100 * ETF_GPS_WEIGHTS.THEMATIC_NEWS_SIGNAL;
       
-      // Momentum Score (3-month return) (20%)
+      // 3. Momentum Score (3-month return) (17.0%)
       score += Math.min(Math.max(threeMoReturn / 0.15, 0), 1) * 100 * ETF_GPS_WEIGHTS.MOMENTUM_3MO;
       
-      // Volume / Liquidity Score (15%)
+      // 4. Volume / Liquidity Score (12.75%)
       score += Math.min(volume / 1000000, 1) * 100 * ETF_GPS_WEIGHTS.LIQUIDITY;
       
-      // Expense Ratio Efficiency (10%)
+      // 5. Expense Ratio Efficiency (8.5%)
       const expenseScore = Math.max(0, Math.min(1, (1.5 - (expRatio * 100)) / (1.5 - 0.05))) * 100;
       score += (expenseScore / 100) * 100 * ETF_GPS_WEIGHTS.EXPENSE_RATIO;
 
-      // Bonuses
+      // 6. Macro Tailwind Score (15.0%)
+      const macroMapping = THEME_MACRO_MAPPING[candidate.theme] || { tailwind: [], validation: [] };
+      let tailwindScore = 0;
+      if (macroMapping.tailwind.length > 0) {
+          let signalSum = 0;
+          macroMapping.tailwind.forEach(code => {
+              const trend = themeTrends[candidate.theme]?.[code];
+              if (trend) {
+                  if (trend.signal === 'bullish') signalSum += 100;
+                  else if (trend.signal === 'neutral') signalSum += 50;
+              } else {
+                  signalSum += 50; // Neutral fallback
+              }
+          });
+          tailwindScore = signalSum / macroMapping.tailwind.length;
+      } else {
+          tailwindScore = 50; // Neutral default
+      }
+      score += (tailwindScore / 100) * 100 * ETF_GPS_WEIGHTS.MACRO_TAILWIND;
+
+      // --- Bonuses ---
       if (hotStocksOverlap.length >= 3) score += ETF_GPS_BONUS.HOT_STOCKS_OVERLAP;
       
       const mappedSubSectors = THEME_TO_SUB_SECTORS[candidate.theme] || [];
@@ -207,6 +283,19 @@ export async function performETFDiscovery(
       
       if (fiftyTwoWkReturn >= 0.25) score += ETF_GPS_BONUS.HIGH_MOMENTUM;
       if (aum < 500e6) score += ETF_GPS_BONUS.UNDER_THE_RADAR;
+
+      // Tech Adoption Validation Bonus
+      let themeValidationBonus = 0;
+      if (macroMapping.validation.length > 0) {
+          let valSum = 0;
+          macroMapping.validation.forEach(code => {
+            const trend = themeTrends[candidate.theme]?.[code];
+            if (trend && trend.signal === 'bullish') valSum += 3;
+            else if (trend && trend.signal === 'neutral') valSum += 1;
+          });
+          themeValidationBonus = Math.min(valSum, ETF_GPS_BONUS.TECH_ADOPTION_VALIDATION);
+          score += themeValidationBonus;
+      }
 
       const finalScore = Math.min(score, 100);
 
@@ -224,9 +313,12 @@ export async function performETFDiscovery(
           avg_daily_volume: volume,
           momentum_score: parseFloat(((threeMoReturn * 100)).toFixed(1)),
           news_signal_score: parseFloat(newsSignalScore.toFixed(1)),
-          discovery_source: candidate.source + (newsOverlap.length > 0 ? '+news_signal' : ''),
+          macro_tailwind_score: parseFloat(tailwindScore.toFixed(1)),
+          theme_validation_bonus: themeValidationBonus,
+          discovery_source: candidate.source + (newsOverlap.length > 0 ? '+news_signal' : '') + (tailwindScore > 70 ? '+macro_confirmed' : ''),
           is_leveraged: isLeveraged,
-          snapshot_date: snapshotDate
+          snapshot_date: snapshotDate,
+          macro_data_asof: macroAsOf
         };
       }
     } catch (err) {
@@ -236,7 +328,7 @@ export async function performETFDiscovery(
     return null;
   }));
 
-  const qualifyingETFs: ETFDiscoveryResult[] = results.filter((r): r is ETFDiscoveryResult => r !== null);
+  const qualifyingETFs = results.filter((r): r is ETFDiscoveryResult => r !== null);
 
   logger.info('ETF discovery complete', { 
     qualifyingCount: qualifyingETFs.length,
@@ -283,9 +375,9 @@ async function persistETFs(etfs: ETFDiscoveryResult[], summary: ETFCycleSummary)
         INSERT INTO hot_etfs (
           \`ticker\`, \`etf_name\`, \`snapshot_date\`, \`current_price\`, \`etf_gps_score\`,
           \`theme\`, \`aum_m\`, \`expense_ratio_pct\`, \`52wk_return_pct\`, \`3mo_return_pct\`,
-          \`avg_daily_volume\`, \`momentum_score\`, \`news_signal_score\`,
+          \`avg_daily_volume\`, \`momentum_score\`, \`news_signal_score\`, \`macro_tailwind_score\`, \`theme_validation_bonus\`,
           \`discovery_source\`, \`is_leveraged\`
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
           \`etf_name\` = VALUES(\`etf_name\`),
           \`current_price\` = VALUES(\`current_price\`),
@@ -298,12 +390,14 @@ async function persistETFs(etfs: ETFDiscoveryResult[], summary: ETFCycleSummary)
           \`avg_daily_volume\` = VALUES(\`avg_daily_volume\`),
           \`momentum_score\` = VALUES(\`momentum_score\`),
           \`news_signal_score\` = VALUES(\`news_signal_score\`),
+          \`macro_tailwind_score\` = VALUES(\`macro_tailwind_score\`),
+          \`theme_validation_bonus\` = VALUES(\`theme_validation_bonus\`),
           \`discovery_source\` = VALUES(\`discovery_source\`),
           \`is_leveraged\` = VALUES(\`is_leveraged\`)
       `, [
         etf.ticker, etf.etf_name, etf.snapshot_date, etf.current_price, etf.etf_gps_score,
         etf.theme, etf.aum_m, etf.expense_ratio_pct, etf.fiftyTwoWk_return_pct, etf.threeMo_return_pct,
-        etf.avg_daily_volume, etf.momentum_score, etf.news_signal_score,
+        etf.avg_daily_volume, etf.momentum_score, etf.news_signal_score, etf.macro_tailwind_score, etf.theme_validation_bonus,
         etf.discovery_source, etf.is_leveraged ? 1 : 0
       ]);
     }

@@ -183,11 +183,12 @@
             <a href="#recommended_stocks" class="nav-link">recommended_stocks</a>
             <a href="#recommended_markets" class="nav-link">recommended_markets</a>
             <a href="#hot_etfs" class="nav-link">hot_etfs</a>
+            <a href="#macro_context_snapshots" class="nav-link">macro_context_snapshots</a>
             <a href="#user_stock_predictions" class="nav-link">user_stock_predictions</a>
             
-            <span class="nav-header">News & Social</span>
-            <a href="#news" class="nav-link">news</a>
-            <a href="#user_stock_news" class="nav-link">user_stock_news</a>
+            <span class="nav-header">Macro Data</span>
+            <a href="#world-bank-macro-data" class="nav-link">world_bank_macro_data</a>
+            <a href="#world-bank-etf-gps-factors" class="nav-link">world_bank_etf_gps_factors</a>
         </nav>
     </aside>
 
@@ -231,26 +232,18 @@
             <h2>Macroeconomic Data</h2>
             <div id="world-bank-macro-data" class="table-card">
                 <div class="table-title">world_bank_macro_data</div>
-                <p>Stores annual macro series used as features for GMM regime detection.</p>
+                <p>Stores annual macro series used as features for GMM regime detection and global risk analysis.</p>
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key (Auto-increment)</td></tr>
-                        <tr><td><code>indicator_code</code></td><td><code>VARCHAR(50)</code></td><td>Code for the indicator (e.g., NY.GDP.MKTP.KD.ZG).</td></tr>
-                        <tr><td><code>country_code</code></td><td><code>VARCHAR(3)</code></td><td>ISO country code (default 'USA').</td></tr>
+                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key</td></tr>
+                        <tr><td><code>indicator_code</code></td><td><code>VARCHAR(50)</code></td><td>e.g., NY.GDP.MKTP.KD.ZG (GDP Growth)</td></tr>
+                        <tr><td><code>country_code</code></td><td><code>VARCHAR(3)</code></td><td>USA, GBR, CHN, IND, DEU</td></tr>
                         <tr><td><code>year</code></td><td><code>INT(4)</code></td><td>The year for the data point.</td></tr>
-                        <tr><td><code>value</code></td><td><code>DECIMAL(15,5)</code></td><td>The numerical value of the indicator for that year.</td></tr>
-                        <tr><td><code>last_updated</code></td><td><code>TIMESTAMP</code></td><td>Timestamp of the last update.</td></tr>
+                        <tr><td><code>value</code></td><td><code>DECIMAL(15,5)</code></td><td>The numerical value.</td></tr>
+                        <tr><td><code>last_updated</code></td><td><code>TIMESTAMP</code></td><td>Auto-updated on change.</td></tr>
                     </tbody>
                 </table>
-                <div class="highlight-box">
-                    <strong>Key Indicators Mapped:</strong>
-                    <ul>
-                        <li><code>NY.GDP.MKTP.KD.ZG</code>: GDP Growth (annual %)</li>
-                        <li><code>FP.CPI.TOTL.ZG</code>: Inflation, consumer prices (annual %)</li>
-                        <li><code>NE.CON.PRVT.KD.ZG</code>: Household consumption growth (%)</li>
-                    </ul>
-                </div>
             </div>
 
             <div id="world-bank-etf-gps-factors" class="table-card">
@@ -259,13 +252,11 @@
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key (Auto-increment)</td></tr>
-                        <tr><td><code>theme_or_sector</code></td><td><code>VARCHAR(100)</code></td><td>Thematic category (e.g., AI, Technology).</td></tr>
-                        <tr><td><code>indicator_code</code></td><td><code>VARCHAR(50)</code></td><td>Code for the indicator.</td></tr>
-                        <tr><td><code>country_code</code></td><td><code>VARCHAR(3)</code></td><td>ISO country code (default 'USA').</td></tr>
-                        <tr><td><code>latest_value</code></td><td><code>DECIMAL(15,5)</code></td><td>The latest available value for the indicator.</td></tr>
-                        <tr><td><code>multiplier_effect</code></td><td><code>DECIMAL(5,2)</code></td><td>A multiplier applied to the indicator's effect on GPS score.</td></tr>
-                        <tr><td><code>last_updated</code></td><td><code>TIMESTAMP</code></td><td>Timestamp of the last update.</td></tr>
+                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key</td></tr>
+                        <tr><td><code>theme_or_sector</code></td><td><code>VARCHAR(100)</code></td><td>Thematic category (AI, Technology).</td></tr>
+                        <tr><td><code>indicator_code</code></td><td><code>VARCHAR(50)</code></td><td>World Bank indicator code.</td></tr>
+                        <tr><td><code>latest_value</code></td><td><code>DECIMAL(15,5)</code></td><td>Most recent raw value.</td></tr>
+                        <tr><td><code>multiplier_effect</code></td><td><code>DECIMAL(5,2)</code></td><td>Weighting applied to this factor.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -281,12 +272,11 @@
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key (Auto-increment)</td></tr>
-                        <tr><td><code>username</code></td><td><code>VARCHAR(255)</code></td><td>Unique. Used for login.</td></tr>
-                        <tr><td><code>password_hash</code></td><td><code>VARCHAR(255)</code></td><td>Bcrypt hashed password.</td></tr>
+                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key</td></tr>
+                        <tr><td><code>username</code></td><td><code>VARCHAR(255)</code></td><td>Unique.</td></tr>
+                        <tr><td><code>password_hash</code></td><td><code>VARCHAR(255)</code></td><td>Bcrypt.</td></tr>
                         <tr><td><code>role</code></td><td><code>VARCHAR(50)</code></td><td>'user' or 'admin'.</td></tr>
-                        <tr><td><code>last_login</code></td><td><code>DATETIME</code></td><td>Updated on successful login.</td></tr>
-                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Account creation date.</td></tr>
+                        <tr><td><code>last_login</code></td><td><code>DATETIME</code></td><td>Updated on login.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -298,11 +288,10 @@
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key (Auto-increment)</td></tr>
-                        <tr><td><code>symbol</code></td><td><code>VARCHAR(10)</code></td><td>Unique Ticker (e.g., AAPL).</td></tr>
-                        <tr><td><code>company_name</code></td><td><code>VARCHAR(255)</code></td><td>Full legal name of the company.</td></tr>
-                        <tr><td><code>price</code></td><td><code>DECIMAL(10,2)</code></td><td>Last cached market price.</td></tr>
-                        <tr><td><code>market_cap</code></td><td><code>BIGINT</code></td><td>Last cached market capitalization.</td></tr>
+                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key</td></tr>
+                        <tr><td><code>symbol</code></td><td><code>VARCHAR(10)</code></td><td>Unique Ticker (AAPL).</td></tr>
+                        <tr><td><code>company_name</code></td><td><code>VARCHAR(255)</code></td><td>Legal name.</td></tr>
+                        <tr><td><code>price</code></td><td><code>DECIMAL(10,2)</code></td><td>Last cached price.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -314,14 +303,11 @@
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>Foreign Key to <code>users.id</code></td></tr>
-                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>Foreign Key to <code>stocks.id</code></td></tr>
-                        <tr><td><code>is_purchased</code></td><td><code>TINYINT(1)</code></td><td>0 = Watchlist/Discovery, 1 = Portfolio.</td></tr>
-                        <tr><td><code>shares</code></td><td><code>DECIMAL(10,4)</code></td><td>Quantity owned.</td></tr>
-                        <tr><td><code>purchase_price</code></td><td><code>DECIMAL(10,2)</code></td><td>Average cost basis.</td></tr>
-                        <tr><td><code>user_confirmed</code></td><td><code>TINYINT(1)</code></td><td>1 = Added by user, 0 = Auto-synced discovery.</td></tr>
-                        <tr><td><code>is_active</code></td><td><code>TINYINT(1)</code></td><td>1 = Active, 0 = Inactive/Deleted.</td></tr>
-                        <tr><td><code>last_transaction_date</code></td><td><code>DATETIME</code></td><td>Updated on buy/sell actions.</td></tr>
+                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>FK to users.</td></tr>
+                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>FK to stocks.</td></tr>
+                        <tr><td><code>is_purchased</code></td><td><code>TINYINT(1)</code></td><td>0 = Watchlist, 1 = Portfolio.</td></tr>
+                        <tr><td><code>shares</code></td><td><code>DECIMAL(10,4)</code></td><td>Quantity.</td></tr>
+                        <tr><td><code>user_confirmed</code></td><td><code>TINYINT(1)</code></td><td>1 = Manual, 0 = AI Auto-discovery.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -329,14 +315,18 @@
             <!-- USER_STOCK_PREDICTIONS -->
             <div id="user_stock_predictions" class="table-card">
                 <div class="table-title">user_stock_predictions</div>
-                <p>Persists AI-generated price predictions requested by users.</p>
+                <p>Persists multi-horizon AI-generated price predictions.</p>
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>Foreign Key to <code>users.id</code></td></tr>
-                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>Foreign Key to <code>stocks.id</code></td></tr>
+                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>FK to users.</td></tr>
+                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>FK to stocks.</td></tr>
+                        <tr><td><code>predicted_price_1d</code></td><td><code>DECIMAL(12,4)</code></td><td>AI 1-day target.</td></tr>
                         <tr><td><code>predicted_price_1m</code></td><td><code>DECIMAL(12,4)</code></td><td>AI 1-month target.</td></tr>
-                        <tr><td><code>last_requested_at</code></td><td><code>DATETIME</code></td><td>When the prediction was last generated.</td></tr>
+                        <tr><td><code>predicted_price_6m</code></td><td><code>DECIMAL(12,4)</code></td><td>AI 6-month target.</td></tr>
+                        <tr><td><code>predicted_price_1y</code></td><td><code>DECIMAL(12,4)</code></td><td>AI 1-year target.</td></tr>
+                        <tr><td><code>macro_features_used</code></td><td><code>JSON</code></td><td>Observability list of features.</td></tr>
+                        <tr><td><code>consumer_multiplier_applied</code></td><td><code>DECIMAL(5,4)</code></td><td>Consumer sector heuristic adjustment.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -344,31 +334,29 @@
             <!-- HOT_ETFS -->
             <div id="hot_etfs" class="table-card">
                 <div class="table-title">hot_etfs</div>
-                <p>Stores the results of the automated DeepMoney ETF discovery cycles.</p>
+                <p>Stores the results of automated DeepMoney ETF discovery cycles.</p>
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
                         <tr><td><code>ticker</code></td><td><code>VARCHAR(20)</code></td><td>ETF Symbol.</td></tr>
-                        <tr><td><code>etf_gps_score</code></td><td><code>DECIMAL(5,1)</code></td><td>Discovery engine score (0-100).</td></tr>
-                        <tr><td><code>theme</code></td><td><code>VARCHAR(100)</code></td><td>Thematic category (e.g., AI).</td></tr>
-                        <tr><td><code>is_leveraged</code></td><td><code>TINYINT(1)</code></td><td>Flag for high-volatility funds.</td></tr>
-                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>The discovery cycle date.</td></tr>
+                        <tr><td><code>etf_gps_score</code></td><td><code>DECIMAL(5,1)</code></td><td>0-100 Score.</td></tr>
+                        <tr><td><code>macro_tailwind_score</code></td><td><code>DECIMAL(5,1)</code></td><td>Structural macro boost.</td></tr>
+                        <tr><td><code>theme_validation_bonus</code></td><td><code>DECIMAL(5,1)</code></td><td>Tech adoption bonus points.</td></tr>
                     </tbody>
                 </table>
             </div>
 
-            <!-- STOCKSDAILYPRICE -->
-            <div id="stocksdailyprice" class="table-card">
-                <div class="table-title">stocksdailyprice</div>
-                <p>Historical OHLCV data for charting and ML training sequences.</p>
+            <!-- MACRO_CONTEXT_SNAPSHOTS -->
+            <div id="macro_context_snapshots" class="table-card">
+                <div class="table-title">macro_context_snapshots</div>
+                <p>Daily snapshots of processed macro signals for backtesting.</p>
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>Foreign Key to <code>stocks.id</code></td></tr>
-                        <tr><td><code>date</code></td><td><code>DATE</code></td><td>Trading day.</td></tr>
-                        <tr><td><code>close</code></td><td><code>DECIMAL(10,2)</code></td><td>Unadjusted closing price.</td></tr>
-                        <tr><td><code>adj_close</code></td><td><code>DECIMAL(10,2)</code></td><td>Split/dividend adjusted price.</td></tr>
-                        <tr><td><code>volume</code></td><td><code>INT</code></td><td>Shares traded.</td></tr>
+                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>Unique Primary Key.</td></tr>
+                        <tr><td><code>global_health_score</code></td><td><code>DECIMAL(5,2)</code></td><td>Multi-country macro score.</td></tr>
+                        <tr><td><code>unemployment_rate</code></td><td><code>DECIMAL(5,2)</code></td><td>USA current rate.</td></tr>
+                        <tr><td><code>unemployment_signal</code></td><td><code>VARCHAR(20)</code></td><td>bullish | bearish | neutral.</td></tr>
                     </tbody>
                 </table>
             </div>

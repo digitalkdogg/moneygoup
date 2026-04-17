@@ -200,6 +200,7 @@
             <span class="nav-header">Market Data</span>
             <a href="#market-indices" class="nav-link">GET /api/market/indices</a>
             <a href="#market-trending" class="nav-link">GET /api/market/trending</a>
+            <a href="#worldbank-data" class="nav-link">GET /api/worldbank</a>
 
             <span class="nav-header">Prediction</span>
             <a href="#prediction" class="nav-link">POST /api/prediction/[ticker]</a>
@@ -220,7 +221,7 @@
 
     <main>
         <h1>API Documentation</h1>
-        <p>Comprehensive overview of MoneyGoUp API endpoints, logic flows, and internal dependencies.</p>
+        <p>Comprehensive overview of MoneyGoUp API endpoints, logic flows, and internal dependencies. All potentially slow endpoints include 15m–12h caching with <code>source: 'cache' | 'livedata'</code> reporting.</p>
 
         <section id="fundamentals">
             <h2><span>0</span> Fundamentals & Auth</h2>
@@ -254,7 +255,8 @@
             <div id="stock-ticker" class="step-card">
                 <h3><span class="method get">GET</span> /api/stock_data/[ticker]</h3>
                 <div class="component-tag">Core: Consolidated Snapshot</div>
-                <p>The primary entry point for stock details. Supports comma-separated tickers.</p>
+                <p>The primary entry point for stock details. Supports comma-separated tickers. Cached for 15 minutes.</p>
+                <strong>Response addition:</strong> <code>source: 'cache' | 'livedata'</code>
                 <strong>Internal Dependencies:</strong>
                 <ul class="flow">
                     <li>Calls <code>/api/stock_data/[ticker]/historical/1y</code></li>
@@ -268,11 +270,12 @@
             <div id="stock-data-enriched" class="step-card">
                 <h3><span class="method get">GET</span> /api/stock_data/[ticker]/data</h3>
                 <div class="component-tag">Internal: Prediction Preprocessor</div>
-                <p>Assembles the deep 5-year data payload required by the MLP/LSTM Python engines.</p>
+                <p>Assembles the deep 5-year data payload required by the MLP/LSTM Python engines. Cached for 15 minutes. Supports <code>?refresh=true</code>.</p>
+                <strong>Response addition:</strong> <code>source: 'cache' | 'livedata'</code>
                 <strong>Logic Flow:</strong>
                 <ul class="flow">
                     <li>Fetches 5 years of OHLCV data.</li>
-                    <li><strong>Macro Integration:</strong> Fetches VIX, Treasury (10Y/3M), Credit Spreads (HYG/LQD), DXY, and Commodities (WTI, Copper, Wheat).</li>
+                    <li><strong>Macro Integration:</strong> Calls <code>/api/worldbank</code> (propagates refresh).</li>
                     <li><strong>Options:</strong> Calls <code>/api/stock_data/[ticker]/options</code>.</li>
                     <li>Performs <strong>Sector-based Imputation</strong> for missing fundamental metrics.</li>
                 </ul>
@@ -281,31 +284,23 @@
             <div id="stock-sub-data" class="step-card">
                 <h3>Specialized Sub-Data APIs</h3>
                 <div class="component-tag">Utility Endpoints</div>
-                <p>Granular endpoints used for targeted UI updates or internal data gathering.</p>
+                <p>Granular endpoints used for targeted UI updates or internal data gathering. All support <code>?refresh=true</code>.</p>
                 <div class="grid">
                     <div class="mini-card">
                         <h4><span class="method get">GET</span> .../historical/[period]</h4>
-                        <p>Fetches OHLCV data for 1d, 5d, 1mo, 6mo, 1y, 5y periods.</p>
+                        <p>Fetches OHLCV data. Cached 15m. Returns <code>cache_status</code>.</p>
                     </div>
                     <div class="mini-card">
                         <h4><span class="method get">GET</span> .../news</h4>
-                        <p>Aggregates latest news headlines and performs basic sentiment analysis.</p>
+                        <p>Aggregates latest news. Cached 2h. Returns <code>cache_status</code>.</p>
                     </div>
                     <div class="mini-card">
                         <h4><span class="method get">GET</span> .../analyst</h4>
-                        <p>Returns analyst price targets, recommendation trends, and ratings.</p>
+                        <p>Returns analyst targets. Cached 6h. Returns <code>source</code>.</p>
                     </div>
                     <div class="mini-card">
                         <h4><span class="method get">GET</span> .../earnings</h4>
-                        <p>Fetches upcoming earnings dates and historical EPS/Revenue surprises.</p>
-                    </div>
-                    <div class="mini-card">
-                        <h4><span class="method get">GET</span> .../options</h4>
-                        <p>Retrieves Implied Volatility (IV), IV Rank, and Put/Call ratios.</p>
-                    </div>
-                    <div class="mini-card">
-                        <h4><span class="method get">GET</span> .../industry</h4>
-                        <p>Returns peer stocks within the same industry taxonomy.</p>
+                        <p>Fetches earnings surprises. Cached 12h. Returns <code>source</code>.</p>
                     </div>
                 </div>
             </div>
@@ -321,53 +316,13 @@
             <div id="market-trending" class="step-card">
                 <h3><span class="method get">GET</span> /api/market/trending</h3>
                 <div class="component-tag">Market Momentum</div>
-                <p>Identifies stocks with high volume or significant price movement across the broader market.</p>
-            </div>
-        </section>
-
-        <section id="market-data">
-            <h2><span>2</span> Market Data</h2>
-            <div id="market-indices" class="step-card">
-                <h3><span class="method get">GET</span> /api/market/indices</h3>
-                <div class="component-tag">Global Market Health</div>
-                <p>Returns current prices and daily change % for major indices (DJI, S&P 500, Nasdaq, Russell 2000, VIX).</p>
-            </div>
-            <div id="market-trending" class="step-card">
-                <h3><span class="method get">GET</span> /api/market/trending</h3>
-                <div class="component-tag">Market Momentum</div>
-                <p>Identifies stocks with high volume or significant price movement across the broader market.</p>
+                <p>Identifies stocks with high volume or significant price movement.</p>
             </div>
             <div id="worldbank-data" class="step-card">
                 <h3><span class="method get">GET</span> /api/worldbank</h3>
                 <div class="component-tag">Macroeconomic Indicators</div>
-                <p>Provides consolidated World Bank macro indicators for the USA, including GDP growth, inflation, and consumption growth. Also includes ETF GPS factors and a global risk index.</p>
-                <strong>Response Structure:</strong>
-                <pre><code>{
-  "success": true,
-  "macro": {
-    "country": "USA",
-    "indicators": {
-      "gdpGrowth": 2.5,
-      "inflation": 1.8,
-      "consumptionGrowth": 2.1
-    }
-  },
-  "etf_factors": {
-    "themes": {
-      "Artificial Intelligence": [
-        {"indicator": "IT.NET.USER.ZS", "value": 85.0, "multiplier": 1.1}
-      ]
-    }
-  },
-  "risk_index": {
-    "countries": {
-      "USA": {"gdp": 2.5, "inflation": 1.8, "unemployment": 3.9},
-      // ... other countries
-    },
-    "globalHealthScore": 78.5
-  },
-  "asOf": "2026-04-16T12:00:00.000Z"
-}</code></pre>
+                <p>Consolidated World Bank macro indicators (GDP, FDI, Trade, Tech Adoption) for USA and global peers. Cached for 6 hours. Supports <code>?refresh=true</code>.</p>
+                <strong>Response structure:</strong> Includes <code>success</code>, <code>macro</code>, <code>etf_factors</code>, <code>risk_index</code>, <code>asOf</code>, and <code>source</code>.
             </div>
         </section>
 
@@ -376,11 +331,12 @@
             <div id="prediction" class="step-card">
                 <h3><span class="method post">POST</span> /api/prediction/[ticker]</h3>
                 <div class="component-tag">Process: Python Spawn (v3+ Engine)</div>
-                <p>Generates an AI price prediction using a local MLP neural network.</p>
+                <p>Generates an AI price prediction using a local MLP neural network. Results cached for 15 minutes. Supports <code>?refresh=true</code>.</p>
+                <strong>Response addition:</strong> <code>source: 'cache' | 'livedata'</code>
                 <strong>Logic Flow:</strong>
                 <ul class="flow">
                     <li>Spawns <code>scripts/predict_weighted_analysis.py</code>.</li>
-                    <li><strong>v3+ Logic:</strong> Integrates GMM-based Market Regime Detection.</li>
+                    <li><strong>v3+ Logic:</strong> Integrates GMM-based Market Regime Detection (109 feature tensor).</li>
                     <li><strong>Persistence:</strong> Automatically triggers a call to <code>/api/prediction/save</code>.</li>
                 </ul>
             </div>
@@ -388,30 +344,17 @@
             <div id="prediction-save" class="step-card">
                 <h3><span class="method post">POST</span> /api/prediction/save</h3>
                 <div class="component-tag">Persistence Layer</div>
-                <p>Saves or updates a user's prediction for a specific stock in the <code>user_stock_predictions</code> table.</p>
-                <strong>Payload Fields:</strong>
-                <pre><code>{
-  "ticker": "string",
-  "predicted_price_1d": "number | null",
-  "predicted_price_1m": "number", // Required
-  "predicted_price_6m": "number | null",
-  "predicted_price_1y": "number | null",
-  "macro_features_used": ["string"] | null,
-  "consumer_multiplier_applied": "number | null",
-  "last_requested_at": "string (ISO format)",
-  "user_id": "string (internal use only)"
-}</code></pre>
-                <strong>Database Update:</strong> Persists the provided prediction horizons and observability data.
+                <p>Saves or updates a user's prediction (1d, 1m, 6m, 1y horizons) and macro observability metadata.</p>
             </div>
 
             <div id="deepmoney" class="step-card">
                 <h3><span class="method get">GET</span> /api/prediction/deepmoney</h3>
                 <div class="component-tag">Discovery Engine (V2.1)</div>
-                <p>Advanced stock and ETF discovery engine using multi-factor analysis and ML validation.</p>
+                <p>Advanced stock and ETF discovery engine. Cached 30m. Supports <code>?refresh=true</code>.</p>
                 <strong>Cross-References:</strong>
                 <ul class="flow">
-                    <li>Internal <code>analyzer.ts</code> calls <code>/api/stock_data/[ticker]/data</code> for each candidate.</li>
-                    <li>Then calls <code>/api/prediction/[ticker]</code> to validate growth potential.</li>
+                    <li>Internal <code>analyzer.ts</code> calls <code>/api/stock_data/[ticker]/data</code>.</li>
+                    <li>Calls <code>performETFDiscovery</code> with macro-tailwind scoring (FDI/Trade trends).</li>
                 </ul>
             </div>
         </section>
@@ -427,76 +370,7 @@
             <div id="recommendations" class="step-card">
                 <h3><span class="method get">GET</span> /api/dashboard/recommendations</h3>
                 <div class="component-tag">Signal Engine</div>
-                <p>Returns automated BUY/SELL signals based on 1-month predictions across three buckets: Portfolio, Watchlist, and Discovery. Thresholds are configurable via environment variables.</p>
-                <p>See the <a href="recommendation_buckets.html">Recommendation Buckets Guide</a> for detailed logic.</p>
-            </div>
-
-            <div id="dashboard-on" class="step-card">
-                <h3><span class="method get">GET</span> /api/dashboard/on</h3>
-                <div class="component-tag">UX Helper</div>
-                <p>Checks if a specific ticker is already present in the user's portfolio or watchlist to toggle UI buttons.</p>
-            </div>
-
-            <div id="dashboard-analyst" class="step-card">
-                <h3><span class="method get">GET</span> /api/dashboard/analyst-ratings</h3>
-                <div class="component-tag">Personalized Sentiment</div>
-                <p>Retrieves consolidated analyst recommendations for all symbols currently held in the user's portfolio.</p>
-            </div>
-
-            <div id="deepmoney-picks" class="step-card">
-                <h3><span class="method get">GET</span> /api/dashboard/deepmoney-picks</h3>
-                <div class="component-tag">AI Recommendations</div>
-                <p>Returns the highest-scoring stocks from the latest <code>scripts/deepmoney_sync.py</code> run.</p>
-            </div>
-        </section>
-
-        <section id="user-data-section">
-            <h2><span>5</span> User Data & Portfolio</h2>
-            
-            <div id="portfolio" class="step-card">
-                <h3>Portfolio Management</h3>
-                <div class="component-tag">Tracking & P&L</div>
-                <p>Manage active stock positions and track performance trajectory.</p>
-                <div class="grid">
-                    <div class="mini-card">
-                        <h4><span class="method get">GET</span> /api/user/portfolio</h4>
-                        <p>Retrieve all active positions with current P&L and 1M predictions.</p>
-                    </div>
-                    <div class="mini-card">
-                        <h4><span class="method post">POST</span> /api/user/stocks</h4>
-                        <p>Record a new stock purchase.</p>
-                    </div>
-                    <div class="mini-card">
-                        <h4><span class="method patch">PATCH</span> /api/user/stocks/[id]</h4>
-                        <p>Update share count or purchase price.</p>
-                    </div>
-                </div>
-            </div>
-
-            <div id="watchlist" class="step-card">
-                <h3>Watchlist Monitor</h3>
-                <div class="component-tag">Stock Monitoring</div>
-                <p>Maintain a list of stocks for active monitoring. Note: Only returns items where <code>user_confirmed = 1</code>.</p>
-                <div class="grid">
-                    <div class="mini-card">
-                        <h4><span class="method get">GET</span> /api/user/watchlist</h4>
-                        <p>Fetch the user's monitored stocks. Filters: <code>is_active=1</code>, <code>is_purchased=0</code>, <code>user_confirmed=1</code>.</p>
-                    </div>
-                    <div class="mini-card">
-                        <h4><span class="method post">POST</span> /api/user/watchlist</h4>
-                        <p>Add a new ticker to the monitoring list.</p>
-                    </div>
-                    <div class="mini-card">
-                        <h4><span class="method delete">DELETE</span> /api/user/watchlist/[ticker]</h4>
-                        <p>Remove a stock from the watchlist.</p>
-                    </div>
-                </div>
-            </div>
-
-            <div id="historical-value" class="step-card">
-                <h3><span class="method get">GET</span> /api/user/portfolio/historical-value</h3>
-                <div class="component-tag">Performance Analytics</div>
-                <p>Calculates the portfolio value trajectory over time for charting.</p>
+                <p>Returns automated BUY/SELL signals based on 1-month predictions. Applies <strong>Unemployment Dampeners</strong> (+2.0% req. threshold on bearish signal) and <strong>Global Health Modifiers</strong>.</p>
             </div>
         </section>
 

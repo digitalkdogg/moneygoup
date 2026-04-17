@@ -25,6 +25,7 @@ describe('GET /api/worldbank', () => {
 
     mockRequest = {
       headers: new Headers(),
+      url: 'http://localhost/api/worldbank',
       nextUrl: new URL('http://localhost/api/worldbank'),
     } as unknown as NextRequest;
   });
@@ -42,30 +43,35 @@ describe('GET /api/worldbank', () => {
 
   test('fetches from database and populates cache on cache miss', async () => {
     const mockMacroRows = [
-      { indicator_code: 'NY.GDP.MKTP.KD.ZG', value: '2.5' },
-      { indicator_code: 'FP.CPI.TOTL.ZG', value: '1.8' },
-      { indicator_code: 'NE.CON.PRVT.KD.ZG', value: '2.1' },
+      { indicator_code: 'NY.GDP.MKTP.KD.ZG', year: 2023, value: '2.5' },
+      { indicator_code: 'FP.CPI.TOTL.ZG', year: 2023, value: '1.8' },
+      { indicator_code: 'NE.CON.PRVT.KD.ZG', year: 2023, value: '2.1' },
     ];
     const mockEtfRows = [
       { theme_or_sector: 'AI', indicator_code: 'IT.NET.USER.ZS', latest_value: '85.0', multiplier_effect: '1.1' }
     ];
     const mockRiskRows = [
-      { country_code: 'USA', indicator_code: 'NY.GDP.MKTP.KD.ZG', value: '2.5' },
-      { country_code: 'USA', indicator_code: 'FP.CPI.TOTL.ZG', value: '1.8' },
-      { country_code: 'USA', indicator_code: 'SL.UEM.TOTL.ZS', value: '3.9' }
+      { country_code: 'USA', indicator_code: 'NY.GDP.MKTP.KD.ZG', year: 2023, value: '2.5' },
+      { country_code: 'USA', indicator_code: 'FP.CPI.TOTL.ZG', year: 2023, value: '1.8' },
+      { country_code: 'USA', indicator_code: 'SL.UEM.TOTL.ZS', year: 2023, value: '3.9' }
+    ];
+    const mockTrendRows = [
+      { country_code: 'USA', indicator_code: 'NY.GDP.MKTP.KD.ZG', year: 2023, value: '2.5' },
+      { country_code: 'USA', indicator_code: 'NY.GDP.MKTP.KD.ZG', year: 2022, value: '2.3' },
     ];
 
     (executeRawQuery as jest.Mock)
       .mockResolvedValueOnce([mockMacroRows])
       .mockResolvedValueOnce([mockEtfRows])
-      .mockResolvedValueOnce([mockRiskRows]);
+      .mockResolvedValueOnce([mockRiskRows])
+      .mockResolvedValueOnce([mockTrendRows]);
 
     const response = await GET(mockRequest);
     expect(response.status).toBe(200);
     const data = await response.json();
 
     expect(data.success).toBe(true);
-    expect(data.macro.indicators.gdpGrowth).toBe(2.5);
+    expect(data.macro.indicators.gdpGrowth.latest).toBe(2.5);
     expect(data.etf_factors.themes.AI).toHaveLength(1);
     expect(data.risk_index.countries.USA.gdp).toBe(2.5);
     expect(data.risk_index.globalHealthScore).toBeDefined();
@@ -78,16 +84,18 @@ describe('GET /api/worldbank', () => {
     const mockMacroRows: any[] = [];
     const mockEtfRows: any[] = [];
     const mockRiskRows = [
-      { country_code: 'USA', indicator_code: 'NY.GDP.MKTP.KD.ZG', value: '3.0' }, // gdpScore = (3+2)*10 = 50
-      { country_code: 'USA', indicator_code: 'FP.CPI.TOTL.ZG', value: '2.0' },  // infScore = 100-(2*10) = 80
-      { country_code: 'USA', indicator_code: 'SL.UEM.TOTL.ZS', value: '4.0' }   // uemScore = 100-(4*5) = 80
+      { country_code: 'USA', indicator_code: 'NY.GDP.MKTP.KD.ZG', year: 2023, value: '3.0' }, // gdpScore = (3+2)*10 = 50
+      { country_code: 'USA', indicator_code: 'FP.CPI.TOTL.ZG', year: 2023, value: '2.0' },  // infScore = 100-(2*10) = 80
+      { country_code: 'USA', indicator_code: 'SL.UEM.TOTL.ZS', year: 2023, value: '4.0' }   // uemScore = 100-(4*5) = 80
       // Country score = (50+80+80)/3 = 70
     ];
+    const mockTrendRows: any[] = [];
 
     (executeRawQuery as jest.Mock)
       .mockResolvedValueOnce([mockMacroRows])
       .mockResolvedValueOnce([mockEtfRows])
-      .mockResolvedValueOnce([mockRiskRows]);
+      .mockResolvedValueOnce([mockRiskRows])
+      .mockResolvedValueOnce([mockTrendRows]);
 
     const response = await GET(mockRequest);
     const data = await response.json();

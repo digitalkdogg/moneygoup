@@ -145,7 +145,9 @@ export const secCompanyCache = new Cache<{
   [key: string]: { cik_str: number; ticker: string; title: string };
 }>(24 * 60 * 60 * 1000); // 24 hours for SEC data
 
-export const stockDataCache = new Cache<any>(5 * 60 * 1000); // 5 minutes for stock data
+export const stockDataCache = new Cache<any>(15 * 60 * 1000); // 15 minutes for stock data
+
+export const historicalDataCache = new Cache<any>(15 * 60 * 1000); // 15 minutes for historical data
 
 export const technicalIndicatorsCache = new Cache<any>(10 * 60 * 1000); // 10 minutes for indicators
 
@@ -158,5 +160,13 @@ export const marketIndicesCache = new Cache<any>(2 * 60 * 1000); // 2 minutes fo
 export const analystRatingsCache = new Cache<any>(30 * 60 * 1000); // 30 minutes for dashboard analyst ratings
 
 export const worldBankCache = new Cache<any>(6 * 60 * 60 * 1000); // 6 hours for World Bank data
+
+export const earningsCache = new Cache<any>(12 * 60 * 60 * 1000); // 12 hours for earnings data
+
+export const analystDataCache = new Cache<any>(6 * 60 * 60 * 1000); // 6 hours for analyst data
+
+export const newsDataCache = new Cache<any>(2 * 60 * 1000); // 2 hours for news data
+
+export const predictionCache = new Cache<any>(15 * 60 * 1000); // 15 minutes for MLP predictions
 
 export default Cache;

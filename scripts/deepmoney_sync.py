@@ -20,6 +20,7 @@ DB_DATABASE = os.getenv('DB_DATABASE')
 INTERNAL_SECRET = os.getenv('DEEPMONEY_INTERNAL_SECRET')
 NEXTAUTH_URL = os.getenv('NEXTAUTH_URL', 'http://localhost:3001')
 API_URL = f"{NEXTAUTH_URL}/api/prediction/deepmoney?refresh=true"
+WB_API_URL = f"{NEXTAUTH_URL}/api/worldbank"
 
 # Global cache for market indices
 _indices_cache = None
@@ -49,11 +50,24 @@ def get_market_indices(headers: dict) -> dict | None:
         print(f"  [indices] Warning: Error fetching market indices: {e}")
         return None
 
+def fetch_world_bank_data(headers: dict) -> dict | None:
+    """Fetch consolidated World Bank data."""
+    print(f"  [macro] Fetching World Bank data from {WB_API_URL}...")
+    try:
+        response = requests.get(WB_API_URL, headers=headers)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        print(f"  [macro] Warning: Error fetching World Bank data: {e}")
+        return None
+
 def sync_deepmoney():
     print(f"[{datetime.now()}] Starting DeepMoney sync...")
     
     # 1. Fetch data from API (V2)
     headers = {'x-api-key': INTERNAL_SECRET}
+
+    wb_data = fetch_world_bank_data(headers)
 
     # Optional: Log market status at the beginning
     indices_data = get_market_indices(headers)
@@ -96,6 +110,31 @@ def sync_deepmoney():
         # 3. Clear existing recommendation data
         print("Clearing existing recommendation data...")
         cursor.execute("DELETE FROM recommended_stocks")
+
+        # 3.1 Persist Macro Context Snapshot (Phase 4)
+        if wb_data and wb_data.get('success'):
+            print("Persisting macro context snapshot...")
+            macro = wb_data.get('macro', {}).get('indicators', {})
+            risk = wb_data.get('risk_index', {})
+            
+            cursor.execute("""
+                INSERT INTO macro_context_snapshots 
+                (snapshot_date, global_health_score, unemployment_rate, unemployment_signal, inflation_rate, gdp_growth)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                global_health_score = VALUES(global_health_score),
+                unemployment_rate = VALUES(unemployment_rate),
+                unemployment_signal = VALUES(unemployment_signal),
+                inflation_rate = VALUES(inflation_rate),
+                gdp_growth = VALUES(gdp_growth)
+            """, (
+                today,
+                risk.get('globalHealthScore'),
+                macro.get('unemployment', {}).get('latest'),
+                macro.get('unemployment', {}).get('signal'),
+                macro.get('inflation', {}).get('latest'),
+                macro.get('gdpGrowth', {}).get('latest')
+            ))
 
         # 3.5 Fetch active users (login in past 7 days)
         print("Fetching active users...")

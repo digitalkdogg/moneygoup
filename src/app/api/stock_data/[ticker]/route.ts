@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { executeRawQuery, transaction } from '@/utils/databaseHelper'
 import { createErrorResponse, unauthorizedResponse, forbiddenResponse, validationErrorResponse } from '@/utils/errorResponse';
-import { secCompanyCache } from '@/utils/cache';
+import { secCompanyCache, stockDataCache } from '@/utils/cache';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { checkOrigin } from '@/utils/originCheck';
 import { calculateTechnicalIndicators } from '@/utils/technicalIndicators';
 import { createLogger } from '@/utils/logger';
-import { fetchYahooStockSummary } from '@/utils/yahooFinanceHelper'; // Import the new helper function
+import { fetchYahooStockSummary } from '@/utils/yahooFinanceHelper';
 import { tickerSchema, multiTickerSchema } from '@/utils/validationSchemas';
 import { stockDataLimiter } from '@/utils/rateLimiter';
 import { checkRateLimit } from '@/utils/rateLimitMiddleware';
@@ -44,8 +44,6 @@ async function fetchCompanyNameFromSec(ticker: string): Promise<string | null> {
     }
 
     if (secCompanyData) {
-      // The SEC JSON is an object with keys "0", "1", "2", ...
-      // Each value is an object { cik_str, ticker, title }
       for (const key in secCompanyData) {
         if (Object.prototype.hasOwnProperty.call(secCompanyData, key)) {
           const company = secCompanyData[key];
@@ -164,7 +162,7 @@ const normalizeYahooData = (data: any, currentSources: string[], secCompanyNames
     low: data.regularMarketDayLow,
     volume: data.regularMarketVolume,
     prevClose: data.regularMarketPreviousClose,
-    timestamp: new Date(data.regularMarketTime * 1000).toISOString(),
+    timestamp: data.regularMarketTime ? new Date(data.regularMarketTime * 1000).toISOString() : new Date().toISOString(),
     exchange: data.fullExchangeName,
     peRatio: data.trailingPE ?? null, // Use null if undefined
     pbRatio: data.priceToBook ?? null, // Use null if undefined
@@ -205,10 +203,9 @@ async function fetchFromExternalAPIs(tickers: string | string[]) {
 
   // Try Yahoo Finance for all tickers
   try {
-    // Fetch all tickers in one call using quote with multiple symbols
     const results = await Promise.all(tickerArray.map(async (ticker) => {
       try {
-        const summary = await fetchYahooStockSummary(ticker); // Use the helper function
+        const summary = await fetchYahooStockSummary(ticker);
 
         const data = {
             ...summary.assetProfile,
@@ -219,25 +216,26 @@ async function fetchFromExternalAPIs(tickers: string | string[]) {
             ...summary.defaultKeyStatistics,
         };
 
-        const analyst = {
-          recommendationTrend: summary.recommendationTrend?.trend || [],
-          recommendationKey: summary.financialData?.recommendationKey || null,
-          numberOfAnalystOpinions: summary.financialData?.numberOfAnalystOpinions || null,
-          priceTarget: {
-            low: summary.financialData?.targetLowPrice || null,
-            mean: summary.financialData?.targetMeanPrice || null,
-            median: summary.financialData?.targetMedianPrice || null,
-            high: summary.financialData?.targetHighPrice || null,
-            current: summary.financialData?.currentPrice || summary.price?.regularMarketPrice || null
-          }
-        };
-
         if (!data || !data.symbol) {
           throw new Error(`StockNotFoundError: ${ticker}`);
         }
         const normalized = normalizeYahooData(data, sources, secCompanyNames);
         if (normalized) {
-          return normalized;
+          return {
+            stock: normalized,
+            analyst: {
+              recommendationTrend: summary.recommendationTrend?.trend || [],
+              recommendationKey: summary.financialData?.recommendationKey || null,
+              numberOfAnalystOpinions: summary.financialData?.numberOfAnalystOpinions || null,
+              priceTarget: {
+                low: summary.financialData?.targetLowPrice || null,
+                mean: summary.financialData?.targetMeanPrice || null,
+                median: summary.financialData?.targetMedianPrice || null,
+                high: summary.financialData?.targetHighPrice || null,
+                current: summary.financialData?.currentPrice || summary.price?.regularMarketPrice || null
+              }
+            }
+          };
         }
         console.warn(`Normalization failed for ${ticker}`);
         return null;
@@ -254,12 +252,10 @@ async function fetchFromExternalAPIs(tickers: string | string[]) {
 
     const validResults = results.filter(r => r !== null);
 
-    // If no results were successfully fetched, throw an error
     if (validResults.length === 0) {
       throw new Error(errors.join('; ') || 'Failed to fetch stock data from external APIs');
     }
 
-    // Return single object if one ticker, array if multiple
     return tickerArray.length === 1 ? [validResults[0]] : validResults;
   } catch (error: any) {
     throw error;
@@ -267,8 +263,6 @@ async function fetchFromExternalAPIs(tickers: string | string[]) {
 }
 
 
-// The new GET handler, modified from get/route.ts
-// NOTE: This endpoint requires authentication.
 export async function GET(request: NextRequest, { params }: { params: { ticker: string } }) {
   const originCheckResponse = checkOrigin(request)
   if (originCheckResponse) return originCheckResponse
@@ -295,54 +289,52 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
     return validationErrorResponse('Invalid ticker format');
   }
 
+  // Check cache unless refresh is requested
+  const { searchParams } = new URL(request.url);
+  const forceRefresh = searchParams.get('refresh') === 'true';
+
+  if (!forceRefresh) {
+    const cachedData = stockDataCache.get(validatedTicker);
+    if (cachedData) {
+      return NextResponse.json({ ...cachedData as any, source: 'cache' });
+    }
+  }
+
   const tickerArray = validatedTicker.split(',').map(t => t.trim())
 
   const origin = request.nextUrl?.origin || ''
 
   try {
-    // 1. Fetch historical data for all tickers in a single call
+    // Fetch related data in batch for tickers requested
     const histAllTickersPromise = fetch(`${origin}/api/stock_data/${validatedTicker}/historical/1y`, { headers: { 'Cookie': request.headers.get('Cookie') || '' } });
-    const histAllTickersRes = await histAllTickersPromise;
-    const histAllTickersJson = histAllTickersRes.ok ? await histAllTickersRes.json() : { historicalData: {}, error: `Failed to fetch historical for all tickers: ${histAllTickersRes.status}` };
-
-    // 2. Fetch news data for all tickers in a single call
     const newsAllTickersPromise = fetch(`${origin}/api/stock_data/${validatedTicker}/news`, { headers: { 'Cookie': request.headers.get('Cookie') || '' } });
-    const newsAllTickersRes = await newsAllTickersPromise;
-    const newsAllTickersJson = newsAllTickersRes.ok ? await newsAllTickersRes.json() : { articles: {}, error: `Failed to fetch news for all tickers: ${newsAllTickersRes.status}` };
-
-    // 3. Fetch analyst data for all tickers in a single call
     const analystAllTickersPromise = fetch(`${origin}/api/stock_data/${validatedTicker}/analyst`, { headers: { 'Cookie': request.headers.get('Cookie') || '' } });
-    const analystAllTickersRes = await analystAllTickersPromise;
-    const analystAllTickersJson = analystAllTickersRes.ok ? await analystAllTickersRes.json() : { analystData: {}, error: `Failed to fetch analyst for all tickers: ${analystAllTickersRes.status}` };
 
-    // 4. Fetch earnings data for all tickers in a single call (if possible, else we'll loop)
-    // There is no batch earnings endpoint currently, so we'll fetch them in the map below.
+    const [histAllTickersRes, newsAllTickersRes, analystAllTickersRes] = await Promise.all([
+      histAllTickersPromise,
+      newsAllTickersPromise,
+      analystAllTickersPromise
+    ]);
 
-    // Fetch data for all tickers in parallel
+    const histAllTickersJson = histAllTickersRes.ok ? await histAllTickersRes.json() : { historicalData: {}, error: `Failed to fetch historical` };
+    const newsAllTickersJson = newsAllTickersRes.ok ? await newsAllTickersRes.json() : { articles: {}, error: `Failed to fetch news` };
+    const analystAllTickersJson = analystAllTickersRes.ok ? await analystAllTickersRes.json() : { analystData: {}, error: `Failed to fetch analyst` };
+
     const fetchPromises = tickerArray.map(async (ticker) => {
       try {
-        const stockDataArray = await fetchFromExternalAPIs(ticker)
-        
-        // Fetch earnings for this ticker
+        const externalDataArray = await fetchFromExternalAPIs(ticker)
         const earningsPromise = fetch(`${origin}/api/stock_data/${ticker}/earnings`, { headers: { 'Cookie': request.headers.get('Cookie') || '' } });
 
-        // stockDataArray is already an array from fetchFromExternalAPIs, get the first element for single ticker
-        const stockData = (stockDataArray && stockDataArray.length > 0) ? stockDataArray[0] : { error: 'Failed to fetch stock' };
-        const stockJson = stockData;
+        const externalData = (externalDataArray && externalDataArray.length > 0) ? externalDataArray[0] : { error: 'Failed to fetch stock' };
+        const stockJson = (externalData as any).stock;
+        const analystJson = (externalData as any).analyst;
 
-        // Extract analyst data for the current ticker
-        const analystJson = tickerArray.length === 1 
-          ? analystAllTickersJson 
-          : (analystAllTickersJson.analystData?.[ticker] || null);
-
-        // Extract news data for the current ticker from the pre-fetched all-tickers response
         const newsJson = {
           articles: newsAllTickersJson.articles?.[ticker] || [],
           source: newsAllTickersJson.source,
           error: newsAllTickersJson.error
         };
 
-        // Extract historical data for the current ticker from the pre-fetched all-tickers response
         const histJson = {
           historicalData: histAllTickersJson.historicalData?.[ticker] || [],
           source: histAllTickersJson.source,
@@ -352,23 +344,18 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
         const earningsRes = await earningsPromise;
         const earningsJson = earningsRes.ok ? await earningsRes.json() : null;
 
-        // Calculate indicators if all data is available
         let indicators = null;
-        // Check if historical data and news data was successfully fetched for this specific ticker
-        // Calculate indicators if all data is available and stock data is valid
         if (
           newsJson.articles &&
           newsJson.articles.length > 0 &&
           histJson.historicalData &&
           histJson.historicalData.length > 0 &&
           stockJson &&
-          'symbol' in stockJson // Ensure stockJson is a valid stock object and not an error object
+          'symbol' in stockJson
         ) {
           const historicalData = histJson.historicalData;
           const newsArticles = newsJson.articles;
 
-          // Safely access properties, providing null if they don't exist.
-          // The 'symbol' check above prevents accessing properties on an error object.
           const peRatio = stockJson.peRatio ?? null;
           const pbRatio = stockJson.pbRatio ?? null;
           const marketCap = stockJson.marketCap ?? null;
@@ -408,11 +395,10 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
 
     const results = await Promise.all(fetchPromises);
 
-    // Format response based on number of tickers
+    let finalResponse;
     if (tickerArray.length === 1) {
-      // Single ticker: return data directly
       const result = results[0];
-      return NextResponse.json({
+      finalResponse = {
         stock: result.stock,
         news: result.news,
         historical: result.historical,
@@ -420,9 +406,8 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
         earnings: result.earnings,
         analyst: result.analyst,
         ...(result.error && { error: result.error, details: result.details })
-      });
+      };
     } else {
-      // Multiple tickers: return object with tickers as keys
       const consolidatedData: Record<string, any> = {};
       results.forEach(result => {
         consolidatedData[result.ticker] = {
@@ -435,29 +420,26 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
           ...(result.error && { error: result.error, details: result.details })
         };
       });
-      return NextResponse.json(consolidatedData);
+      finalResponse = consolidatedData;
     }
+
+    // Cache final result
+    stockDataCache.set(validatedTicker, finalResponse);
+
+    return NextResponse.json({ ...finalResponse as any, source: 'livedata' });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to fetch consolidated stock data', details: error instanceof Error ? error.message : String(error) }, { status: 500 })
   }
 }
 
-// The DELETE handler from the original route.ts
 export async function DELETE(request: NextRequest, { params }: { params: { ticker: string } }) {
   const originCheckResponse = checkOrigin(request);
-  if (originCheckResponse) {
-    return originCheckResponse;
-  }
-  // Add authentication check
+  if (originCheckResponse) return originCheckResponse;
+
   const session = await getServerSession(authOptions);
   if (!session || !session.user || !session.user.id) {
     return unauthorizedResponse();
   }
 
-  // Add authorization check
-  // Deleting a global stock is a highly sensitive action impacting all users.
-  // For now, we will forbid this action for all regular authenticated users.
-  // If an admin role system is implemented, this check would be adjusted to
-  // allow only users with 'admin' role.
   return forbiddenResponse('Forbidden: This action requires administrative privileges.');
 }

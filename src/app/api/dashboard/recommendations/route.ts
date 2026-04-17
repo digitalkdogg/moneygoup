@@ -9,6 +9,21 @@ import { fetchYahooQuotesForSymbols } from '@/utils/yahooFinanceHelper';
 import { DashboardRecommendation, DashboardRecommendationsResponse } from '@/types/dashboard';
  
 const logger = createLogger('api/dashboard/recommendations');
+
+async function fetchMacroContext(): Promise<any> {
+    try {
+        const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3001';
+        const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
+        const res = await fetch(`${baseUrl}/api/worldbank`, {
+            headers: { 'x-api-key': internalSecret || '' }
+        });
+        if (!res.ok) return null;
+        return await res.json();
+    } catch (err) {
+        logger.warn('Failed to fetch macro context for recommendations', { error: err });
+        return null;
+    }
+}
  
 export async function GET(request: NextRequest) {
   const originCheckResponse = checkOrigin(request);
@@ -75,9 +90,31 @@ export async function GET(request: NextRequest) {
       return isNaN(parsed) ? defaultValue : parsed;
     };
 
-    const portfolioPositiveThreshold = getThreshold(process.env.RECOMMENDATION_PORTFOLIO_POSITIVE_THRESHOLD, 3);
+    const basePortfolioPositiveThreshold = getThreshold(process.env.RECOMMENDATION_PORTFOLIO_POSITIVE_THRESHOLD, 3);
     const portfolioNegativeThreshold = getThreshold(process.env.RECOMMENDATION_PORTFOLIO_NEGATIVE_THRESHOLD, -3);
-    const watchlistThreshold = getThreshold(process.env.RECOMMENDATION_WATCHLIST_THRESHOLD, 5);
+    const baseWatchlistThreshold = getThreshold(process.env.RECOMMENDATION_WATCHLIST_THRESHOLD, 5);
+
+    // --- Macro Dampeners (Phase 3) ---
+    const macroContext = await fetchMacroContext();
+    const unemployment = macroContext?.macro?.indicators?.unemployment;
+    const globalHealth = macroContext?.risk_index?.globalHealthScore;
+
+    let buyDampener = 0; // percentage points to ADD to required threshold
+    let globalModifier = 1.0; // GPS/Confidence multiplier
+
+    if (unemployment && unemployment.signal === 'bearish') {
+        // Unemployment is rising (bearish for economy)
+        buyDampener = 2.0; 
+        logger.info('Applying unemployment dampener to BUY thresholds', { delta: unemployment.delta });
+    }
+
+    if (globalHealth !== undefined && globalHealth !== null) {
+        if (globalHealth > 70) globalModifier = 1.05;
+        else if (globalHealth < 45) globalModifier = 0.90;
+    }
+
+    const portfolioPositiveThreshold = basePortfolioPositiveThreshold + buyDampener;
+    const watchlistThreshold = baseWatchlistThreshold + buyDampener;
  
     for (const pred of predictions) {
       const quote = quoteMap.get(pred.stock_id);
@@ -87,7 +124,12 @@ export async function GET(request: NextRequest) {
       const predictedPrice1m = parseFloat(pred.predicted_price_1m);
       
       // Calculate percentage difference
-      const deltaPct = ((predictedPrice1m - currentPrice) / currentPrice) * 100;
+      let deltaPct = ((predictedPrice1m - currentPrice) / currentPrice) * 100;
+
+      // Apply global health modifier to prediction for international context
+      if (globalModifier !== 1.0) {
+          deltaPct *= globalModifier;
+      }
  
       const isConfirmed = pred.user_confirmed === 1;
       const isPurchased = pred.is_purchased === 1;

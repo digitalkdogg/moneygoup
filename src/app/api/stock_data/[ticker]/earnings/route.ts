@@ -3,34 +3,27 @@ import { createLogger } from '@/utils/logger';
 import { checkOrigin } from '@/utils/originCheck';
 import YahooFinance from 'yahoo-finance2';
 import { createErrorResponse, validationErrorResponse } from '@/utils/errorResponse';
-import { getServerSession } from 'next-auth'; // Add this import
-import { authOptions } from '@/lib/auth'; // Add this import
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { tickerSchema } from '@/utils/validationSchemas';
 import { z } from 'zod';
+import { earningsCache } from '@/utils/cache';
 
 const logger = createLogger('api/stock/[ticker]/earnings');
 
-// Helper function to format earnings date
 const formatEarningsDate = (dateValue: any): string | null => {
   if (!dateValue) return null;
-
   let date: Date | null = null;
   let dateString: string | null = null;
 
-  // If it's a string, try to parse it as ISO or date string
   if (typeof dateValue === 'string') {
     dateString = dateValue;
   }
-  // If it's a number (Unix timestamp in seconds)
   else if (typeof dateValue === 'number') {
     date = new Date(dateValue * 1000);
   }
-  // If it's an object, try to extract a date
   else if (typeof dateValue === 'object' && dateValue !== null) {
-    // Try common property names
-    if ((dateValue as any).fmt) {
-      return (dateValue as any).fmt;
-    }
+    if ((dateValue as any).fmt) return (dateValue as any).fmt;
     if ((dateValue as any).date) {
       dateString = (dateValue as any).date;
     } else if ((dateValue as any).earningsDate) {
@@ -40,32 +33,23 @@ const formatEarningsDate = (dateValue: any): string | null => {
     }
   }
 
-  // Parse the date string if we have one
-  if (dateString && !date) {
-    date = new Date(dateString);
-  }
+  if (dateString && !date) date = new Date(dateString);
 
-  // Format the date as M/D/YYYY
   if (date) {
     const timeValue = date.getTime();
-
     if (!isNaN(timeValue)) {
-      const formatted = date.toLocaleDateString('en-US', {
+      return date.toLocaleDateString('en-US', {
         month: 'numeric',
         day: 'numeric',
         year: 'numeric'
       });
-      return formatted;
     }
   }
-
   return null;
 };
 
-// Declare yahooFinance outside to potentially reuse, but initialize inside GET for testing
 let yahooFinanceInstance: InstanceType<typeof YahooFinance> | null = null;
 
-// NOTE: This endpoint requires authentication.
 export async function GET(request: NextRequest, { params }: { params: { ticker: string } }) {
   const apiKey = request.headers.get('x-api-key');
   const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
@@ -73,36 +57,34 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
 
   if (!isInternal) {
     const originCheckResponse = checkOrigin(request);
-    if (originCheckResponse) {
-      return originCheckResponse;
-    }
+    if (originCheckResponse) return originCheckResponse;
 
     const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-    }
+    if (!session) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
 
-  // Validate ticker
+  let validatedTicker: string;
   try {
-    var validatedTicker = tickerSchema.parse(params.ticker);
+    validatedTicker = tickerSchema.parse(params.ticker);
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      const message = error.issues && error.issues.length > 0 
-        ? error.issues[0].message 
-        : 'Invalid ticker';
-      return validationErrorResponse(message);
-    }
-    return validationErrorResponse('Invalid ticker format');
+    return validationErrorResponse('Invalid ticker');
   }
 
-  // Initialize yahooFinance if it hasn't been already
+  const { searchParams } = new URL(request.url);
+  const forceRefresh = searchParams.get('refresh') === 'true';
+
+  if (!forceRefresh) {
+    const cachedData = earningsCache.get(validatedTicker);
+    if (cachedData) {
+      return NextResponse.json({ ...cachedData as any, source: 'cache' });
+    }
+  }
+
   if (!yahooFinanceInstance) {
     yahooFinanceInstance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
   }
 
   try {
-    // Fetch earnings data with multiple modules to get calendar info
     const quoteSummary = await yahooFinanceInstance.quoteSummary(validatedTicker, {
       modules: ['earnings', 'calendarEvents']
     });
@@ -110,167 +92,50 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
     const earningsData = quoteSummary.earnings;
     const calendarEvents = quoteSummary.calendarEvents;
 
-    // Log the structure for debugging
-    logger.info(`Earnings data structure for ${validatedTicker}:`, {
-      hasEarningsChart: !!earningsData?.earningsChart,
-      hasEarningsDate: !!earningsData?.earningsChart?.earningsDate,
-      earningsDateLength: earningsData?.earningsChart?.earningsDate?.length,
-      earningsDateSample: earningsData?.earningsChart?.earningsDate?.[0],
-      hasCalendarEvents: !!calendarEvents,
-      calendarEarnings: calendarEvents?.earnings?.[0],
-    });
-
     if (!earningsData || (!earningsData.financialsChart && !earningsData.earningsChart)) {
-      return NextResponse.json({
-        upcomingEarnings: null,
-        historicalEarnings: [],
-        message: 'No earnings data available for this ticker.',
-      }, { status: 200 });
+      const resp = { upcomingEarnings: null, historicalEarnings: [], message: 'No earnings data available' };
+      earningsCache.set(validatedTicker, resp);
+      return NextResponse.json({ ...resp, source: 'livedata' });
     }
 
-        // Extract upcoming earnings date - try multiple approaches
-        let upcomingEarnings = null;
+    let upcomingEarnings = null;
+    if (earningsData.earningsChart?.earningsDate) {
+      const earningsDateEntry = earningsData.earningsChart.earningsDate[0];
+      if (earningsDateEntry) upcomingEarnings = formatEarningsDate(earningsDateEntry);
+    }
+    if (!upcomingEarnings && calendarEvents?.earnings?.[0]) {
+      const nextEarnings = calendarEvents.earnings[0];
+      upcomingEarnings = formatEarningsDate((nextEarnings as any)?.earningsDate || (nextEarnings as any)?.date || nextEarnings);
+    }
 
-        // First try earningsChart.earningsDate
-        if (earningsData.earningsChart?.earningsDate) {
-          const earningsDateEntry = earningsData.earningsChart.earningsDate[0];
-          logger.info(`[DEBUG] earningsDateEntry raw:`, { earningsDateEntry });
-          if (earningsDateEntry) {
-            upcomingEarnings = formatEarningsDate(earningsDateEntry);
-            logger.info(`[DEBUG] formatEarningsDate result:`, { upcomingEarnings });
-          }
+    const historicalDataMap: Map<string, any> = new Map();
+    if (earningsData.earningsChart?.quarterly) {
+      earningsData.earningsChart.quarterly.forEach((q: any) => {
+        historicalDataMap.set(q.date, { date: q.date, epsActual: q.actual, epsEstimate: q.estimate, revenue: null, earnings: null });
+      });
+    }
+    if (earningsData.financialsChart?.quarterly) {
+      earningsData.financialsChart.quarterly.forEach((q: any) => {
+        const existingData = historicalDataMap.get(q.date);
+        if (existingData) {
+          historicalDataMap.set(q.date, { ...existingData, revenue: q.revenue, earnings: q.earnings });
+        } else {
+          historicalDataMap.set(q.date, { date: q.date, epsActual: null, epsEstimate: null, revenue: q.revenue, earnings: q.earnings });
         }
+      });
+    }
 
-        // If that didn't work, try calendar events
-        if (!upcomingEarnings && calendarEvents?.earnings?.[0]) {
-          const nextEarnings = calendarEvents.earnings[0];
-          upcomingEarnings = formatEarningsDate(
-            (nextEarnings as any)?.earningsDate ||
-            (nextEarnings as any)?.date ||
-            nextEarnings
-          );
-          logger.info(`[DEBUG] from calendar events:`, { upcomingEarnings });
-        }
+    const combinedHistoricalEarnings = Array.from(historicalDataMap.values()).sort((a, b) => {
+      const parseQuarterDate = (dateStr: string) => {
+        const match = dateStr.match(/(\d)Q(\d{4})/);
+        return match ? parseInt(match[2]) * 10 + parseInt(match[1]) : 0;
+      };
+      return parseQuarterDate(b.date) - parseQuarterDate(a.date);
+    });
 
-        logger.info(`[DEBUG] Final upcomingEarnings:`, { upcomingEarnings });
-
-    
-
-        const historicalDataMap: Map<string, any> = new Map();
-
-    
-
-        // Process earningsChart.quarterly for EPS data
-
-        if (earningsData.earningsChart?.quarterly) {
-
-          earningsData.earningsChart.quarterly.forEach((q: any) => {
-
-            historicalDataMap.set(q.date, {
-
-              date: q.date,
-
-              epsActual: q.actual,
-
-              epsEstimate: q.estimate,
-
-              revenue: null, // Initialize
-
-              earnings: null, // Initialize
-
-            });
-
-          });
-
-        }
-
-    
-
-        // Process financialsChart.quarterly for Revenue and Earnings data
-
-        if (earningsData.financialsChart?.quarterly) {
-
-          earningsData.financialsChart.quarterly.forEach((q: any) => {
-
-            const existingData = historicalDataMap.get(q.date);
-
-            if (existingData) {
-
-              historicalDataMap.set(q.date, {
-
-                ...existingData,
-
-                revenue: q.revenue,
-
-                earnings: q.earnings,
-
-              });
-
-            } else {
-
-              // If financial data exists but no corresponding EPS data (less common)
-
-              historicalDataMap.set(q.date, {
-
-                date: q.date,
-
-                epsActual: null,
-
-                epsEstimate: null,
-
-                revenue: q.revenue,
-
-                earnings: q.earnings,
-
-              });
-
-            }
-
-          });
-
-        }
-
-    
-
-        // Convert map to array and sort by date (newest first for 1Q2025, 2Q2025 etc.)
-
-        const combinedHistoricalEarnings = Array.from(historicalDataMap.values()).sort((a, b) => {
-
-            // Custom sort for "XQYYYY" format
-
-            const parseQuarterDate = (dateStr: string) => {
-
-                const match = dateStr.match(/(\d)Q(\d{4})/);
-
-                if (match) {
-
-                    const quarter = parseInt(match[1]);
-
-                    const year = parseInt(match[2]);
-
-                    return year * 10 + quarter; // Convert to a comparable number
-
-                }
-
-                return 0; // Fallback for unparsable dates, puts them at the beginning
-
-            };
-
-            return parseQuarterDate(b.date) - parseQuarterDate(a.date);
-
-        });
-
-    
-
-    
-
-        return NextResponse.json({
-
-          upcomingEarnings,
-
-          historicalEarnings: combinedHistoricalEarnings,
-
-        }, { status: 200 });
+    const responseData = { upcomingEarnings, historicalEarnings: combinedHistoricalEarnings };
+    earningsCache.set(validatedTicker, responseData);
+    return NextResponse.json({ ...responseData, source: 'livedata' }, { status: 200 });
 
   } catch (error: unknown) {
     const err = error instanceof Error ? error : new Error(String(error));

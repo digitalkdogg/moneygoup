@@ -18,9 +18,9 @@ const logger = createLogger('api/stock/[ticker]/data');
 const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
 
 // ---------------------------------------------------------------------------
-// Server-side cache — 5-minute TTL, hard cap of 500 entries
+// Server-side cache — 15-minute TTL, hard cap of 500 entries
 // ---------------------------------------------------------------------------
-const DATA_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const DATA_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 const DATA_CACHE_MAX = 500;
 const dataCache = new Map<string, { data: unknown; fetchedAt: number }>();
 
@@ -125,15 +125,12 @@ function extractEarningsSurprises(earningsData: any): {
     const history = (earningsData.earningsHistory || earningsData.history || []) as any[];
     if (!history || history.length === 0) return surprises;
 
-    // Collect EPS and revenue surprises from most recent quarters
     const epsSurprises: number[] = [];
     const revenueSurprises: number[] = [];
 
-    // Take up to 4 most recent quarters (they're typically sorted descending)
     const recentQuarters = history.slice(0, 4);
 
     for (const quarter of recentQuarters) {
-      // EPS surprise: prefer surprisePercent, fallback to manual calc
       let epsSurprise: number | null = null;
       if (quarter.surprisePercent !== null && quarter.surprisePercent !== undefined) {
         epsSurprise = safeNum(quarter.surprisePercent);
@@ -146,7 +143,6 @@ function extractEarningsSurprises(earningsData: any): {
       }
       if (epsSurprise !== null) epsSurprises.push(epsSurprise);
 
-      // Revenue surprise: prefer revenueSurprisePercent, fallback to manual calc
       let revenueSurprise: number | null = null;
       if (quarter.revenueSurprisePercent !== null && quarter.revenueSurprisePercent !== undefined) {
         revenueSurprise = safeNum(quarter.revenueSurprisePercent);
@@ -162,7 +158,6 @@ function extractEarningsSurprises(earningsData: any): {
 
     surprises.quarterCount = recentQuarters.length;
 
-    // Compute averages
     if (epsSurprises.length > 0) {
       surprises.epsSurpriseAvg4Q = Math.round((epsSurprises.reduce((a, b) => a + b, 0) / epsSurprises.length) * 100) / 100;
     }
@@ -186,18 +181,14 @@ function extractShortInterestMetrics(keyStats: any, detail: any): {
   const metrics = { shortFloatPct: null as number | null, daysToCover: null as number | null };
 
   try {
-    // Short float percentage: try keyStats first, then detail
     let shortFloat = safeNum(keyStats.shortPercentOfFloat ?? detail.shortPercentOfFloat);
     if (shortFloat !== null && shortFloat !== 0) {
-      // Yahoo typically returns as decimal (0.126 = 12.6%)
-      // Keep as-is; caller decides representation
-      metrics.shortFloatPct = Math.round(shortFloat * 10000) / 10000; // Round to 4 decimals
+      metrics.shortFloatPct = Math.round(shortFloat * 10000) / 10000;
     }
 
-    // Days to cover (short ratio): try keyStats first
     let daysTocover = safeNum(keyStats.shortRatio ?? keyStats.daysToCover);
     if (daysTocover !== null && daysTocover > 0) {
-      metrics.daysToCover = Math.round(daysTocover * 100) / 100; // Round to 2 decimals
+      metrics.daysToCover = Math.round(daysTocover * 100) / 100;
     }
   } catch (err) {
     logger.warn('Error extracting short interest metrics', { error: err });
@@ -234,7 +225,6 @@ async function fetchOptionsData(ticker: string): Promise<any> {
     return data;
   } catch (err) {
     logger.warn(`Failed to fetch options data for ${ticker}`, { error: err });
-    // Return graceful fallback
     return {
       ticker,
       available: false,
@@ -251,7 +241,7 @@ async function fetchOptionsData(ticker: string): Promise<any> {
   }
 }
 
-async function fetchWorldBankData(): Promise<any> {
+async function fetchWorldBankData(forceRefresh: boolean = false): Promise<any> {
   try {
     const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3001';
     const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
@@ -263,7 +253,8 @@ async function fetchWorldBankData(): Promise<any> {
       headers['x-api-key'] = internalSecret;
     }
 
-    const response = await fetch(`${baseUrl}/api/worldbank`, {
+    const url = forceRefresh ? `${baseUrl}/api/worldbank?refresh=true` : `${baseUrl}/api/worldbank`;
+    const response = await fetch(url, {
       method: 'GET',
       headers,
     });
@@ -313,7 +304,6 @@ async function fetchOhlcv(ticker: string) {
 }
 
 async function fetchMacroSeries(sym: string): Promise<{ date: string; close: number }[]> {
-  // Check cache first
   const cached = macroCache.get(sym);
   if (cached) return cached;
 
@@ -333,7 +323,6 @@ async function fetchMacroSeries(sym: string): Promise<{ date: string; close: num
         close: r.adjClose ?? r.close ?? 0,
       }));
 
-    // Cache the result
     macroCache.set(sym, data);
     return data;
   } catch (err) {
@@ -372,10 +361,15 @@ export async function GET(
     return validationErrorResponse('Invalid ticker format');
   }
 
-  // Return cached response if still fresh
-  const cached = getCached(validatedTicker);
-  if (cached) {
-    return NextResponse.json(cached);
+  // Check cache unless refresh is requested
+  const { searchParams } = new URL(request.url);
+  const forceRefresh = searchParams.get('refresh') === 'true';
+
+  if (!forceRefresh) {
+    const cached = getCached(validatedTicker);
+    if (cached) {
+      return NextResponse.json({ ...cached as any, source: 'cache' });
+    }
   }
 
   try {
@@ -402,7 +396,7 @@ export async function GET(
       summary = {};
     }
 
-    // ---- 2b. Fetch earnings history separately (higher failure tolerance) ----
+    // ---- 2b. Fetch earnings history separately ----
     try {
       const earningsSummary = await yahooFinance.quoteSummary(validatedTicker, {
         modules: ['earnings'],
@@ -419,7 +413,6 @@ export async function GET(
     const keyStats = (summary as any).defaultKeyStatistics ?? {};
     const calendar = (summary as any).calendarEvents    ?? {};
 
-    // Try to get sector from assetProfile first, then fall back to other sources
     let resolvedSector: string = '_default';
     try {
       const assetSummary = await yahooFinance.quoteSummary(validatedTicker, {
@@ -447,7 +440,6 @@ export async function GET(
     const analystOpinionCount = safeNum(finData.numberOfAnalystOpinions) ?? 0;
     const recommendationMean  = safeNum(finData.recommendationMean);
 
-    // Extract next earnings date if available
     const nextEarningsDateMs = calendar?.earnings?.[0]?.earningsDate;
     const nextEarningsDate = nextEarningsDateMs
       ? new Date(nextEarningsDateMs * 1000).toISOString().slice(0, 10)
@@ -478,7 +470,6 @@ export async function GET(
       nextEarningsDate,
     };
 
-    // ---- Feature Metrics (earnings surprises + short interest) ----
     const surprises = extractEarningsSurprises(earningsModule);
     const shortInterest = extractShortInterestMetrics(keyStats, detail);
 
@@ -490,28 +481,25 @@ export async function GET(
       asOf: new Date().toISOString().slice(0, 10),
     };
 
-    // ---- 3. Options data (IV, IV Rank, Put/Call Ratio) ----
     const optionsData = await fetchOptionsData(validatedTicker);
 
-    // ---- 4. Macro data (VIX, 10Y Treasury, Sector ETF, + 8 new series for regime) ----
     const sectorEtfSym = SECTOR_ETF[resolvedSector] ?? 'SPY';
     const [vixData, tnxData, etfData, hygData, lqdData, dxyData, spyData, irxData, wtiData, copperData, wheatData] = await Promise.all([
       fetchMacroSeries('^VIX'),
       fetchMacroSeries('^TNX'),
       fetchMacroSeries(sectorEtfSym),
-      fetchMacroSeries('HYG'),        // High Yield Bond ETF
-      fetchMacroSeries('LQD'),        // Investment Grade Bond ETF
-      fetchMacroSeries('DX-Y.NYB'),   // US Dollar Index (DXY)
-      fetchMacroSeries('SPY'),        // S&P 500
-      fetchMacroSeries('^IRX'),       // 3-month T-bill (front-end rates proxy)
-      fetchMacroSeries('CL=F'),       // WTI crude oil
-      fetchMacroSeries('HG=F'),       // Copper futures
-      fetchMacroSeries('ZW=F'),       // Wheat futures
+      fetchMacroSeries('HYG'),
+      fetchMacroSeries('LQD'),
+      fetchMacroSeries('DX-Y.NYB'),
+      fetchMacroSeries('SPY'),
+      fetchMacroSeries('^IRX'),
+      fetchMacroSeries('CL=F'),
+      fetchMacroSeries('HG=F'),
+      fetchMacroSeries('ZW=F'),
     ]);
 
-    // ---- 4b. World Bank Data ----
     let worldBankData = null;
-    const wbResponse = await fetchWorldBankData();
+    const wbResponse = await fetchWorldBankData(forceRefresh);
     if (wbResponse && wbResponse.success && wbResponse.macro) {
       worldBankData = {
         indicators: wbResponse.macro.indicators,
@@ -534,7 +522,6 @@ export async function GET(
       worldBank:   worldBankData,
     };
 
-    // ---- 5. Earnings history ----
     let historicalEarnings: any[] = [];
     try {
       const earningsSummary = await yahooFinance.quoteSummary(validatedTicker, {
@@ -573,7 +560,6 @@ export async function GET(
       logger.warn('Failed to fetch earnings data', { error: err });
     }
 
-    // ---- 6. Data quality ----
     const missingFeatures: string[] = [];
     if (featureMetrics.epsSurpriseAvg4Q === null) missingFeatures.push('epsSurpriseAvg4Q');
     if (featureMetrics.revenueSurpriseAvg4Q === null) missingFeatures.push('revenueSurpriseAvg4Q');
@@ -603,7 +589,7 @@ export async function GET(
     };
 
     setCache(validatedTicker, payload);
-    return NextResponse.json(payload);
+    return NextResponse.json({ ...payload, source: 'livedata' });
 
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to fetch stock data';

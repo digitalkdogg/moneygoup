@@ -12,6 +12,7 @@ import { calculateTechnicalIndicators } from '@/utils/technicalIndicators';
 import { XMLParser } from 'fast-xml-parser';
 import Sentiment from 'sentiment';
 import { analyzeStocks } from './analyzer';
+import { performETFDiscovery } from '@/utils/etfDiscovery';
 
 const logger = createLogger('api/prediction/deepmoney');
 const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
@@ -433,15 +434,27 @@ export async function GET(request: NextRequest) {
         // --- Analysis Filtering ---
         const filteredStocks = await analyzeStocks(enrichedStocks);
 
+        // --- ETF Discovery ---
+        const seenSectors = new Set<string>();
+        filteredStocks.forEach(s => { if (s.sector) seenSectors.add(s.sector); });
+        
+        const hotEtfs = await performETFDiscovery(
+            filteredStocks,
+            Array.from(seenSectors),
+            Array.from(allTickersSet)
+        );
+
         const data = {
             success: true,
             timestamp: new Date().toISOString(),
             count: filteredStocks.length,
             stocks: filteredStocks,
+            hot_etfs: hotEtfs,
             meta: {
                 totalDiscovered: tickerArray.length,
                 enrichedCount: enrichedStocks.length,
                 filteredCount: filteredStocks.length,
+                hotEtfsCount: hotEtfs.length,
                 primaryCount: primaryTickers.size,
                 secondaryCount: allTickersSet.size - primaryTickers.size,
                 feedsQueried: PRIMARY_FEED_URLS.length + primaryTickers.size,

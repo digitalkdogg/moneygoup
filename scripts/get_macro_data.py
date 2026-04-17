@@ -5,7 +5,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 # ---------------------------------------------------------------------------
-# Environment & DB Connection (Mirrored from update_predictions.py)
+# Environment & DB Connection
 # ---------------------------------------------------------------------------
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
@@ -18,6 +18,8 @@ DB_HOST     = os.getenv('DB_HOST', 'localhost')
 DB_USER     = os.getenv('DB_USER')
 DB_PASSWORD = os.getenv('DB_PASSWORD')
 DB_DATABASE = os.getenv('DB_DATABASE')
+INTERNAL_SECRET = os.getenv('DEEPMONEY_INTERNAL_SECRET')
+NEXTAUTH_URL = os.getenv('NEXTAUTH_URL', 'http://localhost:3001')
 
 def get_db_connection():
     return mysql.connector.connect(
@@ -30,61 +32,72 @@ def get_db_connection():
 # ---------------------------------------------------------------------------
 # World Bank API Helpers
 # ---------------------------------------------------------------------------
-WORLD_BANK_BASE_URL = "https://api.worldbank.org/v2/country/US/indicator/"
+WORLD_BANK_API_URL = "https://api.worldbank.org/v2/country/{country}/indicator/{indicator}?format=json&mrv={mrv}"
 
-def fetch_wb_indicator(indicator_code: str, mrv: int = 5) -> list:
-    """
-    Fetches the Most Recent Values (mrv) for a specific indicator.
-    """
-    url = f"{WORLD_BANK_BASE_URL}{indicator_code}?format=json&mrv={mrv}"
-    print(f"  [wb] Fetching {indicator_code}...")
+COUNTRIES = ['USA', 'GBR', 'CHN', 'IND', 'DEU']
+
+# Full list of indicators required by the new /api/worldbank route
+MACRO_INDICATORS = [
+    'NY.GDP.MKTP.KD.ZG',   # GDP Growth
+    'FP.CPI.TOTL.ZG',      # Inflation
+    'NE.CON.PRVT.KD.ZG',   # Consumption Growth
+    'SL.UEM.TOTL.ZS',      # Unemployment
+    'BX.KLT.DINV.WD.GD.ZS',# FDI Inflows
+    'TG.VAL.TOTL.GD.ZS',   # Trade Volume
+    'IT.NET.USER.ZS',      # Internet Penetration
+    'IT.CEL.SETS.P2',      # Mobile Subscriptions
+    'TX.VAL.ICTG.ZS.UN'    # ICT Goods Exports
+]
+
+def fetch_wb_data(country_code: str, indicator_code: str, mrv: int = 5) -> list:
+    url = WORLD_BANK_API_URL.format(country=country_code, indicator=indicator_code, mrv=mrv)
+    print(f"  [wb] Fetching {indicator_code} for {country_code}...")
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         response.raise_for_status()
         data = response.json()
-        # World Bank JSON structure: [metadata, actual_data_list]
-        if len(data) > 1:
+        if len(data) > 1 and data[1]:
             return data[1]
         return []
     except Exception as exc:
-        print(f"  [wb] ERROR fetching {indicator_code}: {exc}")
+        print(f"  [wb] ERROR fetching {indicator_code} for {country_code}: {exc}")
         return []
 
 # ---------------------------------------------------------------------------
 # Processing Routines
 # ---------------------------------------------------------------------------
 
-def sync_macro_regime_data(cursor):
+def sync_all_macro_data(cursor):
     """
-    Syncs GDP growth and Inflation for the 109-feature tensor/GMM.
-    Indicators: NY.GDP.MKTP.KD.ZG (GDP), FP.CPI.TOTL.ZG (Inflation)
+    Syncs all indicators for all target countries into world_bank_macro_data.
     """
-    indicators = ['NY.GDP.MKTP.KD.ZG', 'FP.CPI.TOTL.ZG', 'NE.CON.PRVT.KD.ZG']
-    
     upsert_sql = """
         INSERT INTO world_bank_macro_data (indicator_code, country_code, year, value)
         VALUES (%s, %s, %s, %s)
-        ON DUPLICATE KEY UPDATE value = VALUES(value)
+        ON DUPLICATE KEY UPDATE value = VALUES(value), last_updated = CURRENT_TIMESTAMP
     """
 
-    for code in indicators:
-        results = fetch_wb_indicator(code)
-        for entry in results:
-            if entry['value'] is not None:
-                cursor.execute(upsert_sql, (
-                    code, 
-                    entry['countryiso3code'], 
-                    int(entry['date']), 
-                    float(entry['value'])
-                ))
-    print(f"  [db] Macro regime data synced.")
+    for country in COUNTRIES:
+        for code in MACRO_INDICATORS:
+            results = fetch_wb_data(country, code)
+            for entry in results:
+                if entry.get('value') is not None:
+                    try:
+                        cursor.execute(upsert_sql, (
+                            code, 
+                            entry['countryiso3code'], 
+                            int(entry['date']), 
+                            float(entry['value'])
+                        ))
+                    except Exception as e:
+                        print(f"  [db] Error inserting {code} for {country}: {e}")
+    
+    print(f"  [db] Multi-country macro data synced.")
 
 def sync_etf_gps_factors(cursor):
     """
-    Updates the latest values for ETF GPS scoring factors.
-    Indicators: BX.KLT.DINV.WD.GD.ZS (FDI), TG.VAL.TOTL.GD.ZS (Trade), IT.NET.USER.ZS (Tech)
+    Updates the world_bank_etf_gps_factors table with the absolute latest values.
     """
-    # Mapping indicator codes to the sectors/themes they influence
     mappings = [
         ('BX.KLT.DINV.WD.GD.ZS', 'Global Trade/FDI'),
         ('TG.VAL.TOTL.GD.ZS', 'Global Trade/FDI'),
@@ -96,14 +109,13 @@ def sync_etf_gps_factors(cursor):
 
     update_sql = """
         UPDATE world_bank_etf_gps_factors 
-        SET latest_value = %s, country_code = %s
+        SET latest_value = %s, country_code = %s, last_updated = CURRENT_TIMESTAMP
         WHERE indicator_code = %s AND theme_or_sector = %s
     """
 
     for code, sector in mappings:
-        # Fetch only the most recent value (mrv=1)
-        results = fetch_wb_indicator(code, mrv=1)
-        if results and results[0]['value'] is not None:
+        results = fetch_wb_data('USA', code, mrv=1)
+        if results and results[0].get('value') is not None:
             cursor.execute(update_sql, (
                 float(results[0]['value']),
                 results[0]['countryiso3code'],
@@ -112,21 +124,64 @@ def sync_etf_gps_factors(cursor):
             ))
     print(f"  [db] ETF GPS factors updated.")
 
+def update_macro_snapshot(cursor):
+    """
+    Calls the local API to get processed signals and saves them to macro_context_snapshots.
+    """
+    print(f"  [snapshot] Calling internal API to update processed snapshot...")
+    url = f"{NEXTAUTH_URL}/api/worldbank?refresh=true"
+    headers = {'x-api-key': INTERNAL_SECRET}
+    
+    try:
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()
+        wb_data = response.json()
+        
+        if wb_data and wb_data.get('success'):
+            macro = wb_data.get('macro', {}).get('indicators', {})
+            risk = wb_data.get('risk_index', {})
+            today = datetime.now().strftime('%Y-%m-%d')
+            
+            cursor.execute("""
+                INSERT INTO macro_context_snapshots 
+                (snapshot_date, global_health_score, unemployment_rate, unemployment_signal, inflation_rate, gdp_growth)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                global_health_score = VALUES(global_health_score),
+                unemployment_rate = VALUES(unemployment_rate),
+                unemployment_signal = VALUES(unemployment_signal),
+                inflation_rate = VALUES(inflation_rate),
+                gdp_growth = VALUES(gdp_growth)
+            """, (
+                today,
+                risk.get('globalHealthScore'),
+                macro.get('unemployment', {}).get('latest'),
+                macro.get('unemployment', {}).get('signal'),
+                macro.get('inflation', {}).get('latest'),
+                macro.get('gdpGrowth', {}).get('latest')
+            ))
+            print(f"  [snapshot] macro_context_snapshots updated for {today}.")
+    except Exception as e:
+        print(f"  [snapshot] ERROR updating snapshot: {e}")
+
 # ---------------------------------------------------------------------------
 # Main Sync Logic
 # ---------------------------------------------------------------------------
 def main():
-    print(f"[{datetime.now()}] Starting World Bank Data Sync...")
+    print(f"[{datetime.now()}] Starting Comprehensive World Bank Data Sync...")
     
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # 1. Macro Data for GMM Regime Detection
-        sync_macro_regime_data(cursor)
+        # 1. Sync all macro data for all countries
+        sync_all_macro_data(cursor)
         
-        # 2. Factors for ETF GPS Scoring
+        # 2. Update specific factors for USA-based ETF scoring
         sync_etf_gps_factors(cursor)
+        
+        # 3. Trigger processed snapshot update
+        update_macro_snapshot(cursor)
         
         conn.commit()
         print(f"[{datetime.now()}] Sync complete and committed.")

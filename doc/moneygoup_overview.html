@@ -57,13 +57,26 @@
             color: var(--primary);
             border-bottom: 2px solid var(--primary);
         }
-        main {
-            max-width: 1100px;
-            margin: 3rem auto;
+        .page-container {
+            display: flex;
+        }
+        aside {
+            width: 280px;
+            height: calc(100vh - 60px);
             background: white;
+            border-right: 1px solid var(--border);
+            position: fixed;
+            top: 60px;
             padding: 2rem;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            box-sizing: border-box;
+            overflow-y: auto;
+            z-index: 10;
+        }
+        main {
+            margin-left: 280px;
+            padding: 3rem;
+            max-width: 1100px;
+            width: 100%;
         }
         h1 { color: var(--primary-dark); border-bottom: 2px solid var(--primary); padding-bottom: 0.5rem; margin-bottom: 2rem; }
         h2 { color: var(--primary); margin-top: 3rem; display: flex; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
@@ -73,6 +86,25 @@
         ul { list-style: disc; margin-left: 1.5rem; padding-left: 0; }
         li { margin-bottom: 0.5rem; }
         p { margin-bottom: 1rem; }
+
+        .nav-link {
+            display: block;
+            padding: 0.6rem 0;
+            color: #64748b;
+            text-decoration: none;
+            font-size: 0.95rem;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .nav-link:hover { color: var(--primary); }
+        .nav-header {
+            font-weight: bold;
+            color: var(--text);
+            margin-top: 1.5rem;
+            display: block;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 0.05em;
+        }
 
         code {
             padding: 0.2rem 0.4rem;
@@ -113,8 +145,8 @@
         .delete { background: #fee2e2; color: #991b1b; }
 
         @media (max-width: 768px) {
-            body { padding: 1rem; }
-            main { padding: 1rem; }
+            aside { display: none; }
+            main { margin-left: 0; padding: 1.5rem; }
         }
     </style>
 </head>
@@ -129,132 +161,120 @@
         <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
         <a href="technical_indicators_guide.html">Technical Guide</a>
     </nav>
+    <div class="page-container">
+    <aside>
+        <h2 style="font-size: 1.2rem; margin-top: 0; border: none;">Overview</h2>
+        <nav>
+            <span class="nav-header">Foundation</span>
+            <a href="#intro" class="nav-link">Introduction</a>
+            <a href="#discovery" class="nav-link">AI Discovery</a>
+            
+            <span class="nav-header">Features</span>
+            <a href="#recommendations" class="nav-link">3-Bucket Strategy</a>
+            <a href="#etf-module" class="nav-link">Hot ETF Module</a>
+            <a href="#prediction-engine" class="nav-link">AI Predictions</a>
+            <a href="#portfolio-mgmt" class="nav-link">User Portfolios</a>
+            
+            <span class="nav-header">Infrastructure</span>
+            <a href="#architecture" class="nav-link">Architecture</a>
+            <a href="#sync-workflow" class="nav-link">Sync Workflow</a>
+            <a href="#endpoints" class="nav-link">API Summary</a>
+        </nav>
+    </aside>
+
     <main>
         <h1>MoneyGoUp Web Application Overview</h1>
-        <p>This document provides a general overview of the MoneyGoUp web application, detailing its purpose, core features, underlying architecture, and key operational workflows. MoneyGoUp is an intelligent financial analysis platform designed to help users discover hot stocks and ETFs, track their portfolios, and leverage AI-powered predictions for informed decision-making.</p>
+        <p>This document provides a general overview of the MoneyGoUp web application, detailing its purpose, core features, underlying architecture, and key operational workflows.</p>
 
-        <section>
-            <h2>1. Introduction: What is MoneyGoUp?</h2>
-            <p>MoneyGoUp is a sophisticated platform that aims to empower investors by providing cutting-edge tools for market analysis and predictive insights. It combines traditional financial metrics with advanced machine learning and natural language processing to identify market opportunities that might otherwise be overlooked. The application focuses on surfacing high-potential growth stocks and ETFs, particularly within the fast-evolving AI and technology sectors, while also offering robust portfolio management features.</p>
+        <section id="intro">
+            <h2>1. Introduction</h2>
+            <p>MoneyGoUp is a sophisticated platform that aims to empower investors by providing cutting-edge tools for market analysis and predictive insights. It combines traditional financial metrics with advanced machine learning and natural language processing to identify market opportunities that might otherwise be overlooked.</p>
         </section>
 
-        <section>
+        <section id="discovery">
             <h2>2. Core Modules & Features</h2>
-            <p>MoneyGoUp is built around several interconnected modules, each contributing to its comprehensive analytical capabilities:</p>
-
-            <h3>2.1 AI-Powered Stock & ETF Discovery (DeepMoney Engine)</h3>
+            <h3>2.1 AI-Powered Discovery (DeepMoney)</h3>
             <p>The DeepMoney engine is the heart of MoneyGoUp's discovery capabilities, identifying trending stocks and ETFs. It operates in two main versions:</p>
 
-            <h4>DeepMoney V2.1 (Next-Generation Discovery)</h4>
-            <p>This advanced engine uses a multi-stage process for high-precision stock and ETF discovery:</p>
+            <h4>DeepMoney V2.2 (Next-Gen)</h4>
             <ul>
-                <li><strong>Recursive News Discovery</strong>: Scrapes numerous global financial RSS feeds to find trending tickers and then recursively scans company-specific feeds for co-mentioned peers.</li>
-                <li><strong>Social Sentiment Pre-Filter</strong>: Filters tickers based on social media mentions (e.g., from ApeWisdom) to reduce noise.</li>
-                <li><strong>Technical Validation (Gate 1)</strong>: Requires candidates to have a non-negative <code>tradingSignalScore</code> derived from technical indicators (SMA, RSI, Volume).</li>
-                <li><strong>Sequential ML Validation (Gate 2)</strong>: For stocks passing Gate 1, a 5-year data payload is used to run a 1-month ML prediction; only stocks with a predicted growth of ≥ 0.1% are considered.</li>
-                <li><strong>Hot ETF Discovery (Parallel)</strong>: Executes in parallel, scanning thematic watchlists and dynamic screeners for ETFs under $400 with high volume and AUM.</li>
-                <li><strong>DB-Ready Enrichment</strong>: Results are enriched with sector information, GPS scores, and ML trajectories for database persistence.</li>
-            </ul>
-
-            <h3>2.2 Automated Trade Recommendations (3-Bucket Strategy)</h3>
-            <p>MoneyGoUp features a personalized Recommendation engine that surfaces actionable BUY and SELL signals directly on the user dashboard. Tickers are classified into three categories:</p>
-            <ul>
-                <li><strong>Portfolio</strong>: Active owned positions. Surfaces BUY and SELL signals based on AI price targets vs cost basis.</li>
-                <li><strong>Watchlist</strong>: User-confirmed monitored stocks. Surfaces high-conviction BUY signals.</li>
-                <li><strong>Discovery</strong>: AI-identified stocks from <code>deepmoney_sync.py</code>. Surfaces new opportunities that haven't been reviewed by the user.</li>
-            </ul>
-            <p>Detailed logic for these buckets can be found in the <a href="recommendation_buckets.html">Recommendation Buckets Guide</a>.</p>
-
-            <h3>2.3 Hot ETF Discovery Module</h3>
-            <p>A new module in v2.1, it identifies trending ETFs (under $400/share) with momentum and thematic alignment.</p>
-            <ul>
-                <li><strong>Hard Gates</strong>: ETFs must be under $400/share, have average daily volume > 50,000, AUM > $50M, and are typically not leveraged.</li>
-                <li><strong>Discovery Strategies</strong>:
-                    <ul>
-                        <li><strong>News Signal Alignment</strong>: Matches ETFs to trending news signals based on their top holdings.</li>
-                        <li><strong>ETF Dynamic Screener</strong>: Queries Yahoo Finance ETF screeners, applying filters for price, volume, AUM, leverage, 52-week return, and expense ratio.</li>
-                        <li><strong>Thematic ETF Mapping</strong>: Uses a curated <code>etf_theme_watchlist.json</code> to identify ETFs aligned with specific AI/Tech sub-sectors.</li>
-                    </ul>
-                </li>
-                <li><strong>ETF GPS Scoring Model</strong>: A dedicated scoring model (out of 100) based on 52-week return (30%), thematic news signal (25%), 3-month momentum (20%), liquidity (15%), and expense ratio efficiency (10%), plus various bonuses. Minimum qualifying score is 55.</li>
-            </ul>
-
-            <h3>2.3 AI-Powered Stock Prediction Engine</h3>
-            <p>This module generates price predictions for individual stocks using a sophisticated ML model.</p>
-            <ul>
-                <li><strong>Trigger</strong>: Initiated by user request on the stock detail page.</li>
-                <li><strong>Data Assembly</strong>: A Node.js backend (<code>/api/stock_data/[ticker]/data</code>) aggregates 5 years of historical OHLCV, macro data (VIX, 10Y Treasury, Sector ETFs), and fundamental metrics. Missing data is imputed using sector medians.</li>
-                <li><strong>API Gateway & Guards</strong>: The <code>POST /api/prediction/[ticker]</code> endpoint enforces rate limits, data history requirements, and concurrency controls.</li>
-                <li><strong>Feature Engineering</strong>: A Python script (<code>predict_weighted_analysis.py</code>) transforms raw data into a 73-column feature tensor, including technical indicators, NLP sentiment, cyclical encodings, and lagged features.</li>
-                <li><strong>MLP Training & Monte Carlo Inference</strong>: A multi-layer perceptron (MLP) model is trained on historical sequences. Monte Carlo simulations (20 passes with Gaussian noise) are used to generate uncertainty bounds.</li>
-                <li><strong>Confidence Scoring</strong>: Predictions are accompanied by a confidence score (max 100) based on model accuracy, history depth, data completeness, and analyst coverage.</li>
-                <li><strong>Heuristic Weighting</strong>: The raw AI prediction is adjusted by real-time market signals (technical score, uptrend, news sentiment, RSI extremes, growth multiplier) to align with current market realities.</li>
-                <li><strong>Output</strong>: Provides predicted prices and percentage changes for various horizons (1-day, 1-month, 6-month, 1-year) along with a monthly trajectory.</li>
-            </ul>
-
-            <h3>2.4 User Portfolio & Watchlist Management</h3>
-            <p>MoneyGoUp offers comprehensive tools for users to manage their investments.</p>
-            <ul>
-                <li><strong>Watchlist Management</strong>: Users can add/remove stocks from their watchlist (<code>/api/user/watchlist</code>). The watchlist displays live prices, 6-month moving averages, and analyst consensus data.</li>
-                <li><strong>Portfolio Tracking</strong>: Users can track their active positions (<code>/api/user/portfolio</code>), which includes real-time P&L calculations based on purchase price versus live market data, and analyst consensus ratings.</li>
-                <li><strong>Trade Operations</strong>: Supports logging initial purchases (<span class="method post">POST</span> <code>/api/user/stocks</code>), updating shares (buying/selling more, <span class="method patch">PATCH</span> <code>/api/user/stocks/[id]</code>), and selling all shares (moving position back to watchlist, <span class="method put">PUT</span> <code>/api/user/stocks/[id]</code>).</li>
-                <li><strong>Portfolio History</strong>: The application calculates and displays the historical value of a user's current portfolio over time (<code>/api/user/portfolio/historical-value</code>), retrieving historical prices for each holding.</li>
+                <li><strong>Recursive News Discovery</strong>: Scrapes global financial RSS feeds and scans for co-mentioned peers.</li>
+                <li><strong>Macro Tailwind Scoring</strong>: Integrates World Bank FDI and Trade indicators to validate thematic strength.</li>
+                <li><strong>ML Validation Gate</strong>: Every candidate must pass a 1-month growth prediction threshold (≥ 0.1%).</li>
             </ul>
         </section>
 
-        <section>
-            <h2>3. System Architecture (High-Level)</h2>
+        <section id="recommendations">
+            <h3>2.2 Recommendation Engine</h3>
+            <p>Direct signals surfaced on the dashboard across three categories:</p>
+            <ul>
+                <li><strong>Portfolio</strong>: AI price targets vs user cost basis.</li>
+                <li><strong>Watchlist</strong>: Breakout monitoring for confirmed interests.</li>
+                <li><strong>Discovery</strong>: High-GPS opportunities from the daily sync cycle.</li>
+            </ul>
+        </section>
+
+        <section id="etf-module">
+            <h3>2.3 Hot ETF Discovery Module</h3>
+            <p>Identifies trending ETFs under $400/share with momentum and thematic alignment.</p>
+            <ul>
+                <li><strong>Thematic Mapping</strong>: AI, Semis, Cloud, and Cybersecurity focused.</li>
+                <li><strong>Liquidity Gates</strong>: >50k Volume and >$50M AUM.</li>
+            </ul>
+        </section>
+
+        <section id="prediction-engine">
+            <h3>2.4 AI Prediction Engine (v3.1)</h3>
+            <p>Generates multi-horizon price targets using a 109-column feature tensor.</p>
+            <ul>
+                <li><strong>Regime Detection</strong>: GMM-based clustering using VIX and Credit Spreads.</li>
+                <li><strong>Dampeners</strong>: Applies unemployment and global health risk modifiers.</li>
+            </ul>
+        </section>
+
+        <section id="portfolio-mgmt">
+            <h3>2.5 User Portfolio & Watchlist</h3>
+            <p>Comprehensive management of active stakes and monitored interests.</p>
+            <ul>
+                <li><strong>Real-time P&L</strong>: Based on live market quotes.</li>
+                <li><strong>History</strong>: Trajectory charting for total account value.</li>
+            </ul>
+        </section>
+
+        <section id="architecture">
+            <h2>3. System Architecture</h2>
             <p>MoneyGoUp employs a modern, hybrid architecture:</p>
             <ul>
-                <li><strong>Frontend</strong>: Built with Next.js (React/TypeScript), providing a responsive and interactive user interface.</li>
-                <li><strong>Backend (API Routes)</strong>: Node.js (Next.js API routes) handles most API requests, authentication, data aggregation from external sources, and orchestrates calls to the ML backend.</li>
-                <li><strong>ML Backend</strong>: Python scripts (<code>predict_weighted_analysis.py</code>) are spawned by the Node.js backend to perform intensive machine learning tasks, including feature engineering and model inference.</li>
-                <li><strong>Database</strong>: MySQL stores user data, portfolio holdings, watchlist items, historical stock prices, news, and the results of DeepMoney's stock and ETF discoveries (<code>recommended_stocks</code>, <code>hot_etfs</code>, <code>etf_cycle_summary</code>).</li>
+                <li><strong>Frontend</strong>: Next.js (React/TypeScript).</li>
+                <li><strong>Backend</strong>: Node.js API routes with Python ML spawning.</li>
+                <li><strong>Database</strong>: MySQL (User data, History, AI results).</li>
             </ul>
         </section>
 
-        <section>
-            <h2>4. Key External Data Sources</h2>
-            <p>MoneyGoUp currently integrates with the following external data provider:</p>
-            <ul>
-                <li><strong>Yahoo Finance</strong>: Primary and sole integrated source for real-time prices, fundamentals, screeners, RSS feeds, ETF profiles, and historical data.</li>
-            </ul>
-        </section>
-
-        <section>
-            <h2>5. Data Synchronization (DeepMoney Sync Workflow)</h2>
-            <p>A critical background process, executed via <code>deepmoney_sync.py</code> (likely a cron job), ensures that the dashboard always displays fresh, relevant data:</p>
+        <section id="sync-workflow">
+            <h2>4. Data Synchronization</h2>
+            <p>Executed via <code>scripts/deepmoney_sync.py</code> and <code>scripts/get_macro_data.py</code>:</p>
             <ol>
-                <li><strong>Automation Trigger</strong>: A scheduled task initiates the Python sync script, which loads necessary environment variables and database credentials.</li>
-                <li><strong>API Authorization</strong>: The script makes an internal HTTP GET request to the <code>/api/prediction/deepmoney</code> endpoint, using an <code>x-api-key</code> to bypass session requirements and rate limits, and <code>?refresh=true</code> to force a new analysis cycle.</li>
-                <li><strong>Discovery & Analysis</strong>: The API endpoint (in Node.js, utilizing <code>analyzer.ts</code> and <code>etfDiscovery.ts</code>) performs the multi-pass stock and ETF discovery, ML validation, and ETF filtering as described in Section 2.1 and 2.2.</li>
-                <li><strong>Deep Enrichment</strong>: Final GPS scoring for both stocks and ETFs is performed, and data is prepared into a DB-compatible JSON payload.</li>
-                <li><strong>Persistence Layer</strong>: The <code>deepmoney_sync.py</code> script receives this JSON, clears existing <code>recommended_stocks</code> data, and then saves the new qualifying stocks to <code>recommended_stocks</code> and ETFs to <code>hot_etfs</code>. It also records aggregate statistics into <code>etf_cycle_summary</code>. This ensures the user dashboard is updated with the latest "Hot Stocks" and "Hot ETFs".</li>
+                <li>Fetch World Bank Macro context.</li>
+                <li>Trigger internal Discovery API with <code>?refresh=true</code>.</li>
+                <li>Commit enriched results to <code>recommended_stocks</code> and <code>hot_etfs</code>.</li>
             </ol>
         </section>
 
-        <section>
-            <h2>6. API Endpoints Summary</h2>
-            <p>The application exposes various API endpoints to facilitate its functionality:</p>
+        <section id="endpoints">
+            <h2>5. API Endpoints Summary</h2>
             <ul>
-                <li><code>/api/stock_data/[ticker]</code>: Consolidated data for a stock (real-time, historical, news, analyst, indicators).</li>
-                <li><code>/api/prediction/[ticker]</code>: Triggers an AI prediction for a specific stock.</li>
-                <li><code>/api/prediction/save</code>: Persists prediction results for user tracking.</li>
-                <li><code>/api/prediction/deepmoney</code>: Returns AI-generated hot stock and ETF recommendations.</li>
-                <li><code>/api/dashboard</code>: User-specific dashboard data and insights.</li>
-                <li><code>/api/user/watchlist</code>: Manage and retrieve user's stock watchlist.</li>
-                <li><code>/api/user/portfolio</code>: Retrieve user's stock portfolio details.</li>
-                <li><code>/api/user/stocks</code>: Add new stock purchases to the user's portfolio.</li>
-                <li><code>/api/user/stocks/[stock_id]</code>: Update or sell shares from a user's portfolio.</li>
-                <li><code>/api/auth/register</code>: User registration.</li>
-                <li><code>/api/cache-stats</code>: Admin-only endpoint for cache monitoring.</li>
+                <li><code>/api/stock_data/[ticker]</code>: Consolidated stock details.</li>
+                <li><code>/api/prediction/[ticker]</code>: AI forecast workflow.</li>
+                <li><code>/api/worldbank</code>: Consolidated macro indicators.</li>
+                <li><code>/api/dashboard</code>: Personalized user aggregation.</li>
             </ul>
-            <p>This document provides a high-level understanding of the MoneyGoUp web application. Further details on specific modules, algorithms, and technical implementations can be found in their respective dedicated documentation files.</p>
         </section>
         
-        <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem;">
+        <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem; text-align: center;">
             MoneyGoUp Web Application Overview &copy; 2026
         </footer>
     </main>
+    </div>
 </body>
 </html>
