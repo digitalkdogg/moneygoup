@@ -32,11 +32,29 @@ import argparse
 import warnings
 import random
 import math
+import hashlib
+import os
+import pickle
+
+# ── CPU Throttling (Middle Ground) ──
+# Limit math libraries to 1 thread to prevent saturating all cores.
+# This must be done BEFORE importing numpy or sklearn.
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
+os.environ['NUMEXPR_NUM_THREADS'] = '1'
+
+# Lower process priority so the OS favors other tasks (web server, etc.)
+try:
+    os.nice(15) 
+except:
+    pass
+
 from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
-from scipy.stats import skew as scipy_skew
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import mean_absolute_error, mean_squared_error
@@ -53,6 +71,45 @@ SEQ_LEN    = 45    # 45 trading-day lookback window (compromise for speed/accura
 N_EPOCHS   = 50    # capped for speed
 BATCH_SIZE = 128   # larger batches for faster training
 MC_RUNS    = 12    # reduced for faster trajectory generation
+CACHE_DIR  = os.path.join(os.path.dirname(__file__), 'prediction_cache')
+
+
+# ============================================================================
+# CACHING HELPERS
+# ============================================================================
+def get_cache_key(ticker, historical_data):
+    """Generate a unique MD5 hash for (ticker, last_date, data_len)."""
+    if not historical_data:
+        return None
+    last_row = historical_data[-1]
+    last_date = last_row.get('date', last_row.get('Date', ''))
+    data_len = len(historical_data)
+    key_str = f"{ticker}_{last_date}_{data_len}"
+    return hashlib.md5(key_str.encode()).hexdigest()
+
+
+def load_from_cache(key):
+    if not key: return None
+    cache_path = os.path.join(CACHE_DIR, f"{key}.json")
+    if os.path.exists(cache_path):
+        try:
+            with open(cache_path, 'r') as f:
+                return json.load(f)
+        except:
+            return None
+    return None
+
+
+def save_to_cache(key, result):
+    if not key: return
+    if not os.path.exists(CACHE_DIR):
+        os.makedirs(CACHE_DIR, exist_ok=True)
+    cache_path = os.path.join(CACHE_DIR, f"{key}.json")
+    try:
+        with open(cache_path, 'w') as f:
+            json.dump(result, f, cls=NumpyEncoder)
+    except:
+        pass
 
 
 # ============================================================================
@@ -331,24 +388,103 @@ def _add_macro_features(f, date_strs, macro_data, close_s, hist_vol, stock_metri
     return f
 
 
-def build_features(df, stock_metrics, macro_data, news_sentiment, earnings_beat_streak, current_price, options_data=None, feature_metrics=None, next_earnings_date=None):
+def build_features(df, stock_metrics, macro_data, news_sentiment, earnings_beat_streak, current_price, ticker=None, options_data=None, feature_metrics=None, next_earnings_date=None):
     """
     Build full feature DataFrame from OHLCV df + supplementary inputs.
-    Returns a new DataFrame with FEATURE_COLUMNS, NaNs forward-filled.
+    Implements a delta-calculation strategy: if a cached feature set exists
+    for this ticker and the new data is an extension, we reuse old rows
+    and only calculate the new ones (using a 252-row lookback for consistency).
     """
+    n_total = len(df)
+    dates = df['Date'].values if 'Date' in df.columns else np.arange(n_total)
+    
+    # ── Feature Caching Logic ────────────────────────────────────────────────
+    feat_cache_path = os.path.join(CACHE_DIR, f"{ticker}_features_df.pkl") if ticker else None
+    cached_df = None
+    if feat_cache_path and os.path.exists(feat_cache_path):
+        try:
+            with open(feat_cache_path, 'rb') as f:
+                cached_df = pickle.load(f)
+        except:
+            pass
+
+    # Check if we can do an incremental update
+    do_incremental = False
+    if cached_df is not None and len(cached_df) < n_total:
+        cached_dates = cached_df.index.values
+        if np.array_equal(cached_dates, dates[:len(cached_df)]):
+            do_incremental = True
+
+    if do_incremental:
+        n_new = n_total - len(cached_df)
+        buffer = 252
+        start_idx = max(0, len(cached_df) - buffer)
+        sub_df = df.iloc[start_idx:].copy()
+        
+        f_tail = _calculate_features_internal(sub_df, stock_metrics, macro_data, news_sentiment, earnings_beat_streak, current_price, options_data, feature_metrics)
+        f_new = f_tail.iloc[-(n_new):]
+        f = pd.concat([cached_df, f_new])
+        
+        # Update broadcasted scalars which might change every run
+        # (This is fast O(N) column assignment)
+        cp = current_price if current_price and current_price > 0 else (df['Close'].iloc[-1] if len(df) > 0 else 1)
+        atm = safe(stock_metrics.get('analystTargetMean'), 0.0)
+        aoc = safe(stock_metrics.get('analystOpinionCount'), 0)
+        rcm = safe(stock_metrics.get('recommendationMean'), 3.0)
+        analyst_premium = (atm - cp) / (cp + 1e-9) if atm > 0 and cp > 0 else 0.0
+        reliability = min(aoc / 40.0, 1.0)
+        analyst_weighted = analyst_premium * reliability
+
+        f['PE_Ratio'] = safe(stock_metrics.get('peRatio'), 20.0)
+        f['PB_Ratio'] = safe(stock_metrics.get('pbRatio'), 3.0)
+        f['TrailingEPS'] = safe(stock_metrics.get('trailingEps'), 0.0)
+        f['ForwardEPS'] = safe(stock_metrics.get('forwardEps'), 0.0)
+        f['RevenueGrowth'] = safe(stock_metrics.get('revenueGrowth'), 0.0)
+        f['EarningsGrowth'] = safe(stock_metrics.get('earningsGrowth'), 0.0)
+        f['ProfitMargins'] = safe(stock_metrics.get('profitMargins'), 0.0)
+        f['DebtToEquity'] = safe(stock_metrics.get('debtToEquity'), 75.0)
+        f['ReturnOnEquity'] = safe(stock_metrics.get('returnOnEquity'), 0.0)
+        f['Beta'] = safe(stock_metrics.get('beta'), 1.0)
+        f['DivYield'] = safe(stock_metrics.get('dividendYield'), 0.0)
+        f['AnalystPremium'] = analyst_premium
+        f['AnalystPremiumWeighted'] = analyst_weighted
+        f['RecommendationMean'] = rcm
+        f['NewsSentiment'] = news_sentiment
+        f['EarningsBeatStreak'] = earnings_beat_streak
+        
+        wb = macro_data.get('worldBank', {}) or {}
+        indicators = wb.get('indicators', {}) or {}
+        f['WorldBank_GDP'] = safe(indicators.get('gdpGrowth'), 2.0)
+        f['WorldBank_Inflation'] = safe(indicators.get('inflation'), 2.5)
+        f['WorldBank_Consumption'] = safe(indicators.get('consumptionGrowth'), 2.0)
+        f['WorldBank_Real_GDP'] = f['WorldBank_GDP'] - f['WorldBank_Inflation']
+    else:
+        f = _calculate_features_internal(df, stock_metrics, macro_data, news_sentiment, earnings_beat_streak, current_price, options_data, feature_metrics)
+
+    if feat_cache_path:
+        try:
+            if not os.path.exists(CACHE_DIR): os.makedirs(CACHE_DIR, exist_ok=True)
+            with open(feat_cache_path, 'wb') as fh:
+                pickle.dump(f, fh)
+        except:
+            pass
+    return f
+
+
+def _calculate_features_internal(df, stock_metrics, macro_data, news_sentiment, earnings_beat_streak, current_price, options_data=None, feature_metrics=None):
+    """Internal core logic to calculate full feature set for given df."""
     close  = df['Close'].values
     high   = df['High'].values
     low    = df['Low'].values
     volume = df['Volume'].values
     n = len(df)
-    dates = df['Date'].values if 'Date' in df.columns else [None] * n
-
-    f = pd.DataFrame(index=df.index)
-    f['Open']   = df['Open']
-    f['High']   = df['High']
-    f['Low']    = df['Low']
-    f['Close']  = df['Close']
-    f['Volume'] = df['Volume']
+    
+    f = pd.DataFrame(index=df['Date'] if 'Date' in df.columns else df.index)
+    f['Open']   = df['Open'].values
+    f['High']   = df['High'].values
+    f['Low']    = df['Low'].values
+    f['Close']  = df['Close'].values
+    f['Volume'] = df['Volume'].values
 
     # MACD
     exp12 = pd.Series(close).ewm(span=12, adjust=False).mean()
@@ -412,7 +548,7 @@ def build_features(df, stock_metrics, macro_data, news_sentiment, earnings_beat_
     log_ret = np.log(pd.Series(close) / pd.Series(close).shift(1))
     f['HistVol_30'] = log_ret.rolling(30).std().values * np.sqrt(252)
 
-    # Fundamentals (scalar → broadcast)
+    # Fundamentals
     cp = current_price if current_price and current_price > 0 else (close[-1] if len(close) > 0 else 1)
     pe   = safe(stock_metrics.get('peRatio'),        20.0)
     pb   = safe(stock_metrics.get('pbRatio'),         3.0)
@@ -448,13 +584,8 @@ def build_features(df, stock_metrics, macro_data, news_sentiment, earnings_beat_
     f['AnalystPremiumWeighted'] = analyst_weighted
     f['RecommendationMean']     = rcm
 
-    # Macro features — merge by date
-    date_strs = []
-    if 'Date' in df.columns:
-        date_strs = df['Date'].astype(str).tolist()
-    else:
-        date_strs = [None] * n
-
+    # Macro features
+    date_strs = df['Date'].astype(str).tolist() if 'Date' in df.columns else [None] * n
     vix_series  = merge_series_by_date(date_strs, macro_data.get('vix', []))
     tnx_series  = merge_series_by_date(date_strs, macro_data.get('treasury10y', []))
     etf_data    = macro_data.get('sectorEtf', {}).get('data', [])
@@ -464,61 +595,26 @@ def build_features(df, stock_metrics, macro_data, news_sentiment, earnings_beat_
     f['VIX_20d_Avg']  = pd.Series(vix_series).rolling(20).mean().bfill().ffill().values
     f['Treasury10Y']  = tnx_series
 
-    # 60-day rolling correlation between stock close and sector ETF
     if etf_series.std() > 0:
-        stock_ser = pd.Series(close)
-        etf_ser   = pd.Series(etf_series)
-        corr = stock_ser.rolling(60).corr(etf_ser).fillna(0).values
+        f['SectorETF_60d_Corr'] = pd.Series(close).rolling(60).corr(pd.Series(etf_series)).fillna(0).values
     else:
-        corr = np.zeros(n)
-    f['SectorETF_60d_Corr'] = corr
+        f['SectorETF_60d_Corr'] = 0.0
 
-    # Options market data — broadcast across all rows
-    # If options_data unavailable, features default to NaN (filled later)
-    iv_val = 0.0
-    iv_rank_val = 0.0
-    put_call_ratio_val = 0.0
+    # Options & Surprises
+    f['IV'] = safe(options_data.get('iv'), 0.0) if options_data else np.nan
+    f['IV_Rank'] = safe(options_data.get('ivRank'), 0.0) if options_data else np.nan
+    f['Put_Call_Ratio'] = safe(options_data.get('putCallRatio'), 0.0) if options_data else np.nan
 
-    if options_data and isinstance(options_data, dict):
-        iv_val = safe(options_data.get('iv'), 0.0)
-        iv_rank_val = safe(options_data.get('ivRank'), 0.0)
-        put_call_ratio_val = safe(options_data.get('putCallRatio'), 0.0)
+    eps_val = safe(feature_metrics.get('epsSurpriseAvg4Q'), 0.0) if feature_metrics else 0.0
+    f['EPS_Surprise_Avg_4Q'] = max(-50.0, min(50.0, eps_val)) if eps_val != 0.0 else np.nan
 
-    f['IV'] = iv_val if iv_val > 0 else np.nan
-    f['IV_Rank'] = iv_rank_val if iv_val > 0 else np.nan  # Only valid if IV is available
-    f['Put_Call_Ratio'] = put_call_ratio_val if put_call_ratio_val > 0 else np.nan
+    rev_val = safe(feature_metrics.get('revenueSurpriseAvg4Q'), 0.0) if feature_metrics else 0.0
+    f['Revenue_Surprise_Avg_4Q'] = max(-50.0, min(50.0, rev_val)) if rev_val != 0.0 else np.nan
 
-    # Earnings surprises & short interest — broadcast as scalar across rows
-    # Clip to reasonable ranges; use NaN if unavailable
-    eps_surprise = 0.0
-    revenue_surprise = 0.0
-    short_float = 0.0
-    days_to_cover = 0.0
+    f['ShortFloatPct'] = safe(feature_metrics.get('shortFloatPct'), 0.0) * 100 if feature_metrics else np.nan
+    f['DaysToCover'] = safe(feature_metrics.get('daysToCover'), 0.0) if feature_metrics else np.nan
 
-    if feature_metrics and isinstance(feature_metrics, dict):
-        # EPS surprise: clip to [-50, 50] percent
-        eps_val = safe(feature_metrics.get('epsSurpriseAvg4Q'), 0.0)
-        eps_surprise = max(-50.0, min(50.0, eps_val)) if eps_val != 0.0 else 0.0
-
-        # Revenue surprise: clip to [-50, 50] percent
-        rev_val = safe(feature_metrics.get('revenueSurpriseAvg4Q'), 0.0)
-        revenue_surprise = max(-50.0, min(50.0, rev_val)) if rev_val != 0.0 else 0.0
-
-        # Short float: clip to [0, 100] percent
-        short_val = safe(feature_metrics.get('shortFloatPct'), 0.0)
-        short_float = max(0.0, min(100.0, short_val * 100)) if short_val != 0.0 else 0.0  # Convert decimal to percent points
-
-        # Days to cover: clip to [0, 30] days
-        dtc_val = safe(feature_metrics.get('daysToCover'), 0.0)
-        days_to_cover = max(0.0, min(30.0, dtc_val)) if dtc_val != 0.0 else 0.0
-
-    f['EPS_Surprise_Avg_4Q'] = eps_surprise if eps_surprise != 0.0 else np.nan
-    f['Revenue_Surprise_Avg_4Q'] = revenue_surprise if revenue_surprise != 0.0 else np.nan
-    f['ShortFloatPct'] = short_float if short_float > 0.0 else np.nan
-    f['DaysToCover'] = days_to_cover if days_to_cover > 0.0 else np.nan
-
-    # Derived / calendar
-    f['NewsSentiment']     = news_sentiment
+    f['NewsSentiment']      = news_sentiment
     f['EarningsBeatStreak'] = earnings_beat_streak
 
     if 'Date' in df.columns:
@@ -529,59 +625,50 @@ def build_features(df, stock_metrics, macro_data, news_sentiment, earnings_beat_
     f['Month_Cos']     = np.cos(2 * np.pi * months / 12)
     f['EarningsSeason'] = np.isin(months, [1, 4, 7, 10]).astype(float)
 
-    # ── Improvement 1: Lag features ──────────────────────────────────────────
-    # Explicitly hand the MLP past price/volume values so it can learn
-    # how recent history relates to the current reading.
-    close_s  = pd.Series(close)
-    volume_s = pd.Series(volume)
+    # Lags & Returns
+    close_s = pd.Series(close)
     f['Close_lag_5']  = close_s.shift(5).values
     f['Close_lag_10'] = close_s.shift(10).values
     f['Close_lag_20'] = close_s.shift(20).values
-    f['Volume_lag_5'] = volume_s.shift(5).values
+    f['Volume_lag_5'] = pd.Series(volume).shift(5).values
 
-    # ── Improvement 2: Short-term ROC & returns ───────────────────────────────
-    # Short-window rates-of-change capture momentum the MLP would otherwise miss.
     f['ROC_5d']    = close_s.pct_change(5).values
     f['ROC_20d']   = close_s.pct_change(20).values
     f['Return_1d'] = close_s.pct_change(1).values
-    f['Return_5d'] = close_s.pct_change(5).values        # alias for clarity
+    f['Return_5d'] = close_s.pct_change(5).values
     f['Return_20d']= close_s.pct_change(20).values
 
-    # ── Improvement 3: Price vs rolling high/low + volume-price trend ─────────
-    # Tells the model whether the stock is near a breakout, breakdown,
-    # or grinding in the middle of its recent range.
-    roll5_high  = close_s.rolling(5).max()
-    roll20_high = close_s.rolling(20).max()
-    roll20_low  = close_s.rolling(20).min()
+    f['PriceToHigh_5d']  = (close_s / (close_s.rolling(5).max()  + 1e-9)).values
+    f['PriceToHigh_20d'] = (close_s / (close_s.rolling(20).max() + 1e-9)).values
+    f['PriceToLow_20d']  = (close_s / (close_s.rolling(20).min()  + 1e-9)).values
 
-    f['PriceToHigh_5d']  = (close_s / (roll5_high  + 1e-9)).values
-    f['PriceToHigh_20d'] = (close_s / (roll20_high + 1e-9)).values
-    f['PriceToLow_20d']  = (close_s / (roll20_low  + 1e-9)).values
-
-    # Volume-price trend: rising price + rising volume = strong momentum
     daily_ret = close_s.pct_change().fillna(0)
-    f['VolumePriceTrend'] = (daily_ret * volume_s).rolling(10).sum().values
+    f['VolumePriceTrend'] = (daily_ret * pd.Series(volume)).rolling(10).sum().values
 
-    # EMA slope: direction & steepness of the EMA (not just its level)
-    ema10 = close_s.ewm(span=10, adjust=False).mean()
-    ema20 = close_s.ewm(span=20, adjust=False).mean()
-    f['EMA_Slope_10'] = ema10.diff(3).values   # 3-day change in EMA10
-    f['EMA_Slope_20'] = ema20.diff(3).values   # 3-day change in EMA20
+    f['EMA_Slope_10'] = close_s.ewm(span=10, adjust=False).mean().diff(3).values
+    f['EMA_Slope_20'] = close_s.ewm(span=20, adjust=False).mean().diff(3).values
 
-    # ── Improvement 4: Rolling return statistics ──────────────────────────────
-    # Compress recent return history into statistical moments so the MLP
-    # can sense whether momentum is consistent, noisy, or skewed.
+    # Rolling Return Statistics (Vectorized)
     ret20 = daily_ret.rolling(20)
-    f['RollingMean_20d']   = ret20.mean().values
-    f['RollingStd_20d']    = ret20.std().values
-    f['RollingSkew_20d']   = ret20.apply(scipy_skew, raw=True).values
-    # Rolling Sharpe: mean daily return / std (annualised implicitly via ratio)
-    rolling_sharpe = ret20.mean() / (ret20.std() + 1e-9)
-    f['RollingSharpe_20d'] = rolling_sharpe.values
+    f['RollingMean_20d'] = ret20.mean().values
+    f['RollingStd_20d']  = ret20.std().values
+    
+    # Native Pandas skew (Gold standard for speed & numerical stability)
+    f['RollingSkew_20d'] = ret20.skew().values
+    
+    # [LEGACY/MANUAL OPTION] Vectorized Skewness via Power Sums
+    # (Kept here for reference; numerically equivalent but slightly less stable than native skew)
+    # def rolling_skew_vectorized(s, window=20):
+    #     m = s.rolling(window).mean()
+    #     std = s.rolling(window).std()
+    #     m1, m2, m3 = m, (s**2).rolling(window).mean(), (s**3).rolling(window).mean()
+    #     return ((m3 - 3*m1*m2 + 2*m1**3) / (std**3 + 1e-9)).values
+    # f['RollingSkew_20d'] = rolling_skew_vectorized(daily_ret, window=20)
 
-    # ── Phase 1 Macro Features ───────────────────────────────────────────────
-    hist_vol = f['HistVol_30'].values if 'HistVol_30' in f.columns else np.ones(n) * 0.20
-    f = _add_macro_features(f, date_strs, macro_data, close_s, hist_vol, stock_metrics)
+    f['RollingSharpe_20d'] = (ret20.mean() / (ret20.std() + 1e-9)).values
+
+    # Phase 1 Macro
+    f = _add_macro_features(f, date_strs, macro_data, close_s, f['HistVol_30'].values, stock_metrics)
 
     # Reorder and fill
     f = f[FEATURE_COLUMNS]
@@ -594,7 +681,6 @@ def build_features(df, stock_metrics, macro_data, news_sentiment, earnings_beat_
 # ============================================================================
 def build_mlp(seed=SEED):
     # Widened to handle expanded feature set + regime features (~109 features total)
-    # Input dims: 109 features × 60 steps = 6,540 flattened inputs
     return MLPRegressor(
         hidden_layer_sizes=(256, 128, 64, 32),
         activation='relu',
@@ -634,7 +720,7 @@ def build_regime_detector(market_vec_norm, fitted_model, n_clusters):
 
 def select_regime_k(market_vec, min_state_frac=0.15, max_flip_rate=0.30):
     """
-    K selection gate: evaluate K=3 and K=4, return best K that passes hard gates.
+    K selection gate: evaluate K=3 only for speed.
     Returns: (selected K, fitted_model, scaler)
     """
     from sklearn.mixture import GaussianMixture
@@ -674,14 +760,23 @@ def select_regime_k(market_vec, min_state_frac=0.15, max_flip_rate=0.30):
 
 def make_sequences(scaled, targets_6m, targets_1y):
     """
-    Build (X, y) sequences of length SEQ_LEN, flattened for sklearn.
-    y = [price_6m, price_1y] at the end of each sequence.
+    Build (X, y) sequences of length SEQ_LEN, vectorized using NumPy.
+    Matches original logic: n_samples = len(scaled) - SEQ_LEN.
     """
-    X, Y = [], []
-    for i in range(len(scaled) - SEQ_LEN):
-        X.append(scaled[i : i + SEQ_LEN].flatten())
-        Y.append([targets_6m[i + SEQ_LEN], targets_1y[i + SEQ_LEN]])
-    return np.array(X, dtype=np.float32), np.array(Y, dtype=np.float32)
+    n_samples = len(scaled) - SEQ_LEN
+    if n_samples <= 0:
+        return np.array([], dtype=np.float32), np.array([], dtype=np.float32)
+    
+    # Vectorized sliding window for X
+    # We take all but the last row for windows to match targets[SEQ_LEN:]
+    from numpy.lib.stride_tricks import sliding_window_view
+    X = sliding_window_view(scaled[:-1], (SEQ_LEN, scaled.shape[1])).squeeze(1)
+    X = X.reshape(n_samples, -1)
+    
+    # Targets for the end of each sequence (from row SEQ_LEN to end)
+    Y = np.column_stack([targets_6m[SEQ_LEN:], targets_1y[SEQ_LEN:]])
+    
+    return X.astype(np.float32), Y.astype(np.float32)
 
 
 # ============================================================================
@@ -908,7 +1003,7 @@ def predict(ticker, input_data):
 
     # ---- Feature engineering ----
     feat_df = build_features(df, stock_metrics, macro_data,
-                              news_sentiment, earnings_beat_streak, current_price, options_data, feature_metrics)
+                              news_sentiment, earnings_beat_streak, current_price, ticker=ticker, options_data=options_data, feature_metrics=feature_metrics)
 
     # ── Phase 2-3: Regime detection and integration ─────────────────────────
     # Build compact market-state vector for regime detector
@@ -1031,7 +1126,6 @@ def predict(ticker, input_data):
     # ---- Single holdout validation (last 20% of sequences as test) ----
     # Replaces 3-fold walk-forward CV (~30s) with a single split (~0s extra
     # compute — the split is free; we reuse the final model's val_loss).
-    # cv_mae is populated after final model training below.
     split_idx = int(len(X) * 0.8)
     X_hold, Y_hold = X[split_idx:], Y[split_idx:]
 
@@ -1039,7 +1133,7 @@ def predict(ticker, input_data):
     model = build_mlp()
     model.fit(X, Y)
 
-    # Compute cv_mae from the held-out 20% (no extra model train needed)
+    # Compute cv_mae from the held-out 20%
     if len(X_hold) > 0:
         hold_pred = model.predict(X_hold)
         dummy_pred = np.zeros((len(hold_pred), n_features), dtype=np.float32)
@@ -1059,19 +1153,13 @@ def predict(ticker, input_data):
     m_analysis = metric_analysis(feat_df, stock_metrics, news_sentiment,
                                   growth_rate, is_uptrend, earnings_beat_streak, external_tech_score, consensus_value, analyst_weighted_val)
 
-    # ── Final Price Adjustment ──
-    # We apply the total_impact as a final multiplier to the MLP output.
-    # This allows the heuristics (RSI, News, Technical Score) to nudge the
-    # sophisticated neural network result.
     impact_multiplier = 1.0 + m_analysis['total_metric_impact']
 
     # ── World Bank Consumption Heuristic (Phase 4) ──
-    # Only applies to 'Consumer Cyclical' and 'Consumer Defensive' sectors.
     consumer_multiplier = 1.0
     sector = stock_metrics.get('sector', '')
     if sector in ['Consumer Cyclical', 'Consumer Defensive']:
         cons_growth = feat_df['WorldBank_Consumption'].iloc[-1]
-        # 1% growth adds 0.5% price premium, capped at +/- 3%
         consumer_multiplier = 1.0 + max(-0.03, min(0.03, cons_growth * 0.005))
 
     impact_multiplier *= consumer_multiplier
@@ -1091,35 +1179,24 @@ def predict(ticker, input_data):
     # ---- Monte Carlo Dropout — 18-month trajectory ----
     WAYPOINTS = list(range(21, 379, 21))  # t+21, t+42, ... t+378 (18 months)
 
-    # We generate monthly waypoint predictions by using the last SEQ_LEN window
-    # and asking the model to predict at each future horizon.  Since the model
-    # outputs only 6m and 12m directly, we interpolate/extrapolate the trajectory
-    # using the MC spread around those anchors.
-    # Approach: run MC passes on last_seq; use output[0] as 6m anchor, output[1] as 12m anchor.
-    # For other waypoints, interpolate linearly between current_price → 6m → 12m → extrapolate to 18m.
-
-    mc_6m  = []
-    mc_12m = []
-
-    # MC uncertainty: perturb the input with Gaussian noise scaled to each
-    # feature's recent standard deviation — more principled than fixed σ=0.01.
-    # This means price features get noise proportional to recent price swings,
-    # volume features get noise proportional to volume variance, etc.
-    feature_stds = scaled[-20:].std(axis=0)   # std over last 20 rows (post-scaling)
-    feature_stds = np.clip(feature_stds, 1e-4, None)  # avoid zero-std features
-    # Tile per-feature stds to match the flattened sequence length (SEQ_LEN × n_features)
+    # Batched MC uncertainty
+    feature_stds = scaled[-20:].std(axis=0)
+    feature_stds = np.clip(feature_stds, 1e-4, None)
     tiled_stds = np.tile(feature_stds, SEQ_LEN).reshape(1, -1).astype(np.float32)
     rng = np.random.default_rng(SEED)
-    for _ in range(MC_RUNS):
-        noise = rng.normal(0, 1, last_seq.shape).astype(np.float32)
-        noise *= (tiled_stds * 0.1)    # scale: 10% of each feature's recent σ
-        noisy = last_seq + noise
-        p = model.predict(noisy)[0]
-        mc_6m.append(inverse_close(p[0]) * impact_multiplier)
-        mc_12m.append(inverse_close(p[1]) * impact_multiplier)
+    
+    noise_batch = rng.normal(0, 1, (MC_RUNS, *last_seq.shape)).astype(np.float32)
+    noise_batch *= (tiled_stds * 0.1)
+    noisy_batch = last_seq + noise_batch.squeeze(1)
+    mc_preds = model.predict(noisy_batch)  # single call, MC_RUNS rows
 
-    mc_6m  = np.array(mc_6m)
-    mc_12m = np.array(mc_12m)
+    # Batch inverse transform
+    dummy_mc = np.zeros((MC_RUNS, n_features), dtype=np.float32)
+    dummy_mc[:, close_col_idx] = mc_preds[:, 0]
+    mc_6m = scaler.inverse_transform(dummy_mc)[:, close_col_idx] * impact_multiplier
+    
+    dummy_mc[:, close_col_idx] = mc_preds[:, 1]
+    mc_12m = scaler.inverse_transform(dummy_mc)[:, close_col_idx] * impact_multiplier
 
     # Build trajectory: interpolate across 18 waypoints
     # Anchors: t=0 → current_price, t=126 → mean(mc_6m), t=252 → mean(mc_12m), t=378 → extrapolate
@@ -1272,7 +1349,16 @@ if __name__ == '__main__':
         with open(args.input_file, 'r') as fh:
             input_data = json.load(fh)
 
-        result = predict(args.ticker, input_data)
+        # ── Caching logic ──
+        hist = input_data.get('historicalData', [])
+        ckey = get_cache_key(args.ticker, hist)
+        cached_result = load_from_cache(ckey)
+
+        if cached_result:
+            result = cached_result
+        else:
+            result = predict(args.ticker, input_data)
+            save_to_cache(ckey, result)
 
         # Filter result based on outlook if not 'all'
         if args.outlook != 'all':

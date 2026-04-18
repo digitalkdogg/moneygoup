@@ -167,6 +167,6 @@ export const analystDataCache = new Cache<any>(6 * 60 * 60 * 1000); // 6 hours f
 
 export const newsDataCache = new Cache<any>(2 * 60 * 1000); // 2 hours for news data
 
-export const predictionCache = new Cache<any>(15 * 60 * 1000); // 15 minutes for MLP predictions
+export const predictionCache = new Cache<any>(15 * 60 * 100); // 15 minutes for MLP predictions
 
 export default Cache;

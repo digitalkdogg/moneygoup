@@ -16,3 +16,4 @@ __pycache__/
 wget-log
 .gitignore
 packages.microsoft.gpg
+/scripts/prediction_cache

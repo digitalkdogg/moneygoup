@@ -52,9 +52,7 @@ export function createErrorResponse(
   logger.error(message, {
     correlationId,
     status,
-    error: error instanceof Error
-      ? { message: error.message, stack: error.stack, name: error.name }
-      : String(error),
+    error, // Pass the original error; the logger's serializeError will handle it
     ...context,
   });
 
