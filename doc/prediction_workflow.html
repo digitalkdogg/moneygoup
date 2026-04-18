@@ -162,9 +162,10 @@
             <a href="#step3" class="nav-link">3. API Gateway</a>
             <a href="#step4" class="nav-link">4. Feature Engine (Python)</a>
             <a href="#algorithm-flow" class="nav-link">-- Algorithm Flowchart</a>
-            <a href="#feature-details" class="nav-link">-- 109+ Feature Groups</a>
+            <a href="#feature-details" class="nav-link">-- Feature Set</a>
+            <a href="#regime-analysis" class="nav-link">-- Regime Analysis</a>
             <a href="#step5" class="nav-link">5. MLP & MC Inference</a>
-            <a href="#step6" class="nav-link">6. Final Signal Weighting</a>
+            <a href="#step6" class="nav-link">6. Final Signal Weighting & Confidence</a>
             <a href="#step7" class="nav-link">7. Persistence Layer</a>
         </nav>
     </aside>
@@ -198,8 +199,8 @@
                         <p style="font-size: 0.8rem;">Real GDP, Consumption, and Inflation indicators integrated as annual features.</p>
                     </div>
                     <div class="mini-card">
-                        <h4>Market Regime</h4>
-                        <p style="font-size: 0.8rem;">VIX, Treasury, and DXY used for GMM clustering.</p>
+                        <h4>Market Regime Indicators</h4>
+                        <p style="font-size: 0.8rem;">VIX, Treasury yields, DXY, and Credit Spreads used for regime detection.</p>
                     </div>
                 </div>
             </div>
@@ -221,19 +222,33 @@
             <h2><span>4</span> Feature Engine & Regime Detection</h2>
             <div class="step-card">
                 <div class="component-tag">Python Engine: scripts/predict_weighted_analysis.py</div>
-                <p>Transforms raw JSON into a <strong>109-column feature tensor</strong>:</p>
+                <p>Transforms raw JSON into a <strong>109+ column feature tensor</strong>, incorporating advanced features:</p>
                 <ul>
-                    <li><strong>Regime Selection (GMM):</strong> Identifies current market state (Risk-On, Risk-Off, etc.).</li>
-                    <li><strong>Macro Features:</strong> <code>WorldBank_Real_GDP</code> and interaction terms like <code>Regime_x_GDP</code>.</li>
-                    <li><strong>Scaling:</strong> Min-Max normalization per regime context.</li>
+                    <li><strong>Lag Features:</strong> Explicit past price and volume data (e.g., <code>Close_lag_5</code>).</li>
+                    <li><strong>Short-term Momentum:</strong> Rate of Change (ROC) and returns over short periods (e.g., <code>ROC_5d</code>, <code>Return_1d</code>).</li>
+                    <li><strong>Trend Context:</strong> Indicators like price relative to rolling high/low, EMA slopes (e.g., <code>PriceToHigh_20d</code>, <code>EMA_Slope_10</code>).</li>
+                    <li><strong>Rolling Statistics:</strong> Mean, Standard Deviation, Skewness, and Sharpe Ratio over rolling windows (e.g., <code>RollingMean_20d</code>).</li>
+                    <li><strong>Macroeconomic Data:</strong> Detailed indicators including World Bank GDP, Inflation, and Consumption growth.</li>
+                    <li><strong>Credit Risk & Dollar:</strong> Features derived from HYG/LQD spreads and DXY index.</li>
+                    <li><strong>Commodity & Volatility:</strong> Incorporates commodity returns, betas, and VIX-based volatility proxies.</li>
+                    <li><strong>Options Market Data:</strong> Implied Volatility (IV), IV Rank, and Put/Call Ratio.</li>
+                    <li><strong>Earnings & Fundamentals:</strong> Surprise data, short interest, and traditional valuation metrics.</li>
                 </ul>
+            </div>
+        </section>
+
+        <section id="regime-analysis">
+            <h2>Market Regime Analysis</h2>
+            <div class="step-card">
+                <p>Utilizes a Gaussian Mixture Model (GMM) or KMeans clustering on a vector of market indicators (e.g., VIX, credit spreads, relative strength, interest rates, World Bank macro data) to identify the current market state (e.g., Risk-On, Risk-Off, High Volatility).</p>
+                <p>Introduces regime-specific features, probabilities, and interaction terms (e.g., <code>Regime_x_PC_Ratio</code>, <code>Regime_x_HYG_LQD</code>) to contextualize predictions.</p>
             </div>
         </section>
 
         <section id="algorithm-flow">
             <h2>Algorithm Flowchart</h2>
             <div class="step-card" style="background: #f8fafc; border: 1px dashed var(--primary); padding: 2rem; text-align: center;">
-                <p>JSON Input → GMM Regime Detector → 109+ Feature Engineering → MLP Training (Adam Optimizer) → Dual Path Inference (Deterministic + Monte Carlo Dropout 12x) → Heuristic Weighting → JSON Output</p>
+                <p>JSON Input → <strong>109+ Feature Engineering</strong> (incl. Lag, ROC, Rolling Stats, Macro, Credit, Commodities, Regimes) → MLP Training (Adam Optimizer) → Dual Path Inference (Deterministic + Monte Carlo Dropout 12x with per-feature noise scaling) → <strong>Heuristic Weighting</strong> (incl. Consumer Multiplier, Analyst/Technical Signals, Regime Context) → JSON Output (1-day, 1-month, 6-month, 1-year predictions)</p>
             </div>
         </section>
 
@@ -241,19 +256,21 @@
             <h2><span>5</span> MLP Training & MC Inference</h2>
             <div class="step-card">
                 <div class="component-tag">Model Architecture: 256 → 128 → 64 → 32 (ReLU)</div>
-                <p>Trains a fresh model on historical sequences (SEQ_LEN=45). 12x Monte Carlo passes generate statistical spreads for confidence scoring.</p>
+                <p>Trains a fresh MLP model on historical sequences (SEQ_LEN=45). 12x Monte Carlo Dropout passes generate statistical spreads for confidence scoring. MC noise is scaled per-feature based on recent volatility for more robust interval generation.</p>
             </div>
         </section>
 
         <section id="step6">
-            <h2><span>6</span> Final Signal Weighting</h2>
+            <h2><span>6</span> Final Signal Weighting & Confidence</h2>
             <div class="step-card">
-                <div class="component-tag">Logic: Heuristic Adjustments</div>
-                <p>Neural network output is nudged by real-world signals:</p>
+                <div class="component-tag">Logic: Heuristic Adjustments & Confidence Scoring</div>
+                <p>Neural network output is adjusted by real-world signals and confidence metrics:</p>
                 <ul>
-                    <li><strong>Consumption Multiplier:</strong> Applied to consumer sectors based on World Bank consumption growth trends (+/- 3%).</li>
-                    <li><strong>Technical/Analyst Weights:</strong> Combined influence of +/- 12%.</li>
-                    <li><strong>Global Health Score:</strong> Dampens predictions if global macro indicators fall below 45/100.</li>
+                    <li><strong>Consumption Multiplier:</strong> Applied to consumer sectors based on World Bank consumption growth trends (±3%).</li>
+                    <li><strong>Technical/Analyst Influence:</strong> Integrates external technical scores, analyst consensus (e.g., Buy/Hold/Sell), and numerical analyst target premiums.</li>
+                    <li><strong>Market Regime Context:</strong> Predictions are nudged based on the identified market regime and its interaction with other signals.</li>
+                    <li><strong>Global Health Score:</strong> Dampens predictions if broader global macro indicators fall below a threshold.</li>
+                    <li><strong>Confidence Scoring:</strong> Confidence in predictions (1-day, 1-month, 6-month, 1-year) is calculated based on historical accuracy (CV-MAPE), data completeness, history depth, and analyst coverage.</li>
                 </ul>
             </div>
         </section>
@@ -262,7 +279,7 @@
             <h2><span>7</span> Persistence Layer</h2>
             <div class="step-card">
                 <div class="component-tag">Backend Utility: POST /api/prediction/save</div>
-                <p>Saves 1d, 1m, 6m, and 1y price targets to <code>user_stock_predictions</code>. Stored data includes <code>macro_features_used</code> for model observability.</p>
+                <p>Saves 1-day, 1-month, 6-month, and 1-year price targets, along with trajectory data and confidence scores, to <code>user_stock_predictions</code>. Stored data includes <code>macro_features_used</code> and regime information for model observability.</p>
             </div>
         </section>
 
