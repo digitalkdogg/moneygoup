@@ -427,7 +427,9 @@ CREATE TABLE `world_bank_macro_data` (
 -- TG.VAL.TOTL.GD.ZS: Trade volume
 -- IT.NET.USER.ZS: Internet penetration (Tech/AI bonus points)
 --
-
+-- ------------------------------------------------------
+-- Seed Data for Indicator Mappings
+-- ------------------------------------------------------
 DROP TABLE IF EXISTS `world_bank_etf_gps_factors`;
 CREATE TABLE `world_bank_etf_gps_factors` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -441,10 +443,41 @@ CREATE TABLE `world_bank_etf_gps_factors` (
   KEY `idx_wb_theme_indicator` (`theme_or_sector`, `indicator_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
--- ------------------------------------------------------
--- Seed Data for Indicator Mappings
--- ------------------------------------------------------
 
+-- --------------------------------------------------------
+-- Table structure for table `stock_brand`
+-- --------------------------------------------------------
+
+DROP TABLE IF EXISTS `stock_brand`;
+CREATE TABLE `stock_brand` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `ticker` varchar(10) NOT NULL,
+  `stock_name` varchar(255) NOT NULL,
+  `brand_color` varchar(7) NOT NULL COMMENT 'Hex color code, e.g. #FF0000',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ticker` (`ticker`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+-- --------------------------------------------------------
+-- Table structure for table `stock_brand_stocks`
+-- (jumper/junction table linking stock_brand to stocks)
+-- --------------------------------------------------------
+
+DROP TABLE IF EXISTS `stock_brand_stocks`;
+CREATE TABLE `stock_brand_stocks` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `stock_brand_id` int(11) NOT NULL,
+  `stock_id` int(11) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_brand_stock` (`stock_brand_id`, `stock_id`),
+  KEY `idx_stock_brand_id` (`stock_brand_id`),
+  KEY `idx_stock_id` (`stock_id`),
+  CONSTRAINT `fk_sbs_brand` FOREIGN KEY (`stock_brand_id`) REFERENCES `stock_brand` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_sbs_stock` FOREIGN KEY (`stock_id`) REFERENCES `stocks` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
