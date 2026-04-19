@@ -27,6 +27,7 @@ export interface PortfolioCard extends CardBase {
   analystFeedback: string | null
   analysts?: number | null
   predictedPrice1m?: number | null
+  topAccentColor?: string
 }
 
 export interface WatchlistCard extends CardBase {
@@ -35,6 +36,7 @@ export interface WatchlistCard extends CardBase {
   analysts?: number | null
   ma6m: number | null
   predictedPrice1m?: number | null
+  isCompact?: boolean
 }
 
 export type StockCardModel =

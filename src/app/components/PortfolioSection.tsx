@@ -52,7 +52,8 @@ export default function PortfolioSection({ portfolio, onRefresh }: PortfolioSect
       changeAmount: dollarChange,
       analystFeedback: normalizeRecommendation(item.recommendationKey),
       analysts: item.numberOfAnalystOpinions,
-      predictedPrice1m: item.predicted_price_1m ? parseFloat(item.predicted_price_1m as string) : null
+      predictedPrice1m: item.predicted_price_1m ? parseFloat(item.predicted_price_1m as string) : null,
+      topAccentColor: item.brand_color || '#017e3b'
     };
   };
 
@@ -63,8 +64,8 @@ export default function PortfolioSection({ portfolio, onRefresh }: PortfolioSect
         icon="📈"
         data={portfolio}
         renderCard={(item) => (
-          <StockCard 
-            card={mapPortfolioToCardModel(item)} 
+          <StockCard
+            card={mapPortfolioToCardModel(item)}
             actions={{
               onBuyMore: () => handleBuyMore(item),
               onSell: () => handleSell(item),

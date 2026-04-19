@@ -18,16 +18,19 @@ export const PortfolioCardView: React.FC<PortfolioCardViewProps> = ({ card, acti
 
   return (
     <>
-      <CardHeader 
-        symbol={card.symbol} 
-        companyName={card.companyName} 
-        changePercent={card.changePercent} 
-        changeAmount={card.changeAmount} 
+      {card.topAccentColor && (
+        <div style={{ backgroundColor: card.topAccentColor }} className="h-1 rounded-t-2xl" />
+      )}
+      <CardHeader
+        symbol={card.symbol}
+        companyName={card.companyName}
+        changePercent={card.changePercent}
+        variant="portfolio"
       />
       <div className="px-5 py-0">
-        <CardMetricRow label="Shares Held" value={formatShares(card.sharesHeld)} />
-        <CardMetricRow 
-          label="Price" 
+        <CardMetricRow label="SHARES" value={formatShares(card.sharesHeld)} />
+        <CardMetricRow
+          label="PRICE"
           value={
             <div className="text-right">
               <div>{formatPrice(card.price)}</div>
@@ -37,11 +40,11 @@ export const PortfolioCardView: React.FC<PortfolioCardViewProps> = ({ card, acti
                 </div>
               )}
             </div>
-          } 
+          }
         />
         {card.predictedPrice1m !== null && card.predictedPrice1m !== undefined && (
-          <CardMetricRow 
-            label="1M Prediction" 
+          <CardMetricRow
+            label="1M TARGET"
             value={
               <div className="text-right">
                 <div>{formatPrice(card.predictedPrice1m)}</div>
@@ -51,11 +54,11 @@ export const PortfolioCardView: React.FC<PortfolioCardViewProps> = ({ card, acti
                   </div>
                 )}
               </div>
-            } 
+            }
           />
         )}
-        <CardMetricRow 
-          label="Analyst" 
+        <CardMetricRow
+          label="ANALYST"
           value={
             <div className="text-right">
               <div className={getAnalystColor(card.analystFeedback)}>{card.analystFeedback || 'None'}</div>
@@ -65,15 +68,15 @@ export const PortfolioCardView: React.FC<PortfolioCardViewProps> = ({ card, acti
         />
       </div>
       <CardActions>
-        <ActionButton 
-          label="Buy More" 
-          variant="primary" 
-          onClick={(e) => actions?.onBuyMore?.(card.symbol)} 
+        <ActionButton
+          label="Buy More"
+          variant="primary"
+          onClick={(e) => actions?.onBuyMore?.(card.symbol)}
         />
-        <ActionButton 
-          label="Sell" 
-          variant="secondary" 
-          onClick={(e) => actions?.onSell?.(card.symbol)} 
+        <ActionButton
+          label="Sell"
+          variant="secondary"
+          onClick={(e) => actions?.onSell?.(card.symbol)}
         />
       </CardActions>
     </>

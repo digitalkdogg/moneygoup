@@ -36,15 +36,18 @@ export async function GET(request: NextRequest) {
         us.purchase_price,
         us.initial_purchase_date,
         us.last_transaction_date,
-        usp.predicted_price_1m
+        usp.predicted_price_1m,
+        sb.primary_color
       FROM user_stocks us
       JOIN stocks s ON us.stock_id = s.id
-      LEFT JOIN user_stock_predictions usp 
-        ON us.user_id = usp.user_id 
+      LEFT JOIN user_stock_predictions usp
+        ON us.user_id = usp.user_id
        AND us.stock_id = usp.stock_id
-      WHERE us.user_id = ? 
-        AND us.is_purchased = 1 
-        AND us.is_active = 1 
+      LEFT JOIN stock_brand sb
+        ON LOWER(s.symbol) = LOWER(sb.ticker)
+      WHERE us.user_id = ?
+        AND us.is_purchased = 1
+        AND us.is_active = 1
         AND us.shares > 0
       ORDER BY us.last_transaction_date DESC
     `, [userId]);
@@ -107,22 +110,24 @@ export async function GET(request: NextRequest) {
             }
           }
 
-          return { 
-            ...item, 
-            regularMarketPrice: currentPrice, 
+          return {
+            ...item,
+            regularMarketPrice: currentPrice,
             prev_close: prevClose,
             recommendationKey: summary?.financialData?.recommendationKey || null,
             recommendationMean: summary?.financialData?.recommendationMean || null,
-            numberOfAnalystOpinions: summary?.financialData?.numberOfAnalystOpinions || null
+            numberOfAnalystOpinions: summary?.financialData?.numberOfAnalystOpinions || null,
+            brand_color: item.primary_color || null
           };
         } catch (dataError) {
           logger.error(`Error fetching data for ${item.symbol}:`, dataError as Error);
-          return { 
-            ...item, 
-            regularMarketPrice: null, 
+          return {
+            ...item,
+            regularMarketPrice: null,
             prev_close: null,
             recommendationKey: null,
-            numberOfAnalystOpinions: null
+            numberOfAnalystOpinions: null,
+            brand_color: item.primary_color || null
           };
         }
       })

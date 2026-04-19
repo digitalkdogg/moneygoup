@@ -5,3 +5,5 @@ scipy
 requests
 mysql-connector-python
 python-dotenv
+Pillow
+beautifulsoup4

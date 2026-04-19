@@ -11,6 +11,7 @@ interface StockCardSectionProps<T> {
   loading?: boolean;
   error?: string | null;
   emptyMessage?: string;
+  columns?: 3 | 4;
 }
 
 export default function StockCardSection<T>({
@@ -21,7 +22,11 @@ export default function StockCardSection<T>({
   loading = false,
   error = null,
   emptyMessage = 'No data found.',
+  columns = 3,
 }: StockCardSectionProps<T>) {
+  const gridClass = columns === 4
+    ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4'
+    : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
   return (
     <section className="bg-white p-4 md:p-6 rounded-2xl shadow-lg mb-8">
       <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-6 text-center">
@@ -47,7 +52,7 @@ export default function StockCardSection<T>({
       )}
 
       {data.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-max">
+        <div className={`${gridClass} gap-6 auto-rows-max`}>
           {data.map((item, index) => (
             <div
               key={(item as any).symbol || (item as any).id || index}

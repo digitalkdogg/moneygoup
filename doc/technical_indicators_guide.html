@@ -158,7 +158,7 @@
 
         <section id="overview">
             <h2>Scoring Methodology</h2>
-            <p>The total score typically ranges from <strong>-14 to +14</strong>. This score is then mapped to a recommendation:</p>
+            <p>The total score typically ranges from <strong>-16 to +16</strong>. This score is then mapped to a recommendation:</p>
             <table class="summary-table">
                 <thead>
                     <tr>
@@ -169,27 +169,27 @@
                 </thead>
                 <tbody>
                     <tr>
-                        <td>Score &ge; 8</td>
+                        <td>Score &ge; 10</td>
                         <td>Strong Buy</td>
                         <td style="color: var(--buy); font-weight: bold;">Green</td>
                     </tr>
                     <tr>
-                        <td>3 &le; Score < 8</td>
+                        <td>5 &le; Score < 10</td>
                         <td>Buy</td>
                         <td style="color: var(--buy);">Light Green</td>
                     </tr>
                     <tr>
-                        <td>-2 < Score < 3</td>
+                        <td>-4 < Score < 5</td>
                         <td>Hold</td>
                         <td style="color: var(--hold);">Gray</td>
                     </tr>
                     <tr>
-                        <td>-7 < Score &le; -2</td>
+                        <td>-9 < Score &le; -5</td>
                         <td>Sell</td>
                         <td style="color: var(--sell);">Orange</td>
                     </tr>
                     <tr>
-                        <td>Score &le; -7</td>
+                        <td>Score &le; -10</td>
                         <td>Strong Sell</td>
                         <td style="color: var(--sell); font-weight: bold;">Red</td>
                     </tr>
@@ -200,14 +200,14 @@
         <section id="sma">
             <h2>Moving Averages (SMA)</h2>
             <div class="metric-card">
-                <h3>SMA 20/50 Crossover <span class="score-badge weight-positive">+2 / -2</span></h3>
+                <h3>SMA 20/50 Crossover <span class="score-badge weight-positive">+3 / -3</span></h3>
                 <p>Measures the relationship between short-term and medium-term price trends.</p>
                 <div class="formula">
                     SMA(n) = (Price_1 + Price_2 + ... + Price_n) / n
                 </div>
                 <ul>
-                    <li><strong>Bullish (+2):</strong> Current Price > SMA20 AND SMA20 > SMA50.</li>
-                    <li><strong>Bearish (-2):</strong> Current Price < SMA20 AND SMA20 < SMA50.</li>
+                    <li><strong>Bullish (+3):</strong> SMA20 > SMA50.</li>
+                    <li><strong>Bearish (-3):</strong> SMA20 < SMA50.</li>
                 </ul>
             </div>
         </section>
@@ -221,9 +221,8 @@
                     RSI = 100 - [100 / (1 + (Avg Gain / Avg Loss))]
                 </div>
                 <ul>
-                    <li><strong>Oversold (+2):</strong> RSI < 30 (Suggests the stock is undervalued or due for a bounce).</li>
-                    <li><strong>Overbought (-2):</strong> RSI > 70 (Suggests the stock is overextended or due for a pullback).</li>
-                    <li><strong>Neutral (0):</strong> RSI between 30 and 70.</li>
+                    <li><strong>Oversold (+2):</strong> RSI < 30.</li>
+                    <li><strong>Overbought (-2):</strong> RSI > 70.</li>
                 </ul>
             </div>
         </section>
@@ -232,22 +231,22 @@
             <h2>Momentum & Trends</h2>
             <div class="metric-card">
                 <h3>Price Momentum <span class="score-badge weight-positive">+2 / -2</span></h3>
-                <p>Calculates the rate of change in price over the last 10 trading days.</p>
+                <p>Calculates whether the price is higher or lower than 10 periods ago.</p>
                 <div class="formula">
-                    Momentum = (Current Price / Price 10 Days Ago) - 1
+                    Momentum = Current Price - Price 10 Days Ago
                 </div>
                 <ul>
-                    <li><strong>Positive (+2):</strong> Momentum > 2% (Recent strong upward move).</li>
-                    <li><strong>Negative (-2):</strong> Momentum < -2% (Recent strong downward move).</li>
+                    <li><strong>Positive (+2):</strong> Momentum > 0.</li>
+                    <li><strong>Negative (-2):</strong> Momentum < 0.</li>
                 </ul>
             </div>
 
             <div class="metric-card">
-                <h3>Volumetric Trend <span class="score-badge weight-positive">+1 / -1</span></h3>
-                <p>Compares current volume to the 3-month average to confirm trend strength.</p>
+                <h3>Price vs SMA50 <span class="score-badge weight-positive">+1 / -1</span></h3>
+                <p>Confirms if the current price is above its 50-day average trend.</p>
                 <ul>
-                    <li><strong>Bullish Confirmation (+1):</strong> Price is UP and Volume > 1.2x Average.</li>
-                    <li><strong>Bearish Confirmation (-1):</strong> Price is DOWN and Volume > 1.2x Average.</li>
+                    <li><strong>Bullish (+1):</strong> Price > SMA50.</li>
+                    <li><strong>Bearish (-1):</strong> Price < SMA50.</li>
                 </ul>
             </div>
         </section>
@@ -255,19 +254,29 @@
         <section id="fundamentals">
             <h2>Fundamental Valuation</h2>
             <div class="metric-card">
-                <h3>P/E Ratio Relative <span class="score-badge weight-positive">+2 / -2</span></h3>
-                <p>Evaluates the stock's valuation relative to its 5-year historical average.</p>
+                <h3>P/E Ratio <span class="score-badge weight-positive">+1 / -1</span></h3>
+                <p>Evaluates the stock's valuation based on earnings.</p>
                 <ul>
-                    <li><strong>Value (+2):</strong> Current P/E < 80% of 5yr Mean.</li>
-                    <li><strong>Expensive (-2):</strong> Current P/E > 120% of 5yr Mean.</li>
+                    <li><strong>Value (+1):</strong> P/E < 15.</li>
+                    <li><strong>Expensive (-1):</strong> P/E > 25.</li>
                 </ul>
             </div>
 
             <div class="metric-card">
-                <h3>Market Cap Multiplier <span class="score-badge weight-positive">+1 / 0</span></h3>
-                <p>Small and Mid-cap stocks receive a minor volatility bonus if trending positively.</p>
+                <h3>P/B Ratio <span class="score-badge weight-positive">+1 / -1</span></h3>
+                <p>Evaluates the stock's valuation relative to its book value.</p>
                 <ul>
-                    <li><strong>Growth Bonus (+1):</strong> Market Cap < $10B AND Trend is Bullish.</li>
+                    <li><strong>Value (+1):</strong> P/B < 2.</li>
+                    <li><strong>Expensive (-1):</strong> P/B > 5.</li>
+                </ul>
+            </div>
+
+            <div class="metric-card">
+                <h3>Market Cap <span class="score-badge weight-positive">+1 / -1</span></h3>
+                <p>Rewards large-cap stability and identifies small-cap risk.</p>
+                <ul>
+                    <li><strong>Large Cap (+1):</strong> Market Cap > $200B.</li>
+                    <li><strong>Small Cap (-1):</strong> Market Cap < $2B.</li>
                 </ul>
             </div>
         </section>
@@ -276,14 +285,20 @@
             <h2>Sentiment Analysis</h2>
             <div class="metric-card">
                 <h3>News Sentiment <span class="score-badge weight-positive">+2 / -2</span></h3>
-                <p>Analyzes the tone of the latest headlines and descriptions using an AI-enhanced financial lexicon. The raw analysis is normalized to a <code>-1.0</code> (extremely bearish) to <code>+1.0</code> (extremely bullish) scale.</p>
-                <p><strong>Scoring Logic:</strong></p>
+                <p>Analyzes the tone of the latest headlines using a financial lexicon.</p>
                 <ul>
                     <li><strong>Bullish News (+2):</strong> Sentiment Score > 0.1.</li>
                     <li><strong>Bearish News (-2):</strong> Sentiment Score < -0.1.</li>
-                    <li><strong>Neutral (0):</strong> Score between -0.1 and 0.1.</li>
                 </ul>
-                <p class="note">Note: This analyzes both the title and description of the top 10 most relevant news articles for the stock.</p>
+            </div>
+
+            <div class="metric-card">
+                <h3>Volatility Rating <span class="score-badge weight-positive">+1 / -1</span></h3>
+                <p>Adjusts score based on historical annualized price volatility.</p>
+                <ul>
+                    <li><strong>Low Volatility (+1):</strong> Increased stability.</li>
+                    <li><strong>High Volatility (-1):</strong> Increased risk.</li>
+                </ul>
             </div>
         </section>
 

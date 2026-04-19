@@ -14,5 +14,6 @@ export interface PortfolioItem {
   prev_close?: number;
   recommendationKey?: string | null;
   numberOfAnalystOpinions?: number | null;
+  brand_color?: string | null;
   [key: string]: any; // For StockTableRow compatibility
 }

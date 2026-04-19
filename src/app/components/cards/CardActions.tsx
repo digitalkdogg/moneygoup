@@ -6,10 +6,21 @@ interface ActionButtonProps {
   label: string
   onClick: (e: React.MouseEvent) => void
   variant?: 'primary' | 'secondary' | 'danger' | 'neutral'
+  size?: 'sm' | 'md'
+  outline?: boolean
 }
 
-const ActionButton: React.FC<ActionButtonProps> = ({ label, onClick, variant = 'neutral' }) => {
+const ActionButton: React.FC<ActionButtonProps> = ({ label, onClick, variant = 'neutral', size = 'md', outline = false }) => {
   const getStyles = () => {
+    if (outline) {
+      switch (variant) {
+        case 'primary': return 'bg-white border border-green-700 text-green-700 hover:bg-green-50'
+        case 'secondary': return 'bg-white border border-gray-600 text-gray-600 hover:bg-gray-50'
+        case 'danger': return 'bg-white border border-red-600 text-red-600 hover:bg-red-50'
+        case 'neutral': return 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+        default: return 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+      }
+    }
     switch (variant) {
       case 'primary': return 'bg-green-700 text-white hover:bg-green-800'
       case 'secondary': return 'bg-gray-600 text-white hover:bg-gray-700'
@@ -19,10 +30,18 @@ const ActionButton: React.FC<ActionButtonProps> = ({ label, onClick, variant = '
     }
   }
 
+  const getSizeStyles = () => {
+    switch (size) {
+      case 'sm': return 'py-1.5 px-2 text-[10px]'
+      case 'md': return 'py-2.5 px-3 text-xs'
+      default: return 'py-2.5 px-3 text-xs'
+    }
+  }
+
   return (
     <button
       onClick={onClick}
-      className={`flex-1 py-2.5 px-3 rounded-lg text-xs font-bold transition-colors duration-200 ${getStyles()}`}
+      className={`flex-1 rounded-lg font-bold transition-colors duration-200 ${getSizeStyles()} ${getStyles()}`}
     >
       {label}
     </button>
@@ -31,11 +50,12 @@ const ActionButton: React.FC<ActionButtonProps> = ({ label, onClick, variant = '
 
 interface CardActionsProps {
   children: React.ReactNode
+  compact?: boolean
 }
 
-export const CardActions: React.FC<CardActionsProps> = ({ children }) => {
+export const CardActions: React.FC<CardActionsProps> = ({ children, compact }) => {
   return (
-    <div className="flex gap-2 p-5 mt-auto border-t border-gray-50" onClick={(e) => e.stopPropagation()}>
+    <div className={`flex gap-2 mt-auto border-t border-gray-50 ${compact ? 'p-3' : 'p-5'}`} onClick={(e) => e.stopPropagation()}>
       {children}
     </div>
   )

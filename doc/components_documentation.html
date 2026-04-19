@@ -260,7 +260,7 @@
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
-                        <tr><td><code>portfolio</code></td><td><code>PortfolioItem[]</code></td><td>User's current holdings for signal analysis.</td></tr>
+                        <tr><td>None</td><td>-</td><td>Fetches data internally from <code>/api/dashboard/recommendations</code>.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -423,21 +423,6 @@
                 </table>
             </div>
 
-            <div id="RecommendationsSection" class="component-card">
-                <div class="component-title">
-                    RecommendationsSection
-                    <span class="file-path">src/app/components/RecommendationsSection.tsx</span>
-                </div>
-                <p>A smart dashboard section that compares current prices against 1-month predictions to surface BUY/SELL signals for all tracked stocks.</p>
-                <p><strong>Example usage:</strong> Used inside <code>Dashboard</code> on the dashboard page to surface AI BUY/SELL signals for tracked positions.</p>
-                <table class="prop-table">
-                    <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
-                    <tbody>
-                        <tr><td>None</td><td>-</td><td>Uses <code>/api/dashboard/recommendations</code> and renders <code>MiniDataCard</code> tiles for actionable signals (&plusmn;3% threshold).</td></tr>
-                    </tbody>
-                </table>
-            </div>
-
             <div id="TrendingStocksGrid" class="component-card">
                 <div class="component-title">
                     TrendingStocksGrid
@@ -514,8 +499,7 @@
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
-                        <tr><td><code>ticker</code></td><td><code>string</code></td><td>Stock symbol for data fetching.</td></tr>
-                        <tr><td><code>historicalData</code></td><td><code>HistoricalData[] | null</code></td><td>Pre-fetched historical data.</td></tr>
+                        <tr><td>None</td><td>-</td><td>Fetches data internally based on selected time period.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -746,7 +730,7 @@
                     PortfolioCardView
                     <span class="file-path">src/app/components/cards/variants/PortfolioCardView.tsx</span>
                 </div>
-                <p>Renders the 'portfolio' card variant, including shares held, price, analyst feedback, and buy/sell actions. Now explicitly displays the <strong>1M Prediction</strong> metric to show AI price trajectory.</p>
+                <p>Renders the 'portfolio' card variant, including shares held, price, analyst feedback, buy/sell actions, and an optional top border color for visual distinction. Now explicitly displays the <strong>1M Prediction</strong> metric to show AI price trajectory.</p>
                 <p><strong>Example usage:</strong> Used by <code>StockCard</code> when <code>variant="portfolio"</code>, typically in <code>PortfolioSection</code>.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>

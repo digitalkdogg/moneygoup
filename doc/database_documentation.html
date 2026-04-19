@@ -339,14 +339,33 @@
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
                         <tr><td><code>ticker</code></td><td><code>VARCHAR(20)</code></td><td>ETF Symbol.</td></tr>
+                        <tr><td><code>etf_name</code></td><td><code>VARCHAR(255)</code></td><td>Full fund name.</td></tr>
+                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>Date of discovery.</td></tr>
+                        <tr><td><code>current_price</code></td><td><code>DECIMAL(10,2)</code></td><td>Price at snapshot.</td></tr>
                         <tr><td><code>etf_gps_score</code></td><td><code>DECIMAL(5,1)</code></td><td>0-100 Score.</td></tr>
+                        <tr><td><code>theme</code></td><td><code>VARCHAR(100)</code></td><td>Thematic category.</td></tr>
+                        <tr><td><code>aum_m</code></td><td><code>DECIMAL(12,2)</code></td><td>Assets (Millions).</td></tr>
+                        <tr><td><code>expense_ratio_pct</code></td><td><code>DECIMAL(5,3)</code></td><td>Annual fee %.</td></tr>
+                        <tr><td><code>52wk_return_pct</code></td><td><code>DECIMAL(7,2)</code></td><td>1Y Performance.</td></tr>
                         <tr><td><code>macro_tailwind_score</code></td><td><code>DECIMAL(5,1)</code></td><td>Structural macro boost.</td></tr>
                         <tr><td><code>theme_validation_bonus</code></td><td><code>DECIMAL(5,1)</code></td><td>Tech adoption bonus points.</td></tr>
                     </tbody>
                 </table>
             </div>
 
-            <!-- MACRO_CONTEXT_SNAPSHOTS -->
+            <!-- ETF_CYCLE_SUMMARY -->
+            <div id="etf_cycle_summary" class="table-card">
+                <div class="table-title">etf_cycle_summary</div>
+                <p>Cycle-level metadata for ETF discovery runs.</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>cycle_date</code></td><td><code>DATE</code></td><td>Run date.</td></tr>
+                        <tr><td><code>etfs_evaluated</code></td><td><code>INT</code></td><td>Total candidates.</td></tr>
+                        <tr><td><code>etfs_qualified</code></td><td><code>INT</code></td><td>Passed all filters.</td></tr>
+                        <tr><td><code>avg_etf_gps_score</code></td><td><code>DECIMAL(5,1)</code></td><td>Cycle quality metric.</td></tr>
+                    </tbody>
+                </table>
             <div id="macro_context_snapshots" class="table-card">
                 <div class="table-title">macro_context_snapshots</div>
                 <p>Daily snapshots of processed macro signals for backtesting.</p>
@@ -357,6 +376,13 @@
                         <tr><td><code>global_health_score</code></td><td><code>DECIMAL(5,2)</code></td><td>Multi-country macro score.</td></tr>
                         <tr><td><code>unemployment_rate</code></td><td><code>DECIMAL(5,2)</code></td><td>USA current rate.</td></tr>
                         <tr><td><code>unemployment_signal</code></td><td><code>VARCHAR(20)</code></td><td>bullish | bearish | neutral.</td></tr>
+                        <tr><td><code>inflation_rate</code></td><td><code>DECIMAL(5,2)</code></td><td>USA CPI trend.</td></tr>
+                        <tr><td><code>gdp_growth</code></td><td><code>DECIMAL(5,2)</code></td><td>USA GDP trend.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+                        <tr><td><code>inflation_rate</code></td><td><code>DECIMAL(5,2)</code></td><td>USA CPI trend.</td></tr>
+                        <tr><td><code>gdp_growth</code></td><td><code>DECIMAL(5,2)</code></td><td>USA GDP trend.</td></tr>
                     </tbody>
                 </table>
             </div>

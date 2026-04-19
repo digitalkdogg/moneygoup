@@ -330,13 +330,13 @@
             <h2><span>3</span> Prediction Engine</h2>
             <div id="prediction" class="step-card">
                 <h3><span class="method post">POST</span> /api/prediction/[ticker]</h3>
-                <div class="component-tag">Process: Python Spawn (v3+ Engine)</div>
+                <div class="component-tag">Process: Python Spawn (v3.1 Engine)</div>
                 <p>Generates an AI price prediction using a local MLP neural network. Results cached for 15 minutes. Supports <code>?refresh=true</code>.</p>
                 <strong>Response addition:</strong> <code>source: 'cache' | 'livedata'</code>
                 <strong>Logic Flow:</strong>
                 <ul class="flow">
                     <li>Spawns <code>scripts/predict_weighted_analysis.py</code>.</li>
-                    <li><strong>v3+ Logic:</strong> Integrates GMM-based Market Regime Detection (109 feature tensor).</li>
+                    <li><strong>v3.1 Logic:</strong> Integrates GMM-based Market Regime Detection (109 feature tensor).</li>
                     <li><strong>Persistence:</strong> Automatically triggers a call to <code>/api/prediction/save</code>.</li>
                 </ul>
             </div>
@@ -349,7 +349,7 @@
 
             <div id="deepmoney" class="step-card">
                 <h3><span class="method get">GET</span> /api/prediction/deepmoney</h3>
-                <div class="component-tag">Discovery Engine (V2.1)</div>
+                <div class="component-tag">Discovery Engine (V2.2)</div>
                 <p>Advanced stock and ETF discovery engine. Cached 30m. Supports <code>?refresh=true</code>.</p>
                 <strong>Cross-References:</strong>
                 <ul class="flow">

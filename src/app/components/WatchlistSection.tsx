@@ -133,7 +133,8 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
       analystFeedback: normalizeRecommendation(item.recommendationKey),
       analysts: item.numberOfAnalystOpinions,
       ma6m: ma6_month,
-      predictedPrice1m: toNullableNumber(item.predicted_price_1m)
+      predictedPrice1m: toNullableNumber(item.predicted_price_1m),
+      isCompact: true
     };
   };
 
@@ -150,9 +151,10 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
         title="My Watchlist"
         icon="👀"
         data={watchlist}
+        columns={4}
         renderCard={(item) => (
-          <StockCard 
-            card={mapWatchlistToCardModel(item)} 
+          <StockCard
+            card={mapWatchlistToCardModel(item)}
             actions={{
               onAddToPortfolio: () => handlePurchase(item),
               onRemoveFromWatchlist: () => handleRemoveClick(item),

@@ -12,7 +12,7 @@ The V2.2 engine integrates high-fidelity macroeconomic indicators from the World
 2.  **Social Sentiment Pre-Filter**: To reduce noise, tickers from ApeWisdom are only accepted if they have `mentions_24h_ago >= 5`.
 3.  **Gate 1: Technical Validation**: Every candidate must have a non-negative `tradingSignalScore`.
 4.  **Gate 2: Sequential ML Validation**: For stocks passing Gate 1, the system runs a 1-month ML prediction.
-    *   **Threshold**: Only stocks with a predicted 1-month growth of **≥ 0.1%** are returned.
+    *   **Threshold**: Only stocks with a predicted 1-month growth of **≥ 1.5%** are returned.
 5.  **Hot ETF Discovery (Parallel)**: Scans thematic watchlists and dynamic screeners for ETFs under $400.
     *   **Macro Tailwind Scoring (15% Weight)**: Rewards ETFs in themes with strong structural FDI and trade trends.
     *   **Qualifying Threshold**: GPS >= 55.
@@ -22,13 +22,12 @@ The V2.2 engine integrates high-fidelity macroeconomic indicators from the World
 
 ## 2. Multi-Factor Scoring (GPS)
 
-### Stock GPS Components:
-*   **Analyst Upside (25%)**: Ratio of target price to current price.
-*   **Revenue Growth (20%)**: Year-over-year revenue growth.
-*   **EPS Growth (15%)**: Growth in Earnings Per Share.
-*   **Momentum (15%)**: 52-week price change.
-*   **Mentions (15%)**: Frequency of the company in recent news.
-*   **Sentiment (10%)**: Average sentiment of news mentions.
+### Stock GPS Components (v2.2 Weights):
+*   **Analyst Upside (25%)**: Ratio of target price to current price (Scaled: 30% upside = 100% score).
+*   **Revenue Growth (25%)**: Trailing revenue growth (Scaled: 30% growth = 100% score).
+*   **EPS Growth (25%)**: Trailing EPS growth (Scaled: 25% growth = 100% score).
+*   **52-Week Momentum (25%)**: 52-week price change (Scaled: 20% return = 100% score).
+*   **Prediction Bonus (+5 pts)**: Applied if predicted 1-month growth is > 0.5%.
 
 ### ETF GPS Components (v2.2 Weights):
 *   **52-Week Price Return (25.5%)**
@@ -44,16 +43,15 @@ The V2.2 engine integrates high-fidelity macroeconomic indicators from the World
 
 ### Candidate Selection (The "Hard Gates")
 To even be considered for any "Hot" list, an asset must pass these initial filters:
-1.  **Stock Price Cap**: Must be under **$150.00**.
+1.  **Technical Validation**: Must have a non-negative `tradingSignalScore`.
 2.  **ETF Price Cap**: Must be under **$400.00**.
-3.  **Stock Market Cap**: Must be between **$150M** and **$50B**.
-4.  **ETF Liquidity**: Volume > 50,000 shares and AUM > $50M.
+3.  **ETF Liquidity**: Volume > 50,000 shares and AUM > $50M.
 
 ### Growth Classifications
 The algorithm assigns a classification label based on fundamentals:
-*   **AI/Tech Hyper-Growth**: Sector is Tech/Comms AND Revenue Growth >= 20% AND Gross Margin >= 50% AND R&D Spend >= 10%.
-*   **Established Growth**: Revenue Growth >= 10% AND EPS Growth > 0 AND 52-Week Change >= 10%.
-*   **Up and Coming Stable**: Revenue Growth >= 15% AND Market Cap between $300M - $10B AND Analyst Upside >= 15%.
+*   **AI/Tech Hyper-Growth**: Revenue Growth >= 20% AND Gross Margin >= 50% AND R&D Spend >= 10%.
+*   **Established Growth**: Revenue Growth >= 10% AND 52-Week Change >= 10%.
+*   **Standard**: Any other stock passing the ML validation gate.
 
 ---
 
