@@ -276,14 +276,14 @@
             <h2>Sentiment Analysis</h2>
             <div class="metric-card">
                 <h3>News Sentiment <span class="score-badge weight-positive">+2 / -2</span></h3>
-                <p>Analyzes the last 20 headlines for positive/negative keywords (NLP).</p>
-                <div class="formula">
-                    Sentiment = (Positive Mentions - Negative Mentions) / Total Mentions
-                </div>
+                <p>Analyzes the tone of the latest headlines and descriptions using an AI-enhanced financial lexicon. The raw analysis is normalized to a <code>-1.0</code> (extremely bearish) to <code>+1.0</code> (extremely bullish) scale.</p>
+                <p><strong>Scoring Logic:</strong></p>
                 <ul>
-                    <li><strong>Bullish News (+2):</strong> Sentiment Score > 0.4.</li>
-                    <li><strong>Bearish News (-2):</strong> Sentiment Score < -0.4.</li>
+                    <li><strong>Bullish News (+2):</strong> Sentiment Score > 0.1.</li>
+                    <li><strong>Bearish News (-2):</strong> Sentiment Score < -0.1.</li>
+                    <li><strong>Neutral (0):</strong> Score between -0.1 and 0.1.</li>
                 </ul>
+                <p class="note">Note: This analyzes both the title and description of the top 10 most relevant news articles for the stock.</p>
             </div>
         </section>
 

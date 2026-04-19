@@ -95,7 +95,7 @@ export default function StockChart({ ticker, historicalData }: StockChartProps) 
                   ? 'text-white shadow'
                   : 'text-gray-600 hover:bg-gray-200'
               }`}
-              style={period === p ? { backgroundColor: '#029b37' } : {}}
+              style={period === p ? { backgroundColor: '#017e3b' } : {}}
             >
               {p.toUpperCase()}
             </button>
@@ -151,11 +151,11 @@ export default function StockChart({ ticker, historicalData }: StockChartProps) 
                         return 'Invalid Date';
                     }}
                 />
-                <Legend iconType="circle" iconSize={8} />
-                <Line 
-                    type="monotone" 
-                    dataKey="close" 
-                    stroke="#16a34a" 
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ color: 'rgb(1, 126, 59)' }} />
+                <Line
+                    type="monotone"
+                    dataKey="close"
+                    stroke="rgb(1, 126, 59)"
                     strokeWidth={2}
                     dot={false}
                     activeDot={{ r: 6, strokeWidth: 2, fill: '#fff' }}

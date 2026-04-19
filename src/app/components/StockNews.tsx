@@ -71,9 +71,10 @@ export default function StockNews({ articles, ticker }: StockNewsProps) {
               {article.sentiment_score !== undefined && (
                 <div className="flex-shrink-0 pt-1">
                   <span
+                    style={article.sentiment_score > 0 ? { backgroundColor: '#a8d78d', color: '#166534' } : {}}
                     className={`inline-block px-2 py-1 rounded text-xs font-semibold ${
                       article.sentiment_score > 0
-                        ? 'bg-green-100 text-green-800'
+                        ? ''
                         : article.sentiment_score < 0
                           ? 'bg-red-100 text-red-800'
                           : 'bg-gray-100 text-gray-800'

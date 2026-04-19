@@ -141,8 +141,8 @@ export default function BuyMoreModal({ stock, onClose }: BuyMoreModalProps) {
                   {formatCurrency(parseFloat(shares) * parseFloat(price))}
                 </span>
               </p>
-              <p className="text-sm text-gray-600">
-                New Average Price: <span className="font-semibold text-green-600">
+              <p className="text-sm text-gray-500">
+                New Average Price: <span className="font-semibold" style={{ color: "#005a00" }}>
                   {formatCurrency(newAvgPrice)}
                 </span>
               </p>
@@ -167,7 +167,8 @@ export default function BuyMoreModal({ stock, onClose }: BuyMoreModalProps) {
             </button>
             <button
               type="submit"
-              className="px-6 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors font-semibold disabled:opacity-50"
+              className="px-6 py-2 text-white rounded-lg hover:bg-green-800 transition-colors font-semibold disabled:opacity-50"
+              style={{ backgroundColor: "#017e3b" }}
               disabled={loading}
             >
               {loading ? 'Buying...' : 'Confirm Buy'}

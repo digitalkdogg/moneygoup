@@ -48,7 +48,7 @@ const GainsBreakdownCard: React.FC<GainsBreakdownCardProps> = ({ totals, loading
 
   // Simple CSS conic-gradient for donut
   const donutGradient = `conic-gradient(
-    #16a34a 0% ${gainPct}%,
+    #a8d78d 0% ${gainPct}%,
     #dc2626 ${gainPct}% ${gainPct + lossPct}%,
     #e5e7eb ${gainPct + lossPct}% 100%
   )`;
@@ -80,7 +80,7 @@ const GainsBreakdownCard: React.FC<GainsBreakdownCardProps> = ({ totals, loading
           <ul className="space-y-2">
             <li className="flex justify-between items-center text-sm">
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-green-600"></div>
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#a8d78d' }}></div>
                 <span className="text-gray-500 font-medium">Unrealized Gains</span>
               </div>
               <span className="text-green-600 font-bold">{formatCurrency(totals.unrealizedGain, 0)}</span>

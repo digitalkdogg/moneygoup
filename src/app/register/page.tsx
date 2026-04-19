@@ -94,14 +94,14 @@ export default function RegisterPage() {
             </div>
           )}
           {success && (
-            <div className="bg-green-100 border-2 border-green-400 text-green-700 px-4 py-3 rounded-lg relative mb-4" role="alert">
+            <div style={{ backgroundColor: '#a8d78d' }} className="border-2 border-green-400 text-green-700 px-4 py-3 rounded-lg relative mb-4" role="alert">
               <span className="block sm:inline">{success}</span>
             </div>
           )}
           <button
             type="submit"
             disabled={loading}
-            style={{ backgroundColor: '#029b37' }}
+            style={{ backgroundColor: '#017e3b' }}
             className="w-full hover:opacity-90 text-white font-bold py-2 px-4 rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600 disabled:opacity-50"
           >
             {loading ? 'Registering...' : 'Register'}
@@ -109,7 +109,7 @@ export default function RegisterPage() {
         </form>
         <p className="mt-6 text-center text-gray-600">
           Already have an account?{' '}
-          <Link href="/login" className="text-green-600 hover:text-green-800 font-medium">
+          <Link href="/login" className="hover:text-green-800 font-medium" style={{ color: "#005a00" }}>
             Login here
           </Link>
         </p>

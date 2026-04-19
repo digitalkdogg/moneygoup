@@ -11,7 +11,7 @@ interface ActionButtonProps {
 const ActionButton: React.FC<ActionButtonProps> = ({ label, onClick, variant = 'neutral' }) => {
   const getStyles = () => {
     switch (variant) {
-      case 'primary': return 'bg-green-600 text-white hover:bg-green-700'
+      case 'primary': return 'bg-green-700 text-white hover:bg-green-800'
       case 'secondary': return 'bg-gray-600 text-white hover:bg-gray-700'
       case 'danger': return 'bg-red-600 text-white hover:bg-red-700'
       case 'neutral': return 'bg-gray-100 text-gray-700 hover:bg-gray-200'

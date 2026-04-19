@@ -134,7 +134,8 @@ function ConfidenceBadge({ score }: { score: number }) {
     return (
       <span
         title={CONFIDENCE_TOOLTIP}
-        className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full border bg-white-50 text-green-700 border-green-500 cursor-help"
+        className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full border cursor-help"
+        style={{ backgroundColor: '#f0fdf4', color: '#005a00', borderColor: '#005a00' }}
       >
         High Confidence · {score}
       </span>
@@ -421,8 +422,9 @@ export default function StockPrediction({
       <button
         onClick={generate}
         disabled={loading || cooldown > 0}
+        style={!(loading || cooldown > 0) ? { backgroundColor: '#017e3b' } : {}}
         className={`text-white font-semibold py-2 px-5 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-wait ${
-          loading || cooldown > 0 ? 'bg-gray-400' : 'bg-[#029b37] hover:opacity-90'
+          loading || cooldown > 0 ? 'bg-gray-400' : 'hover:opacity-90'
         }`}
       >
         {btnLabel}
@@ -457,7 +459,10 @@ export default function StockPrediction({
               <p className="text-3xl font-bold text-purple-800 mb-1">
                 {formatCurrency(prediction.predicted_price_1d)}
               </p>
-              <p className={`text-sm font-semibold mb-3 ${prediction.predicted_change_pct_1d >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <p 
+                className={`text-sm font-semibold mb-3 ${prediction.predicted_change_pct_1d < 0 ? 'text-red-600' : ''}`}
+                style={prediction.predicted_change_pct_1d >= 0 ? { color: "#005a00" } : {}}
+              >
                 {prediction.predicted_change_pct_1d >= 0 ? '+' : ''}{formatNumber(prediction.predicted_change_pct_1d, 2)}% from current
               </p>
               <ConfidenceBadgeBlue score={prediction.confidence_score_1d} />
@@ -474,7 +479,10 @@ export default function StockPrediction({
               <p className="text-3xl font-bold text-blue-800 mb-1">
                 {formatCurrency(prediction.predicted_price_1m)}
               </p>
-              <p className={`text-sm font-semibold mb-3 ${prediction.predicted_change_pct_1m >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <p 
+                className={`text-sm font-semibold mb-3 ${prediction.predicted_change_pct_1m < 0 ? 'text-red-600' : ''}`}
+                style={prediction.predicted_change_pct_1m >= 0 ? { color: "#005a00" } : {}}
+              >
                 {prediction.predicted_change_pct_1m >= 0 ? '+' : ''}{formatNumber(prediction.predicted_change_pct_1m, 2)}% from current
               </p>
               <ConfidenceBadgeBlue score={prediction.confidence_score_1m} />
@@ -491,7 +499,10 @@ export default function StockPrediction({
               <p className="text-3xl font-bold text-emerald-800 mb-1">
                 {formatCurrency(prediction.predicted_price_6m)}
               </p>
-              <p className={`text-sm font-semibold mb-3 ${prediction.predicted_change_pct_6m >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+              <p 
+                className={`text-sm font-semibold mb-3 ${prediction.predicted_change_pct_6m < 0 ? 'text-red-600' : ''}`}
+                style={prediction.predicted_change_pct_6m >= 0 ? { color: "#005a00" } : {}}
+              >
                 {prediction.predicted_change_pct_6m >= 0 ? '+' : ''}{formatNumber(prediction.predicted_change_pct_6m, 2)}% from current
               </p>
               <ConfidenceBadge score={prediction.confidence_score_6m} />
@@ -508,7 +519,10 @@ export default function StockPrediction({
               <p className="text-3xl font-bold text-green-900 mb-1">
                 {formatCurrency(prediction.predicted_price_1y)}
               </p>
-              <p className={`text-sm font-semibold mb-3 ${prediction.predicted_change_pct_1y >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+              <p 
+                className={`text-sm font-semibold mb-3 ${prediction.predicted_change_pct_1y < 0 ? 'text-red-600' : ''}`}
+                style={prediction.predicted_change_pct_1y >= 0 ? { color: "#005a00" } : {}}
+              >
                 {prediction.predicted_change_pct_1y >= 0 ? '+' : ''}{formatNumber(prediction.predicted_change_pct_1y, 2)}% from current
               </p>
               <ConfidenceBadge score={prediction.confidence_score_1y} />
@@ -540,7 +554,10 @@ export default function StockPrediction({
                   <div className="pb-2 border-b border-gray-200">
                     <div className="flex justify-between">
                       <span className="text-gray-600">RSI (14)</span>
-                      <span className={`font-semibold ${rsi > 70 ? 'text-red-600' : rsi < 30 ? 'text-green-600' : 'text-gray-700'}`}>
+                      <span 
+                        className={`font-semibold ${rsi > 70 ? 'text-red-600' : rsi < 30 ? '' : 'text-gray-700'}`}
+                        style={rsi < 30 ? { color: "#005a00" } : {}}
+                      >
                         {formatNumber(rsi, 1)}
                       </span>
                     </div>
@@ -551,7 +568,10 @@ export default function StockPrediction({
                   <div className="pb-2 border-b border-gray-200">
                     <div className="flex justify-between">
                       <span className="text-gray-600">Momentum</span>
-                      <span className={`font-semibold ${Math.abs(momentum) > 2 ? momentum > 0 ? 'text-green-600' : 'text-red-600' : 'text-gray-700'}`}>
+                      <span 
+                        className={`font-semibold ${Math.abs(momentum) > 2 ? momentum > 0 ? '' : 'text-red-600' : 'text-gray-700'}`}
+                        style={Math.abs(momentum) > 2 && momentum > 0 ? { color: "#005a00" } : {}}
+                      >
                         {formatNumber(momentum, 2)}
                       </span>
                     </div>
@@ -562,7 +582,10 @@ export default function StockPrediction({
                   <div className="pb-2 border-b border-gray-200">
                     <div className="flex justify-between">
                       <span className="text-gray-600">SMA Trend</span>
-                      <span className={`font-semibold ${sma20 > sma50 ? 'text-green-600' : 'text-red-600'}`}>
+                      <span 
+                        className={`font-semibold ${sma20 > sma50 ? '' : 'text-red-600'}`}
+                        style={sma20 > sma50 ? { color: "#005a00" } : {}}
+                      >
                         {sma20 > sma50 ? 'Bullish' : 'Bearish'}
                       </span>
                     </div>
@@ -573,7 +596,10 @@ export default function StockPrediction({
                   <div className="pb-2 border-b border-gray-200">
                     <div className="flex justify-between">
                       <span className="text-gray-600">P/E Ratio</span>
-                      <span className={`font-semibold ${peRatio < 15 ? 'text-green-600' : peRatio > 25 ? 'text-red-600' : 'text-gray-700'}`}>
+                      <span 
+                        className={`font-semibold ${peRatio < 15 ? '' : peRatio > 25 ? 'text-red-600' : 'text-gray-700'}`}
+                        style={peRatio < 15 ? { color: "#005a00" } : {}}
+                      >
                         {formatNumber(peRatio, 1)}
                       </span>
                     </div>
@@ -602,7 +628,10 @@ export default function StockPrediction({
                     <div className="grid grid-cols-2 gap-3 text-sm">
                       <div>
                         <p className="text-xs text-gray-500 mb-1">Accuracy</p>
-                        <p className={`text-lg font-bold ${accuracy >= 85 ? 'text-green-600' : accuracy >= 70 ? 'text-yellow-600' : 'text-red-600'}`}>
+                        <p 
+                          className={`text-lg font-bold ${accuracy >= 85 ? '' : accuracy >= 70 ? 'text-yellow-600' : 'text-red-600'}`}
+                          style={accuracy >= 85 ? { color: "#005a00" } : {}}
+                        >
                           {formatNumber(accuracy, 1)}%
                         </p>
                       </div>

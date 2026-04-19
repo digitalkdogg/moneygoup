@@ -234,11 +234,11 @@ function generateSignal(
   let newsScore = 0;
   let newsReason = '';
   if (newsSentiment !== null) {
-    if (newsSentiment > 0) { // Adjusted from > 1
+    if (newsSentiment > 0.1) { // Threshold for positive news in normalized range
       newsScore = 2;
       newsReason = `Positive News Sentiment (Score: ${newsSentiment.toFixed(2)})`;
       reasons.push('Positive News');
-    } else if (newsSentiment < 0) { // Adjusted from < -1
+    } else if (newsSentiment < -0.1) { // Threshold for negative news in normalized range
       newsScore = -2;
       newsReason = `Negative News Sentiment (Score: ${newsSentiment.toFixed(2)})`;
       reasons.push('Negative News');

@@ -48,6 +48,42 @@ export async function GET(
 
   try {
     const sentiment = new Sentiment();
+    // Custom financial sentiment overrides
+    const financialLexicon = {
+      'beat': 3,
+      'beats': 3,
+      'surge': 3,
+      'growth': 2,
+      'backlog': 1,
+      'demand': 1, // "demand" is often positive in financial news
+      'bullish': 3,
+      'bearish': -3,
+      'upgrade': 3,
+      'downgrade': -3,
+      'high-growth': 3,
+      'acceleration': 2,
+      'aligning': 1,
+      'drops': -2,
+      'tumbles': -3,
+      'soars': 3,
+      'rally': 3,
+      'plunges': -3,
+      'lower': -1,
+      'higher': 1,
+      'outperform': 3,
+      'underperform': -3,
+      'buy': 2,
+      'sell': -2,
+      'hold': 0,
+      'profit': 2,
+      'loss': -2,
+      'miss': -3,
+      'misses': -3,
+      'beat expectations': 4,
+      'missed expectations': -4,
+      'q1': 0, 'q2': 0, 'q3': 0, 'q4': 0,
+    };
+
     const articlesByTicker: Record<string, any[]> = {};
     const tickersToFetch: string[] = [];
     let allFromCache = true;
@@ -99,12 +135,22 @@ export async function GET(
             const isRelevant = relevantKeywords.some(keyword => title.includes(keyword) || description.includes(keyword));
             if (!isRelevant) return;
 
-            const sentimentResult = sentiment.analyze(item.title);
+            // Analyze both title and description for better coverage
+            const combinedText = `${item.title}. ${item.description || ''}`;
+            const sentimentResult = sentiment.analyze(combinedText, {
+              extras: financialLexicon
+            });
+
             let sanitizedLink = item.link;
             if (sanitizedLink && !sanitizedLink.startsWith('http')) sanitizedLink = '#';
 
             tickerArticles.push({
-              title: item.title, link: sanitizedLink || '#', pubDate: item.pubDate, publishedAt: item.pubDate, source: item.source, sentiment_score: sentimentResult.score,
+              title: item.title, 
+              link: sanitizedLink || '#', 
+              pubDate: item.pubDate, 
+              publishedAt: item.pubDate, 
+              source: item.source, 
+              sentiment_score: sentimentResult.comparative,
             });
           });
 

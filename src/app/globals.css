@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+@theme {
+  --color-green-600: #005a00;
+  --color-green-700: #017e3b;
+  --color-green-800: #016a32;
+}
+
+:root {
+  --color-green-600: #005a00;
+}
+
 button {
 	cursor:pointer;
 }

@@ -1,7 +1,7 @@
 // src/app/components/cards/CardHeader.tsx
 
 import React from 'react'
-import { formatPercent, getChangeColor, getChangeBg, formatPrice } from './formatters'
+import { formatPercent, getChangeColor, getChangeBg, getChangeBgStyle, formatPrice } from './formatters'
 
 interface CardHeaderProps {
   symbol: string
@@ -26,6 +26,7 @@ export const CardHeader: React.FC<CardHeaderProps> = ({ symbol, companyName, cha
       <div className="flex flex-col items-end">
         {changePercent !== null && (
           <div
+            style={getChangeBgStyle(changePercent)}
             className={`px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${getChangeColor(changePercent)} ${getChangeBg(changePercent)} bg-opacity-10`}
           >
             <span aria-hidden="true">{isPositive ? '↑' : '↓'}</span>

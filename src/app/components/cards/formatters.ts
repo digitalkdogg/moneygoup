@@ -7,14 +7,25 @@ export const formatPrice = (value: number | null) => {
   return formatCurrency(value, 2)
 }
 
+export const formatPriceChange = (value: number | null) => {
+  if (value === null) return 'N/A'
+  const sign = value > 0 ? '+' : (value < 0 ? '-' : '')
+  return `${sign}${formatCurrency(Math.abs(value), 2)}`
+}
+
 export const formatPercent = (value: number | null) => {
   if (value === null) return 'N/A'
-  return (value >= 0 ? '+' : '') + formatNumber(value, 2) + '%'
+  return (value > 0 ? '+' : '') + formatNumber(value, 2) + '%'
 }
 
 export const formatShares = (value: number | null) => {
   if (value === null) return 'N/A'
   return formatNumber(value, 2, true)
+}
+
+export const calculatePredictionChange = (current: number | null, predicted: number | null): number | null => {
+  if (current === null || predicted === null || current === 0) return null
+  return ((predicted - current) / current) * 100
 }
 
 export const getChangeColor = (value: number | null) => {
@@ -24,7 +35,17 @@ export const getChangeColor = (value: number | null) => {
 
 export const getChangeBg = (value: number | null) => {
   if (value === null) return 'bg-gray-100'
-  return value >= 0 ? 'bg-green-100' : 'bg-red-100 '
+  return value >= 0 ? '' : 'bg-red-100 '
+}
+
+export const getChangeBgStyle = (value: number | null) => {
+  if (value === null) return {}
+  return value >= 0 ? { backgroundColor: '#a8d78d' } : {}
+}
+
+export const getPredictionColor = (value: number | null) => {
+  if (value === null || value === 0) return 'text-black'
+  return value > 0 ? 'text-green-600' : 'text-red-600'
 }
 
 export const getAnalystColor = (rec: string | null): string => {

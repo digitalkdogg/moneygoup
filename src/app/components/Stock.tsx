@@ -434,7 +434,7 @@ export default function Stock({
                 <button
                   onClick={() => handleWatchlistToggle(primaryTicker)}
                   disabled={addingToWatchlist}
-                  style={{ backgroundColor: '#029b37', borderColor: '#029b37' }} className="px-4 py-2 rounded-md text-white hover:opacity-90 disabled:opacity-50 border"
+                  style={{ backgroundColor: '#017e3b', borderColor: '#017e3b' }} className="px-4 py-2 rounded-md text-white hover:opacity-90 disabled:opacity-50 border"
                 >
                   {addingToWatchlist ? 'Updating...' : 'Remove from Watchlist'}
                 </button>
@@ -442,7 +442,7 @@ export default function Stock({
                 <button
                   onClick={() => handleWatchlistToggle(primaryTicker)}
                   disabled={addingToWatchlist}
-                  style={{ backgroundColor: '#029b37' }} className="px-4 py-2 rounded-md text-white hover:opacity-90 disabled:opacity-50"
+                  style={{ backgroundColor: '#017e3b' }} className="px-4 py-2 rounded-md text-white hover:opacity-90 disabled:opacity-50"
                 >
                   {addingToWatchlist ? 'Adding...' : 'Add to Watchlist'}
                 </button>
@@ -461,7 +461,7 @@ export default function Stock({
                 {stockData.longBusinessSummary.length > TRUNCATE_LENGTH && (
                   <button
                     onClick={() => setShowFullSummary(!showFullSummary)}
-                    className="text-green-600 hover:text-green-800 font-semibold ml-1 focus:outline-none"
+                    className="text-green-600 hover:text-green-800 font-semibold ml-1 focus:outline-none" style={{ color: "#005a00" }}
                   >
                     {showFullSummary ? 'Read Less' : 'Read More'}
                   </button>
@@ -478,10 +478,11 @@ export default function Stock({
               {stockData.prevClose !== undefined && currentPrice !== null && (
                 <p
                   className={`text-md ${
-                    (currentPrice - stockData.prevClose) >= 0
-                      ? 'text-green-600'
-                      : 'text-red-600'
+                    (currentPrice - stockData.prevClose) < 0
+                      ? 'text-red-600'
+                      : ''
                   }`}
+                  style={(currentPrice - stockData.prevClose) >= 0 ? { color: "#005a00" } : {}}
                 >
                   {formatNumber(currentPrice - stockData.prevClose)}{' '}
                   (
@@ -520,7 +521,7 @@ export default function Stock({
             </div>
           </div>
           {watchlistSuccess && (
-            <p className="text-green-600 mt-2 text-center">{watchlistSuccess}</p>
+            <p className="mt-2 text-center" style={{ color: "#005a00" }}>{watchlistSuccess}</p>
           )}
           {watchlistError && (
             <p className="text-red-600 mt-2 text-center">{watchlistError}</p>
@@ -557,7 +558,7 @@ export default function Stock({
                     <p className={`text-2xl font-bold ${(currentPrice - stockData.prevClose) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                       {formatCurrency((currentPrice - stockData.prevClose) * portfolioData[primaryTicker].shares)}
                     </p>
-                    <p className={`text-xs mt-2 ${(currentPrice - stockData.prevClose) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    <p className={`text-xs mt-2 ${(currentPrice - stockData.prevClose) >= 0 ? 'text-green-600' : 'text-red-500'}`}>
                       {((currentPrice - stockData.prevClose) / stockData.prevClose * 100).toFixed(2)}% today
                     </p>
                   </>
@@ -573,7 +574,7 @@ export default function Stock({
                     <p className={`text-2xl font-bold ${(currentPrice - portfolioData[primaryTicker].purchasePrice) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                       {formatCurrency((currentPrice - portfolioData[primaryTicker].purchasePrice) * portfolioData[primaryTicker].shares)}
                     </p>
-                    <p className={`text-xs mt-2 ${(currentPrice - portfolioData[primaryTicker].purchasePrice) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    <p className={`text-xs mt-2 ${(currentPrice - portfolioData[primaryTicker].purchasePrice) >= 0 ? 'text-green-600' : 'text-red-500'}`}>
                       {(((currentPrice - portfolioData[primaryTicker].purchasePrice) / portfolioData[primaryTicker].purchasePrice) * 100).toFixed(2)}% lifetime
                     </p>
                   </>
@@ -624,7 +625,7 @@ export default function Stock({
                         <tr>
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
                           <th className="px-2 py-2 text-center text-xs font-medium text-green-600 uppercase">Strong Buy</th>
-                          <th className="px-2 py-2 text-center text-xs font-medium text-green-500 uppercase">Buy</th>
+                          <th className="px-2 py-2 text-center text-xs font-medium text-green-900 uppercase">Buy</th>
                           <th className="px-2 py-2 text-center text-xs font-medium text-yellow-500 uppercase">Hold</th>
                           <th className="px-2 py-2 text-center text-xs font-medium text-red-400 uppercase">Sell</th>
                           <th className="px-2 py-2 text-center text-xs font-medium text-red-600 uppercase">Strong Sell</th>
@@ -825,7 +826,7 @@ export default function Stock({
                       <button
                         onClick={() => handleWatchlistToggle(t)}
                         disabled={addingToWatchlist}
-                        style={{ backgroundColor: '#029b37', borderColor: '#029b37' }} className="px-4 py-2 rounded-md text-white hover:opacity-90 disabled:opacity-50 border"
+                        style={{ backgroundColor: '#017e3b', borderColor: '#017e3b' }} className="px-4 py-2 rounded-md text-white hover:opacity-90 disabled:opacity-50 border"
                       >
                         {addingToWatchlist ? 'Updating...' : 'Remove from Watchlist'}
                       </button>
@@ -833,7 +834,7 @@ export default function Stock({
                       <button
                         onClick={() => handleWatchlistToggle(t)}
                         disabled={addingToWatchlist}
-                        style={{ backgroundColor: '#029b37' }} className="px-4 py-2 rounded-md text-white hover:opacity-90 disabled:opacity-50"
+                        style={{ backgroundColor: '#017e3b' }} className="px-4 py-2 rounded-md text-white hover:opacity-90 disabled:opacity-50"
                       >
                         {addingToWatchlist ? 'Adding...' : 'Add to Watchlist'}
                       </button>

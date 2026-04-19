@@ -95,7 +95,7 @@ function LoginForm() {
           <button
             type="submit"
             disabled={loading}
-            style={{ backgroundColor: '#029b37' }}
+            style={{ backgroundColor: '#017e3b' }}
             className="w-full hover:opacity-90 text-white font-bold py-2 px-4 rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600 disabled:opacity-50 cursor-pointer"
           >
             {loading ? 'Logging in...' : 'Login'}
@@ -103,7 +103,7 @@ function LoginForm() {
         </form>
         <p className="mt-6 text-center text-gray-600">
           Don't have an account?{' '}
-          <Link href="/register" className="text-green-600 hover:text-green-800 font-medium">
+          <Link href="/register" className="hover:text-green-800 font-medium" style={{ color: "#005a00" }}>
             Register here
           </Link>
         </p>

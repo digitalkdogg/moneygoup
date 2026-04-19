@@ -30,11 +30,12 @@ const MiniDataCard: React.FC<MiniDataCardProps> = ({
   };
 
   const badgeClasses = {
-    positive: 'bg-green-100 text-green-700 border-green-200',
+    positive: 'text-green-700 border-green-200 border',
     negative: 'bg-red-100 text-red-700 border-red-200',
     neutral: 'bg-gray-100 text-gray-700 border-gray-200',
   };
 
+  const badgeStyle = tone === 'positive' ? { backgroundColor: '#a8d78d' } : {};
   const badgeToneClass = tone === 'positive' ? badgeClasses.positive : tone === 'negative' ? badgeClasses.negative : badgeClasses.neutral;
   const secondaryToneClass = tone === 'positive' ? toneClasses.positive : tone === 'negative' ? toneClasses.negative : toneClasses.neutral;
 
@@ -45,7 +46,7 @@ const MiniDataCard: React.FC<MiniDataCardProps> = ({
           {label}
         </div>
         {badge && (
-          <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border uppercase leading-tight shrink-0 ${badgeToneClass}`}>
+          <span style={badgeStyle} className={`text-[9px] font-black px-1.5 py-0.5 rounded border uppercase leading-tight shrink-0 ${badgeToneClass}`}>
             {badge}
           </span>
         )}

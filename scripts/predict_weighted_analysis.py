@@ -152,13 +152,39 @@ def calculate_earnings_beat_streak(historical_earnings):
 def calculate_news_sentiment(news_articles):
     if not news_articles:
         return 0.0
+    
+    # Financial lexicon for Python sentiment calculation
+    financial_lexicon = {
+        'beat': 3, 'beats': 3, 'surge': 3, 'growth': 2, 'backlog': 1,
+        'demand': 1, 'bullish': 3, 'bearish': -3, 'upgrade': 3, 'downgrade': -3,
+        'high-growth': 3, 'acceleration': 2, 'aligning': 1, 'drops': -2,
+        'tumbles': -3, 'soars': 3, 'rally': 3, 'plunges': -3, 'lower': -1,
+        'higher': 1, 'outperform': 3, 'underperform': -3, 'buy': 2, 'sell': -2,
+        'profit': 2, 'loss': -2, 'miss': -3, 'misses': -3
+    }
+    
     score = 0
     count = 0
     for a in news_articles:
-        s = a.get('sentiment_score')
+        title = (a.get('title') or '').lower()
+        description = (a.get('description') or '').lower()
+        combined_text = f"{title} {description}"
+        
+        # Simple word-based sentiment calculation to match the JS extras logic
+        article_score = 0
+        words = combined_text.split()
+        for word in words:
+            # Clean word (remove punctuation)
+            clean_word = "".join(c for c in word if c.isalnum() or c == '-')
+            if clean_word in financial_lexicon:
+                article_score += financial_lexicon[clean_word]
+        
+        # Also include the original sentiment_score if it exists (from the JS Sentiment library)
+        original_s = a.get('sentiment_score')
+        if original_s is not None:
+            article_score += original_s
+            
         published_at = a.get('publishedAt')
-        if s is None:
-            continue
         weight = 1.0
         if published_at:
             try:
@@ -167,9 +193,11 @@ def calculate_news_sentiment(news_articles):
                 weight = max(0.1, 1.0 - age_days / 30.0)  # decay over 30 days
             except Exception:
                 pass
-        if abs(s) >= 3:
-            score += (1 if s > 0 else -1) * weight
+        
+        if article_score != 0:
+            score += (1 if article_score > 0 else -1) * weight
             count += weight
+            
     if count == 0:
         return 0.0
     return float(np.tanh(score / count))

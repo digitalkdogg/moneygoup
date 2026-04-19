@@ -27,7 +27,7 @@ export default function TechnicalIndicatorsDisplay({
   const getSignalColor = (signal: string): string => {
     switch (signal) {
       case 'BUY':
-        return 'bg-green-100 border-green-400 text-green-800'
+        return 'border-green-800 text-green-800'
       case 'SELL':
         return 'bg-red-100 border-red-400 text-red-800'
       default:
@@ -35,11 +35,18 @@ export default function TechnicalIndicatorsDisplay({
     }
   }
 
+  const getSignalStyle = (signal: string): React.CSSProperties => {
+    if (signal === 'BUY') {
+      return { backgroundColor: '#eaf7e3' }
+    }
+    return {}
+  }
+
   return (
     <div className=" p-8 rounded-2xl">
       
       {/* Main Signal Box */}
-      <div className={`p-4 rounded-xl border-2 mb-8 text-center ${getSignalColor(indicators.signal)}`}>
+      <div style={getSignalStyle(indicators.signal)} className={`p-4 rounded-xl border-2 mb-8 text-center ${getSignalColor(indicators.signal)}`}>
         <div className="text-sm font-semibold opacity-80 mb-2">TRADING SIGNAL</div>
         <div className="text-2xl font-bold mb-3">{indicators.signal}</div>
         <div className="text-base font-semibold mb-2">Signal Strength: {formatNumber(indicators.signalStrength, 0, true)}%</div>

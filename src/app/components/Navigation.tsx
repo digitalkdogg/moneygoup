@@ -77,7 +77,7 @@ export default function Navigation() {
 
   return (
     <>
-      <nav style={{ backgroundColor: '#029b37' }} className="shadow-lg sticky top-0 z-40 w-full">
+      <nav style={{ backgroundColor: '#017e3b' }} className="shadow-lg sticky top-0 z-40 w-full">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
@@ -91,7 +91,7 @@ export default function Navigation() {
                 />
                 <span aria-hidden="true">
                   Grow
-                  <span style={{ color: '#09522b', fontWeight: 'bold', fontSize: '1.1em', marginRight: '1px', marginLeft:'3px'}}>
+                  <span style={{ color: '#baeb9e', fontWeight: 'bold', fontSize: '1.1em', marginRight: '1px', marginLeft:'3px'}}>
                     MY
                   </span>
                   <span >Stock</span>
@@ -106,7 +106,7 @@ export default function Navigation() {
                 <div className="relative" ref={profileRef}>
                   <button
                     onClick={() => setIsProfileOpen(!isProfileOpen)}
-                    style={{ backgroundColor: '#016630' }}
+                    style={{ backgroundColor: '#95c779', color:'#09522b'}}
                     className="flex items-center justify-center h-9 w-9 rounded-full text-white font-bold text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600"
                   >
                     {initials}
@@ -164,12 +164,12 @@ export default function Navigation() {
         
         {/* Drawer Content */}
         <div 
-          style={{ backgroundColor: '#029b37' }}
+          style={{ backgroundColor: '#017e3b' }}
           className={`absolute top-0 right-0 h-full w-[80%] max-w-[320px] shadow-xl transition-transform duration-200 ease-out transform ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}
         >
           <div className="flex flex-col h-full pt-5 pb-6">
             <div className="px-5 mb-8 flex justify-between items-center">
-              <span className="text-xl font-bold text-white">Grow<span style={{ color: '#034622', fontWeight: 'bold' }}>My</span>Stock</span>
+              <span className="text-xl font-bold text-white">Grow<span style={{ color: '#baeb9e', fontWeight: 'bold' }}> My </span>Stock</span>
               <button 
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="text-white p-2 w-[44px] h-[44px] flex items-center justify-center"
@@ -183,7 +183,7 @@ export default function Navigation() {
             {session?.user && (
               <div className="px-5 mb-6 flex items-center space-x-3">
                 <div 
-                  style={{ backgroundColor: '#016630' }}
+                  style={{ backgroundColor: '#95c779', color:'#09522b' }}
                   className="h-12 w-12 rounded-full flex items-center justify-center text-white font-bold border-2 border-white/20"
                 >
                   {initials}

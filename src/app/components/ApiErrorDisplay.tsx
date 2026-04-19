@@ -65,7 +65,7 @@ export default function ApiErrorDisplay({
             {onRetryStock && (
               <button
                 onClick={onRetryStock}
-                style={{ backgroundColor: '#029b37' }}
+                style={{ backgroundColor: '#017e3b' }}
                 className="flex-1 hover:opacity-90 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
               >
                 🔄 Retry Stock Data
@@ -74,7 +74,7 @@ export default function ApiErrorDisplay({
             {selectedTicker && onRetryHistorical && (
               <button
                 onClick={onRetryHistorical}
-                style={{ backgroundColor: '#029b37' }}
+                style={{ backgroundColor: '#017e3b' }}
                 className="flex-1 hover:opacity-90 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
               >
                 📊 Retry Historical Data
