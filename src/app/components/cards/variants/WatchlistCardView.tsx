@@ -14,7 +14,7 @@ interface WatchlistCardViewProps {
 
 export const WatchlistCardView: React.FC<WatchlistCardViewProps> = ({ card, actions }) => {
   const analystDisplay = card.analysts ? `${card.analysts} analysts` : 'No analyst data'
-  const predictionChange = calculatePredictionChange(card.price, card.predictedPrice1m)
+  const predictionChange = calculatePredictionChange(card.price, card.predictedPrice1m ?? null)
 
   return (
     <>
