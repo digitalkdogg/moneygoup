@@ -117,20 +117,20 @@ def save_brand_color_to_db(ticker: str, company: str, color: str) -> bool:
 
 def build_domain_candidates(company_name: str, ticker: str = "") -> list[str]:
     # remove common suffixes including L.P. and L.P
-    name = re.sub(r"\b(inc|corp|corporation|ltd|limited|s\.?a\.?|p\.?l\.?c\.?|company|lp|l\.p\.?)\b.*$", "", company_name, flags=re.IGNORECASE).strip()
+    name = re.sub(r"\b(inc|corp|corporation|ltd|limited|s\.?a\.?|p\.?l\.?c\.?|company|lp|l\.p\.?|partners|holdings|group|pvt|public|ag|gmbh|nv|spa)\b.*$", "", company_name, flags=re.IGNORECASE).strip()
     
     candidates = []
     
+    # Try full name slug first (usually better than ticker for brand domains)
+    slug = re.sub(r"[^a-z0-9]", "", name.lower())
+    if slug:
+        candidates.extend([f"https://{slug}.com", f"https://www.{slug}.com"])
+        
     # Try ticker-based domains if available
     if ticker:
         t_slug = ticker.lower()
         candidates.extend([f"https://{t_slug}.com", f"https://www.{t_slug}.com"])
 
-    # Try full name slug
-    slug = re.sub(r"[^a-z0-9]", "", name.lower())
-    if slug:
-        candidates.extend([f"https://{slug}.com", f"https://www.{slug}.com"])
-        
     # Try just the first word (often the main brand domain)
     first_word = re.sub(r"[^a-z0-9]", "", name.split()[0].lower())
     if first_word and first_word != slug:
@@ -244,11 +244,14 @@ def fetch_binary_image(url: str, session: requests.Session) -> bytes | None:
 def dominant_color_from_image(image_bytes: bytes) -> str | None:
     try:
         from PIL import Image
+        import warnings
 
         with Image.open(io.BytesIO(image_bytes)) as image:
             image = image.convert("RGBA")
             image.thumbnail((200, 200))
-            pixels = list(image.getdata())
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", category=DeprecationWarning)
+                pixels = list(image.getdata())
     except Exception:
         return None
 
@@ -371,9 +374,16 @@ def fetch_screenshot_color(url: str) -> str | None:
     """Take a screenshot of the page and extract the dominant brand color."""
     try:
         from playwright.sync_api import sync_playwright
+        import contextlib
 
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            # Silence potential browser launch errors (missing dependencies)
+            with contextlib.redirect_stderr(io.StringIO()):
+                try:
+                    browser = p.chromium.launch(headless=True)
+                except Exception:
+                    return None
+            
             context = browser.new_context(viewport={"width": 1280, "height": 800})
             page = context.new_page()
             
@@ -387,8 +397,8 @@ def fetch_screenshot_color(url: str) -> str | None:
             if screenshot_bytes:
                 # Use a more restrictive filter for screenshots to avoid white/black backgrounds
                 return dominant_color_from_screenshot(screenshot_bytes)
-    except Exception as e:
-        print(f"Screenshot failed for {url}: {e}")
+    except Exception:
+        # Silently fail if screenshotting doesn't work (fall back to CSS)
         return None
     return None
 
@@ -397,12 +407,15 @@ def dominant_color_from_screenshot(image_bytes: bytes) -> str | None:
     """Analyze a full screenshot, focusing on non-neutral dominant colors."""
     try:
         from PIL import Image
+        import warnings
 
         with Image.open(io.BytesIO(image_bytes)) as image:
             image = image.convert("RGBA")
             # Downsample heavily for speed and to group similar colors
             image.thumbnail((400, 400))
-            pixels = list(image.getdata())
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", category=DeprecationWarning)
+                pixels = list(image.getdata())
     except Exception:
         return None
 
