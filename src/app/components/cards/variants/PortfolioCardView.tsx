@@ -26,6 +26,7 @@ export const PortfolioCardView: React.FC<PortfolioCardViewProps> = ({ card, acti
         companyName={card.companyName}
         changePercent={card.changePercent}
         variant="portfolio"
+        brandColor={card.topAccentColor}
       />
       <div className="px-5 py-0">
         <CardMetricRow label="SHARES" value={formatShares(card.sharesHeld)} />

@@ -10,9 +10,10 @@ interface CardHeaderProps {
   changeAmount?: number | null
   price?: number | null
   variant?: 'watchlist' | 'portfolio'
+  brandColor?: string
 }
 
-export const CardHeader: React.FC<CardHeaderProps> = ({ symbol, companyName, changePercent, changeAmount, price, variant = 'portfolio' }) => {
+export const CardHeader: React.FC<CardHeaderProps> = ({ symbol, companyName, changePercent, changeAmount, price, variant = 'portfolio', brandColor }) => {
   const isPositive = (changePercent ?? 0) >= 0
 
   if (variant === 'watchlist') {
@@ -57,7 +58,13 @@ export const CardHeader: React.FC<CardHeaderProps> = ({ symbol, companyName, cha
         </div>
       </div>
       <div className="flex flex-col items-end gap-1">
-        <div className="px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-[10px] font-bold uppercase">
+        <div 
+          style={brandColor ? { 
+            backgroundColor: `${brandColor}3A`, // 4D is ~0.3 opacity in hex
+            color: brandColor,
+          } : {}}
+          className={`px-2 py-0.5 rounded ${!brandColor ? 'bg-gray-100 text-gray-700' : ''} text-[10px] font-bold uppercase`}
+        >
           {symbol}
         </div>
         {changePercent !== null && (
