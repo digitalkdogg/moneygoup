@@ -4,26 +4,71 @@ import { createErrorResponse, unauthorizedResponse } from '@/utils/errorResponse
 import { createLogger } from '@/utils/logger';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { z } from 'zod'; // Add this import
-import { validate } from '@/utils/validation'; // Add this import
-import { checkOrigin } from '@/utils/originCheck'; // Add this import
+import { z } from 'zod';
+import { validate } from '@/utils/validation';
+import { checkOrigin } from '@/utils/originCheck';
+import { getBrandColorFromScript } from '@/utils/brandColor';
 
 const logger = createLogger('api/user/stocks');
 
-// Define schema for input validation
 const purchaseStockSchema = z.object({
   stock_id: z.number().int().positive('Stock ID must be a positive integer'),
   shares: z.number().positive('Shares must be a positive number'),
   purchase_price: z.number().positive('Purchase price must be a positive number'),
 });
 
-export const POST = validate(purchaseStockSchema)(
+async function enrichStockBrand(stockId: number): Promise<{ brandColor: string; source: string } | null> {
+  logger.info(`enrichStockBrand: Starting for stockId ${stockId}`);
+  try {
+    const [rows] = await executeRawQuery(
+      'SELECT symbol, company_name FROM stocks WHERE id = ? LIMIT 1',
+      [stockId],
+    );
 
+    const stock = Array.isArray(rows) && rows.length > 0 ? (rows[0] as { symbol?: string; company_name?: string }) : null;
+    if (!stock?.symbol || !stock?.company_name) {
+      logger.warn(`enrichStockBrand: Stock not found or incomplete for ID ${stockId}`, { rows });
+      return null;
+    }
+
+    logger.info(`enrichStockBrand: Found stock ${stock.symbol} (${stock.company_name})`);
+
+    const brandResult = await getBrandColorFromScript(stock.symbol, stock.company_name);
+    if (!brandResult?.brand_color) {
+      logger.warn(`enrichStockBrand: No brand color result from script for ${stock.symbol}`);
+      return null;
+    }
+
+    try {
+      await executeRawQuery(
+        `
+        INSERT INTO stock_brand (ticker, company_name, primary_color)
+        VALUES (?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+          company_name = VALUES(company_name),
+          primary_color = VALUES(primary_color)
+        `,
+        [stock.symbol, stock.company_name, brandResult.brand_color],
+      );
+    } catch (dbError) {
+      logger.warn(`enrichStockBrand: DB save failed for ${stock.symbol}`, dbError as Error);
+      // We can still return the color even if DB save fails
+    }
+
+    return { brandColor: brandResult.brand_color, source: brandResult.source };
+  } catch (error) {
+    logger.error('enrichStockBrand: Unexpected failure', error as Error);
+    return null;
+  }
+}
+
+export const POST = validate(purchaseStockSchema)(
   async (request: Request, data: z.infer<typeof purchaseStockSchema>) => {
-    const originCheckResponse = checkOrigin(request as any); // Cast to any as NextRequest might not be directly compatible
+    const originCheckResponse = checkOrigin(request as any);
     if (originCheckResponse) {
       return originCheckResponse;
     }
+
     try {
       const session = await getServerSession(authOptions);
 
@@ -31,12 +76,10 @@ export const POST = validate(purchaseStockSchema)(
         return unauthorizedResponse();
       }
 
-      // `data` now contains the validated fields
       const { stock_id, shares, purchase_price } = data;
-      
       const userId = session.user.id;
       const isPurchased = 1;
-      
+
       const query = `
         INSERT INTO user_stocks (user_id, stock_id, shares, purchase_price, is_purchased, initial_purchase_date, last_transaction_date, is_active)
         VALUES (?, ?, ?, ?, ?, NOW(), NOW(), 1)
@@ -50,12 +93,19 @@ export const POST = validate(purchaseStockSchema)(
       `;
 
       await executeRawQuery(query, [userId, stock_id, shares, purchase_price, isPurchased]);
+      const brandEnrichment = await enrichStockBrand(stock_id);
 
-      return NextResponse.json({ message: 'Stock purchased successfully' }, { status: 201 });
-
+      return NextResponse.json(
+        {
+          message: 'Stock purchased successfully',
+          brandColor: brandEnrichment?.brandColor ?? null,
+          brandColorSource: brandEnrichment?.source ?? null,
+        },
+        { status: 201 },
+      );
     } catch (error: any) {
-      logger.error("Failed to purchase stock:", error);
+      logger.error('Failed to purchase stock:', error);
       return createErrorResponse(error, 'Failed to purchase stock', { status: 500 });
     }
-  }
+  },
 );

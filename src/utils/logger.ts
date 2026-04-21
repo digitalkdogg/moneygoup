@@ -50,6 +50,16 @@ export function createLogger(moduleName: string): Logger {
     // Output to console (or send to a logging service in a real app)
     const logOutput = JSON.stringify(structuredLog, null, process.env.NODE_ENV !== 'production' ? 2 : undefined);
 
+    // Also write to a file in the project directory for easier debugging
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const logFilePath = path.join(process.cwd(), 'logs', 'app.log');
+      fs.appendFileSync(logFilePath, logOutput + '\n');
+    } catch (e) {
+      // ignore
+    }
+
     switch (level) {
       case 'INFO':
         console.log(logOutput);

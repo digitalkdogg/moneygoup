@@ -198,9 +198,7 @@ export default function Dashboard() {
           {/* Recommendations Section */}
           <RecommendationsSection />
           
-          <WatchlistSection onRefresh={() => {
-            // Optional: refresh other data if needed
-          }} />
+          <WatchlistSection onRefresh={fetchPortfolioData} />
         </div>
       </div>
 
