@@ -209,6 +209,7 @@
             
             <span class="nav-header">Dashboard</span>
             <a href="#dashboard1" class="nav-link">GET /api/dashboard</a>
+            <a href="#deepmoney-picks" class="nav-link">GET /api/dashboard/deepmoney-picks</a>
             <a href="#recommendations" class="nav-link">GET /api/dashboard/recommendations</a>
             <a href="#dashboard-on" class="nav-link">GET /api/dashboard/on</a>
             <a href="#dashboard-analyst" class="nav-link">GET /api/dashboard/analyst-ratings</a>
@@ -221,7 +222,7 @@
 
     <main>
         <h1>API Documentation</h1>
-        <p>Comprehensive overview of MoneyGoUp API endpoints, logic flows, and internal dependencies. All potentially slow endpoints include 15m–12h caching with <code>source: 'cache' | 'livedata'</code> reporting.</p>
+        <p>Comprehensive overview of MoneyGoUp API endpoints, logic flows, and internal dependencies. All potentially slow endpoints include 15m–12h caching with <code>source: 'livedata' | 'cache'</code> reporting.</p>
 
         <section id="fundamentals">
             <h2><span>0</span> Fundamentals & Auth</h2>
@@ -246,7 +247,7 @@
             <div id="auth-cache" class="step-card">
                 <h3><span class="method get">GET</span> /api/auth/cache-stats</h3>
                 <div class="component-tag">Admin: Diagnostics</div>
-                <p>Returns memory usage and hit/miss statistics for internal server-side caches.</p>
+                <p>Placeholder for cache monitoring. Currently restricted to administrative privileges (returns 403 Forbidden).</p>
             </div>
         </section>
 
@@ -256,7 +257,7 @@
                 <h3><span class="method get">GET</span> /api/stock_data/[ticker]</h3>
                 <div class="component-tag">Core: Consolidated Snapshot</div>
                 <p>The primary entry point for stock details. Supports comma-separated tickers. Cached for 15 minutes.</p>
-                <strong>Response addition:</strong> <code>source: 'cache' | 'livedata'</code>
+                <strong>Response addition:</strong> <code>source: 'livedata' | 'cache'</code>
                 <strong>Internal Dependencies:</strong>
                 <ul class="flow">
                     <li>Calls <code>/api/stock_data/[ticker]/historical/1y</code></li>
@@ -271,7 +272,7 @@
                 <h3><span class="method get">GET</span> /api/stock_data/[ticker]/data</h3>
                 <div class="component-tag">Internal: Prediction Preprocessor</div>
                 <p>Assembles the deep 5-year data payload required by the MLP/LSTM Python engines. Cached for 15 minutes. Supports <code>?refresh=true</code>.</p>
-                <strong>Response addition:</strong> <code>source: 'cache' | 'livedata'</code>
+                <strong>Response addition:</strong> <code>source: 'livedata' | 'cache'</code>
                 <strong>Logic Flow:</strong>
                 <ul class="flow">
                     <li>Fetches 5 years of OHLCV data.</li>
@@ -322,7 +323,7 @@
                 <h3><span class="method get">GET</span> /api/worldbank</h3>
                 <div class="component-tag">Macroeconomic Indicators</div>
                 <p>Consolidated World Bank macro indicators (GDP, FDI, Trade, Tech Adoption) for USA and global peers. Cached for 6 hours. Supports <code>?refresh=true</code>.</p>
-                <strong>Response structure:</strong> Includes <code>success</code>, <code>macro</code>, <code>etf_factors</code>, <code>risk_index</code>, <code>asOf</code>, and <code>source</code>.
+                <strong>Response structure:</strong> Includes <code>success</code>, <code>macro</code>, <code>etf_factors</code>, <code>risk_index</code>, and <code>asOf</code>.
             </div>
         </section>
 
@@ -332,7 +333,7 @@
                 <h3><span class="method post">POST</span> /api/prediction/[ticker]</h3>
                 <div class="component-tag">Process: Python Spawn (v3.1 Engine)</div>
                 <p>Generates an AI price prediction using a local MLP neural network. Results cached for 15 minutes. Supports <code>?refresh=true</code>.</p>
-                <strong>Response addition:</strong> <code>source: 'cache' | 'livedata'</code>
+                <strong>Response addition:</strong> <code>source: 'livedata' | 'cache'</code>
                 <strong>Logic Flow:</strong>
                 <ul class="flow">
                     <li>Spawns <code>scripts/predict_weighted_analysis.py</code>.</li>
@@ -351,11 +352,7 @@
                 <h3><span class="method get">GET</span> /api/prediction/deepmoney</h3>
                 <div class="component-tag">Discovery Engine (V2.2)</div>
                 <p>Advanced stock and ETF discovery engine. Cached 30m. Supports <code>?refresh=true</code>.</p>
-                <strong>Cross-References:</strong>
-                <ul class="flow">
-                    <li>Internal <code>analyzer.ts</code> calls <code>/api/stock_data/[ticker]/data</code>.</li>
-                    <li>Calls <code>performETFDiscovery</code> with macro-tailwind scoring (FDI/Trade trends).</li>
-                </ul>
+                <strong>Response structure:</strong> Includes <code>success</code>, <code>timestamp</code>, <code>count</code>, <code>stocks</code>, <code>hot_etfs</code>, and <code>meta</code>.
             </div>
         </section>
 
@@ -364,7 +361,13 @@
             <div id="dashboard1" class="step-card">
                 <h3><span class="method get">GET</span> /api/dashboard</h3>
                 <div class="component-tag">User Data Aggregator</div>
-                <p>Central hub for user-specific financial data. Aggregates portfolio summary and top trending picks.</p>
+                <p>Central hub for user-specific financial data. Aggregates portfolio summary and recent user activity.</p>
+            </div>
+
+            <div id="deepmoney-picks" class="step-card">
+                <h3><span class="method get">GET</span> /api/dashboard/deepmoney-picks</h3>
+                <div class="component-tag">UI Data Provider</div>
+                <p>Fetches the latest AI-discovered growth stocks and hot ETFs from the <code>recommended_stocks</code> and <code>hot_etfs</code> tables.</p>
             </div>
 
             <div id="recommendations" class="step-card">

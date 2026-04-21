@@ -8,7 +8,7 @@ The `/api/prediction/deepmoney` endpoint family is designed for automated AI and
 The V2.2 engine integrates high-fidelity macroeconomic indicators from the World Bank to validate sector-level tailwinds and tech adoption trends.
 
 ### Workflow:
-1.  **Recursive News Discovery**: Scrapes 15+ global financial RSS feeds.
+1.  **Recursive News Discovery**: Scrapes 20+ global financial RSS feeds and screeners.
 2.  **Social Sentiment Pre-Filter**: To reduce noise, tickers from ApeWisdom are only accepted if they have `mentions_24h_ago >= 5`.
 3.  **Gate 1: Technical Validation**: Every candidate must have a non-negative `tradingSignalScore`.
 4.  **Gate 2: Sequential ML Validation**: For stocks passing Gate 1, the system runs a 1-month ML prediction.
@@ -16,7 +16,7 @@ The V2.2 engine integrates high-fidelity macroeconomic indicators from the World
 5.  **Hot ETF Discovery (Parallel)**: Scans thematic watchlists and dynamic screeners for ETFs under $400.
     *   **Macro Tailwind Scoring (15% Weight)**: Rewards ETFs in themes with strong structural FDI and trade trends.
     *   **Qualifying Threshold**: GPS >= 55.
-6.  **DB-Ready Enrichment**: Results are enriched with Sectors, GPS scores, and macro observability data.
+6.  **DB-Ready Enrichment**: Results are enriched with Sectors, GPS scores, and metadata for persistence.
 
 ---
 
@@ -33,7 +33,7 @@ The V2.2 engine integrates high-fidelity macroeconomic indicators from the World
 *   **52-Week Price Return (25.5%)**
 *   **Thematic News Signal (21.25%)**
 *   **3-Month Momentum (17%)**
-*   **Macro Tailwind (15%)**: NEW - Structural confirmation from World Bank FDI/Trade data.
+*   **Macro Tailwind (15%)**: Structural confirmation from World Bank FDI/Trade data.
 *   **Liquidity Score (12.75%)**
 *   **Expense Ratio Efficiency (8.5%)**
 
@@ -59,10 +59,10 @@ The algorithm assigns a classification label based on fundamentals:
 
 | Target | Purpose | Frequency |
 | :--- | :--- | :--- |
-| `finance.yahoo.com/rss/2.0/...` | Fetch market news (DJI, GSPC, IXIC) | 3 calls |
-| Yahoo Finance Screener API | Get growth and tech stock lists | 2 calls |
+| RSS Feeds | Fetch market news and trending tickers | ~25 calls |
+| Yahoo Finance Screener API | Get growth and tech stock lists | 4 calls |
 | World Bank API | Macro indicators (GDP, FDI, Trade) | 1 call (cached 6h) |
-| Yahoo Finance Quote Summary API | Fetch financial metrics for each candidate | ~40 calls |
+| Yahoo Finance Quote Summary API | Fetch financial metrics for each candidate | ~100+ calls |
 
 ---
 
@@ -71,26 +71,32 @@ The algorithm assigns a classification label based on fundamentals:
 ```json
 {
   "success": true,
-  "source": "cache",
-  "hot_stocks": [
+  "timestamp": "2026-04-16T...",
+  "count": 12,
+  "stocks": [
     {
       "ticker": "NVDA",
+      "name": "NVIDIA Corporation",
+      "price": 875.24,
       "gps_score": 94.2,
       "classification": "ai_tech_hyper_growth",
-      "macro_tailwind_used": true
+      "trading_signal": "BUY"
     }
   ],
   "hot_etfs": [
     {
       "ticker": "BOTZ",
+      "etf_name": "Global X Robotics & Artificial Intelligence ETF",
       "etf_gps_score": 88.5,
       "macro_tailwind_score": 12.5,
-      "theme_validation_bonus": 4.0
+      "theme": "Artificial Intelligence"
     }
   ],
-  "macro_context": {
-    "global_health_score": 78.5,
-    "unemployment_signal": "bullish"
+  "meta": {
+    "totalDiscovered": 150,
+    "enrichedCount": 145,
+    "filteredCount": 12,
+    "hotEtfsCount": 8
   }
 }
 ```

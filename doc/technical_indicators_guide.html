@@ -158,7 +158,7 @@
 
         <section id="overview">
             <h2>Scoring Methodology</h2>
-            <p>The total score typically ranges from <strong>-16 to +16</strong>. This score is then mapped to a recommendation:</p>
+            <p>The total score typically ranges from <strong>-14 to +14</strong>. This score is then mapped to a recommendation:</p>
             <table class="summary-table">
                 <thead>
                     <tr>
@@ -169,28 +169,18 @@
                 </thead>
                 <tbody>
                     <tr>
-                        <td>Score &ge; 10</td>
-                        <td>Strong Buy</td>
+                        <td>Score &ge; 5</td>
+                        <td>BUY</td>
                         <td style="color: var(--buy); font-weight: bold;">Green</td>
                     </tr>
                     <tr>
-                        <td>5 &le; Score < 10</td>
-                        <td>Buy</td>
-                        <td style="color: var(--buy);">Light Green</td>
-                    </tr>
-                    <tr>
-                        <td>-4 < Score < 5</td>
-                        <td>Hold</td>
+                        <td>-4 &le; Score &le; 4</td>
+                        <td>HOLD</td>
                         <td style="color: var(--hold);">Gray</td>
                     </tr>
                     <tr>
-                        <td>-9 < Score &le; -5</td>
-                        <td>Sell</td>
-                        <td style="color: var(--sell);">Orange</td>
-                    </tr>
-                    <tr>
-                        <td>Score &le; -10</td>
-                        <td>Strong Sell</td>
+                        <td>Score &le; -5</td>
+                        <td>SELL</td>
                         <td style="color: var(--sell); font-weight: bold;">Red</td>
                     </tr>
                 </tbody>

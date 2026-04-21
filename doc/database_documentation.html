@@ -183,6 +183,7 @@
             <a href="#recommended_stocks" class="nav-link">recommended_stocks</a>
             <a href="#recommended_markets" class="nav-link">recommended_markets</a>
             <a href="#hot_etfs" class="nav-link">hot_etfs</a>
+            <a href="#etf_cycle_summary" class="nav-link">etf_cycle_summary</a>
             <a href="#macro_context_snapshots" class="nav-link">macro_context_snapshots</a>
             <a href="#user_stock_predictions" class="nav-link">user_stock_predictions</a>
             
@@ -321,12 +322,8 @@
                     <tbody>
                         <tr><td><code>user_id</code></td><td><code>INT</code></td><td>FK to users.</td></tr>
                         <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>FK to stocks.</td></tr>
-                        <tr><td><code>predicted_price_1d</code></td><td><code>DECIMAL(12,4)</code></td><td>AI 1-day target.</td></tr>
                         <tr><td><code>predicted_price_1m</code></td><td><code>DECIMAL(12,4)</code></td><td>AI 1-month target.</td></tr>
-                        <tr><td><code>predicted_price_6m</code></td><td><code>DECIMAL(12,4)</code></td><td>AI 6-month target.</td></tr>
-                        <tr><td><code>predicted_price_1y</code></td><td><code>DECIMAL(12,4)</code></td><td>AI 1-year target.</td></tr>
-                        <tr><td><code>macro_features_used</code></td><td><code>JSON</code></td><td>Observability list of features.</td></tr>
-                        <tr><td><code>consumer_multiplier_applied</code></td><td><code>DECIMAL(5,4)</code></td><td>Consumer sector heuristic adjustment.</td></tr>
+                        <tr><td><code>last_requested_at</code></td><td><code>DATETIME</code></td><td>Timestamp of last run.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -363,9 +360,15 @@
                         <tr><td><code>cycle_date</code></td><td><code>DATE</code></td><td>Run date.</td></tr>
                         <tr><td><code>etfs_evaluated</code></td><td><code>INT</code></td><td>Total candidates.</td></tr>
                         <tr><td><code>etfs_qualified</code></td><td><code>INT</code></td><td>Passed all filters.</td></tr>
+                        <tr><td><code>etfs_persisted</code></td><td><code>INT</code></td><td>Successfully saved.</td></tr>
                         <tr><td><code>avg_etf_gps_score</code></td><td><code>DECIMAL(5,1)</code></td><td>Cycle quality metric.</td></tr>
+                        <tr><td><code>top_theme</code></td><td><code>VARCHAR(100)</code></td><td>Strongest thematic sector.</td></tr>
+                        <tr><td><code>cycle_duration_ms</code></td><td><code>INT</code></td><td>Runtime duration.</td></tr>
+                        <tr><td><code>errors</code></td><td><code>TEXT</code></td><td>Logged issues.</td></tr>
                     </tbody>
                 </table>
+            </div>
+
             <div id="macro_context_snapshots" class="table-card">
                 <div class="table-title">macro_context_snapshots</div>
                 <p>Daily snapshots of processed macro signals for backtesting.</p>
@@ -376,11 +379,6 @@
                         <tr><td><code>global_health_score</code></td><td><code>DECIMAL(5,2)</code></td><td>Multi-country macro score.</td></tr>
                         <tr><td><code>unemployment_rate</code></td><td><code>DECIMAL(5,2)</code></td><td>USA current rate.</td></tr>
                         <tr><td><code>unemployment_signal</code></td><td><code>VARCHAR(20)</code></td><td>bullish | bearish | neutral.</td></tr>
-                        <tr><td><code>inflation_rate</code></td><td><code>DECIMAL(5,2)</code></td><td>USA CPI trend.</td></tr>
-                        <tr><td><code>gdp_growth</code></td><td><code>DECIMAL(5,2)</code></td><td>USA GDP trend.</td></tr>
-                    </tbody>
-                </table>
-            </div>
                         <tr><td><code>inflation_rate</code></td><td><code>DECIMAL(5,2)</code></td><td>USA CPI trend.</td></tr>
                         <tr><td><code>gdp_growth</code></td><td><code>DECIMAL(5,2)</code></td><td>USA GDP trend.</td></tr>
                     </tbody>
