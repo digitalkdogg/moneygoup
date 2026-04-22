@@ -407,11 +407,11 @@ export default function StockPrediction({
       {/* Data quality warnings (shown after Step 1 completes) */}
       {showDqWarnings && (
         <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 space-y-1">
-          {dq!.historyYears < 4.9 && (
-            <p>⚠️ Only {dq!.historyYears.toFixed(1)} years of history available (5 preferred). Predictions may be less reliable.</p>
+          {(dq!.historyYears ?? 0) < 4.9 && (
+            <p>⚠️ Only {(dq!.historyYears ?? 0).toFixed(1)} years of history available (5 preferred). Predictions may be less reliable.</p>
           )}
           {!dq!.fundamentalsComplete && (
-            <p>⚠️ Some fundamental metrics were imputed from sector medians: {dq!.imputedFields.join(', ')}.</p>
+            <p>⚠️ Some fundamental metrics were imputed from sector medians: {dq!.imputedFields?.join(', ') || 'None'}.</p>
           )}
           {!dq!.analystDataAvailable && (
             <p>⚠️ No analyst consensus data available for this ticker.</p>
@@ -652,9 +652,9 @@ export default function StockPrediction({
                     )}
                     {prediction.data_quality && (
                       <div className="mt-3 pt-2 border-t border-blue-200 text-xs text-gray-500 space-y-0.5">
-                        <p>History: {prediction.data_quality.historyYears.toFixed(1)} years ({prediction.data_quality.historyDays} days)</p>
-                        {prediction.data_quality.imputedFields.length > 0 && (
-                          <p>Imputed: {prediction.data_quality.imputedFields.join(', ')}</p>
+                        <p>History: {(prediction.data_quality.historyYears ?? 0).toFixed(1)} years ({prediction.data_quality.historyDays ?? 'N/A'} days)</p>
+                        {(prediction.data_quality.imputedFields?.length ?? 0) > 0 && (
+                          <p>Imputed: {prediction.data_quality.imputedFields?.join(', ')}</p>
                         )}
                       </div>
                     )}
