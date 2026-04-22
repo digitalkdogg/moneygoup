@@ -65,26 +65,16 @@ def sync_deepmoney():
     print(f"[{datetime.now()}] Starting DeepMoney sync...")
     
     # 1. Fetch data from API (V2)
-    headers = {'x-api-key': INTERNAL_SECRET}
+    # Ensure secret is clean
+    secret = INTERNAL_SECRET.strip('"') if INTERNAL_SECRET else ""
+    headers = {'x-api-key': secret}
 
+    # Fetch World Bank data for DB persistence only
     wb_data = fetch_world_bank_data(headers)
 
-    # Optional: Log market status at the beginning
-    indices_data = get_market_indices(headers)
-    if indices_data and 'indices' in indices_data:
-        indices_summary = ", ".join([f"{idx['label']}: {idx['price']} ({idx['changePercent']:.2f}%)" for idx in indices_data['indices'] if idx['price'] is not None])
-        print(f"  [indices] Market Status: {indices_summary}")
-
     try:
+        print(f"  [api] Requesting deepmoney analysis from {API_URL}...")
         response = requests.get(API_URL, headers=headers)
-        
-        # Handle environment variable quote mismatch
-        if response.status_code == 401 and INTERNAL_SECRET:
-            if not (INTERNAL_SECRET.startswith('"') and INTERNAL_SECRET.endswith('"')):
-                print("Retrying with quoted secret...")
-                headers = {'x-api-key': f'"{INTERNAL_SECRET}"'}
-                response = requests.get(API_URL, headers=headers)
-        
         response.raise_for_status()
         data = response.json()
     except Exception as e:

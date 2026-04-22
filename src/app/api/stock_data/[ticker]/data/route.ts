@@ -285,9 +285,9 @@ async function fetchOhlcv(ticker: string) {
   const sorted = [...rows].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   const historyDays = sorted.length;
-  if (historyDays < 504) {
+  if (historyDays < 365) {
     throw new Error(
-      `Insufficient history for ${ticker}: ${historyDays} days available, minimum 504 required (~2 years).`
+      `Insufficient history for ${ticker}: ${historyDays} days available, minimum 365 required (~1.5 years).`
     );
   }
 

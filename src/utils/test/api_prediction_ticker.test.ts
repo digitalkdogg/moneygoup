@@ -43,7 +43,7 @@ describe('POST /api/prediction/[ticker]', () => {
     mockRequest = new NextRequest('http://localhost/api/prediction/AAPL?outlook=1_day', {
       method: 'POST',
       body: JSON.stringify({
-        historicalData: Array(504).fill({ close: 150, high: 152, low: 148, open: 151, volume: 50000 }),
+        historicalData: Array(365).fill({ close: 150, high: 152, low: 148, open: 151, volume: 50000 }),
         stockMetrics: { peRatio: 25 },
         newsArticles: [],
         macroData: {},
@@ -62,7 +62,7 @@ describe('POST /api/prediction/[ticker]', () => {
     mockRequest = new NextRequest('http://localhost/api/prediction/AAPL', {
       method: 'POST',
       body: JSON.stringify({
-        historicalData: Array(100).fill({ close: 150 }), // Less than 504 required
+        historicalData: Array(100).fill({ close: 150 }), // Less than 365 required
         stockMetrics: { peRatio: 25 },
       }),
     });
@@ -77,7 +77,7 @@ describe('POST /api/prediction/[ticker]', () => {
     mockRequest = new NextRequest('http://localhost/api/prediction/AAPL', {
       method: 'POST',
       body: JSON.stringify({
-        historicalData: Array(504).fill({ close: 150 }),
+        historicalData: Array(365).fill({ close: 150 }),
         // Missing stockMetrics
       }),
     });
@@ -93,7 +93,7 @@ describe('POST /api/prediction/[ticker]', () => {
     mockRequest = new NextRequest('http://localhost/api/prediction/AAPL', {
       method: 'POST',
       body: JSON.stringify({
-        historicalData: Array(504).fill({ close: 150 }),
+        historicalData: Array(365).fill({ close: 150 }),
         stockMetrics: { peRatio: 25 },
       }),
     });

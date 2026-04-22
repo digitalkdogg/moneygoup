@@ -1,0 +1,88 @@
+import YahooFinance from 'yahoo-finance2';
+import { createLogger } from '@/utils/logger';
+import { spawn } from 'child_process';
+import { writeFileSync, unlinkSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { randomUUID } from 'crypto';
+
+const logger = createLogger('utils/stockDataHelper');
+const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
+
+export async function getStockDataForPrediction(ticker: string, wbData?: any) {
+  const fiveYearsAgo = new Date(Date.now() - 5 * 365.25 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const now = new Date();
+  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const today = yesterday.toISOString().slice(0, 10);
+
+  // Parallel fetch of all components needed for the prediction payload
+  const [chartResult, summary, optionsRes] = await Promise.all([
+    yahooFinance.chart(ticker, { period1: fiveYearsAgo, period2: today, interval: '1d' }).catch(() => ({ quotes: [] })),
+    yahooFinance.quoteSummary(ticker, {
+      modules: ['price', 'summaryDetail', 'financialData', 'defaultKeyStatistics', 'assetProfile', 'calendarEvents']
+    }).catch(() => ({})),
+    // Instead of internal fetch, we could just return null for options if not critical for sync
+    Promise.resolve(null) 
+  ]);
+
+  const historicalData = (chartResult.quotes || []).map(r => ({
+    date: new Date(r.date).toISOString().slice(0, 10),
+    open: (r.open as number) ?? 0,
+    high: (r.high as number) ?? 0,
+    low: (r.low as number) ?? 0,
+    close: (r.adjClose as number) ?? (r.close as number) ?? 0,
+    volume: (r.volume as number) ?? 0,
+  }));
+
+  if (historicalData.length < 365) {
+  throw new Error(`Insufficient data for ${ticker}: ${historicalData.length} rows, need >= 365.`);
+  }
+
+  const price = (summary as any).price || {};
+
+  const detail = (summary as any).summaryDetail || {};
+  const finData = (summary as any).financialData || {};
+  const keyStats = (summary as any).defaultKeyStatistics || {};
+  const profile = (summary as any).assetProfile || {};
+
+  return {
+    ticker,
+    historicalData,
+    stockMetrics: {
+      regularMarketPrice: price.regularMarketPrice,
+      peRatio: detail.trailingPE || price.trailingPE,
+      pbRatio: keyStats.priceToBook || detail.priceToBook,
+      marketCap: price.marketCap || detail.marketCap,
+      revenueGrowth: finData.revenueGrowth,
+      earningsGrowth: finData.earningsGrowth,
+      sector: profile.sector || 'Unknown',
+    },
+    macroData: {
+      worldBank: wbData ? { indicators: wbData.macro?.indicators, asOf: wbData.asOf } : null,
+      // Add other macro series if needed, but keeping it minimal for speed
+    },
+    optionsData: optionsRes || { available: false },
+    dataQuality: { historyDays: historicalData.length }
+  };
+}
+
+export function runPredictionInternal(ticker: string, payload: any, outlook: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const tempFile = join(tmpdir(), `tf_sync_input_${randomUUID()}.json`);
+    try {
+      writeFileSync(tempFile, JSON.stringify(payload));
+      const python = spawn('python3', ['scripts/predict_weighted_analysis.py', ticker, '--input_file', tempFile, '--outlook', outlook]);
+      let stdout = '', stderr = '';
+      python.stdout.on('data', d => { stdout += d; });
+      python.stderr.on('data', d => { stderr += d; });
+      python.on('close', code => {
+        try { unlinkSync(tempFile); } catch {}
+        if (code !== 0) return reject(new Error(`Exit ${code}: ${stderr}`));
+        try { resolve(JSON.parse(stdout)); } catch { reject(new Error('Invalid JSON output from python')); }
+      });
+    } catch (err) {
+      try { unlinkSync(tempFile); } catch {}
+      reject(err);
+    }
+  });
+}

@@ -88,7 +88,7 @@ async function fetchFeed(url: string): Promise<string | null> {
     try {
         const res = await fetch(url, {
             headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NewsBot/1.0)' },
-            signal: AbortSignal.timeout(8_000),
+            signal: AbortSignal.timeout(15_000),
         });
         if (!res.ok) {
          //   logger.warn(`Feed returned ${res.status}: ${url}`);
@@ -193,7 +193,7 @@ async function fetchPrimaryTickers(): Promise<Set<string>> {
         try {
             const res = await fetch(url, {
                 headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NewsBot/1.0)' },
-                signal: AbortSignal.timeout(8_000),
+                signal: AbortSignal.timeout(15_000),
             });
             if (!res.ok) return null;
             
@@ -281,6 +281,38 @@ async function fetchSecondaryTickers(primaryTickers: Set<string>): Promise<Set<s
 }
 
 /**
+ * Fetch consolidated World Bank data.
+ */
+async function fetchWorldBankData(forceRefresh: boolean = false): Promise<any> {
+    try {
+        const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3001';
+        const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
+        const headers: HeadersInit = {
+            'Content-Type': 'application/json',
+        };
+
+        if (internalSecret) {
+            headers['x-api-key'] = internalSecret;
+        }
+
+        const url = forceRefresh ? `${baseUrl}/api/worldbank?refresh=true` : `${baseUrl}/api/worldbank`;
+        const response = await fetch(url, {
+            method: 'GET',
+            headers,
+        });
+
+        if (!response.ok) {
+            throw new Error(`World Bank data fetch failed with status ${response.status}`);
+        }
+
+        return await response.json();
+    } catch (err) {
+        logger.warn('Failed to fetch World Bank data', { error: err });
+        return null;
+    }
+}
+
+/**
  * Enrich a list of tickers with fundamental and technical metrics.
  * Processes all tickers in small batches to avoid overwhelming the API.
  */
@@ -290,26 +322,27 @@ async function enrichTickers(tickers: string[]) {
     const results: any[] = [];
     const BATCH_SIZE = 5; // Process 5 tickers concurrently to avoid rate limits
     
-    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
 
     for (let i = 0; i < tickers.length; i += BATCH_SIZE) {
         const batch = tickers.slice(i, i + BATCH_SIZE);
         const batchResults = await Promise.all(batch.map(async (ticker) => {
             try {
-                const [summary, historical, newsRes] = await Promise.all([
+                const [summary, historicalResult] = await Promise.all([
                     yahooFinance.quoteSummary(ticker, {
                         modules: ['summaryDetail', 'financialData', 'defaultKeyStatistics', 'price', 'incomeStatementHistory', 'assetProfile']
                     }).catch(() => null),
-                    yahooFinance.historical(ticker, {
+                    yahooFinance.chart(ticker, {
                         period1: oneYearAgo,
-                        period2: yesterday
-                    }).catch(() => []),
-                    fetch(`https://feeds.finance.yahoo.com/rss/2.0/headline?s=${ticker}&region=US&lang=en-US`).then(r => r.ok ? r.text() : null).catch(() => null)
+                        period2: yesterday,
+                        interval: '1d'
+                    }).catch(() => null)
                 ]);
 
                 if (!summary) return { ticker, name: ticker, error: 'No summary data' };
 
+                const historical = historicalResult?.quotes || [];
                 const detail = (summary as any).summaryDetail || {};
                 const financial = (summary as any).financialData || {};
                 const stats = (summary as any).defaultKeyStatistics || {};
@@ -328,11 +361,11 @@ async function enrichTickers(tickers: string[]) {
 
                 const histData = (historical || []).map(r => ({
                     date: new Date(r.date).toISOString().slice(0, 10),
-                    open: r.open || 0,
-                    high: r.high || 0,
-                    low: r.low || 0,
-                    close: r.adjClose || r.close || 0,
-                    volume: r.volume || 0
+                    open: (r.open as number) || 0,
+                    high: (r.high as number) || 0,
+                    low: (r.low as number) || 0,
+                    close: (r.adjClose as number) || (r.close as number) || 0,
+                    volume: (r.volume as number) || 0
                 }));
 
                 const tech = histData.length >= 20 
@@ -342,6 +375,7 @@ async function enrichTickers(tickers: string[]) {
                 return {
                     ticker,
                     name: price.longName || price.shortName || ticker,
+                    historyRows: histData.length,
                     price: currentPrice,
                     changePercent: price.regularMarketChangePercent || 0,
                     pe: detail.trailingPE || stats.forwardPE || null,
@@ -421,18 +455,38 @@ export async function GET(request: NextRequest) {
 
 
     try {
-        logger.info('Starting primary RSS feed pass');
-        const primaryTickers = await fetchPrimaryTickers();
+        logger.info('Starting DeepMoney V2 discovery pass');
+        
+        // 1. Fetch shared macro and index data once
+        const [wbData, primaryTickers] = await Promise.all([
+            fetchWorldBankData(forceRefresh),
+            fetchPrimaryTickers()
+        ]);
+        
+        let marketIndices = null;
+        try {
+            const marketIndicesRes = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3001'}/api/market/indices`, {
+                headers: { 'x-api-key': process.env.DEEPMONEY_INTERNAL_SECRET || '' },
+                signal: AbortSignal.timeout(10_000)
+            });
+            marketIndices = marketIndicesRes.ok ? await marketIndicesRes.json() : null;
+        } catch (idxErr) {
+            logger.warn('Failed to fetch market indices for context, proceeding without it', { error: String(idxErr) });
+        }
+
         const allTickersSet = await fetchSecondaryTickers(primaryTickers);
         
-
         const tickerArray = Array.from(allTickersSet).sort();
 
         // --- Metric Enrichment ---
         const enrichedStocks = await enrichTickers(tickerArray);
 
         // --- Analysis Filtering ---
-        const filteredStocks = await analyzeStocks(enrichedStocks);
+        // Pass shared data to avoid redundant internal fetches
+        const filteredStocks = await analyzeStocks(enrichedStocks, {
+            wbData,
+            marketIndices
+        });
 
         // --- ETF Discovery ---
         const seenSectors = new Set<string>();

@@ -112,7 +112,7 @@ def fetch_active_portfolio_rows(cursor) -> list[dict]:
 # Step 2 – Fetch enriched stock data from /api/stock_data/[ticker]/data
 #
 # This endpoint assembles the full historicalData + stockMetrics + macroData
-# payload that the prediction engine requires (≥504 rows of history).
+# payload that the prediction engine requires (≥365 rows of history).
 # ---------------------------------------------------------------------------
 def fetch_stock_data(ticker: str) -> dict | None:
     url = f"{NEXTAUTH_URL}/api/stock_data/{ticker}/data"
@@ -238,11 +238,11 @@ def sync_portfolio_predictions():
                 stats['errors'] += 1
                 continue
  
-            # Validate minimum history depth (same gate as the API route: 504 rows)
+            # Validate minimum history depth (same gate as the API route: 365 rows)
             historical = stock_data.get('historicalData', [])
-            if not historical or len(historical) < 504:
+            if not historical or len(historical) < 365:
                 print(f"  [data] SKIP {ticker}: only {len(historical)} days of history "
-                      f"(minimum 504 required).")
+                      f"(minimum 365 required).")
                 prediction_cache[ticker] = None
                 stats['skipped'] += 1
                 continue

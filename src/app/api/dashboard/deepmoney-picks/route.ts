@@ -6,8 +6,7 @@ import { executeRawQuery } from '@/utils/databaseHelper';
 import { checkOrigin } from '@/utils/originCheck';
 import YahooFinance from 'yahoo-finance2';
 
-// Define ETF_GPS_THRESHOLD directly, as config.ts is no longer in deepmoney/v2
-const ETF_GPS_THRESHOLD = 55;
+const ETF_GPS_THRESHOLD = 75;
 const yahooFinance = new YahooFinance();
 
 export async function GET(request: NextRequest) {
