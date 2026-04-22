@@ -11,7 +11,9 @@ PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 
 if os.path.exists(os.path.join(PROJECT_ROOT, '.env.production')):
     load_dotenv(os.path.join(PROJECT_ROOT, '.env.production'))
-load_dotenv(os.path.join(PROJECT_ROOT, '.env.local'))
+if os.path.exists(os.path.join(PROJECT_ROOT, '.env.local')):
+    load_dotenv(os.path.join(PROJECT_ROOT, '.env.local'))
+load_dotenv(os.path.join(PROJECT_ROOT, '.env'))
 
 DB_HOST = os.getenv('DB_HOST', 'localhost')
 DB_USER = os.getenv('DB_USER')
@@ -63,6 +65,13 @@ def fetch_world_bank_data(headers: dict) -> dict | None:
 
 def sync_deepmoney():
     print(f"[{datetime.now()}] Starting DeepMoney sync...")
+    
+    # Thresholds from environment or defaults
+    pred_env = os.getenv('DEEPMONEY_RECOMMENDATION_PREDICTION_VALUE')
+    pred_threshold = float(pred_env) if pred_env else 5.0
+    gps_env = os.getenv('DEEPMONEY_RECOMMENDATION_GPS_VALUE')
+    gps_threshold = float(gps_env) if gps_env else 6.0
+    print(f"  [config] Thresholds: GPS > {gps_threshold}, Prediction > {pred_threshold}%")
     
     # 1. Fetch data from API (V2)
     # Ensure secret is clean
@@ -150,15 +159,17 @@ def sync_deepmoney():
         """
         
         for s in stocks:
-            print(f"  > {s['ticker']}")
+            ticker = s.get('ticker')
+            gps = s.get('gps_score', 0)
+            pred_input = s.get('prediction_input') or {}
+            
+            print(f"  > {ticker}")
             
             # Map V2 fields to DB variables
             stock_type = "hot_stocks"
-            ticker = s.get('ticker')
             name = s.get('name')
             price = s.get('price')
-            gps = s.get('gps_score', 0)
-            classification = s.get('sector', 'Unknown') # sector -> classification
+            classification = s.get('sector', 'Unknown')
             
             # Scaling
             upside = (s.get('analystUpside') or 0) * 100
@@ -172,9 +183,19 @@ def sync_deepmoney():
             market_cap_m = (s.get('marketCap') or 0) / 1e6
             
             # Prediction metrics (Extraction from prediction_input)
-            pred_input = s.get('prediction_input') or {}
-            metric_val = pred_input.get('predicted_change_pct') # predicted_change_pct -> metric_value
-            metric_lbl = f"CS: {pred_input.get('confidence_score')}" if pred_input.get('confidence_score') is not None else None # confidence_score -> metric_label
+            # Use horizon-specific fallback if generic key is missing
+            predicted_change_pct = pred_input.get('predicted_change_pct')
+            if predicted_change_pct is None:
+                predicted_change_pct = pred_input.get('predicted_change_pct_1m')
+            
+            predicted_change_pct = predicted_change_pct or 0
+            predicted_price_1m = pred_input.get('predicted_price_1m')
+            if predicted_price_1m is None:
+                # Fallback for specific outlooks (1_month) where the script returns 'predicted_price'
+                predicted_price_1m = pred_input.get('predicted_price')
+
+            metric_val = predicted_change_pct
+            metric_lbl = f"CS: {pred_input.get('confidence_score')}" if pred_input.get('confidence_score') is not None else None
             
             # Fundamentals
             trailing_pe = s.get('pe')
@@ -207,16 +228,6 @@ def sync_deepmoney():
             ))
 
             # 5. Check qualification for user_stock_predictions
-            # Thresholds from environment or defaults
-            pred_env = os.getenv('DEEPMONEY_RECOMMENDATION_PREDICTION_VALUE')
-            pred_threshold = float(pred_env) if pred_env else 5.0
-            
-            gps_env = os.getenv('DEEPMONEY_RECOMMENDATION_GPS_VALUE')
-            gps_threshold = float(gps_env) if gps_env else 6.0
-            
-            predicted_change_pct = pred_input.get('predicted_change_pct', 0)
-            predicted_price_1m = pred_input.get('predicted_price_1m')
-
             if predicted_change_pct > pred_threshold and gps > gps_threshold and predicted_price_1m is not None:
                 print(f"    - Qualifying stock found: {ticker} (GPS: {gps}, Pred: {predicted_change_pct}%)")
                 
@@ -248,10 +259,11 @@ def sync_deepmoney():
                     # Add to user_stocks as unconfirmed if not already a purchased position
                     cursor.execute("""
                         INSERT INTO user_stocks 
-                        (user_id, stock_id, is_purchased, user_confirmed)
-                        VALUES (%s, %s, 0, 0)
+                        (user_id, stock_id, is_purchased, user_confirmed, is_active)
+                        VALUES (%s, %s, 0, 0, 1)
                         ON DUPLICATE KEY UPDATE 
-                        user_confirmed = IF(is_purchased = 0, 0, user_confirmed)
+                        user_confirmed = IF(is_purchased = 0, 0, user_confirmed),
+                        is_active = IF(is_purchased = 0, 1, is_active)
                     """, (user_id, stock_id))
 
         conn.commit()
