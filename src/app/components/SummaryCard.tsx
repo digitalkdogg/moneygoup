@@ -29,9 +29,9 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
   };
 
   return (
-    <div className="p-4 bg-gray-50 rounded-lg relative">
-      <p className="text-sm font-medium text-gray-500">{label}</p>
-      <p className="text-2xl font-semibold">{formatValue(value)}</p>
+    <div className="p-6 bg-white rounded-2xl shadow-md border border-gray-100 relative">
+      <p className="text-sm font-medium text-gray-500 mb-2">{label}</p>
+      <p className="text-3xl font-bold">{formatValue(value)}</p>
       {marketStatus === 'closed' && (
         <div className="text-xs text-gray-400 mt-1">Market Closed</div>
       )}

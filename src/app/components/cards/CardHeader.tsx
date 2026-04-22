@@ -48,27 +48,18 @@ export const CardHeader: React.FC<CardHeaderProps> = ({ symbol, companyName, cha
   }
 
   return (
-    <div className="flex items-start justify-between px-5 py-3 border-b border-gray-200">
+    <div className="flex items-start justify-between px-5 py-5">
       <div>
-        <div className="text-2xl font-bold text-gray-900 leading-tight">
+        <div className="text-2xl font-bold text-gray-900 leading-none">
           {symbol}
         </div>
-        <div className="text-xs text-gray-500 font-medium mt-1 truncate max-w-[140px]">
+        <div className="text-xs text-gray-400 font-medium mt-1 truncate max-w-[140px]">
           {companyName}
         </div>
       </div>
-      <div className="flex flex-col items-end gap-1">
-        <div 
-          style={brandColor ? { 
-            backgroundColor: `${brandColor}3A`, // 4D is ~0.3 opacity in hex
-            color: brandColor,
-          } : {}}
-          className={`px-2 py-0.5 rounded ${!brandColor ? 'bg-gray-100 text-gray-700' : ''} text-[10px] font-bold uppercase`}
-        >
-          {symbol}
-        </div>
+      <div className="flex flex-col items-end">
         {changePercent !== null && (
-          <div className={`text-sm font-bold ${getChangeColor(changePercent)}`}>
+          <div className={`text-base font-bold ${getChangeColor(changePercent)}`}>
             {isPositive ? '+' : ''}{formatPercent(changePercent)}
           </div>
         )}

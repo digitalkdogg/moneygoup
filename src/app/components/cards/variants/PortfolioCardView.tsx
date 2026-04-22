@@ -62,8 +62,19 @@ export const PortfolioCardView: React.FC<PortfolioCardViewProps> = ({ card, acti
           label="ANALYST"
           value={
             <div className="text-right">
-              <div className={getAnalystColor(card.analystFeedback)}>{card.analystFeedback || 'None'}</div>
-              <div className="text-[10px] text-gray-400 font-normal">{analystDisplay}</div>
+              {card.analystFeedback ? (
+                <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-bold border ${
+                  card.analystFeedback.toLowerCase().includes('strong buy') 
+                    ? 'bg-green-100 text-green-700 border-green-200' 
+                    : card.analystFeedback.toLowerCase().includes('buy')
+                    ? 'bg-blue-50 text-blue-600 border-blue-100'
+                    : 'bg-gray-100 text-gray-600 border-gray-200'
+                }`}>
+                  {card.analystFeedback}
+                </span>
+              ) : (
+                <span className="text-gray-400">None</span>
+              )}
             </div>
           }
         />

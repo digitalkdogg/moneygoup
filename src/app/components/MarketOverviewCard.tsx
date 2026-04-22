@@ -57,34 +57,37 @@ const MarketOverviewCard: React.FC = () => {
   }
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm h-full">
-      <div className="flex items-center justify-between mb-4">
+    <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-md">
+      <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-2">
-          <div className={`w-2.5 h-2.5 rounded-full ${marketStatus.isOpen ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
-          <h3 className="font-bold text-gray-800">Market Overview</h3>
+          <div className={`w-3 h-3 rounded-full ${marketStatus.isOpen ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+          <h3 className="text-xl font-bold text-gray-800">Market Overview</h3>
         </div>
-        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+        <span className={`text-xs font-bold px-3 py-1 rounded-full border ${
           marketStatus.isOpen ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
         }`}>
           {marketStatus.message}
         </span>
       </div>
       
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
         {data?.indices.map((idx) => (
-          <MiniDataCard
-            key={idx.symbol}
-            label={idx.label}
-            primaryText={idx.price ? formatNumber(idx.price, idx.symbol === '^VIX' ? 1 : 0) : '—'}
-            secondaryText={idx.changePercent !== null ? `${idx.changePercent >= 0 ? '+' : ''}${formatNumber(idx.changePercent, 2)}%` : '—'}
-            tone={idx.changePercent && idx.changePercent >= 0 ? 'positive' : 'negative'}
-            primaryClassOverride="text-lg font-extrabold text-gray-900 leading-none mb-1"
-          />
+          <div key={idx.symbol} className="flex flex-col">
+            <span className="text-[11px] uppercase font-bold text-gray-400 tracking-wider mb-2">
+              {idx.label}
+            </span>
+            <span className="text-2xl font-extrabold text-gray-900 leading-tight">
+              {idx.price ? formatNumber(idx.price, idx.symbol === '^VIX' ? 1 : 0) : '—'}
+            </span>
+            <span className={`text-sm font-bold mt-1 ${idx.changePercent && idx.changePercent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {idx.changePercent !== null ? `${idx.changePercent >= 0 ? '+' : ''}${formatNumber(idx.changePercent, 2)}%` : '—'}
+            </span>
+          </div>
         ))}
       </div>
       
       {data?.asOf && (
-        <p className="text-[10px] text-gray-400 mt-3 text-right">
+        <p className="text-[10px] text-gray-400 mt-6 text-right">
           As of {new Date(data.asOf).toLocaleTimeString()}
         </p>
       )}

@@ -61,7 +61,7 @@ const RecommendationsSection: React.FC = () => {
 
   return (
     <section className="mb-8">
-      <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+      <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-md">
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-2">
           <div className="flex items-center gap-2">
             <span className="text-xl" role="img" aria-label="lightbulb">💡</span>

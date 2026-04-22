@@ -22,23 +22,10 @@ const PortfolioSummary: React.FC<PortfolioSummaryProps> = ({ portfolio, marketSt
 
   if (!portfolio || portfolio.length === 0) {
     return (
-      <div className="bg-white p-6 rounded-2xl shadow-lg mb-8">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-          <h2 className="text-2xl font-bold text-gray-800">Portfolio Summary</h2>
-          <button
-            onClick={onToggleChart}
-            style={{ backgroundColor: '#017e3b' }}
-            className="px-4 py-2 text-white font-bold rounded-lg shadow hover:opacity-90 transition-all flex items-center space-x-2 cursor-pointer text-sm"
-          >
-            <span>{showChart ? 'Hide History' : 'View History Chart'}</span>
-            <span>{showChart ? '▲' : '📈'}</span>
-          </button>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-center">
-          <SummaryCard label="Total Position Value" value={0} marketStatus={marketStatus} />
-          <SummaryCard label="Total Daily Earnings" value={0} marketStatus={marketStatus} />
-          <SummaryCard label="Total Lifetime Earnings" value={0} marketStatus={marketStatus} />
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8 text-center">
+        <SummaryCard label="Total Position Value" value={0} marketStatus={marketStatus} />
+        <SummaryCard label="Total Daily Earnings" value={0} marketStatus={marketStatus} />
+        <SummaryCard label="Total Lifetime Earnings" value={0} marketStatus={marketStatus} />
       </div>
     );
   }
@@ -76,39 +63,26 @@ const PortfolioSummary: React.FC<PortfolioSummaryProps> = ({ portfolio, marketSt
 
 
   return (
-    <div className="bg-white p-6 rounded-2xl shadow-lg mb-8">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-        <h2 className="text-2xl font-bold text-gray-800">Portfolio Summary</h2>
-        <button
-          onClick={onToggleChart}
-          style={{ backgroundColor: '#017e3b' }}
-          className="px-4 py-2 text-white font-bold rounded-lg shadow hover:opacity-90 transition-all flex items-center space-x-2 cursor-pointer text-sm"
-        >
-          <span>{showChart ? 'Hide History' : 'View History Chart'}</span>
-          <span>{showChart ? '▲' : '📈'}</span>
-        </button>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-center">
-        <SummaryCard
-          label="Total Position Value"
-          value={totalPositionValue}
-          marketStatus={marketStatus}
-        />
-        <SummaryCard
-          label="Total Daily Earnings"
-          value={allStocksExcludedFromDailyEarnings ? null : totalDailyEarnings}
-          marketStatus={marketStatus}
-          isMissingData={stocksExcludedFromDailyEarnings > 0 && !allStocksExcludedFromDailyEarnings}
-          tooltip={stocksExcludedFromDailyEarnings > 0 && !allStocksExcludedFromDailyEarnings ? "One or more stocks excluded due to missing price history" : undefined}
-        />
-        <SummaryCard
-          label="Total Lifetime Earnings"
-          value={totalLifetimeEarnings}
-          marketStatus={marketStatus}
-          isMissingData={stocksExcludedFromLifetimeEarnings > 0}
-          tooltip={stocksExcludedFromLifetimeEarnings > 0 ? "One or more stocks excluded due to missing cost basis" : undefined}
-        />
-      </div>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+      <SummaryCard
+        label="Total Position Value"
+        value={totalPositionValue}
+        marketStatus={marketStatus}
+      />
+      <SummaryCard
+        label="Total Daily Earnings"
+        value={allStocksExcludedFromDailyEarnings ? null : totalDailyEarnings}
+        marketStatus={marketStatus}
+        isMissingData={stocksExcludedFromDailyEarnings > 0 && !allStocksExcludedFromDailyEarnings}
+        tooltip={stocksExcludedFromDailyEarnings > 0 && !allStocksExcludedFromDailyEarnings ? "One or more stocks excluded due to missing price history" : undefined}
+      />
+      <SummaryCard
+        label="Total Lifetime Earnings"
+        value={totalLifetimeEarnings}
+        marketStatus={marketStatus}
+        isMissingData={stocksExcludedFromLifetimeEarnings > 0}
+        tooltip={stocksExcludedFromLifetimeEarnings > 0 ? "One or more stocks excluded due to missing cost basis" : undefined}
+      />
     </div>
   );
 };

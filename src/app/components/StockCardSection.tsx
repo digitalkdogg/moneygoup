@@ -28,9 +28,9 @@ export default function StockCardSection<T>({
     ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4'
     : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
   return (
-    <section className="bg-white p-4 md:p-6 rounded-2xl shadow-lg mb-8">
-      <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-6 text-center">
-        {icon && <span className="mr-2">{icon}</span>}
+    <section className="mb-8">
+      <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-6 flex items-center">
+        {icon && <span className="mr-3">{icon}</span>}
         {title}
       </h2>
 

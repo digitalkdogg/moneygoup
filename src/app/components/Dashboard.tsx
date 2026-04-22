@@ -163,46 +163,46 @@ export default function Dashboard() {
 
   return (
     <>
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-        <div className="max-w-screen-2xl mx-auto">
-          <header className="text-center mb-12">
-            <h1 className="text-4xl font-bold text-gray-800 mb-4">Stock Dashboard</h1>
-            <p className="text-lg text-gray-600">Tracked stocks and their latest data.</p>
-          </header>
-
-          {/* NEW: Portfolio Summary */}
+      <div className="min-h-screen bg-[#f8f9fa] p-4 md:p-8">
+        <div className="max-w-7xl mx-auto">
+          {/* Portfolio Summary Row */}
           <PortfolioSummary 
             portfolio={portfolio} 
             marketStatus={marketStatus} 
-            showChart={showChart}
-            onToggleChart={() => setShowChart(!showChart)}
+            showChart={true} // Chart is now always integrated in the grid
+            onToggleChart={() => {}} // Not used anymore as chart is integrated
           />
 
-          {showChart && <PortfolioHistoryChart />}
-
-          {/* New Dashboard Widgets Row */}
-           {/* Analyst Ratings Row */}
-          <div className="mb-6">
-
+          {/* Middle Grid: History Chart and Gains Breakdown */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10 items-stretch">
+            <div className="lg:col-span-2">
+              <PortfolioHistoryChart />
+            </div>
+            <div className="lg:col-span-1">
+              <GainsBreakdownCard totals={portfolioTotals} loading={loadingPortfolio} />
+            </div>
           </div>
 
-          {/* Market Overview + Gains Breakdown Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+          {/* Portfolio Section */}
+          <div className="mb-10">
+            <PortfolioSection portfolio={portfolio} onRefresh={fetchPortfolioData} />
+          </div>
+
+          {/* Market Overview Row */}
+          <div className="mb-10">
             <MarketOverviewCard />
-            <GainsBreakdownCard totals={portfolioTotals} loading={loadingPortfolio} />
           </div>
 
-          {/* Portfolio and Watchlist Sections */}
-          <PortfolioSection portfolio={portfolio} onRefresh={fetchPortfolioData} />
-          
-          {/* Recommendations Section */}
-          <RecommendationsSection />
-          
-          <WatchlistSection onRefresh={fetchPortfolioData} />
+          {/* Hidden/Below the Fold Sections */}
+          <div className="border-t border-gray-200 pt-10 mt-10">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Discovery & Watchlist</h2>
+            <RecommendationsSection />
+            <div className="mt-10">
+              <WatchlistSection onRefresh={fetchPortfolioData} />
+            </div>
+          </div>
         </div>
       </div>
-
-      {/* Modals have been removed from here and are now handled within PortfolioSection and WatchlistSection */}
     </>
   );
 }

@@ -79,10 +79,13 @@ export const PortfolioHistoryChart: React.FC = () => {
 
     if (loading) {
         return (
-            <div className="bg-white p-4 md:p-6 rounded-2xl shadow-lg mt-4 h-80 flex items-center justify-center">
-                <div className="text-center">
-                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-green-700"></div>
-                    <p className="mt-2 text-gray-600">Loading portfolio history...</p>
+            <div className="bg-white p-6 rounded-2xl shadow-md border border-gray-100 h-full flex flex-col">
+                <div className="h-8 w-48 bg-gray-100 rounded mb-6 animate-pulse"></div>
+                <div className="flex-grow flex items-center justify-center min-h-[320px]">
+                    <div className="text-center">
+                        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-green-700"></div>
+                        <p className="mt-2 text-gray-600">Loading portfolio history...</p>
+                    </div>
                 </div>
             </div>
         );
@@ -90,8 +93,11 @@ export const PortfolioHistoryChart: React.FC = () => {
 
     if (error) {
         return (
-            <div className="bg-white p-4 md:p-6 rounded-2xl shadow-lg mt-4 h-80 flex items-center justify-center text-red-500">
-                Error: {error}
+            <div className="bg-white p-6 rounded-2xl shadow-md border border-gray-100 h-full flex flex-col">
+                <div className="h-8 w-48 bg-gray-100 rounded mb-6"></div>
+                <div className="flex-grow flex items-center justify-center min-h-[320px] text-red-500">
+                    Error: {error}
+                </div>
             </div>
         );
     }
@@ -99,10 +105,10 @@ export const PortfolioHistoryChart: React.FC = () => {
     const periodLabel = period === '1w' ? '1 Week' : period === '1m' ? '1 Month' : period === '6m' ? '6 Months' : '1 Year';
 
     return (
-        <div className="bg-white p-4 md:p-6 mb-10 rounded-2xl shadow-lg hover:shadow-2xl transition-shadow duration-300 ease-in-out mt-4">
-            <div className="flex justify-between items-center mb-4">
+        <div className="bg-white p-6 rounded-2xl shadow-md border border-gray-100 h-full flex flex-col min-h-[480px]">
+            <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl md:text-2xl font-bold text-gray-800">
-                    📈 Portfolio Value ({periodLabel})
+                    Portfolio Value ({periodLabel})
                 </h2>
                 <div className="flex space-x-1 md:space-x-2 rounded-lg bg-gray-100 p-1">
                     {periodOptions.map(option => (
@@ -123,11 +129,11 @@ export const PortfolioHistoryChart: React.FC = () => {
             </div>
 
             {data.length === 0 ? (
-                <div className="h-80 flex items-center justify-center">
+                <div className="flex-grow flex items-center justify-center">
                     <p className="text-lg text-gray-500">No portfolio history data available to display a chart.</p>
                 </div>
             ) : (
-                <div className="h-80 w-full">
+                <div className="flex-grow w-full">
                     {(() => {
                         const values = data.map(d => d.value);
                         const minValue = Math.min(...values);

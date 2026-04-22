@@ -16,13 +16,13 @@ export const CardMetricRow: React.FC<CardMetricRowProps> = ({
   className = "" 
 }) => {
   return (
-    <div className={`flex justify-between items-center py-2 border-t border-dashed border-gray-100 first:border-t-0 ${className}`}>
-      <span className="text-xs text-gray-500 uppercase font-semibold tracking-wide">
+    <div className={`flex justify-between items-start py-1.5 ${className}`}>
+      <span className="text-[11px] text-gray-400 uppercase font-bold tracking-wider mt-0.5">
         {label}
       </span>
-      <span className={`text-sm font-bold ${valueClassName}`}>
+      <div className={`text-sm font-bold ${valueClassName}`}>
         {value}
-      </span>
+      </div>
     </div>
   )
 }
