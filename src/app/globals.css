@@ -13,3 +13,24 @@
 button {
 	cursor:pointer;
 }
+
+/* ── Typography ─────────────────────────────────────────── */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 700;
+  line-height: 1.2;
+  color: inherit;
+}
+ 
+h1 { font-size: 2.25rem; }   /* 36px */
+h2 { font-size: 1.75rem; }   /* 28px */
+h3 { font-size: 1.375rem; }  /* 22px */
+h4 { font-size: 1.125rem; }  /* 18px */
+h5 { font-size: 0.9375rem; } /* 15px */
+h6 { font-size: 0.8125rem; } /* 13px */
+ 
+p {
+  font-size: 1rem;     /* 16px */
+  line-height: 1.6;
+  color: inherit;
+}
+ 

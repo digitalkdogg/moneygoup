@@ -165,6 +165,10 @@ export default function Dashboard() {
     <>
       <div className="min-h-screen bg-[#f8f9fa] p-4 md:p-8">
         <div className="max-w-7xl mx-auto">
+          <div className = "mb-10">
+            <h1>Portfolio Dashboard</h1>
+            <p>Track your investments, performance and opportunities all in one place</p>
+          </div>
           {/* Market Overview Row */}
           <div className="mb-10">
             <MajorIndicesStrip />

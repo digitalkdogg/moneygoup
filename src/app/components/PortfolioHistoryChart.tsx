@@ -107,9 +107,9 @@ export const PortfolioHistoryChart: React.FC = () => {
     return (
         <div className="bg-white p-6 rounded-2xl shadow-md border border-gray-100 h-full flex flex-col min-h-[480px]">
             <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl md:text-2xl font-bold text-gray-800">
+                <h3 className="text-xl md:text-2xl font-bold text-gray-800">
                     Portfolio Value ({periodLabel})
-                </h2>
+                </h3>
                 <div className="flex space-x-1 md:space-x-2 rounded-lg bg-gray-100 p-1">
                     {periodOptions.map(option => (
                         <button
