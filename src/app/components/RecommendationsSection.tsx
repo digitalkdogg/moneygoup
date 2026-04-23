@@ -65,7 +65,7 @@ const RecommendationsSection: React.FC = () => {
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-2">
           <div className="flex items-center gap-2">
             <span className="text-xl" role="img" aria-label="lightbulb">💡</span>
-            <h2 className="text-xl font-bold text-gray-800">Recommendations</h2>
+            <h3 className="text-xl font-bold text-gray-800">Recommendations</h3>
           </div>
           <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full border border-gray-200 inline-block w-fit">
             Based on 1-month prediction

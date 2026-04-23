@@ -162,7 +162,7 @@ export default function Dashboard() {
   }
 
   return (
-    <>
+    <main id="main-content">
       <div className="min-h-screen bg-[#f8f9fa] p-4 md:p-8">
         <div className="max-w-7xl mx-auto">
           <div className = "mb-10">
@@ -219,6 +219,6 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-    </>
+    </main>
   );
 }

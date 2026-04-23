@@ -12,6 +12,8 @@ export default function Navigation() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const mobileTriggerRef = useRef<HTMLButtonElement>(null);
 
   // Close profile dropdown when clicking outside
   useEffect(() => {
@@ -27,12 +29,51 @@ export default function Navigation() {
     };
   }, [profileRef]);
 
-  // Prevent scrolling when mobile menu is open
+  // Accessibility: Focus trap, focus return and Escape to close for mobile menu
   useEffect(() => {
     if (isMobileMenuOpen) {
       document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
+      
+      const handleEscape = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') setIsMobileMenuOpen(false);
+      };
+
+      const handleFocusTrap = (e: KeyboardEvent) => {
+        if (e.key !== 'Tab' || !mobileMenuRef.current) return;
+        
+        const focusableElements = mobileMenuRef.current.querySelectorAll(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        const firstElement = focusableElements[0] as HTMLElement;
+        const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
+
+        if (e.shiftKey) {
+          if (document.activeElement === firstElement) {
+            lastElement.focus();
+            e.preventDefault();
+          }
+        } else {
+          if (document.activeElement === lastElement) {
+            firstElement.focus();
+            e.preventDefault();
+          }
+        }
+      };
+
+      document.addEventListener('keydown', handleEscape);
+      document.addEventListener('keydown', handleFocusTrap);
+      
+      // Focus first element in menu
+      const firstFocusable = mobileMenuRef.current?.querySelectorAll('button, [href]')[0] as HTMLElement;
+      firstFocusable?.focus();
+
+      return () => {
+        document.removeEventListener('keydown', handleEscape);
+        document.removeEventListener('keydown', handleFocusTrap);
+        document.body.style.overflow = 'unset';
+        // Return focus to trigger
+        mobileTriggerRef.current?.focus();
+      };
     }
   }, [isMobileMenuOpen]);
 
@@ -51,40 +92,52 @@ export default function Navigation() {
       <Link 
         href="/" 
         onClick={() => setIsMobileMenuOpen(false)}
-        className={`px-4 py-3 md:py-2 rounded-lg font-semibold transition duration-200 flex items-center justify-between ${
+        aria-current={pathname === '/' ? 'page' : undefined}
+        className={`px-4 py-3 md:py-2 rounded-lg font-semibold transition duration-200 flex items-center justify-between border-2 ${
           pathname === '/'
-            ? mobile ? 'bg-green-800 text-white' : 'bg-white text-green-700 shadow-lg'
-            : 'text-white hover:bg-green-800'
-        } ${mobile ? 'w-full text-lg h-[56px]' : ''}`}
+            ? mobile 
+              ? 'bg-green-800 text-white border-white/40' 
+              : 'bg-white text-green-700 shadow-lg border-white'
+            : 'text-white border-transparent hover:bg-green-800 hover:border-white/20'
+        } ${mobile ? 'w-full text-lg h-[56px]' : 'focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-green-700'}`}
       >
-        <span>Dashboard</span>
-        {mobile && <span className="text-xl">›</span>}
+        <span className="flex items-center">
+          {pathname === '/' && !mobile && <span className="mr-2" aria-hidden="true">🏠</span>}
+          <span>Dashboard</span>
+        </span>
+        {mobile && <span className="text-xl" aria-hidden="true">›</span>}
       </Link>
       <Link 
         href="/search" 
         onClick={() => setIsMobileMenuOpen(false)}
-        className={`px-4 py-3 md:py-2 rounded-lg font-semibold transition duration-200 flex items-center justify-between ${
+        aria-current={pathname === '/search' ? 'page' : undefined}
+        className={`px-4 py-3 md:py-2 rounded-lg font-semibold transition duration-200 flex items-center justify-between border-2 ${
           pathname === '/search'
-            ? mobile ? 'bg-green-800 text-white' : 'bg-white text-green-700 shadow-lg'
-            : 'text-white hover:bg-green-800'
-        } ${mobile ? 'w-full text-lg h-[56px]' : ''}`}
+            ? mobile 
+              ? 'bg-green-800 text-white border-white/40' 
+              : 'bg-white text-green-700 shadow-lg border-white'
+            : 'text-white border-transparent hover:bg-green-800 hover:border-white/20'
+        } ${mobile ? 'w-full text-lg h-[56px]' : 'focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-green-700'}`}
       >
-        <span>Deepmoney Search</span>
-        {mobile && <span className="text-xl">›</span>}
+        <span className="flex items-center">
+          {pathname === '/search' && !mobile && <span className="mr-2" aria-hidden="true">🔍</span>}
+          <span>Deepmoney Search</span>
+        </span>
+        {mobile && <span className="text-xl" aria-hidden="true">›</span>}
       </Link>
     </>
   );
 
   return (
-    <>
-      <nav style={{ backgroundColor: '#017e3b' }} className="shadow-lg sticky top-0 z-40 w-full">
+    <header>
+      <nav style={{ backgroundColor: '#017e3b' }} className="shadow-lg sticky top-0 z-40 w-full" aria-label="Main navigation">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
-              <Link href="/" className="flex items-center gap-2 text-2xl font-bold text-white">
+              <Link href="/" className="flex items-center gap-2 text-2xl font-bold text-white focus-visible:ring-2 focus-visible:ring-white rounded-md p-1">
                 <Image
                   src="/growmystock_logo.svg"
-                  alt="Grow My Stock logo"
+                  alt="Grow My Stock"
                   width={35}
                   height={35}
                   priority
@@ -107,19 +160,23 @@ export default function Navigation() {
                   <button
                     onClick={() => setIsProfileOpen(!isProfileOpen)}
                     style={{ backgroundColor: '#95c779', color:'#09522b'}}
-                    className="flex items-center justify-center h-9 w-9 rounded-full text-white font-bold text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600"
+                    className="flex items-center justify-center h-11 w-11 rounded-full text-white font-bold text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600"
+                    aria-expanded={isProfileOpen}
+                    aria-haspopup="true"
+                    aria-label={`User menu for ${session.user.name}`}
                   >
                     {initials}
                   </button>
 
                   {isProfileOpen && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 ring-1 ring-black ring-opacity-5 focus:outline-none">
-                      <div className="px-4 py-2 text-sm text-gray-700 border-b border-gray-200">
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 ring-1 ring-black ring-opacity-5 focus:outline-none" role="menu">
+                      <div className="px-4 py-2 text-sm text-gray-700 border-b border-gray-200" role="none">
                         {session.user.name}
                       </div>
                       <button
                         onClick={() => signOut({ callbackUrl: `${process.env.NEXT_PUBLIC_NEXTAUTH_URL || ''}/login` })}
-                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer focus:bg-gray-100 focus:outline-none"
+                        role="menuitem"
                       >
                         Logout
                       </button>
@@ -132,17 +189,19 @@ export default function Navigation() {
             {/* Mobile Hamburger Button */}
             <div className="flex md:hidden items-center">
               <button
+                ref={mobileTriggerRef}
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="inline-flex items-center justify-center p-2 rounded-md text-white hover:bg-green-800 focus:outline-none w-[44px] h-[44px]"
-                aria-expanded="false"
+                className="inline-flex items-center justify-center p-2 rounded-md text-white hover:bg-green-800 focus:outline-none w-[44px] h-[44px] focus-visible:ring-2 focus-visible:ring-white"
+                aria-expanded={isMobileMenuOpen}
+                aria-controls="mobile-menu"
+                aria-label={isMobileMenuOpen ? "Close main menu" : "Open main menu"}
               >
-                <span className="sr-only">Open main menu</span>
                 {isMobileMenuOpen ? (
-                  <svg className="block h-8 w-8 transition-transform duration-150 ease-in-out" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="block h-8 w-8 transition-transform duration-150 ease-in-out" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 ) : (
-                  <svg className="block h-8 w-8 transition-transform duration-150 ease-in-out" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="block h-8 w-8 transition-transform duration-150 ease-in-out" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
                   </svg>
                 )}
@@ -154,12 +213,18 @@ export default function Navigation() {
 
       {/* Mobile Menu Drawer */}
       <div 
+        id="mobile-menu"
+        ref={mobileMenuRef}
         className={`fixed inset-0 z-50 md:hidden transition-opacity duration-300 ${isMobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Main menu"
       >
         {/* Scrim Overlay */}
         <div 
           className="absolute inset-0 bg-white bg-opacity-50 opacity-70"
           onClick={() => setIsMobileMenuOpen(false)}
+          aria-hidden="true"
         />
         
         {/* Drawer Content */}
@@ -172,9 +237,10 @@ export default function Navigation() {
               <span className="text-xl font-bold text-white">Grow<span style={{ color: '#baeb9e', fontWeight: 'bold' }}> My </span>Stock</span>
               <button 
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="text-white p-2 w-[44px] h-[44px] flex items-center justify-center"
+                className="text-white p-2 w-[44px] h-[44px] flex items-center justify-center hover:bg-green-800 rounded-md focus-visible:ring-2 focus-visible:ring-white"
+                aria-label="Close menu"
               >
-                <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
@@ -202,9 +268,9 @@ export default function Navigation() {
             <div className="px-5 mt-auto pt-6 border-t border-white/20">
               <button
                 onClick={() => signOut({ callbackUrl: `${process.env.NEXT_PUBLIC_NEXTAUTH_URL || ''}/login` })}
-                className="flex items-center space-x-2 text-white opacity-80 hover:opacity-100 py-3 w-full text-left"
+                className="flex items-center space-x-2 text-white opacity-80 hover:opacity-100 py-3 w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white rounded-md px-2"
               >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1h3v-3H7" />
                 </svg>
                 <span className="font-medium">Log Out</span>
@@ -213,6 +279,6 @@ export default function Navigation() {
           </div>
         </div>
       </div>
-    </>
+    </header>
   );
 }
