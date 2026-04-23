@@ -15,6 +15,7 @@ import { formatNumber, formatCurrency as formatUtilityCurrency } from '@/utils/f
 import { PortfolioItem } from '@/types/portfolio'; // NEW: Import PortfolioItem
 import { PortfolioTotals, AnalystRatingsResponse } from '@/types/dashboard';
 import { PortfolioHistoryChart } from './PortfolioHistoryChart';
+import { getMarketStatus } from '@/utils/marketStatus';
 
 interface StockData {
   symbol?: string
@@ -86,6 +87,7 @@ export default function Dashboard() {
   const [portfolioTotals, setPortfolioTotals] = useState<PortfolioTotals | null>(null);
   const [portfolioRatings, setPortfolioRatings] = useState<AnalystRatingsResponse | null>(null);
   const [marketStatus, setMarketStatus] = useState<'open' | 'closed'>('closed');
+  const [todayDate, setTodayDate] = useState<string>('');
   const [loadingPortfolio, setLoadingPortfolio] = useState(true);
   const [portfolioError, setPortfolioError] = useState<string | null>(null);
 
@@ -120,12 +122,6 @@ export default function Dashboard() {
         });
       }
 
-      // Determine market status: if any stock has a currentPrice different from prevClose, market is open
-      const marketIsOpen = fetchedPortfolio.some(item =>
-        item.regularMarketPrice !== null && item.prev_close !== null && item.regularMarketPrice !== item.prev_close
-      );
-      setMarketStatus(marketIsOpen ? 'open' : 'closed');
-
     } catch (err) {
       setPortfolioError(err instanceof Error ? err.message : 'An unknown error occurred while fetching portfolio');
     } finally {
@@ -135,6 +131,17 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchPortfolioData(); // Fetch portfolio data when component mounts
+    
+    // Update market status and date
+    const status = getMarketStatus();
+    setMarketStatus(status.isOpen ? 'open' : 'closed');
+    
+    const now = new Date();
+    setTodayDate(new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    }).format(now));
   }, [fetchPortfolioData]);
 
   // const handleRowClick = (symbol: string) => {
@@ -165,9 +172,20 @@ export default function Dashboard() {
     <main id="main-content">
       <div className="min-h-screen bg-[#f8f9fa] p-4 md:p-8">
         <div className="max-w-7xl mx-auto">
-          <div className = "mb-10">
-            <h1>Portfolio Dashboard</h1>
-            <p>Track your investments, performance and opportunities all in one place</p>
+          <div className="flex flex-col md:flex-row md:justify-between md:items-start mb-6">
+            <div className="mb-4 md:mb-10">
+              <h1>Portfolio Dashboard</h1>
+              <p className="text-gray-700">Track your investments, performance and opportunities all in one place</p>
+            </div>
+            <div className="flex flex-row space-x-3 items-center mb-10 md:mb-0">
+              <div className="market-status bg-white border border-gray-200 rounded-full px-4 py-1.5 text-sm font-semibold text-gray-700 shadow-sm flex items-center">
+                <span className={`w-2 h-2 rounded-full mr-2 ${marketStatus === 'open' ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                Market {marketStatus === 'open' ? 'Open' : 'Closed'}
+              </div>
+              <div className="today-date bg-white border border-gray-200 rounded-full px-4 py-1.5 text-sm font-semibold text-gray-700 shadow-sm flex items-center">
+                {todayDate}
+              </div>
+            </div>
           </div>
           {/* Market Overview Row */}
           <div className="mb-10">

@@ -32,9 +32,6 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
     <div className="p-6 bg-white rounded-2xl shadow-md border border-gray-100 relative">
       <p className="text-sm font-medium text-gray-500 mb-2">{label}</p>
       <p className="text-3xl font-bold">{formatValue(value)}</p>
-      {marketStatus === 'closed' && (
-        <div className="text-xs text-gray-400 mt-1">Market Closed</div>
-      )}
       {isMissingData && tooltip && (
         <div className="absolute top-2 right-2 group">
           <span className="text-xs text-gray-400 cursor-pointer">⚠️</span>
