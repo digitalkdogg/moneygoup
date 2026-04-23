@@ -57,6 +57,7 @@ export const WatchlistCardView: React.FC<WatchlistCardViewProps> = ({ card, acti
       <CardActions compact={isCompact}>
         <ActionButton
           label={isCompact ? "Add" : "Add to Portfolio"}
+          ariaLabel={`Add ${card.symbol} to your portfolio`}
           variant="primary"
           size={isCompact ? "sm" : undefined}
           outline={isCompact}
@@ -64,6 +65,7 @@ export const WatchlistCardView: React.FC<WatchlistCardViewProps> = ({ card, acti
         />
         <ActionButton
           label={isCompact ? "Remove" : "Remove"}
+          ariaLabel={`Remove ${card.symbol} from watchlist`}
           variant="secondary"
           size={isCompact ? "sm" : undefined}
           outline={isCompact}

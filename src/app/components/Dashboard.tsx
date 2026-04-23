@@ -145,7 +145,7 @@ export default function Dashboard() {
 
   if (loadingPortfolio) { // Use loadingPortfolio for overall loading
     return (
-      <div className="text-center p-10">
+      <div className="text-center p-10" aria-live="polite" aria-busy="true">
         <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
         <p className="mt-4 text-lg text-gray-600">Loading Dashboard...</p>
       </div>
@@ -154,7 +154,7 @@ export default function Dashboard() {
 
   if (portfolioError) { // Use portfolioError for overall error
     return (
-      <div className="bg-red-100 border-2 border-red-400 text-red-700 px-6 py-4 rounded-xl text-center shadow-lg font-semibold m-4">
+      <div className="bg-red-100 border-2 border-red-400 text-red-700 px-6 py-4 rounded-xl text-center shadow-lg font-semibold m-4" role="alert">
         Error: {portfolioError}.<br/>
         Please ensure the database is running and accessible.
       </div>

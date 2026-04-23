@@ -8,9 +8,10 @@ interface ActionButtonProps {
   variant?: 'primary' | 'secondary' | 'danger' | 'neutral'
   size?: 'sm' | 'md'
   outline?: boolean
+  ariaLabel?: string
 }
 
-const ActionButton: React.FC<ActionButtonProps> = ({ label, onClick, variant = 'neutral', size = 'md', outline = false }) => {
+const ActionButton: React.FC<ActionButtonProps> = ({ label, onClick, variant = 'neutral', size = 'md', outline = false, ariaLabel }) => {
   const getStyles = () => {
     if (outline) {
       switch (variant) {
@@ -41,7 +42,8 @@ const ActionButton: React.FC<ActionButtonProps> = ({ label, onClick, variant = '
   return (
     <button
       onClick={onClick}
-      className={`flex-1 rounded-lg font-bold transition-colors duration-200 ${getSizeStyles()} ${getStyles()}`}
+      aria-label={ariaLabel}
+      className={`flex-1 rounded-lg font-bold transition-colors duration-200 focus-ring ${getSizeStyles()} ${getStyles()}`}
     >
       {label}
     </button>

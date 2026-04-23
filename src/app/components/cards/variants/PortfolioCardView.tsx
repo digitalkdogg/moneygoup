@@ -82,11 +82,13 @@ export const PortfolioCardView: React.FC<PortfolioCardViewProps> = ({ card, acti
       <CardActions>
         <ActionButton
           label="Buy More"
+          ariaLabel={`Buy more shares of ${card.symbol}`}
           variant="primary"
           onClick={(e) => actions?.onBuyMore?.(card.symbol)}
         />
         <ActionButton
           label="Sell"
+          ariaLabel={`Sell shares of ${card.symbol}`}
           variant="secondary"
           onClick={(e) => actions?.onSell?.(card.symbol)}
         />

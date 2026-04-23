@@ -140,12 +140,20 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
 
   return (
     <>
-      {deleteError && (
-        <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-700 mb-4">
-          {deleteError}
-          <button className="ml-2 underline" onClick={() => setDeleteError(null)}>Dismiss</button>
-        </div>
-      )}
+      <div aria-live="assertive">
+        {deleteError && (
+          <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-700 mb-4 flex justify-between items-center" role="alert">
+            <span>{deleteError}</span>
+            <button 
+              className="ml-2 underline font-medium focus-ring rounded p-1" 
+              onClick={() => setDeleteError(null)}
+              aria-label="Dismiss error"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+      </div>
 
       <StockCardSection<WatchlistItem>
         title="My Watchlist"
@@ -172,17 +180,17 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
       )}
 
       {pendingDeleteTicker && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-confirm-title">
           <div className="bg-white rounded-lg p-6 max-w-sm w-full shadow-xl">
-            <h3 className="font-semibold text-gray-900 mb-2">Remove from watchlist?</h3>
+            <h3 id="delete-confirm-title" className="font-semibold text-gray-900 mb-2 text-xl">Remove from watchlist?</h3>
             <p className="text-sm text-gray-600 mb-4">
               Remove <strong>{pendingDeleteTicker}</strong> from your watchlist?
             </p>
             <div className="flex gap-3 justify-end">
-              <button className="px-4 py-2 text-sm rounded border cursor-pointer" onClick={() => setPendingDeleteTicker(null)}>
+              <button className="px-4 py-2 text-sm rounded border cursor-pointer font-medium focus-ring" onClick={() => setPendingDeleteTicker(null)}>
                 Cancel
               </button>
-              <button className="px-4 py-2 text-sm rounded bg-red-600 text-white cursor-pointer" onClick={handleConfirmRemove}>
+              <button className="px-4 py-2 text-sm rounded bg-red-600 text-white cursor-pointer font-medium hover:bg-red-700 focus-ring" onClick={handleConfirmRemove}>
                 Remove
               </button>
             </div>

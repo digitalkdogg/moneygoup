@@ -99,7 +99,7 @@ export default function Navigation() {
               ? 'bg-green-800 text-white border-white/40' 
               : 'bg-white text-green-700 shadow-lg border-white'
             : 'text-white border-transparent hover:bg-green-800 hover:border-white/20'
-        } ${mobile ? 'w-full text-lg h-[56px]' : 'focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-green-700'}`}
+        } ${mobile ? 'w-full text-lg h-[56px]' : 'focus-visible:ring-2 focus-visible:ring-white'}`}
       >
         <span className="flex items-center">
           {pathname === '/' && !mobile && <span className="mr-2" aria-hidden="true">🏠</span>}
@@ -117,7 +117,7 @@ export default function Navigation() {
               ? 'bg-green-800 text-white border-white/40' 
               : 'bg-white text-green-700 shadow-lg border-white'
             : 'text-white border-transparent hover:bg-green-800 hover:border-white/20'
-        } ${mobile ? 'w-full text-lg h-[56px]' : 'focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-green-700'}`}
+        } ${mobile ? 'w-full text-lg h-[56px]' : 'focus-visible:ring-2 focus-visible:ring-white'}`}
       >
         <span className="flex items-center">
           {pathname === '/search' && !mobile && <span className="mr-2" aria-hidden="true">🔍</span>}
@@ -130,7 +130,7 @@ export default function Navigation() {
 
   return (
     <header>
-      <nav style={{ backgroundColor: '#017e3b' }} className="shadow-lg sticky top-0 z-40 w-full" aria-label="Main navigation">
+      <nav style={{ backgroundColor: 'var(--brand-green-700)' }} className="shadow-lg sticky top-0 z-40 w-full" aria-label="Main navigation">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
@@ -144,7 +144,7 @@ export default function Navigation() {
                 />
                 <span aria-hidden="true">
                   Grow
-                  <span style={{ color: '#baeb9e', fontWeight: 'bold', fontSize: '1.1em', marginRight: '1px', marginLeft:'3px'}}>
+                  <span style={{ color: '#dcfce7', fontWeight: 'bold', fontSize: '1.1em', marginRight: '1px', marginLeft:'3px'}}>
                     MY
                   </span>
                   <span >Stock</span>
@@ -160,7 +160,7 @@ export default function Navigation() {
                   <button
                     onClick={() => setIsProfileOpen(!isProfileOpen)}
                     style={{ backgroundColor: '#95c779', color:'#09522b'}}
-                    className="flex items-center justify-center h-11 w-11 rounded-full text-white font-bold text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600"
+                    className="flex items-center justify-center h-11 w-11 rounded-full font-bold text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600"
                     aria-expanded={isProfileOpen}
                     aria-haspopup="true"
                     aria-label={`User menu for ${session.user.name}`}
@@ -229,7 +229,7 @@ export default function Navigation() {
         
         {/* Drawer Content */}
         <div 
-          style={{ backgroundColor: '#017e3b' }}
+          style={{ backgroundColor: 'var(--brand-green-700)' }}
           className={`absolute top-0 right-0 h-full w-[80%] max-w-[320px] shadow-xl transition-transform duration-200 ease-out transform ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}
         >
           <div className="flex flex-col h-full pt-5 pb-6">
@@ -250,13 +250,13 @@ export default function Navigation() {
               <div className="px-5 mb-6 flex items-center space-x-3">
                 <div 
                   style={{ backgroundColor: '#95c779', color:'#09522b' }}
-                  className="h-12 w-12 rounded-full flex items-center justify-center text-white font-bold border-2 border-white/20"
+                  className="h-12 w-12 rounded-full flex items-center justify-center font-bold border-2 border-white/20"
                 >
                   {initials}
                 </div>
                 <div className="text-white">
-                  <p className="text-sm opacity-80 font-medium">Hi,</p>
-                  <p className="text-lg font-bold leading-tight">{session.user.name}</p>
+                  <p className="text-sm font-medium text-white/90">Hi,</p>
+                  <p className="text-lg font-bold leading-tight text-white">{session.user.name}</p>
                 </div>
               </div>
             )}
@@ -268,7 +268,7 @@ export default function Navigation() {
             <div className="px-5 mt-auto pt-6 border-t border-white/20">
               <button
                 onClick={() => signOut({ callbackUrl: `${process.env.NEXT_PUBLIC_NEXTAUTH_URL || ''}/login` })}
-                className="flex items-center space-x-2 text-white opacity-80 hover:opacity-100 py-3 w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white rounded-md px-2"
+                className="flex items-center space-x-2 text-white hover:bg-green-800 py-3 w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white rounded-md px-2"
               >
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1h3v-3H7" />

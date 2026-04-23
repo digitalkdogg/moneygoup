@@ -32,6 +32,7 @@ export const CardHeader: React.FC<CardHeaderProps> = ({ symbol, companyName, cha
             <div
               style={getChangeBgStyle(changePercent)}
               className={`px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${getChangeColor(changePercent)} ${getChangeBg(changePercent)} bg-opacity-10`}
+              aria-label={`Price ${isPositive ? 'up' : 'down'} by ${formatPercent(changePercent)}`}
             >
               <span aria-hidden="true">{isPositive ? '↑' : '↓'}</span>
               {formatPercent(changePercent)}
@@ -59,8 +60,14 @@ export const CardHeader: React.FC<CardHeaderProps> = ({ symbol, companyName, cha
       </div>
       <div className="flex flex-col items-end">
         {changePercent !== null && (
-          <div className={`text-base font-bold ${getChangeColor(changePercent)}`}>
-            {isPositive ? '+' : ''}{formatPercent(changePercent)}
+          <div 
+            style={{ 
+              backgroundColor: brandColor ? `${brandColor}1a` : undefined 
+            }}
+            className={`px-2.5 py-1 rounded-full text-base font-bold ${getChangeColor(changePercent)} ${!brandColor ? getChangeBg(changePercent) : ''} ${!brandColor ? 'bg-opacity-10' : ''}`}
+            aria-label={`Price ${isPositive ? 'up' : 'down'} by ${formatPercent(changePercent)}`}
+          >
+            {formatPercent(changePercent)}
           </div>
         )}
       </div>

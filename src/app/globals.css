@@ -1,3 +1,40 @@
+/* ── Accessibility Tokens ─────────────────────────────────────────── */
+:root {
+  /* Brand Colors - Adjusted for AA contrast on white */
+  --brand-green-700: #017e3b; /* 5.0:1 on white - PASS AA */
+  --brand-green-800: #016a32; /* 6.8:1 on white - PASS AA */
+  --brand-green-accent: #377d13; /* Adjusted for better contrast on white (4.5:1) */
+  
+  /* Text on Dark Backgrounds */
+  --nav-text-primary: #ffffff;
+  --nav-text-secondary: #f0fdf4; /* Very light green instead of opacity */
+
+  /* Focus Indicator */
+  --focus-ring-color: #2563eb; /* Accessible blue focus ring */
+  --focus-ring-offset: 2px;
+}
+
+.focus-ring {
+  outline: none !important;
+}
+
+.focus-ring:focus-visible {
+  outline: 2px solid var(--focus-ring-color) !important;
+  outline-offset: var(--focus-ring-offset) !important;
+  box-shadow: 0 0 0 calc(var(--focus-ring-offset) + 2px) white !important;
+}
+
+/* Base styles for buttons and inputs to use the focus ring */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
 @import "tailwindcss";
 
 @theme {

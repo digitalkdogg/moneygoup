@@ -30,7 +30,7 @@ export const calculatePredictionChange = (current: number | null, predicted: num
 
 export const getChangeColor = (value: number | null) => {
   if (value === null) return 'text-gray-500'
-  return value >= 0 ? 'text-green-900 ' : 'text-red-900'
+  return value >= 0 ? 'text-green-600 ' : 'text-red-600'
 }
 
 export const getChangeBg = (value: number | null) => {
@@ -40,7 +40,8 @@ export const getChangeBg = (value: number | null) => {
 
 export const getChangeBgStyle = (value: number | null) => {
   if (value === null) return {}
-  return value >= 0 ? { backgroundColor: '#a8d78d' } : {}
+  // Use accessible green token for background if possible, or fallback to adjusted hex
+  return value >= 0 ? { backgroundColor: '#dcfce7' } : {}
 }
 
 export const getPredictionColor = (value: number | null) => {
