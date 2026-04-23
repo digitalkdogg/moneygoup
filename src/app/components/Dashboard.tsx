@@ -6,8 +6,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link'; // Import Link
 import PortfolioSection from './PortfolioSection'; // Updated to use StockCardSection internally
 import WatchlistSection from './WatchlistSection'; // Updated to use StockCardSection internally
-import PortfolioSummary from './PortfolioSummary'; // NEW: Import PortfolioSummary
-import MarketOverviewCard from './MarketOverviewCard';
+import PortfolioSummary from './PortfolioSummary';
+import MajorIndicesStrip from './MajorIndicesStrip';
 import GainsBreakdownCard from './GainsBreakdownCard';
 import RecommendationsSection from './RecommendationsSection';
 
@@ -165,15 +165,35 @@ export default function Dashboard() {
     <>
       <div className="min-h-screen bg-[#f8f9fa] p-4 md:p-8">
         <div className="max-w-7xl mx-auto">
-          {/* Portfolio Summary Row */}
-          <PortfolioSummary 
-            portfolio={portfolio} 
-            marketStatus={marketStatus} 
-            showChart={true} // Chart is now always integrated in the grid
-            onToggleChart={() => {}} // Not used anymore as chart is integrated
-          />
+          {/* Market Overview Row */}
+          <div className="mb-10">
+            <MajorIndicesStrip />
+          </div>
 
-          {/* Middle Grid: History Chart and Gains Breakdown */}
+          {/* Portfolio Section Header */}
+          <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-6 flex items-center">
+            <span className="mr-3">📈</span>My Portfolio
+          </h2>
+
+          {/* Portfolio Grid */}
+          <div className="mb-10">
+            <PortfolioSection 
+                portfolio={portfolio} 
+                onRefresh={fetchPortfolioData} 
+            />
+          </div>
+
+          {/* Portfolio Summary Cards */}
+          <div className="mb-10">
+            <PortfolioSummary 
+                portfolio={portfolio} 
+                marketStatus={marketStatus} 
+                showChart={true}
+                onToggleChart={() => {}}
+            />
+          </div>
+
+          {/* Bottom Grid: History Chart and Gains Breakdown */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10 items-stretch">
             <div className="lg:col-span-2">
               <PortfolioHistoryChart />
@@ -183,19 +203,11 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Portfolio Section */}
-          <div className="mb-10">
-            <PortfolioSection portfolio={portfolio} onRefresh={fetchPortfolioData} />
-          </div>
-
-          {/* Market Overview Row */}
-          <div className="mb-10">
-            <MarketOverviewCard />
-          </div>
-
-          {/* Hidden/Below the Fold Sections */}
+          {/* Discovery & Watchlist */}
           <div className="border-t border-gray-200 pt-10 mt-10">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">Discovery & Watchlist</h2>
+            <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+              <span className="mr-3">🔍</span>Discovery & Watchlist
+            </h2>
             <RecommendationsSection />
             <div className="mt-10">
               <WatchlistSection onRefresh={fetchPortfolioData} />

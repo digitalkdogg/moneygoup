@@ -15,6 +15,7 @@ const SKELETON_INDICES: IndexData[] = [
   { symbol: '^DJI', label: 'Dow Jones', price: null, change: null, changePercent: null, asOf: null },
   { symbol: '^GSPC', label: 'S&P 500', price: null, change: null, changePercent: null, asOf: null },
   { symbol: '^IXIC', label: 'Nasdaq', price: null, change: null, changePercent: null, asOf: null },
+  { symbol: '^VIX', label: 'VIX', price: null, change: null, changePercent: null, asOf: null },
 ]
 
 function IndexSkeleton() {
@@ -102,11 +103,11 @@ export default function MajorIndicesStrip() {
 
   return (
     <div className="w-full">
-      <div className="bg-white p-4 md:p-6 rounded-2xl shadow-lg">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
-          Major Indices
+      <div className="rounded-2xl">
+        <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-6 flex items-center">
+          <span className="mr-3">📊</span>Market Overview
         </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {indices.map(index => (
             <IndexCard key={index.symbol} index={index} />
           ))}

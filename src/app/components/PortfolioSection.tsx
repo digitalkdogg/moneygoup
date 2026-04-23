@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import BuyMoreModal from './modals/BuyMoreModal';
 import SellModal from './modals/SellModal';
 import StockCard from './cards/StockCard';
+import PortfolioSummary from './PortfolioSummary'; // Import here
 import { PortfolioCard } from './cards/types';
 import StockCardSection from './StockCardSection';
 import { formatNumber, formatCurrency, normalizeRecommendation } from '@/utils/formatters';
@@ -59,24 +60,23 @@ export default function PortfolioSection({ portfolio, onRefresh }: PortfolioSect
 
   return (
     <>
-      <StockCardSection<PortfolioItem>
-        title="My Portfolio"
-        icon="📈"
-        data={portfolio}
-        renderCard={(item) => (
-          <StockCard
-            card={mapPortfolioToCardModel(item)}
-            actions={{
-              onBuyMore: () => handleBuyMore(item),
-              onSell: () => handleSell(item),
-              onCardClick: (symbol) => router.push(`/search/${symbol}`)
-            }}
-          />
-        )}
-        loading={false}
-        error={null}
-        emptyMessage="No stocks in your portfolio yet. Add stocks from your watchlist to get started!"
-      />
+        <StockCardSection<PortfolioItem>
+            title=""
+            data={portfolio}
+            renderCard={(item) => (
+            <StockCard
+                card={mapPortfolioToCardModel(item)}
+                actions={{
+                onBuyMore: () => handleBuyMore(item),
+                onSell: () => handleSell(item),
+                onCardClick: (symbol) => router.push(`/search/${symbol}`)
+                }}
+            />
+            )}
+            loading={false}
+            error={null}
+            emptyMessage="No stocks in your portfolio yet. Add stocks from your watchlist to get started!"
+        />
 
       {modalType === 'buy' && selectedStock && (
         <BuyMoreModal stock={selectedStock} onClose={handleModalClose} />
