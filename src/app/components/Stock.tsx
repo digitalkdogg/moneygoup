@@ -589,7 +589,7 @@ export default function Stock({
           {/* Price History Chart */}
         {historical && historical.length > 0 && (
           <div className="mb-8">
-            <StockChart ticker={primaryTicker} historicalData={historical} />
+            <StockChart ticker={primaryTicker} historicalData={historical} titleLevel="h2" />
           </div>
         )}
 
@@ -607,6 +607,7 @@ export default function Stock({
           recommendationKey={data.analyst?.recommendationKey ?? null}
           newsArticles={news}
           historicalEarnings={earningsData?.historicalEarnings || []}
+          titleLevel="h2"
         />
 
         {/* Analyst Sentiment & Price Targets */}
@@ -698,7 +699,7 @@ export default function Stock({
         {indicators && (
           <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
             <h2 className="text-2xl font-semibold text-gray-800 mb-4">🎯 Technical Indicators & Trading Signal</h2>
-            <TechnicalIndicatorsDisplay indicators={indicators} />
+            <TechnicalIndicatorsDisplay indicators={indicators} titleLevel="h3" />
           </div>
         )}
 
@@ -769,7 +770,7 @@ export default function Stock({
 
         {/* News */}
         <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
-          <StockNews articles={news} />
+          <StockNews articles={news} titleLevel="h2" />
         </div>
       </div>
     )
@@ -863,7 +864,7 @@ export default function Stock({
               {/* Chart */}
               {historical && historical.length > 0 && (
                 <div className="mb-6">
-                  <StockChart ticker={t} historicalData={historical} />
+                  <StockChart ticker={t} historicalData={historical} titleLevel="h3" />
                 </div>
               )}
 
@@ -881,6 +882,7 @@ export default function Stock({
                 technicalScore={indicators?.scoreBreakdown?.totalScore}
                 recommendationKey={data.analyst?.recommendationKey ?? null}
                 newsArticles={news}
+                titleLevel="h3"
               />
 
               {/* Analyst Sentiment & Price Targets */}
@@ -963,7 +965,7 @@ export default function Stock({
               {indicators && (
                 <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-6">
                   <h3 className="text-xl font-semibold text-gray-800 mb-4">🎯 Technical Indicators</h3>
-                  <TechnicalIndicatorsDisplay indicators={indicators} />
+                  <TechnicalIndicatorsDisplay indicators={indicators} titleLevel="h4" />
                 </div>
               )}
             </div>

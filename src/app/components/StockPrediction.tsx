@@ -33,6 +33,7 @@ interface StockPredictionProps {
     epsActual: number | null
     epsEstimate: number | null
   }>
+  titleLevel?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
 }
 
 // ---------------------------------------------------------------------------
@@ -305,6 +306,7 @@ export default function StockPrediction({
   recommendationKey,
   newsArticles,
   historicalEarnings,
+  titleLevel = 'h2',
 }: StockPredictionProps) {
   const [step, setStep]               = useState<'idle' | 'fetching' | 'predicting' | 'done'>('idle')
   const [prediction, setPrediction]   = useState<PredictionResult | null>(null)
@@ -315,6 +317,7 @@ export default function StockPrediction({
   const [bannerDismissed, setBannerDismissed] = useState(false)
 
   const loading = step === 'fetching' || step === 'predicting'
+  const TitleTag = titleLevel;
 
   const generate = async () => {
     setError(null)
@@ -399,7 +402,7 @@ export default function StockPrediction({
 
   return (
     <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
-      <h2 className="text-2xl font-semibold text-gray-800 mb-4">📊 AI-Powered Price Prediction</h2>
+      <TitleTag className="text-2xl font-semibold text-gray-800 mb-4">📊 AI-Powered Price Prediction</TitleTag>
       <p className="text-gray-600 mb-4">
         Click the button to generate 1-day, 1-month, 6-month and 12-month price predictions for {ticker} using an MLP neural network.
       </p>
@@ -671,7 +674,7 @@ export default function StockPrediction({
                 className="w-full text-left p-4 bg-gray-50 rounded-t-lg border border-gray-200 flex justify-between items-center focus:outline-none"
                 onClick={() => setShowMetrics(!showMetrics)}
               >
-                <h4 className="text-lg font-semibold text-gray-800">Detailed Metric Analysis</h4>
+                <h3 className="text-lg font-semibold text-gray-800">Detailed Metric Analysis</h3>
                 <span className="text-gray-500">{showMetrics ? '▲' : '▼'}</span>
               </button>
               {showMetrics && (

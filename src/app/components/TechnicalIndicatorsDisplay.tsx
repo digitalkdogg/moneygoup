@@ -11,12 +11,15 @@ interface Metrics {
 }
 
 interface TechnicalIndicatorsDisplayProps {
-  indicators: TechnicalIndicators
+  indicators: TechnicalIndicators;
+  titleLevel?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
 }
 
 export default function TechnicalIndicatorsDisplay({
-  indicators
+  indicators,
+  titleLevel = 'h3'
 }: TechnicalIndicatorsDisplayProps) {
+  const TitleTag = titleLevel;
   const getRSIColor = (rsi: number | null): string => {
     if (rsi === null) return 'text-gray-600'
     if (rsi > 70) return 'text-red-600 font-bold'
@@ -55,7 +58,7 @@ export default function TechnicalIndicatorsDisplay({
 
       {/* Score Breakdown Table */}
       <div className="bg-white rounded-xl p-6 mb-8 shadow-md border border-gray-300 overflow-x-auto">
-        <h5 className="text-lg font-bold text-gray-800 mb-4">📈 Signal Score Breakdown</h5>
+        <TitleTag className="text-lg font-bold text-gray-800 mb-4">📈 Signal Score Breakdown</TitleTag>
         <div className="w-full">
           <table className="w-full text-sm">
             <thead>
@@ -242,7 +245,7 @@ export default function TechnicalIndicatorsDisplay({
 
       {/* Educational Info - Accordion Style */}
       <div className="bg-white rounded-lg p-6 border border-gray-300">
-        <h5 className="text-lg font-bold text-gray-800 mb-4">📚 Indicator Guide</h5>
+        <TitleTag className="text-lg font-bold text-gray-800 mb-4">📚 Indicator Guide</TitleTag>
         <div className="space-y-4">
           <AccordionItem title="SMA — Simple Moving Average">
             <p className="mt-1">Smooths out daily price noise by averaging closing prices over a set period. The <strong>SMA-20</strong> reflects short-term sentiment; the <strong>SMA-50</strong> tracks medium-term trend. When SMA-20 crosses above SMA-50 it is called a "golden cross" — a bullish signal. The reverse (SMA-20 dropping below SMA-50) is a "death cross" — bearish. Institutional funds often buy or sell at these levels, making them self-fulfilling.</p>

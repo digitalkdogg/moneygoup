@@ -6,8 +6,8 @@ export default function StockPage({ params, searchParams }: { params: { ticker: 
   const source = searchParams?.source;
   
   return (
-    <div>
+    <main id="main-content">
         <Stock ticker={ticker} source={source} />
-    </div>
+    </main>
   );
 }

@@ -11,11 +11,13 @@ interface Article {
 interface StockNewsProps {
   articles: Article[] | Record<string, Article[]> | any;
   ticker?: string;
+  titleLevel?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
 }
 
-export default function StockNews({ articles, ticker }: StockNewsProps) {
+export default function StockNews({ articles, ticker, titleLevel = 'h2' }: StockNewsProps) {
   // Handle different article formats
   let articleList: Article[] = [];
+  const TitleTag = titleLevel;
 
   if (Array.isArray(articles)) {
     // Format 1: Direct array of articles
@@ -44,7 +46,7 @@ export default function StockNews({ articles, ticker }: StockNewsProps) {
 
   return (
     <div className="p-6">
-      <h2 className="text-2xl font-bold text-gray-800 mb-4 text-left">📰 Latest News</h2>
+      <TitleTag className="text-2xl font-bold text-gray-800 mb-4 text-left">📰 Latest News</TitleTag>
       <div className="space-y-2">
         {articleList.map((article, index) => (
           <a
@@ -56,9 +58,9 @@ export default function StockNews({ articles, ticker }: StockNewsProps) {
           >
             <div className="flex justify-between items-start gap-4">
               <div className="flex-1">
-                <h4 className="font-semibold text-blue-600 hover:text-blue-800">
+                <h3 className="font-semibold text-blue-600 hover:text-blue-800">
                   {article.title}
-                </h4>
+                </h3>
                 <p className="text-xs text-gray-500 mt-0.5">
                   {new Date(article.pubDate).toLocaleString()}
                 </p>
