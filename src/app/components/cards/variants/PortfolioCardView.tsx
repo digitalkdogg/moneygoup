@@ -5,7 +5,8 @@ import { PortfolioCard, CardActionHandlers } from '../types'
 import { CardHeader } from '../CardHeader'
 import { CardMetricRow } from '../CardMetricRow'
 import { CardActions, ActionButton } from '../CardActions'
-import { formatPrice, formatShares, getAnalystColor, formatPercent, calculatePredictionChange, getPredictionColor, formatPriceChange } from '../formatters'
+import { formatPrice, formatShares, formatPriceChange, getPredictionColor, calculatePredictionChange } from '../formatters'
+import { GpsTooltip } from '../GpsTooltip'
 
 interface PortfolioCardViewProps {
   card: PortfolioCard
@@ -25,8 +26,8 @@ export const PortfolioCardView: React.FC<PortfolioCardViewProps> = ({ card, acti
         symbol={card.symbol}
         companyName={card.companyName}
         changePercent={card.changePercent}
+        price={card.price}
         variant="portfolio"
-        brandColor={card.topAccentColor}
       />
       <div className="px-5 py-0">
         <CardMetricRow label="SHARES" value={formatShares(card.sharesHeld)} />
@@ -43,17 +44,19 @@ export const PortfolioCardView: React.FC<PortfolioCardViewProps> = ({ card, acti
             </div>
           }
         />
-        {card.predictedPrice1m !== null && card.predictedPrice1m !== undefined && (
+        {card.gpsScore !== null && card.gpsScore !== undefined && (
           <CardMetricRow
-            label="1M TARGET"
+            label={
+              <div className="flex items-center gap-1">
+                GPS SCORE 
+                <GpsTooltip score={card.gpsScore} breakdown={card.gpsBreakdown} symbol={card.symbol} />
+              </div>
+            }
             value={
               <div className="text-right">
-                <div>{formatPrice(card.predictedPrice1m)}</div>
-                {predictionChange !== null && (
-                  <div className={`text-[10px] font-normal ${getPredictionColor(predictionChange)}`}>
-                    {formatPercent(predictionChange)}
-                  </div>
-                )}
+                <div className="font-bold text-gray-900">
+                  {typeof card.gpsScore === 'number' ? card.gpsScore.toFixed(1) : card.gpsScore}
+                </div>
               </div>
             }
           />

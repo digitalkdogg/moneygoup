@@ -53,7 +53,8 @@ export default function PortfolioSection({ portfolio, onRefresh }: PortfolioSect
       changeAmount: dollarChange,
       analystFeedback: normalizeRecommendation(item.recommendationKey),
       analysts: item.numberOfAnalystOpinions,
-      predictedPrice1m: item.predicted_price_1m ? parseFloat(item.predicted_price_1m as string) : null,
+      gpsScore: item.gpsScore,
+      gpsBreakdown: item.gpsBreakdown,
       topAccentColor: item.brand_color || '#017e3b'
     };
   };

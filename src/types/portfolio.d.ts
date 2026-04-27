@@ -15,5 +15,7 @@ export interface PortfolioItem {
   recommendationKey?: string | null;
   numberOfAnalystOpinions?: number | null;
   brand_color?: string | null;
+  gpsScore?: number | null;
+  gpsBreakdown?: any | null;
   [key: string]: any; // For StockTableRow compatibility
 }

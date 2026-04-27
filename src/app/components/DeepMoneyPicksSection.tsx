@@ -14,6 +14,7 @@ interface RecommendedStock {
   company_name: string;
   current_price: number;
   gps_score: number;
+  gps_breakdown?: any;
   classification: string;
   trading_signal?: string;
   metric_value?: number;
@@ -75,7 +76,8 @@ export default function DeepMoneyPicksSection() {
     changePercent: stock.changePercent !== undefined ? stock.changePercent : null,
     changeAmount: stock.changeAmount !== undefined ? stock.changeAmount : null,
     prediction: stock.metric_value !== undefined && stock.metric_value !== null ? stock.metric_value : (stock.trading_signal === 'BUY' ? 'Bullish' : stock.trading_signal === 'SELL' ? 'Bearish' : 'Neutral'),
-    gpsScore: stock.gps_score / 10 // Convert 0-100 to 0-10 scale
+    gpsScore: stock.gps_score !== null ? parseFloat(stock.gps_score as any) : null,
+    gpsBreakdown: stock.gps_breakdown ? (typeof stock.gps_breakdown === 'string' ? JSON.parse(stock.gps_breakdown) : stock.gps_breakdown) : null
   });
 
   const mapEtfToDeepmoneyCard = (etf: RecommendedETF): DeepmoneyCard => ({
@@ -86,7 +88,8 @@ export default function DeepMoneyPicksSection() {
     changePercent: etf.changePercent !== undefined ? etf.changePercent : null,
     changeAmount: etf.changeAmount !== undefined ? etf.changeAmount : null,
     prediction: 'Bullish', // ETFs in this section are picked because they are "hot"
-    gpsScore: etf.etf_gps_score / 10
+    gpsScore: etf.etf_gps_score !== null ? parseFloat(etf.etf_gps_score as any) : null,
+    gpsBreakdown: null // ETFs don't have the same breakdown structure yet
   });
 
   if (loading && !data) {

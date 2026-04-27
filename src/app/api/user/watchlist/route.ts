@@ -35,7 +35,9 @@ export async function GET(request: NextRequest) {
         us.purchase_price,
         us.is_purchased,
         s.price AS db_price,
-        usp.predicted_price_1m
+        usp.predicted_price_1m,
+        usp.gps_score,
+        usp.gps_breakdown
       FROM user_stocks us
       JOIN stocks s ON us.stock_id = s.id
       LEFT JOIN user_stock_predictions usp ON us.user_id = usp.user_id AND us.stock_id = usp.stock_id
@@ -83,7 +85,9 @@ export async function GET(request: NextRequest) {
           regularMarketPrice,
           prev_close,
           recommendationKey: summary?.financialData?.recommendationKey || null,
-          numberOfAnalystOpinions: summary?.financialData?.numberOfAnalystOpinions || null
+          numberOfAnalystOpinions: summary?.financialData?.numberOfAnalystOpinions || null,
+          gpsScore: item.gps_score !== null ? parseFloat(item.gps_score) : null,
+          gpsBreakdown: item.gps_breakdown ? (typeof item.gps_breakdown === 'string' ? JSON.parse(item.gps_breakdown) : item.gps_breakdown) : null
         };
       } catch (yahooError: any) {
         logger.error(`Error fetching Yahoo data for ${item.symbol}:`, yahooError);

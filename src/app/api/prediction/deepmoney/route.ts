@@ -512,6 +512,16 @@ export async function GET(request: NextRequest) {
                 primaryCount: primaryTickers.size,
                 secondaryCount: allTickersSet.size - primaryTickers.size,
                 feedsQueried: PRIMARY_FEED_URLS.length + primaryTickers.size,
+                debug: {
+                    rejectedEnrichment: enrichedStocks.filter(s => s.error).length,
+                    rejectedSignalScore: enrichedStocks.filter(s => !s.error && (s.tradingSignalScore === undefined || s.tradingSignalScore < 0)).length,
+                    rejectedHistory: enrichedStocks.filter(s => !s.error && s.tradingSignalScore >= 0 && s.historyRows < 100).length,
+                    passedToAnalyzer: enrichedStocks.filter(s => !s.error && s.tradingSignalScore >= 0 && s.historyRows >= 100).length,
+                    rejectedByAI: enrichedStocks.filter(s => !s.error && s.tradingSignalScore >= 0 && s.historyRows >= 100).length - filteredStocks.length,
+                    filteredCount: filteredStocks.length,
+                    predictionThreshold: '1.5%',
+                    predictionSample: filteredStocks.slice(0, 5).map(s => ({ ticker: s.ticker, pred: s.prediction_1m })),
+                }
             },
         };
 

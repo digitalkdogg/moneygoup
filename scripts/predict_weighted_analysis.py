@@ -812,29 +812,68 @@ def make_sequences(scaled, targets_6m, targets_1y):
 # ============================================================================
 def confidence_score(cv_mape, history_years, imputed_fields, analyst_count):
     pts = 0
+    breakdown = {}
+
     # CV MAPE (40 pts)
-    if cv_mape < 5:   pts += 40
-    elif cv_mape < 10: pts += 30
-    elif cv_mape < 20: pts += 15
+    if cv_mape < 5:
+        pts += 40
+        breakdown['cv_mape'] = 40
+    elif cv_mape < 10:
+        pts += 30
+        breakdown['cv_mape'] = 30
+    elif cv_mape < 20:
+        pts += 15
+        breakdown['cv_mape'] = 15
+    else:
+        breakdown['cv_mape'] = 0
 
     # History depth (25 pts)
-    if history_years >= 5:   pts += 25
-    elif history_years >= 4: pts += 20
-    elif history_years >= 3: pts += 12
-    elif history_years >= 2: pts += 5
+    if history_years >= 5:
+        pts += 25
+        breakdown['history'] = 25
+    elif history_years >= 4:
+        pts += 20
+        breakdown['history'] = 20
+    elif history_years >= 3:
+        pts += 12
+        breakdown['history'] = 12
+    elif history_years >= 2:
+        pts += 5
+        breakdown['history'] = 5
+    else:
+        breakdown['history'] = 0
 
     # Feature completeness (20 pts)
     n_imp = len(imputed_fields)
-    if n_imp == 0:    pts += 20
-    elif n_imp <= 2:  pts += 14
-    elif n_imp <= 5:  pts += 8
+    if n_imp == 0:
+        pts += 20
+        breakdown['features'] = 20
+    elif n_imp <= 2:
+        pts += 14
+        breakdown['features'] = 14
+    elif n_imp <= 5:
+        pts += 8
+        breakdown['features'] = 8
+    else:
+        breakdown['features'] = 0
 
     # Analyst coverage (15 pts)
-    if analyst_count >= 10: pts += 15
-    elif analyst_count >= 5: pts += 10
-    elif analyst_count >= 1: pts += 5
+    if analyst_count >= 10:
+        pts += 15
+        breakdown['analyst'] = 15
+    elif analyst_count >= 5:
+        pts += 10
+        breakdown['analyst'] = 10
+    elif analyst_count >= 1:
+        pts += 5
+        breakdown['analyst'] = 5
+    else:
+        breakdown['analyst'] = 0
 
-    return min(pts, 100)
+    final_score = min(pts, 100)
+    print(f"[DEBUG] Confidence score breakdown: cv_mape={breakdown.get('cv_mape', 0)}, history={breakdown.get('history', 0)}, features={breakdown.get('features', 0)}, analyst={breakdown.get('analyst', 0)} → total={final_score}", file=sys.stderr)
+
+    return final_score
 
 
 # ============================================================================
@@ -1277,6 +1316,13 @@ def predict(ticker, input_data):
     imputed = data_quality.get('imputedFields', [])
     analyst_count = int(safe(stock_metrics.get('analystOpinionCount'), 0))
     history_years = safe(data_quality.get('historyYears'), 2.0)
+
+    # Debug logging for confidence score inputs
+    print(f"[DEBUG] Confidence score inputs for {ticker}:", file=sys.stderr)
+    print(f"  cv_mape: {cv_mape:.2f}%", file=sys.stderr)
+    print(f"  history_years: {history_years}", file=sys.stderr)
+    print(f"  imputed_fields ({len(imputed)}): {imputed}", file=sys.stderr)
+    print(f"  analyst_count: {analyst_count}", file=sys.stderr)
 
     cs6m = confidence_score(cv_mape, history_years, imputed, analyst_count)
     cs1y = max(0, cs6m - 15)

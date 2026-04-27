@@ -137,6 +137,7 @@
         <a href="prediction_workflow.html">Prediction Flow</a>
         <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
         <a href="technical_indicators_guide.html" class="active">Technical Guide</a>
+        <a href="style_guide.html">Style Guide</a>
     </nav>
     <div class="page-container">
     <aside>
@@ -148,13 +149,14 @@
             <a href="#momentum" class="nav-link">Momentum & Trends</a>
             <a href="#fundamentals" class="nav-link">Fundamental Valuation</a>
             <a href="#news" class="nav-link">Sentiment Analysis</a>
+            <a href="#stock-gps" class="nav-link">DeepMoney GPS Score</a>
             <a href="#etf-gps" class="nav-link">ETF GPS Scoring</a>
         </nav>
     </aside>
 
     <main>
         <h1>Technical Indicators & Signals</h1>
-        <p>This guide explains how the "Trading Signal" is calculated on the Stock Search page. The total score is a weighted sum of technical, fundamental, and sentiment metrics.</p>
+        <p>This guide explains how the "Trading Signal" and "GPS Score" are calculated. These metrics combine technical, fundamental, and AI-driven sentiment analysis to evaluate investment opportunities.</p>
 
         <section id="overview">
             <h2>Scoring Methodology</h2>
@@ -289,6 +291,64 @@
                     <li><strong>Low Volatility (+1):</strong> Increased stability.</li>
                     <li><strong>High Volatility (-1):</strong> Increased risk.</li>
                 </ul>
+            </div>
+        </section>
+
+        <section id="stock-gps">
+            <h2>DeepMoney GPS Score (Individual Stocks)</h2>
+            <p>The <strong>GPS Score (Global Performance Score)</strong> is a proprietary metric used in DeepMoney analysis to evaluate a stock's total potential. It is calculated on a scale of 0 to 100 based on fundamental growth and AI price forecasting.</p>
+            <p style="font-size: 0.8rem; font-style: italic; color: #64748b; margin-bottom: 1.5rem; border-bottom: 1px dashed var(--border); padding-bottom: 0.5rem;">* These calculation metrics are applied identically in both the <code>deepmoney_sync</code> discovery engine and the <code>update_predictions</code> portfolio maintenance script.</p>
+            
+            <div class="metric-card">
+                <h3>1. Core Components <span class="score-badge weight-positive">Up to 19 pts each</span></h3>
+                <p>The base score is built from six specific metrics (five at 19 pts, one at 5 pts), each scaled against a target benchmark:</p>
+                <ul>
+                    <li><strong>Analyst Upside (19 pts):</strong> Gap between current price and mean analyst target.
+                        <ul>
+                            <li><em>Benchmark:</em> 30% upside = 19 pts.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Revenue Growth (19 pts):</strong> Year-over-year revenue growth.
+                        <ul>
+                            <li><em>Benchmark:</em> 30% growth = 19 pts.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Earnings Growth (19 pts):</strong> Year-over-year earnings growth.
+                        <ul>
+                            <li><em>Benchmark:</em> 25% growth = 19 pts.</li>
+                        </ul>
+                    </li>
+                    <li><strong>52-Week Price Change (19 pts):</strong> Overall price performance over the last year.
+                        <ul>
+                            <li><em>Benchmark:</em> 20% gain = 19 pts.</li>
+                        </ul>
+                    </li>
+                    <li><strong>MLP Predicted Upside (19 pts):</strong> AI-predicted 1-month price movement.
+                        <ul>
+                            <li><em>Benchmark:</em> 3% growth = 19 pts (Configurable via <code>GPS_PREDICTION_MAX</code>).</li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="metric-card">
+                <h3>2. Confidence Component <span class="score-badge weight-positive">Up to 5 pts</span></h3>
+                <ul>
+                    <li><strong>MLP Confidence Score:</strong> Scaling of the AI model's confidence in its forecast.
+                        <ul>
+                            <li><em>Benchmark:</em> 100 confidence = 5 pts.</li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="metric-card">
+                <h3>3. Final Result & Thresholds</h3>
+                <ul>
+                    <li><strong>Cap:</strong> The final score is capped at 100.0.</li>
+                    <li><strong>Selection Criteria:</strong> In the automated sync process, stocks are typically only recommended if they pass the ML Validation Gate (predicted change >= 1.5%). Recommendation buckets apply a GPS threshold (typically > 10.0) for discovery surfacing.</li>
+                </ul>
+                <p><strong>Summary:</strong> A high GPS score indicates a stock with strong analyst backing, high revenue/earnings growth, positive momentum, and a favorable high-confidence AI prediction.</p>
             </div>
         </section>
 

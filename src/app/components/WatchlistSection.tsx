@@ -133,7 +133,8 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
       analystFeedback: normalizeRecommendation(item.recommendationKey),
       analysts: item.numberOfAnalystOpinions,
       ma6m: ma6_month,
-      predictedPrice1m: toNullableNumber(item.predicted_price_1m),
+      gpsScore: item.gpsScore,
+      gpsBreakdown: item.gpsBreakdown,
       isCompact: true
     };
   };

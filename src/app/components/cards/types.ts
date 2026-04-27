@@ -1,4 +1,4 @@
-// src/app/components/cards/types.ts
+import React from 'react'
 
 export type CardVariant = 'search-trending' | 'deepmoney' | 'portfolio' | 'watchlist'
 
@@ -19,6 +19,7 @@ export interface DeepmoneyCard extends CardBase {
   variant: 'deepmoney'
   prediction: 'Bullish' | 'Bearish' | 'Neutral' | number | null
   gpsScore: number | null
+  gpsBreakdown?: any | null
 }
 
 export interface PortfolioCard extends CardBase {
@@ -26,8 +27,10 @@ export interface PortfolioCard extends CardBase {
   sharesHeld: number | null
   analystFeedback: string | null
   analysts?: number | null
-  predictedPrice1m?: number | null
+  gpsScore?: number | null
+  gpsBreakdown?: any | null
   topAccentColor?: string
+  predictedPrice1m?: number | null // Added predictedPrice1m
 }
 
 export interface WatchlistCard extends CardBase {
@@ -35,8 +38,10 @@ export interface WatchlistCard extends CardBase {
   analystFeedback: string | null
   analysts?: number | null
   ma6m: number | null
-  predictedPrice1m?: number | null
+  gpsScore?: number | null
+  gpsBreakdown?: any | null
   isCompact?: boolean
+  predictedPrice1m?: number | null // Added predictedPrice1m
 }
 
 export type StockCardModel =

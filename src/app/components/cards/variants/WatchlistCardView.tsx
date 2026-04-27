@@ -6,6 +6,7 @@ import { CardHeader } from '../CardHeader'
 import { CardMetricRow } from '../CardMetricRow'
 import { CardActions, ActionButton } from '../CardActions'
 import { formatPrice, getAnalystColor, formatPercent, calculatePredictionChange, getPredictionColor } from '../formatters'
+import { GpsTooltip } from '../GpsTooltip'
 
 interface WatchlistCardViewProps {
   card: WatchlistCard
@@ -27,17 +28,17 @@ export const WatchlistCardView: React.FC<WatchlistCardViewProps> = ({ card, acti
         variant="watchlist"
       />
       <div className={isCompact ? "px-3 py-2" : "px-5 py-4"}>
-        {card.predictedPrice1m !== null && card.predictedPrice1m !== undefined && (
+        {card.gpsScore !== null && card.gpsScore !== undefined && (
           <CardMetricRow
-            label="1M Target"
+            label={
+              <div className="flex items-center gap-1">
+                GPS Score 
+                <GpsTooltip score={card.gpsScore} breakdown={card.gpsBreakdown} symbol={card.symbol} />
+              </div>
+            }
             value={
-              <div className="text-right">
-                <div className={isCompact ? "text-sm" : ""}>{formatPrice(card.predictedPrice1m)}</div>
-                {predictionChange !== null && (
-                  <div className={`text-[10px] font-normal ${getPredictionColor(predictionChange)}`}>
-                    {formatPercent(predictionChange)}
-                  </div>
-                )}
+              <div className="text-right font-bold text-gray-900">
+                {(card.gpsScore !== null && typeof card.gpsScore === 'number') ? card.gpsScore.toFixed(1) : 'N/A'}
               </div>
             }
             className={isCompact ? "py-1" : ""}
@@ -54,6 +55,7 @@ export const WatchlistCardView: React.FC<WatchlistCardViewProps> = ({ card, acti
           className={isCompact ? "py-1" : ""}
         />
       </div>
+
       <CardActions compact={isCompact}>
         <ActionButton
           label={isCompact ? "Add" : "Add to Portfolio"}

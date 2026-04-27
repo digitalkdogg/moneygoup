@@ -1,22 +1,23 @@
 // src/utils/db.ts
 import { createPool, Pool } from 'mysql2/promise';
 
-let pool: Pool | null = null;
+declare global {
+  var dbPool: Pool | undefined;
+}
 
 // This function creates and returns the singleton database pool.
-// createPool() in mysql2/promise is synchronous — it returns a Pool directly,
-// not a Promise. The singleton pattern here prevents multiple pools being created
-// under concurrent requests (the original TOCTOU fix).
 export function getDbConnection(): Promise<Pool> {
-  if (!pool) {
+  if (!global.dbPool) {
     try {
-      pool = createPool({
+      global.dbPool = createPool({
         host: process.env.DB_HOST,
         user: process.env.DB_USER,
         password: process.env.DB_PASSWORD,
         database: process.env.DB_DATABASE,
         waitForConnections: true,
-        connectionLimit: 10,
+        connectionLimit: 50,
+        enableKeepAlive: true,
+        keepAliveInitialDelay: 0,
       });
       console.log('Database connection pool created.');
     } catch (err) {
@@ -24,19 +25,19 @@ export function getDbConnection(): Promise<Pool> {
       throw new Error('Failed to initialize the database pool.');
     }
   }
-  return Promise.resolve(pool);
+  return Promise.resolve(global.dbPool);
 }
 
 // Optional: Function to close the pool when the application shuts down
 export async function closeDbPool() {
-  if (pool) {
+  if (global.dbPool) {
     try {
-      await pool.end();
+      await global.dbPool.end();
       console.log('Database connection pool closed.');
     } catch (error) {
       console.error('Error closing database connection pool:', error);
     } finally {
-      pool = null;
+      global.dbPool = undefined;
     }
   }
 }

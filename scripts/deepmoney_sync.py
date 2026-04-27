@@ -66,12 +66,20 @@ def fetch_world_bank_data(headers: dict) -> dict | None:
 def sync_deepmoney():
     print(f"[{datetime.now()}] Starting DeepMoney sync...")
     
-    # Thresholds from environment or defaults
-    pred_env = os.getenv('DEEPMONEY_RECOMMENDATION_PREDICTION_VALUE')
-    pred_threshold = float(pred_env) if pred_env else 5.0
-    gps_env = os.getenv('DEEPMONEY_RECOMMENDATION_GPS_VALUE')
-    gps_threshold = float(gps_env) if gps_env else 6.0
-    print(f"  [config] Thresholds: GPS > {gps_threshold}, Prediction > {pred_threshold}%")
+    # ML Validation Gate (Ref: doc/deepmoney_sync_workflow.html)
+    # This is the "Gate" that allows a stock to be recorded as a recommendation
+    gate_env = os.getenv('DEEPMONEY_GPS_VALUE')
+    ml_gate_threshold = float(gate_env) if gate_env else 10.0
+    
+    # Qualifying Threshold for Dashboard
+    # This is the "Gold Standard" that pushes it to user portfolios/dashboards
+    rec_env = os.getenv('DEEPMONEY_RECOMMENDATION_GPS_VALUE')
+    dashboard_threshold = float(rec_env) if rec_env else 25.0
+    
+    pred_threshold = 1.5 # Gate: Sequential 1-month ML prediction
+    
+    print(f"  [config] ML Gate (GPS > {ml_gate_threshold}), Dashboard Threshold (GPS > {dashboard_threshold})")
+    print(f"  [config] Prediction Gate (>= {pred_threshold}%)")
     
     # 1. Fetch data from API (V2)
     # Ensure secret is clean
@@ -86,6 +94,17 @@ def sync_deepmoney():
         response = requests.get(API_URL, headers=headers)
         response.raise_for_status()
         data = response.json()
+
+        # Print debug metadata if available
+        meta = data.get('meta', {})
+        debug = meta.get('debug', {})
+        if debug:
+            print(f"  [debug] Enrichment Rejected: {debug.get('rejectedEnrichment')}")
+            print(f"  [debug] Signal Score Rejected: {debug.get('rejectedSignalScore')}")
+            print(f"  [debug] History Rejected (<100d): {debug.get('rejectedHistory')}")
+            print(f"  [debug] Passed to AI Analyzer: {debug.get('passedToAnalyzer')}")
+            print(f"  [debug] Rejected by AI (<1.5%): {debug.get('rejectedByAI')}")
+            print(f"  [debug] Final Filtered Count: {debug.get('filteredCount')}")
     except Exception as e:
         print(f"Error fetching data from API: {e}")
         return
@@ -106,6 +125,22 @@ def sync_deepmoney():
     today = datetime.now().strftime('%Y-%m-%d')
 
     try:
+        # 2.1 Clear unconfirmed active stocks
+        print("Clearing unconfirmed active stocks...")
+        cursor.execute("""
+            SELECT DISTINCT stock_id FROM user_stocks
+            WHERE is_active = 1 AND user_confirmed = 0
+        """)
+        stock_ids_to_clear = [row[0] for row in cursor.fetchall()]
+
+        if stock_ids_to_clear:
+            print(f"  Removing {len(stock_ids_to_clear)} unconfirmed active stocks and their predictions...")
+            # Remove from user_stock_predictions first (foreign key constraint)
+            placeholders = ','.join(['%s'] * len(stock_ids_to_clear))
+            cursor.execute(f"DELETE FROM user_stock_predictions WHERE stock_id IN ({placeholders})", stock_ids_to_clear)
+            # Then remove from user_stocks
+            cursor.execute("DELETE FROM user_stocks WHERE is_active = 1 AND user_confirmed = 0")
+
         # 3. Clear existing recommendation data
         print("Clearing existing recommendation data...")
         cursor.execute("DELETE FROM recommended_stocks")
@@ -149,21 +184,33 @@ def sync_deepmoney():
         insert_query = """
         INSERT INTO recommended_stocks
         (
-            type, ticker, company_name, current_price, gps_score, classification,
+            type, ticker, company_name, current_price, gps_score, gps_breakdown, classification,
             analyst_upside_pct, revenue_growth_yoy, gross_margin_pct, rd_spend_pct,
             market_cap_m, mention_count, discovery_source, trading_signal,
             trading_signal_score, upcoming_earnings, prediction_input,
             trailing_pe, price_to_book, metric_value, metric_label, snapshot_date
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         
         for s in stocks:
             ticker = s.get('ticker')
             gps = s.get('gps_score', 0)
+            gps_breakdown = s.get('gps_breakdown') or {}
             pred_input = s.get('prediction_input') or {}
             
-            print(f"  > {ticker}")
+            # Prediction metrics (Extraction from prediction_input)
+            predicted_change_pct = pred_input.get('predicted_change_pct')
+            if predicted_change_pct is None:
+                predicted_change_pct = pred_input.get('predicted_change_pct_1m')
+            predicted_change_pct = predicted_change_pct or 0
+
+            # 4.1 Apply ML Validation Gate (GPS > DEEPMONEY_GPS_VALUE)
+            if gps <= ml_gate_threshold:
+                # print(f"  [gate] SKIP {ticker}: GPS {gps} <= Gate {ml_gate_threshold}")
+                continue
+
+            print(f"  > {ticker} (GPS: {gps}, Pred: {predicted_change_pct}%)")
             
             # Map V2 fields to DB variables
             stock_type = "hot_stocks"
@@ -182,16 +229,8 @@ def sync_deepmoney():
             
             market_cap_m = (s.get('marketCap') or 0) / 1e6
             
-            # Prediction metrics (Extraction from prediction_input)
-            # Use horizon-specific fallback if generic key is missing
-            predicted_change_pct = pred_input.get('predicted_change_pct')
-            if predicted_change_pct is None:
-                predicted_change_pct = pred_input.get('predicted_change_pct_1m')
-            
-            predicted_change_pct = predicted_change_pct or 0
             predicted_price_1m = pred_input.get('predicted_price_1m')
             if predicted_price_1m is None:
-                # Fallback for specific outlooks (1_month) where the script returns 'predicted_price'
                 predicted_price_1m = pred_input.get('predicted_price')
 
             metric_val = predicted_change_pct
@@ -208,28 +247,29 @@ def sync_deepmoney():
                 name,               # 3. company_name
                 price,              # 4. current_price
                 gps,                # 5. gps_score
-                classification,     # 6. classification
-                upside,             # 7. analyst_upside_pct
-                rev_growth,         # 8. revenue_growth_yoy
-                margin,             # 9. gross_margin_pct
-                rd_pct,             # 10. rd_spend_pct
-                market_cap_m,       # 11. market_cap_m
-                0,                  # 12. mention_count
-                'v2_engine',        # 13. discovery_source
-                s.get('tradingSignal'), # 14. trading_signal
-                s.get('tradingSignalScore'), # 15. trading_signal_score
-                None,               # 16. upcoming_earnings
-                json.dumps(pred_input), # 17. prediction_input
-                trailing_pe,        # 18. trailing_pe
-                pb_ratio,           # 19. price_to_book
-                metric_val,         # 20. metric_value
-                metric_lbl,         # 21. metric_label
-                today               # 22. snapshot_date
+                json.dumps(gps_breakdown), # 6. gps_breakdown
+                classification,     # 7. classification
+                upside,             # 8. analyst_upside_pct
+                rev_growth,         # 9. revenue_growth_yoy
+                margin,             # 10. gross_margin_pct
+                rd_pct,             # 11. rd_spend_pct
+                market_cap_m,       # 12. market_cap_m
+                0,                  # 13. mention_count
+                'v2_engine',        # 14. discovery_source
+                s.get('tradingSignal'), # 15. trading_signal
+                s.get('tradingSignalScore'), # 16. trading_signal_score
+                None,               # 17. upcoming_earnings
+                json.dumps(pred_input), # 18. prediction_input
+                trailing_pe,        # 19. trailing_pe
+                pb_ratio,           # 20. price_to_book
+                metric_val,         # 21. metric_value
+                metric_lbl,         # 22. metric_label
+                today               # 23. snapshot_date
             ))
 
-            # 5. Check qualification for user_stock_predictions
-            if predicted_change_pct > pred_threshold and gps > gps_threshold and predicted_price_1m is not None:
-                print(f"    - Qualifying stock found: {ticker} (GPS: {gps}, Pred: {predicted_change_pct}%)")
+            # 5. Check qualification for user_stock_predictions (GPS > DEEPMONEY_RECOMMENDATION_GPS_VALUE)
+            if gps > dashboard_threshold and predicted_change_pct >= pred_threshold:
+                print(f"    - Qualifying stock found for Dashboard: {ticker} (GPS: {gps})")
                 
                 # a. Ensure stock exists in 'stocks' table
                 cursor.execute("SELECT id FROM stocks WHERE symbol = %s", (ticker,))
@@ -249,12 +289,14 @@ def sync_deepmoney():
                     # Update or insert prediction
                     cursor.execute("""
                         INSERT INTO user_stock_predictions 
-                        (user_id, stock_id, predicted_price_1m, last_requested_at)
-                        VALUES (%s, %s, %s, NOW())
+                        (user_id, stock_id, predicted_price_1m, gps_score, gps_breakdown, last_requested_at)
+                        VALUES (%s, %s, %s, %s, %s, NOW())
                         ON DUPLICATE KEY UPDATE 
                         predicted_price_1m = VALUES(predicted_price_1m),
+                        gps_score = VALUES(gps_score),
+                        gps_breakdown = VALUES(gps_breakdown),
                         last_requested_at = VALUES(last_requested_at)
-                    """, (user_id, stock_id, predicted_price_1m))
+                    """, (user_id, stock_id, predicted_price_1m, gps, json.dumps(gps_breakdown)))
 
                     # Add to user_stocks as unconfirmed if not already a purchased position
                     cursor.execute("""

@@ -163,6 +163,7 @@
         <a href="prediction_workflow.html">Prediction Flow</a>
         <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
         <a href="technical_indicators_guide.html">Technical Guide</a>
+        <a href="style_guide.html">Style Guide</a>
     </nav>
     <div class="page-container">
     <aside>
@@ -232,8 +233,8 @@
                 <ul class="logic-list">
                     <li><strong>Discovery Logic:</strong> Stocks qualify for this bucket if they meet the following sync thresholds:
                         <ul>
-                            <li><strong>GPS Score</strong> &gt; 6</li>
-                            <li><strong>Predicted Change %</strong> &gt; 5%</li>
+                            <li><strong>GPS Score</strong> &gt; 10.0 (Sync Gate)</li>
+                            <li><strong>Dashboard Threshold</strong> &gt; 25.0 (Surfacing Gate)</li>
                         </ul>
                     </li>
                     <li><strong>Target Users:</strong> Qualifying stocks are added for every user who has logged in within the <strong>past 7 days</strong>.</li>

@@ -1,5 +1,6 @@
 import { createLogger } from '@/utils/logger';
 import { getStockDataForPrediction, runPredictionInternal } from '@/utils/stockDataHelper';
+import { calculateGpsScore } from '@/utils/gps';
 
 const logger = createLogger('api/prediction/deepmoney/analyzer');
 
@@ -82,29 +83,30 @@ export async function analyzeStocks(stocks: EnrichedStock[], sharedContext?: { w
 
                 if (predictedChangePct !== undefined) {
                     stock.prediction_1m = predictedChangePct;
-                    // Threshold: positive predictions >= 1.5% only
+                    // Threshold: positive predictions >= 1.5% only (ML Validation Gate)
                     if (predictedChangePct > 0 && predictedChangePct >= 1.5) {
                         
-                        // --- GPS Score Calculation ---
-                        let gps = 0;
-                        const analystUpside = stock.analystUpside || 0;
-                        const revenueGrowth = stock.revenueGrowth || 0;
-                        const earningsGrowth = stock.earningsGrowth || 0;
-                        const fiftyTwoWeekChange = stock.fiftyTwoWeekChange || 0;
-
-                        gps += Math.min(Math.max(analystUpside / 0.3, 0), 1) * 25;
-                        gps += Math.min(Math.max(revenueGrowth / 0.3, 0), 1) * 25;
-                        gps += Math.min(Math.max(earningsGrowth / 0.25, 0), 1) * 25;
-                        gps += Math.min(Math.max(fiftyTwoWeekChange / 0.2, 0), 1) * 25;
+                        // --- GPS Score Calculation (v2.3) ---
+                        const gpsResult = calculateGpsScore(
+                          {
+                            analystUpside: stock.analystUpside ?? 0,
+                            revenueGrowth: stock.revenueGrowth ?? 0,
+                            earningsGrowth: stock.earningsGrowth ?? 0,
+                            fiftyTwoWeekChange: stock.fiftyTwoWeekChange ?? 0
+                          },
+                          {
+                            predicted_change_pct: predictionResult.predicted_change_pct,
+                            confidence_score: predictionResult.confidence_score
+                          }
+                        );
                         
-                        if (predictedChangePct > 0.5) gps += 5;
-                        
-                        stock.gps_score = parseFloat(Math.min(gps, 100).toFixed(1));
+                        stock.gps_score = gpsResult.score;
+                        (stock as any).gps_breakdown = gpsResult.breakdown;
 
                         const rdSpendPct = (stock.researchDevelopment || 0) / (stock.totalRevenue || 1);
-                        if (revenueGrowth >= 0.20 && (stock.grossMargins || 0) >= 0.50 && rdSpendPct >= 0.10) {
+                        if ((stock.revenueGrowth || 0) >= 0.20 && (stock.grossMargins || 0) >= 0.50 && rdSpendPct >= 0.10) {
                             stock.classification = 'ai_tech_hyper_growth';
-                        } else if (revenueGrowth >= 0.10 && fiftyTwoWeekChange >= 0.10) {
+                        } else if ((stock.revenueGrowth || 0) >= 0.10 && (stock.fiftyTwoWeekChange || 0) >= 0.10) {
                             stock.classification = 'established_growth';
                         } else {
                             stock.classification = 'standard';

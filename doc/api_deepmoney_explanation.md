@@ -2,10 +2,10 @@
 
 The `/api/prediction/deepmoney` endpoint family is designed for automated AI and Tech stock discovery, analysis, and scoring. It consists of two versions: the original legacy algorithm and the next-generation V2 engine.
 
-## 1. Next-Generation Discovery (V2.2)
+## 1. Next-Generation Discovery (v2.3)
 **Endpoint:** `/api/prediction/deepmoney`
 
-The V2.2 engine integrates high-fidelity macroeconomic indicators from the World Bank to validate sector-level tailwinds and tech adoption trends.
+The v2.3 engine integrates high-fidelity macroeconomic indicators from the World Bank to validate sector-level tailwinds and tech adoption trends.
 
 ### Workflow:
 1.  **Recursive News Discovery**: Scrapes 20+ global financial RSS feeds and screeners.
@@ -22,12 +22,13 @@ The V2.2 engine integrates high-fidelity macroeconomic indicators from the World
 
 ## 2. Multi-Factor Scoring (GPS)
 
-### Stock GPS Components (v2.2 Weights):
-*   **Analyst Upside (25%)**: Ratio of target price to current price (Scaled: 30% upside = 100% score).
-*   **Revenue Growth (25%)**: Trailing revenue growth (Scaled: 30% growth = 100% score).
-*   **EPS Growth (25%)**: Trailing EPS growth (Scaled: 25% growth = 100% score).
-*   **52-Week Momentum (25%)**: 52-week price change (Scaled: 20% return = 100% score).
-*   **Prediction Bonus (+5 pts)**: Applied if predicted 1-month growth is > 0.5%.
+### Stock GPS Components (v2.3 Weights):
+*   **Analyst Upside (19%)**: Ratio of target price to current price (Scaled: 30% upside = 100% score).
+*   **Revenue Growth (19%)**: Trailing revenue growth (Scaled: 30% growth = 100% score).
+*   **EPS Growth (19%)**: Trailing EPS growth (Scaled: 25% growth = 100% score).
+*   **52-Week Momentum (19%)**: 52-week price change (Scaled: 20% return = 100% score).
+*   **MLP Predicted Upside (19%)**: Predicted 1-month growth (Scaled: 3% growth = 100% score; Configurable via `GPS_PREDICTION_MAX`).
+*   **MLP Confidence Score (5%)**: Confidence score from the ML model.
 
 ### ETF GPS Components (v2.2 Weights):
 *   **52-Week Price Return (25.5%)**

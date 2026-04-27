@@ -5,6 +5,7 @@ import { DeepmoneyCard } from '../types'
 import { CardHeader } from '../CardHeader'
 import { CardMetricRow } from '../CardMetricRow'
 import { formatPrice, formatPercent } from '../formatters'
+import { GpsTooltip } from '../GpsTooltip'
 
 interface DeepmoneyCardViewProps {
   card: DeepmoneyCard
@@ -43,9 +44,18 @@ export const DeepmoneyCardView: React.FC<DeepmoneyCardViewProps> = ({ card }) =>
           valueClassName={getPredictionColor(card.prediction)}
         />
         <CardMetricRow 
-          label="GPS Score" 
-          value={card.gpsScore !== null ? `${card.gpsScore.toFixed(1)}/10` : 'N/A'} 
-          valueClassName="text-purple-600"
+          label={
+            <div className="flex items-center gap-1">
+              GPS Score 
+              <GpsTooltip score={card.gpsScore} breakdown={card.gpsBreakdown} symbol={card.symbol} />
+            </div>
+          } 
+          value={
+            card.gpsScore !== null && typeof card.gpsScore === 'number' 
+              ? card.gpsScore.toFixed(1) 
+              : 'N/A'
+          } 
+          valueClassName="text-purple-600 font-bold text-right"
         />
       </div>
     </>

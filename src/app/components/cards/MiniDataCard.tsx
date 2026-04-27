@@ -8,7 +8,7 @@ interface MiniDataCardProps {
   label: string;
   badge?: string;
   primaryText: string;
-  secondaryText: string;
+  secondaryText: string | React.ReactNode;
   tone?: MiniDataCardTone;
   subLabel?: React.ReactNode;
   primaryClassOverride?: string;

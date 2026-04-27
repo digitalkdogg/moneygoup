@@ -93,10 +93,12 @@ ACTIVE_PORTFOLIO_QUERY = """
     JOIN user_stocks us ON us.user_id = u.id
     JOIN stocks      s  ON s.id       = us.stock_id
     WHERE u.last_login >= NOW() - INTERVAL 7 DAY
+      AND us.is_active = 1
+      AND us.user_confirmed = 1
       AND (
-          (us.is_purchased = 1 AND us.shares > 0 AND us.is_active = 1) -- Portfolio
+          (us.is_purchased = 1 AND us.shares > 0) -- Portfolio
           OR 
-          (us.is_purchased = 0 AND us.shares = 0 and us.user_confirmed = 1)                     -- Watchlist
+          (us.is_purchased = 0)                   -- Watchlist
       )
     ORDER BY s.symbol, u.id
 """
@@ -132,8 +134,8 @@ def fetch_stock_data(ticker: str) -> dict | None:
 # The endpoint expects: { historicalData, stockMetrics, macroData?, newsArticles?, technicalScore? }
 # It returns JSON that includes predicted_price_1m (and other horizons).
 # ---------------------------------------------------------------------------
-def run_prediction(ticker: str, stock_data: dict) -> float | None:
-    url = f"{NEXTAUTH_URL}/api/prediction/{ticker}"
+def run_prediction(ticker: str, stock_data: dict) -> dict | None:
+    url = f"{NEXTAUTH_URL}/api/prediction/{ticker}?outlook=1_month"
     print(f"  [pred] Running prediction model for {ticker}...")
     try:
         response = post_with_auth(url, stock_data)
@@ -144,7 +146,7 @@ def run_prediction(ticker: str, stock_data: dict) -> float | None:
             print(f"  [pred] WARNING: predicted_price_1m missing from response for {ticker}")
             return None
         print(f"  [pred] {ticker} → predicted_price_1m = {price}")
-        return float(price)
+        return result
     except Exception as exc:
         print(f"  [pred] ERROR running prediction for {ticker}: {exc}")
         return None
@@ -156,20 +158,32 @@ def run_prediction(ticker: str, stock_data: dict) -> float | None:
 # The save endpoint resolves the ticker to a stock_id internally, so we only
 # need to pass ticker, predicted_price_1m, and user_id (for internal calls).
 # ---------------------------------------------------------------------------
-def save_prediction(ticker: str, predicted_price: float, user_id: int) -> bool:
+def save_prediction(ticker: str, predicted_price: float, user_id: int, gps_score: float = None, gps_breakdown: dict = None) -> bool:
     url = f"{NEXTAUTH_URL}/api/prediction/save"
     payload = {
         'ticker':              ticker,
         'predicted_price_1m':  predicted_price,
         'user_id':             str(user_id),
     }
+    if gps_score is not None:
+        payload['gps_score'] = gps_score
+    if gps_breakdown is not None:
+        payload['gps_breakdown'] = gps_breakdown
+    
     try:
         response = post_with_auth(url, payload)
         if response.ok:
             print(f"  [save] Saved prediction for user {user_id} / {ticker}")
             return True
         else:
-            print(f"  [save] WARNING: save returned {response.status_code} for user {user_id} / {ticker}: {response.text}")
+            try:
+                resp_json = response.json()
+                error_msg = resp_json.get('message', response.text)
+                if 'errors' in resp_json:
+                    error_msg += f" - {resp_json['errors']}"
+            except:
+                error_msg = response.text
+            print(f"  [save] WARNING: save returned {response.status_code} for user {user_id} / {ticker}: {error_msg}")
             return False
     except Exception as exc:
         print(f"  [save] ERROR saving prediction for user {user_id} / {ticker}: {exc}")
@@ -212,10 +226,10 @@ def sync_portfolio_predictions():
           f"{len(unique_users)} user(s), {len(unique_tickers)} unique ticker(s).")
  
     # --- Process ---------------------------------------------------------
-    # prediction_cache: ticker → predicted_price_1m (or None on failure)
+    # prediction_cache: ticker → (predicted_price_1m, gps_score, gps_breakdown) (or None on failure)
     # Keyed by ticker so we run the expensive model only once per stock,
     # regardless of how many users hold it.
-    prediction_cache: dict[str, float | None] = {}
+    prediction_cache: dict[str, tuple[float | None, float | None, dict | None]] = {}
  
     stats = {'predicted': 0, 'cached': 0, 'saved': 0, 'skipped': 0, 'errors': 0}
  
@@ -227,14 +241,14 @@ def sync_portfolio_predictions():
  
         # Check cache first (nice-to-have: avoid re-running model for shared stocks)
         if ticker in prediction_cache:
-            predicted_price = prediction_cache[ticker]
-            print(f"  [cache] Using cached prediction for {ticker}: {predicted_price}")
+            predicted_price, gps_score, gps_breakdown = prediction_cache[ticker]
+            print(f"  [cache] Using cached prediction for {ticker}: {predicted_price} (GPS: {gps_score})")
             stats['cached'] += 1
         else:
             # Fetch enriched data from the data endpoint
             stock_data = fetch_stock_data(ticker)
             if stock_data is None:
-                prediction_cache[ticker] = None
+                prediction_cache[ticker] = (None, None, None)
                 stats['errors'] += 1
                 continue
  
@@ -243,17 +257,64 @@ def sync_portfolio_predictions():
             if not historical or len(historical) < 365:
                 print(f"  [data] SKIP {ticker}: only {len(historical)} days of history "
                       f"(minimum 365 required).")
-                prediction_cache[ticker] = None
+                prediction_cache[ticker] = (None, None, None)
                 stats['skipped'] += 1
                 continue
  
             # Run the prediction model
-            predicted_price = run_prediction(ticker, stock_data)
-            prediction_cache[ticker] = predicted_price
-            if predicted_price is not None:
+            prediction_result = run_prediction(ticker, stock_data)
+
+            # Calculate GPS Score
+            gps_score = None
+            predicted_price = None
+            gps_breakdown = None
+            if prediction_result is not None:
                 stats['predicted'] += 1
+                predicted_price = float(prediction_result.get('predicted_price_1m', 0))
+                confidence_score = float(prediction_result.get('confidence_score', 0))
+
+                # Debug: log confidence score sources
+                print(f"  [gps] {ticker} confidence_score sources:")
+                print(f"        - generic 'confidence_score': {prediction_result.get('confidence_score')}")
+                print(f"        - '1m' specific: {prediction_result.get('confidence_score_1m')}")
+                print(f"        - using value: {confidence_score}")
+
+                # GPS Calculation Logic (v2.3)
+                metrics = stock_data.get('stockMetrics', {})
+                upside = metrics.get('analystUpside') or 0
+                rev_growth = metrics.get('revenueGrowth') or 0
+                earn_growth = metrics.get('earningsGrowth') or 0
+                price_change = metrics.get('fiftyTwoWeekChange') or 0
+                
+                # MLP Predicted Change (from the python engine response)
+                pred_change_pct = prediction_result.get('predicted_change_pct', 0)
+                
+                # Component Calculations
+                m1 = min(max(upside / 0.3, 0), 1) * 19
+                m2 = min(max(rev_growth / 0.3, 0), 1) * 19
+                m3 = min(max(earn_growth / 0.25, 0), 1) * 19
+                m4 = min(max(price_change / 0.2, 0), 1) * 19
+                m5a = min(max(pred_change_pct / 3.0, 0), 1) * 19
+                m5b = (confidence_score / 100.0) * 5
+                
+                gps = m1 + m2 + m3 + m4 + m5a + m5b
+                gps_score = round(min(gps, 100), 1)
+                
+                gps_breakdown = {
+                    'analystUpside': round(m1, 1),
+                    'revenueGrowth': round(m2, 1),
+                    'earningsGrowth': round(m3, 1),
+                    'fiftyTwoWeekChange': round(m4, 1),
+                    'mlpUpside': round(m5a, 1),
+                    'mlpConfidence': round(m5b, 1)
+                }
+                
+                print(f"  [gps] Calculated GPS Score for {ticker}: {gps_score}")
+                
             else:
                 stats['errors'] += 1
+            
+            prediction_cache[ticker] = (predicted_price, gps_score, gps_breakdown)
  
         # Skip saving if the prediction failed
         if predicted_price is None:
@@ -261,7 +322,7 @@ def sync_portfolio_predictions():
             continue
  
         # Save the prediction for this user
-        saved = save_prediction(ticker, predicted_price, user_id)
+        saved = save_prediction(ticker, predicted_price, user_id, gps_score, gps_breakdown)
         if saved:
             stats['saved'] += 1
         else:

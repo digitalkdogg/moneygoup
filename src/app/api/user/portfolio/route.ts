@@ -37,6 +37,8 @@ export async function GET(request: NextRequest) {
         us.initial_purchase_date,
         us.last_transaction_date,
         usp.predicted_price_1m,
+        usp.gps_score,
+        usp.gps_breakdown,
         sb.primary_color
       FROM user_stocks us
       JOIN stocks s ON us.stock_id = s.id
@@ -117,7 +119,9 @@ export async function GET(request: NextRequest) {
             recommendationKey: summary?.financialData?.recommendationKey || null,
             recommendationMean: summary?.financialData?.recommendationMean || null,
             numberOfAnalystOpinions: summary?.financialData?.numberOfAnalystOpinions || null,
-            brand_color: item.primary_color || null
+            brand_color: item.primary_color || null,
+            gpsScore: item.gps_score !== null ? parseFloat(item.gps_score) : null,
+            gpsBreakdown: item.gps_breakdown ? (typeof item.gps_breakdown === 'string' ? JSON.parse(item.gps_breakdown) : item.gps_breakdown) : null
           };
         } catch (dataError) {
           logger.error(`Error fetching data for ${item.symbol}:`, dataError as Error);

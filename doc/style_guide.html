@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoneyGoUp Design System & Style Guide</title>
+    <style>
+        :root {
+            --primary: #15803d;
+            --primary-dark: #166534;
+            --brand-green-700: #017e3b;
+            --brand-green-800: #016a32;
+            --success: #15803d;
+            --warning: #b45309;
+            --error: #b91c1c;
+            --bg: #f8fafc;
+            --text: #1e293b;
+            --border: #e2e8f0;
+            --card-bg: #ffffff;
+            --accent: #0ea5e9;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background-color: var(--bg);
+            margin: 0;
+            padding: 0;
+        }
+        .top-nav {
+            position: sticky;
+            top: 0;
+            width: 100%;
+            background: white;
+            border-bottom: 1px solid var(--border);
+            padding: 0.75rem 2rem;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .top-nav a {
+            text-decoration: none;
+            color: #64748b;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            padding: 0.25rem 0;
+            border-bottom: 2px solid transparent;
+        }
+        .top-nav a:hover { color: var(--primary); }
+        .top-nav a.active { color: var(--primary); border-bottom: 2px solid var(--primary); }
+        
+        .page-container {
+            display: flex;
+        }
+        aside {
+            width: 280px;
+            height: calc(100vh - 60px);
+            background: white;
+            border-right: 1px solid var(--border);
+            position: fixed;
+            top: 60px;
+            padding: 2rem;
+            box-sizing: border-box;
+            overflow-y: auto;
+            z-index: 10;
+        }
+        main {
+            margin-left: 280px;
+            padding: 3rem;
+            max-width: 1000px;
+            width: 100%;
+        }
+        h1 { color: var(--primary-dark); border-bottom: 2px solid var(--primary); padding-bottom: 0.5rem; margin-bottom: 2rem; }
+        h2 { color: var(--primary); margin-top: 3.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+        h3 { color: #334155; margin-top: 2rem; }
+        
+        .nav-header {
+            font-weight: bold;
+            color: var(--text);
+            margin-top: 1.5rem;
+            display: block;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 0.05em;
+        }
+        .nav-link {
+            display: block;
+            padding: 0.5rem 0;
+            color: #64748b;
+            text-decoration: none;
+            font-size: 0.95rem;
+        }
+        .nav-link:hover { color: var(--primary); }
+
+        /* Color Swatches */
+        .swatch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; margin: 1rem 0; }
+        .swatch { border-radius: 8px; border: 1px solid var(--border); overflow: hidden; background: white; }
+        .swatch-color { height: 80px; }
+        .swatch-info { padding: 0.75rem; font-size: 0.85rem; }
+        .swatch-info code { display: block; margin-top: 0.25rem; background: none; padding: 0; }
+
+        /* Typography */
+        .type-sample { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 2rem; margin: 1rem 0; }
+        .type-sample h1, .type-sample h2, .type-sample h3 { margin-top: 0; }
+
+        /* Components */
+        .component-section { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 2rem; margin: 1.5rem 0; }
+        .demo-box { padding: 1.5rem; border: 1px dashed #cbd5e1; border-radius: 8px; margin-bottom: 1rem; background: #f8fafc; }
+        
+        /* Demo Classes (mimicking app styles) */
+        .btn-primary { background: #017e3b; color: white; padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 600; border: none; cursor: pointer; }
+        .bubble { background: white; border: 1px solid #e2e8f0; border-radius: 9999px; padding: 0.375rem 1rem; font-size: 0.875rem; font-weight: 600; color: #374151; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); display: inline-flex; align-items: center; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
+        .dot-open { background: #22c55e; }
+        .dot-closed { background: #ef4444; }
+
+        .card { background: white; border-radius: 1rem; padding: 1.5rem; border: 1px solid #f1f5f9; shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+        
+        code { padding: 0.2rem 0.4rem; border-radius: 4px; font-family: ui-monospace, monospace; font-size: 0.9rem; background: #f1f5f9; color: #475569; }
+
+        @media (max-width: 768px) {
+            aside { display: none; }
+            main { margin-left: 0; padding: 1.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="top-nav">
+        <a href="moneygoup_overview.html">Overview</a>
+        <a href="api_documentation.html">API Docs</a>
+        <a href="recommendation_buckets.html">Rec Buckets</a>
+        <a href="components_documentation.html">Components</a>
+        <a href="database_documentation.html">Database</a>
+        <a href="prediction_workflow.html">Prediction Flow</a>
+        <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
+        <a href="technical_indicators_guide.html">Technical Guide</a>
+        <a href="style_guide.html" class="active">Style Guide</a>
+    </nav>
+    <div class="page-container">
+    <aside>
+        <h2 style="font-size: 1.2rem; margin-top: 0; border: none;">Design System</h2>
+        <nav>
+            <span class="nav-header">Foundations</span>
+            <a href="#colors" class="nav-link">Color Palette</a>
+            <a href="#typography" class="nav-link">Typography</a>
+            <a href="#spacing" class="nav-link">Spacing & Grid</a>
+            
+            <span class="nav-header">Components</span>
+            <a href="#buttons" class="nav-link">Buttons & Bubbles</a>
+            <a href="#cards" class="nav-link">Cards & Layout</a>
+            <a href="#badges" class="nav-link">Badges & Indicators</a>
+            
+            <span class="nav-header">Guidelines</span>
+            <a href="#accessibility" class="nav-link">Accessibility (AA)</a>
+        </nav>
+    </aside>
+
+    <main>
+        <h1>MoneyGoUp Design System</h1>
+        <p>A comprehensive guide to the visual language and user interface standards for the MoneyGoUp application. This system ensures consistency, accessibility, and a modern financial aesthetic across all platforms.</p>
+
+        <section id="colors">
+            <h2>Color Palette</h2>
+            <p>Our primary palette is anchored in trust-building greens, balanced with a clean neutral background for maximum data readability.</p>
+            
+            <h3>Primary Brand Colors</h3>
+            <div class="swatch-grid">
+                <div class="swatch">
+                    <div class="swatch-color" style="background: #017e3b;"></div>
+                    <div class="swatch-info">
+                        <strong>Brand Green 700</strong>
+                        <code>#017e3b</code>
+                        <small>AA Compliant on White</small>
+                    </div>
+                </div>
+                <div class="swatch">
+                    <div class="swatch-color" style="background: #016a32;"></div>
+                    <div class="swatch-info">
+                        <strong>Brand Green 800</strong>
+                        <code>#016a32</code>
+                        <small>Deep Navigation/Dark Mode</small>
+                    </div>
+                </div>
+                <div class="swatch">
+                    <div class="swatch-color" style="background: #dcfce7;"></div>
+                    <div class="swatch-info">
+                        <strong>Green Accent Light</strong>
+                        <code>#dcfce7</code>
+                        <small>UI Accents/Highlights</small>
+                    </div>
+                </div>
+            </div>
+
+            <h3>Semantic Colors</h3>
+            <div class="swatch-grid">
+                <div class="swatch">
+                    <div class="swatch-color" style="background: #15803d;"></div>
+                    <div class="swatch-info">
+                        <strong>Success / Buy</strong>
+                        <code>#15803d</code>
+                    </div>
+                </div>
+                <div class="swatch">
+                    <div class="swatch-color" style="background: #b91c1c;"></div>
+                    <div class="swatch-info">
+                        <strong>Error / Sell</strong>
+                        <code>#b91c1c</code>
+                    </div>
+                </div>
+                <div class="swatch">
+                    <div class="swatch-color" style="background: #b45309;"></div>
+                    <div class="swatch-info">
+                        <strong>Warning / Alert</strong>
+                        <code>#b45309</code>
+                    </div>
+                </div>
+                <div class="swatch">
+                    <div class="swatch-color" style="background: #2563eb;"></div>
+                    <div class="swatch-info">
+                        <strong>Focus / Primary Action</strong>
+                        <code>#2563eb</code>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="typography">
+            <h2>Typography</h2>
+            <p>We use a modern sans-serif system stack (Inter, SF Pro, Segoe UI) for maximum performance and native platform feel.</p>
+            <div class="type-sample">
+                <h1>Heading 1 (36px / 2.25rem)</h1>
+                <h2>Heading 2 (28px / 1.75rem)</h2>
+                <h3>Heading 3 (22px / 1.375rem)</h3>
+                <h4>Heading 4 (18px / 1.125rem)</h4>
+                <p>Body copy (16px / 1rem) with a line-height of 1.6 for comfortable reading of financial reports and technical data. <strong>Bold weights</strong> are used for emphasis and data labels.</p>
+            </div>
+        </section>
+
+        <section id="buttons">
+            <h2>Buttons & Bubbles</h2>
+            
+            <h3>Standard Buttons</h3>
+            <div class="component-section">
+                <div class="demo-box">
+                    <button class="btn-primary">Primary Action</button>
+                    <button style="background: white; border: 1px solid #e2e8f0; color: #64748b; padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 600;">Secondary Action</button>
+                </div>
+                <p>Standard buttons use a <code>0.5rem</code> (8px) border radius and high-contrast text.</p>
+            </div>
+
+            <h3>Info Bubbles</h3>
+            <div class="component-section">
+                <div class="demo-box">
+                    <div class="bubble">
+                        <span class="status-dot dot-open"></span>
+                        Market Open
+                    </div>
+                    <div class="bubble" style="margin-left: 10px;">
+                        Apr 23, 2026
+                    </div>
+                </div>
+                <p>Used for status indicators and metadata in headers. Bubbles use <code>rounded-full</code> (9999px) and a subtle shadow.</p>
+                <div class="type-sample">
+                    <code>bg-white border border-gray-200 rounded-full px-4 py-1.5 text-sm font-semibold text-gray-700 shadow-sm</code>
+                </div>
+            </div>
+        </section>
+
+        <section id="cards">
+            <h2>Cards & Layout</h2>
+            <div class="component-section">
+                <div class="demo-box">
+                    <div class="card">
+                        <h4 style="margin-top:0; color: #64748b; font-size: 0.8rem; text-transform: uppercase;">Portfolio Card</h4>
+                        <div style="font-size: 1.5rem; font-weight: bold;">$296,833.47</div>
+                        <div style="color: #15803d; font-size: 0.9rem; font-weight: 600;">+1.5% Today</div>
+                    </div>
+                </div>
+                <p>Cards are the primary container for data widgets. They feature a <code>1rem</code> (16px) border radius, white background, and a faint border.</p>
+            </div>
+        </section>
+
+        <section id="accessibility">
+            <h2>Accessibility Standards</h2>
+            <div class="component-section" style="border-left: 6px solid #2563eb;">
+                <p>MoneyGoUp is committed to <strong>WCAG 2.1 Level AA</strong> compliance.</p>
+                <ul>
+                    <li><strong>Contrast:</strong> All primary text and interactive elements maintain a minimum 4.5:1 contrast ratio.</li>
+                    <li><strong>Focus States:</strong> Interactive elements use a high-visibility <code>2px blue</code> focus ring with offset.</li>
+                    <li><strong>Skip Links:</strong> A "Skip to main content" link is available for keyboard/screen reader users.</li>
+                    <li><strong>Semantics:</strong> Strict heading hierarchy (exactly one H1 per page) and ARIA roles for dynamic content.</li>
+                </ul>
+            </div>
+        </section>
+
+        <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem; text-align: center;">
+            MoneyGoUp Design System &copy; 2026
+        </footer>
+    </main>
+    </div>
+</body>
+</html>

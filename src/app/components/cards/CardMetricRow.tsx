@@ -1,9 +1,6 @@
 // src/app/components/cards/CardMetricRow.tsx
-
-import React from 'react'
-
 interface CardMetricRowProps {
-  label: string
+  label: React.ReactNode
   value: string | number | React.ReactNode
   valueClassName?: string
   className?: string
@@ -26,3 +23,4 @@ export const CardMetricRow: React.FC<CardMetricRowProps> = ({
     </div>
   )
 }
+

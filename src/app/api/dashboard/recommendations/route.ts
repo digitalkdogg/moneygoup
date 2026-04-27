@@ -49,6 +49,8 @@ export async function GET(request: NextRequest) {
         usp.stock_id,
         s.symbol,
         usp.predicted_price_1m,
+        COALESCE(usp.gps_score, rs.gps_score) as gps_score,
+        COALESCE(usp.gps_breakdown, rs.gps_breakdown) as gps_breakdown,
         usp.last_requested_at,
         us.is_purchased,
         us.user_confirmed,
@@ -59,6 +61,11 @@ export async function GET(request: NextRequest) {
       JOIN user_stocks us
         ON us.user_id = usp.user_id
        AND us.stock_id = usp.stock_id
+      LEFT JOIN (
+        SELECT ticker, MAX(gps_score) as gps_score, MAX(gps_breakdown) as gps_breakdown
+        FROM recommended_stocks 
+        GROUP BY ticker
+      ) rs ON s.symbol = rs.ticker
       WHERE usp.user_id = ? AND us.is_active = 1
       ORDER BY usp.last_requested_at DESC;
     `, [userId]);
@@ -168,6 +175,8 @@ export async function GET(request: NextRequest) {
           currentPrice,
           predictedPrice1m,
           deltaPct,
+          gpsScore: pred.gps_score !== null ? parseFloat(pred.gps_score) : null,
+          gpsBreakdown: pred.gps_breakdown ? (typeof pred.gps_breakdown === 'string' ? JSON.parse(pred.gps_breakdown) : pred.gps_breakdown) : null,
           lastRequestedAt: pred.last_requested_at,
           scope
         });

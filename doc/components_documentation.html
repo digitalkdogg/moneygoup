@@ -168,6 +168,7 @@
         <a href="prediction_workflow.html">Prediction Flow</a>
         <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
         <a href="technical_indicators_guide.html">Technical Guide</a>
+        <a href="style_guide.html">Style Guide</a>
     </nav>
     <div class="page-container">
     <aside>
@@ -786,8 +787,11 @@
                     <tbody>
                         <tr><td><code>symbol</code></td><td><code>string</code></td><td>Stock ticker symbol.</td></tr>
                         <tr><td><code>companyName</code></td><td><code>string</code></td><td>Company name.</td></tr>
-                        <tr><td><td><code>changePercent</code></td><td><code>number | null</code></td><td>Percentage change for the day.</td></tr>
+                        <tr><td><code>changePercent</code></td><td><code>number | null</code></td><td>Percentage change for the day.</td></tr>
                         <tr><td><code>changeAmount</code></td><td><code>number | null</code></td><td><span class="tag tag-optional">Optional</span> Daily dollar change.</td></tr>
+                        <tr><td><code>price</code></td><td><code>number | null</code></td><td><span class="tag tag-optional">Optional</span> Current share price.</td></tr>
+                        <tr><td><code>variant</code></td><td><code>'watchlist' | 'portfolio'</code></td><td><span class="tag tag-optional">Optional</span> Header layout variant.</td></tr>
+                        <tr><td><code>brandColor</code></td><td><code>string</code></td><td><span class="tag tag-optional">Optional</span> Hex color for thematic styling.</td></tr>
                     </tbody>
                 </table>
             </div>

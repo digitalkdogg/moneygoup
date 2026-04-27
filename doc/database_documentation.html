@@ -164,6 +164,7 @@
         <a href="prediction_workflow.html">Prediction Flow</a>
         <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
         <a href="technical_indicators_guide.html">Technical Guide</a>
+        <a href="style_guide.html">Style Guide</a>
     </nav>
     <div class="page-container">
     <aside>
@@ -316,13 +317,15 @@
             <!-- USER_STOCK_PREDICTIONS -->
             <div id="user_stock_predictions" class="table-card">
                 <div class="table-title">user_stock_predictions</div>
-                <p>Persists multi-horizon AI-generated price predictions.</p>
+                <p>Persists multi-horizon AI-generated price predictions and their associated GPS scores.</p>
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
                         <tr><td><code>user_id</code></td><td><code>INT</code></td><td>FK to users.</td></tr>
                         <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>FK to stocks.</td></tr>
                         <tr><td><code>predicted_price_1m</code></td><td><code>DECIMAL(12,4)</code></td><td>AI 1-month target.</td></tr>
+                        <tr><td><code>gps_score</code></td><td><code>DECIMAL(8,2)</code></td><td>The 100-point performance score.</td></tr>
+                        <tr><td><code>gps_breakdown</code></td><td><code>JSON</code></td><td>Detailed sub-scores for all GPS factors.</td></tr>
                         <tr><td><code>last_requested_at</code></td><td><code>DATETIME</code></td><td>Timestamp of last run.</td></tr>
                     </tbody>
                 </table>

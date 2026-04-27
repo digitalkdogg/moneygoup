@@ -439,6 +439,19 @@ export async function GET(
     const analystTargetLow    = safeNum(finData.targetLowPrice);
     const analystOpinionCount = safeNum(finData.numberOfAnalystOpinions) ?? 0;
     const recommendationMean  = safeNum(finData.recommendationMean);
+    const currentPrice        = safeNum(price.regularMarketPrice);
+    const analystUpside       = analystTargetMean && currentPrice && analystTargetMean > 0 ? (analystTargetMean - currentPrice) / currentPrice : 0;
+    
+    // Fallback for fiftyTwoWeekChange: calculate from historicalData if missing
+    let fiftyTwoWeekChange = safeNum(keyStats.fiftyTwoWeekChange);
+    if (fiftyTwoWeekChange === null && historicalData && historicalData.length >= 252) {
+      // Use price ~252 trading days ago
+      const priceNow = historicalData[historicalData.length - 1].close;
+      const priceYearAgo = historicalData[historicalData.length - 252].close;
+      if (priceYearAgo > 0) {
+        fiftyTwoWeekChange = (priceNow - priceYearAgo) / priceYearAgo;
+      }
+    }
 
     const nextEarningsDateMs = calendar?.earnings?.[0]?.earningsDate;
     const nextEarningsDate = nextEarningsDateMs
@@ -446,7 +459,7 @@ export async function GET(
       : null;
 
     const stockMetrics = {
-      regularMarketPrice: safeNum(price.regularMarketPrice),
+      regularMarketPrice: currentPrice,
       peRatio,
       pbRatio,
       marketCap:          safeNum(price.marketCap  ?? detail.marketCap),
@@ -467,6 +480,8 @@ export async function GET(
       analystTargetLow,
       analystOpinionCount: Math.round(analystOpinionCount),
       recommendationMean,
+      analystUpside,
+      fiftyTwoWeekChange,
       nextEarningsDate,
     };
 

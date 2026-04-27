@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { DashboardRecommendationsResponse, DashboardRecommendation } from '@/types/dashboard';
 import { formatNumber, formatCurrency } from '@/utils/formatters';
 import MiniDataCard from './cards/MiniDataCard';
+import { GpsTooltip } from './cards/GpsTooltip';
 
 const RecommendationsSection: React.FC = () => {
   const [data, setData] = useState<DashboardRecommendationsResponse | null>(null);
@@ -85,15 +86,22 @@ const RecommendationsSection: React.FC = () => {
                   label={rec.symbol}
                   badge={getBadgeText(rec)}
                   primaryText={`Current ${formatCurrency(rec.currentPrice)}`}
-                  secondaryText={`1M Pred ${formatCurrency(rec.predictedPrice1m)} • ${rec.deltaPct >= 0 ? '+' : ''}${formatNumber(rec.deltaPct, 2)}%`}
+                  secondaryText={
+                    <div className="flex items-center gap-1">
+                      <span>GPS Score: {rec.gpsScore !== null && typeof rec.gpsScore === 'number' ? rec.gpsScore.toFixed(1) : 'N/A'}</span>
+                      {rec.gpsScore !== null && (
+                        <GpsTooltip score={rec.gpsScore} breakdown={rec.gpsBreakdown} symbol={rec.symbol} />
+                      )}
+                    </div>
+                  }
                   tone={rec.action === 'BUY' ? 'positive' : 'negative'}
                   subLabel={
                     <span className="flex items-center gap-1">
                       <span>Updated: {new Date(rec.lastRequestedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                       <span className="mx-1">•</span>
                       <span className={`px-1 rounded-sm uppercase text-[8px] font-bold ${
-                        rec.scope === 'portfolio' 
-                          ? 'bg-blue-100 text-blue-700 border border-blue-200' 
+                        rec.scope === 'portfolio'
+                          ? 'bg-blue-100 text-blue-700 border border-blue-200'
                           : rec.scope === 'watchlist'
                             ? 'bg-amber-100 text-amber-700 border border-amber-200'
                             : 'bg-purple-100 text-purple-700 border border-purple-200'

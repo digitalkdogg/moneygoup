@@ -15,6 +15,7 @@ import { tickerSchema } from '@/utils/validationSchemas';
 import { z } from 'zod';
 import { getClientIP } from '@/utils/rateLimitMiddleware';
 import { predictionCache } from '@/utils/cache';
+import { calculateGpsScore } from '@/utils/gps';
 
 const logger = createLogger('api/prediction');
 
@@ -111,10 +112,56 @@ export async function POST(
     writeFileSync(tempFile, JSON.stringify(body));
     const result: any = await runPythonPrediction(validatedTicker, tempFile, validatedOutlook);
     
+    // Ensure generic keys are populated for the requested outlook
+    if (validatedOutlook === '1_month') {
+      result.predicted_change_pct = result.predicted_change_pct ?? result.predicted_change_pct_1m;
+      result.confidence_score = result.confidence_score ?? result.confidence_score_1m;
+      result.predicted_price = result.predicted_price ?? result.predicted_price_1m;
+      // Also ensure specific key exists for backward compatibility
+      result.predicted_price_1m = result.predicted_price_1m ?? result.predicted_price;
+      result.predicted_change_pct_1m = result.predicted_change_pct_1m ?? result.predicted_change_pct;
+      result.confidence_score_1m = result.confidence_score_1m ?? result.confidence_score;
+    } else if (validatedOutlook === '1_day') {
+      result.predicted_change_pct = result.predicted_change_pct ?? result.predicted_change_pct_1d;
+      result.confidence_score = result.confidence_score ?? result.confidence_score_1d;
+      result.predicted_price = result.predicted_price ?? result.predicted_price_1d;
+      result.predicted_price_1d = result.predicted_price_1d ?? result.predicted_price;
+    } else if (validatedOutlook === '6_month') {
+      result.predicted_change_pct = result.predicted_change_pct ?? result.predicted_change_pct_6m;
+      result.confidence_score = result.confidence_score ?? result.confidence_score_6m;
+      result.predicted_price = result.predicted_price ?? result.predicted_price_6m;
+      result.predicted_price_6m = result.predicted_price_6m ?? result.predicted_price;
+    } else if (validatedOutlook === '1_year') {
+      result.predicted_change_pct = result.predicted_change_pct ?? result.predicted_change_pct_1y;
+      result.confidence_score = result.confidence_score ?? result.confidence_score_1y;
+      result.predicted_price = result.predicted_price ?? result.predicted_price_1y;
+      result.predicted_price_1y = result.predicted_price_1y ?? result.predicted_price;
+    }
+
     predictionCache.set(`${validatedTicker}_${validatedOutlook}`, result);
 
     if (!isInternal && result.predicted_price_1m) {
-      savePredictionAsync(validatedTicker, result.predicted_price_1m, userId).catch(() => {});
+      // Recalculate GPS score for manual predictions to keep dashboard updated
+      const gpsResult = calculateGpsScore(
+        {
+          analystUpside: body.stockMetrics?.analystUpside,
+          revenueGrowth: body.stockMetrics?.revenueGrowth,
+          earningsGrowth: body.stockMetrics?.earningsGrowth,
+          fiftyTwoWeekChange: body.stockMetrics?.fiftyTwoWeekChange
+        },
+        {
+          predicted_change_pct: result.predicted_change_pct_1m,
+          confidence_score: result.confidence_score_1m
+        }
+      );
+
+      savePredictionAsync(
+        validatedTicker, 
+        result.predicted_price_1m, 
+        userId,
+        gpsResult.score,
+        gpsResult.breakdown
+      ).catch(() => {});
     }
 
     return NextResponse.json({ ...result, source: 'livedata' });
@@ -134,20 +181,42 @@ function runPythonPrediction(ticker: string, inputFile: string, outlook: string)
     python.stderr.on('data', d => { stderr += d; });
     python.on('close', code => {
       if (code !== 0) return reject(new Error(`Exit ${code}: ${stderr}`));
-      try { resolve(JSON.parse(stdout)); } catch { reject(new Error('Invalid JSON')); }
+      try { 
+        const parsed = JSON.parse(stdout);
+        logger.info(`Python prediction raw output for ${ticker}`, { parsed });
+        resolve(parsed); 
+      } catch { 
+        reject(new Error('Invalid JSON')); 
+      }
     });
     python.on('error', err => reject(err));
   });
 }
 
-async function savePredictionAsync(ticker: string, price: number, userId: string) {
+async function savePredictionAsync(
+  ticker: string, 
+  price: number, 
+  userId: string, 
+  gpsScore?: number, 
+  gpsBreakdown?: any
+) {
   try {
     const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
     const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
     await fetch(`${baseUrl}/api/prediction/save`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Origin': baseUrl, ...(internalSecret && { 'x-api-key': internalSecret }) },
-      body: JSON.stringify({ ticker, predicted_price_1m: price, user_id: userId }),
+      headers: { 
+        'Content-Type': 'application/json', 
+        'Origin': baseUrl, 
+        ...(internalSecret && { 'x-api-key': internalSecret }) 
+      },
+      body: JSON.stringify({ 
+        ticker, 
+        predicted_price_1m: price, 
+        user_id: userId,
+        gps_score: gpsScore,
+        gps_breakdown: gpsBreakdown
+      }),
     });
   } catch {}
 }

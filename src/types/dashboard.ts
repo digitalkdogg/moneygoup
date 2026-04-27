@@ -39,6 +39,8 @@ export interface DashboardRecommendation {
   currentPrice: number;
   predictedPrice1m: number;
   deltaPct: number;
+  gpsScore: number | null;
+  gpsBreakdown: any | null;
   lastRequestedAt: string;
   scope: 'portfolio' | 'watchlist' | 'discovery';
 }
