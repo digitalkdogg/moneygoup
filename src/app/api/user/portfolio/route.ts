@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
           const [quoteResult, summary] = await Promise.all([
             yahooFinanceInstance.quote(item.symbol),
             fetchYahooStockSummary(item.symbol).catch(err => {
-              logger.warn(`Could not fetch summary for ${item.symbol}`, err);
+              logger.warn(`Could not fetch summary for ${item.symbol}`, { error: err });
               return null;
             })
           ]);
@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
                 }
               }
             } catch (histError) {
-              logger.warn(`Could not fetch historical data for ${item.symbol}`);
+              logger.warn(`Could not fetch historical data for ${item.symbol}`, { error: histError });
             }
           }
 
@@ -124,7 +124,7 @@ export async function GET(request: NextRequest) {
             gpsBreakdown: item.gps_breakdown ? (typeof item.gps_breakdown === 'string' ? JSON.parse(item.gps_breakdown) : item.gps_breakdown) : null
           };
         } catch (dataError) {
-          logger.error(`Error fetching data for ${item.symbol}:`, dataError as Error);
+          logger.error(`Error fetching data for ${item.symbol}:`, { error: dataError as Error });
           return {
             ...item,
             regularMarketPrice: null,
@@ -185,7 +185,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(result, { status: 200 });
   } catch (error: any) {
-    logger.error('Error fetching user portfolio:', error);
+    logger.error('Error fetching user portfolio:', { error });
     return createErrorResponse(error, 'Error fetching user portfolio', { status: 500 });
   }
 }

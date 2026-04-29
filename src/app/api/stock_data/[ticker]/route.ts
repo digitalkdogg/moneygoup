@@ -12,8 +12,12 @@ import { tickerSchema, multiTickerSchema } from '@/utils/validationSchemas';
 import { stockDataLimiter } from '@/utils/rateLimiter';
 import { checkRateLimit } from '@/utils/rateLimitMiddleware';
 import { z } from 'zod';
+import { LimitService } from '@/utils/limitService';
 
 const logger = createLogger('api/stock/[ticker]');
+
+// Map to track in-flight requests for deduplication
+const inflightRequests = new Map<string, Promise<any>>();
 
 async function fetchCompanyNameFromSec(ticker: string): Promise<string | null> {
   const controller = new AbortController();
@@ -272,8 +276,33 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
   if (rateLimitResponse) return rateLimitResponse;
 
   const session = await getServerSession(authOptions);
-  if (!session) {
+  if (!session || !session.user || !session.user.id) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+  }
+
+  const userId = session.user.id;
+  const userRole = (session.user as any).role || 'user';
+
+  const apiKey = request.headers.get('x-api-key');
+  const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
+  const isInternal = apiKey && apiKey === internalSecret;
+
+  // 0. Check role-based limits BEFORE cache (skip if internal)
+  if (!isInternal) {
+    const limitCheck = await LimitService.canPerformLookup(userId, userRole);
+    if (!limitCheck.allowed) {
+      logger.warn('Lookup limit exceeded', { userId, userRole, current: limitCheck.current });
+      return NextResponse.json(
+        {
+          code: 'LIMIT_EXCEEDED',
+          dimension: 'lookups',
+          allowed: limitCheck.max,
+          current: limitCheck.current,
+          message: `Lookup limit exceeded. Your current limit is ${limitCheck.max} lookups per 24h.`
+        },
+        { status: 403 }
+      );
+    }
   }
 
   // Validate ticker parameter
@@ -300,9 +329,31 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
     }
   }
 
-  const tickerArray = validatedTicker.split(',').map(t => t.trim())
+  // If there's already an in-flight request for this ticker, wait for it instead of duplicating
+  if (inflightRequests.has(validatedTicker)) {
+    return inflightRequests.get(validatedTicker)!;
+  }
 
+  const tickerArray = validatedTicker.split(',').map(t => t.trim())
   const origin = request.nextUrl?.origin || ''
+
+  // Create the promise FIRST and add to map immediately to prevent race condition
+  let resolvePromise: (value: any) => void;
+  let rejectPromise: (reason?: any) => void;
+  const requestPromise = new Promise((resolve, reject) => {
+    resolvePromise = resolve;
+    rejectPromise = reject;
+  });
+
+  // Mark as in-flight BEFORE doing any async work
+  inflightRequests.set(validatedTicker, requestPromise);
+
+  // Now execute the actual fetch logic
+  (async () => {
+  // Record lookup event immediately on cache miss, before expensive fetches
+  if (!isInternal) {
+    await LimitService.recordLookupEvent(userId, validatedTicker, 'stock_data_api');
+  }
 
   try {
     // Fetch related data in batch for tickers requested
@@ -426,10 +477,18 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
     // Cache final result
     stockDataCache.set(validatedTicker, finalResponse);
 
-    return NextResponse.json({ ...finalResponse as any, source: 'livedata' });
+    const response = NextResponse.json({ ...finalResponse as any, source: 'livedata' });
+    resolvePromise!(response);
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to fetch consolidated stock data', details: error instanceof Error ? error.message : String(error) }, { status: 500 })
+    const response = NextResponse.json({ error: 'Failed to fetch consolidated stock data', details: error instanceof Error ? error.message : String(error) }, { status: 500 });
+    rejectPromise!(error);
+  } finally {
+    inflightRequests.delete(validatedTicker);
   }
+  })();
+
+  // Return the promise that will be resolved with the response
+  return requestPromise;
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: { ticker: string } }) {

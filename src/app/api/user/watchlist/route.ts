@@ -8,6 +8,7 @@ import { createErrorResponse, unauthorizedResponse, validationErrorResponse, not
 import { createLogger } from '@/utils/logger';
 import { checkOrigin } from '@/utils/originCheck';
 import { fetchYahooStockSummary } from '@/utils/yahooFinanceHelper';
+import { LimitService } from '@/utils/limitService';
 
 const logger = createLogger('api/user/watchlist');
 
@@ -71,7 +72,7 @@ export async function GET(request: NextRequest) {
         const [quoteResult, summary] = await Promise.all([
           yahooFinanceInstance.quote(item.symbol),
           fetchYahooStockSummary(item.symbol).catch(err => {
-            logger.warn(`Could not fetch summary for ${item.symbol}`, err);
+            logger.warn(`Could not fetch summary for ${item.symbol}`, { error: err });
             return null;
           })
         ]);
@@ -90,7 +91,7 @@ export async function GET(request: NextRequest) {
           gpsBreakdown: item.gps_breakdown ? (typeof item.gps_breakdown === 'string' ? JSON.parse(item.gps_breakdown) : item.gps_breakdown) : null
         };
       } catch (yahooError: any) {
-        logger.error(`Error fetching Yahoo data for ${item.symbol}:`, yahooError);
+        logger.error(`Error fetching Yahoo data for ${item.symbol}:`, { error: yahooError });
         return {
           ...item,
           ma6_month: ma6_month,
@@ -104,7 +105,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ watchlist: watchlistWithData }, { status: 200 });
   } catch (error: any) {
-    logger.error('Error fetching user watchlist:', error);
+    logger.error('Error fetching user watchlist:', { error });
     return createErrorResponse(error, 'Error fetching user watchlist', { status: 500 });
   }
 }
@@ -123,9 +124,25 @@ export const POST = validate(addStockSchema)(
     }
 
     const userId = session.user.id;
+    const userRole = (session.user as any).role || 'user';
     const { ticker, name } = data;
 
     try {
+      // 0. Check limits
+      const limitCheck = await LimitService.canAddWatchlistItem(userId, userRole);
+      if (!limitCheck.allowed) {
+        return NextResponse.json(
+          {
+            code: 'LIMIT_EXCEEDED',
+            dimension: 'watchlist',
+            allowed: limitCheck.max,
+            current: limitCheck.current,
+            message: `Watchlist limit exceeded. Your current limit is ${limitCheck.max} items.`
+          },
+          { status: 403 }
+        );
+      }
+
       // 1. Find existing stock or insert new one
       const [existingStocks] = await executeRawQuery('SELECT id FROM stocks WHERE symbol = ?', [ticker.toUpperCase()]);
       let stockId;
@@ -159,7 +176,7 @@ export const POST = validate(addStockSchema)(
         { status: 201 }
       );
     } catch (dbError: any) {
-      logger.error('Database error adding stock to watchlist:', dbError);
+      logger.error('Database error adding stock to watchlist:', { error: dbError });
       return createErrorResponse(dbError, 'Database error adding stock to watchlist', { status: 500 });
     }
   }
@@ -211,7 +228,7 @@ export async function DELETE(request: NextRequest) {
       { status: 200 }
     );
   } catch (dbError: any) {
-    logger.error('Database error removing stock from watchlist:', dbError);
+    logger.error('Database error removing stock from watchlist:', { error: dbError });
     return createErrorResponse(dbError, 'Database error removing stock from watchlist', { status: 500 });
   }
 }

@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
 
     const hashedPassword = await bcrypt.hash(password, 10); // Hash password with salt rounds = 10
 
-    const [result] = await executeRawQuery('INSERT INTO users (username, password_hash) VALUES (?, ?)', [username, hashedPassword]);
+    const [result] = await executeRawQuery('INSERT INTO users (username, password_hash, approval_status) VALUES (?, ?, ?)', [username, hashedPassword, 'pending']);
 
     // Check if result is an array and if insertId exists
     const resultHeader = result as mysql.ResultSetHeader;
@@ -62,8 +62,12 @@ export async function POST(request: NextRequest) {
         throw new Error('Failed to create user.');
     }
 
-    logger.info('User registered successfully:', { userId: insertId, username });
-    return NextResponse.json({ message: 'User registered successfully', userId: insertId }, { status: 201 });
+    logger.info('User registered successfully:', { userId: insertId, username, approvalStatus: 'pending' });
+    return NextResponse.json({ 
+      message: 'Account created and awaiting admin approval', 
+      userId: insertId,
+      approvalStatus: 'pending'
+    }, { status: 201 });
 
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {

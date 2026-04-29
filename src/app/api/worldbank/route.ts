@@ -203,7 +203,7 @@ export async function GET(request: NextRequest) {
 
 
   } catch (error: any) {
-    logger.error("Failed to fetch consolidated World Bank data.", error);
+    logger.error("Failed to fetch consolidated World Bank data.", { error });
     return createErrorResponse(error, 'Failed to fetch consolidated macro data.', { status: 500 });
   }
 }

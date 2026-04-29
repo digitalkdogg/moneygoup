@@ -145,7 +145,7 @@ export const PATCH = validate(tradeSchema)(
 
       return createErrorResponse(null, 'Invalid action', { status: 400 });
     } catch (error: any) {
-      logger.error('Failed to execute trade:', error);
+      logger.error('Failed to execute trade:', { error });
       return createErrorResponse(error, 'Failed to execute trade', { status: 500 });
     }
   }
@@ -191,7 +191,7 @@ export async function PUT(
     return NextResponse.json({ message: 'Stock sold successfully (moved to watchlist)' }, { status: 200 });
 
   } catch (error: any) {
-    logger.error("Failed to sell stock:", error);
+    logger.error("Failed to sell stock:", { error });
     return createErrorResponse(error, 'Failed to sell stock', { status: 500 });
   }
 }

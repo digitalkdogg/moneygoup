@@ -202,8 +202,6 @@ export default function Stock({
 
             if (response.ok) {
               const data = await response.json()
-              // If we are in a map loop over tickerArray, and the API returns a keyed object, use data[t]
-              // If it returns the consolidated object directly (single ticker), use data.
               const consolidated = data[t] || data;
               return {
                 ticker: t,
@@ -214,11 +212,25 @@ export default function Stock({
                 earnings: consolidated.earnings || null,
                 analyst: consolidated.analyst || null
               }
+            } else if (response.status === 403) {
+              // Handle 403 Forbidden (likely limit exceeded)
+              const errorData = await response.json().catch(() => ({}))
+              const errMsg = errorData.message || errorData.error || 'Access forbidden'
+              return {
+                ticker: t,
+                limitExceeded: true,
+                limitMessage: errMsg,
+                stock: { error: 'Failed to fetch' },
+                news: { articles: [] },
+                historical: { historicalData: [] },
+                indicators: null,
+                earnings: null,
+                analyst: null
+              } as any
             } else {
               throw new Error(`Failed to fetch ${t}`)
             }
           } catch (err) {
-            logger.error(`Error fetching data for ${t}:`, { error: err instanceof Error ? err.message : String(err) })
             return {
               ticker: t,
               stock: { error: 'Failed to fetch' },
@@ -227,12 +239,21 @@ export default function Stock({
               indicators: null,
               earnings: null,
               analyst: null
-            }          }
+            }
+          }
         })
 
         const results = await Promise.all(fetchPromises)
+
+        // Check if any result failed due to limit exceeded
+        const limitError = results.find(r => (r as any).limitExceeded)
+        if (limitError) {
+          const limitMsg = (limitError as any).limitMessage || 'Lookup limit exceeded';
+          throw new Error(limitMsg)
+        }
+
         const dataMap: Record<string, ConsolidatedStockData> = {}
-        
+
         results.forEach(result => {
           dataMap[result.ticker] = {
             stock: result.stock || { error: 'Missing stock data' },
@@ -243,7 +264,7 @@ export default function Stock({
             analyst: result.analyst || null
           }
         })
-        
+
         setStockDataMap(dataMap)
         setApiError(null)
 
@@ -268,12 +289,13 @@ export default function Stock({
       } catch (err: unknown) {
         const error = err instanceof Error ? err : new Error('Failed to process stock data');
         logger.error('Stock data processing failed:', { error: error.message });
-        
+
+        const isLimitError = error.message.includes('limit') || error.message.includes('Lookup limit');
         setApiError({
-          type: 'stock',
+          type: 'stock' as const,
           ticker: primaryTicker,
-          message: 'Network error while fetching stock data',
-          details: error.message,
+          message: isLimitError ? error.message : 'Network error while fetching stock data',
+          details: isLimitError ? undefined : error.message,
           failedServices: ['API'],
         })
       }

@@ -125,6 +125,26 @@ export default function Navigation() {
         </span>
         {mobile && <span className="text-xl" aria-hidden="true">›</span>}
       </Link>
+      {(session?.user as any)?.role === 'admin' && (
+        <Link 
+          href="/admin/users" 
+          onClick={() => setIsMobileMenuOpen(false)}
+          aria-current={pathname === '/admin/users' ? 'page' : undefined}
+          className={`px-4 py-3 md:py-2 rounded-lg font-semibold transition duration-200 flex items-center justify-between border-2 ${
+            pathname === '/admin/users'
+              ? mobile 
+                ? 'bg-green-800 text-white border-white/40' 
+                : 'bg-white text-green-700 shadow-lg border-white'
+              : 'text-white border-transparent hover:bg-green-800 hover:border-white/20'
+          } ${mobile ? 'w-full text-lg h-[56px]' : 'focus-visible:ring-2 focus-visible:ring-white'}`}
+        >
+          <span className="flex items-center">
+            {pathname === '/admin/users' && !mobile && <span className="mr-2" aria-hidden="true">🛡️</span>}
+            <span>Admin Users</span>
+          </span>
+          {mobile && <span className="text-xl" aria-hidden="true">›</span>}
+        </Link>
+      )}
     </>
   );
 
@@ -173,6 +193,16 @@ export default function Navigation() {
                       <div className="px-4 py-2 text-sm text-gray-700 border-b border-gray-200" role="none">
                         {session.user.name}
                       </div>
+                      {(session.user as any).role === 'admin' && (
+                        <Link
+                          href="/admin/users"
+                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer focus:bg-gray-100 focus:outline-none"
+                          role="menuitem"
+                          onClick={() => setIsProfileOpen(false)}
+                        >
+                          Admin Panel
+                        </Link>
+                      )}
                       <button
                         onClick={() => signOut({ callbackUrl: `${process.env.NEXT_PUBLIC_NEXTAUTH_URL || ''}/login` })}
                         className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer focus:bg-gray-100 focus:outline-none"

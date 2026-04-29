@@ -218,6 +218,10 @@
             <span class="nav-header">User Data</span>
             <a href="#watchlist" class="nav-link">Watchlist Tracking</a>
             <a href="#portfolio" class="nav-link">Portfolio Tracking</a>
+
+            <span class="nav-header">Admin & Governance</span>
+            <a href="#admin-users-get" class="nav-link">User Management</a>
+            <a href="#governance-limits" class="nav-link">Limit Enforcement</a>
         </nav>
     </aside>
 
@@ -375,6 +379,36 @@
                 <h3><span class="method get">GET</span> /api/dashboard/recommendations</h3>
                 <div class="component-tag">Signal Engine</div>
                 <p>Returns automated BUY/SELL signals based on 1-month predictions. Applies <strong>Unemployment Dampeners</strong> (+2.0% req. threshold on bearish signal) and <strong>Global Health Modifiers</strong>.</p>
+            </div>
+        </section>
+
+        <section id="admin-governance">
+            <h2><span>5</span> Admin & Governance</h2>
+            <div id="admin-users-get" class="step-card">
+                <h3><span class="method get">GET</span> /api/admin/users</h3>
+                <div class="component-tag">Admin: User Management</div>
+                <p>Lists all registered users with their roles and approval statuses. Supports filtering by <code>status</code>, <code>role</code>, and <code>search</code> (username).</p>
+                <strong>Security:</strong> Restricted to <code>role = 'admin'</code>.
+            </div>
+
+            <div id="admin-users-patch" class="step-card">
+                <h3><span class="method patch">PATCH</span> /api/admin/users</h3>
+                <div class="component-tag">Admin: Governance</div>
+                <p>Updates a user's approval status (approve/reject) or promotes/demotes their role (user, superuser, admin).</p>
+                <strong>Guards:</strong> Prevents demoting the last active administrator.
+            </div>
+
+            <div id="governance-limits" class="step-card">
+                <h3>Limit Enforcement</h3>
+                <div class="component-tag">System: Guardrails</div>
+                <p>Standardized error response when a user exceeds their role-based allocation for watchlists, portfolios, or daily lookups.</p>
+                <pre><code>{
+  "code": "LIMIT_EXCEEDED",
+  "dimension": "lookups | watchlist | portfolio",
+  "allowed": 10,
+  "current": 10,
+  "message": "..."
+}</code></pre>
             </div>
         </section>
 

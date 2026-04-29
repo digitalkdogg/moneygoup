@@ -178,6 +178,7 @@
             <a href="#Dashboard" class="nav-link">Dashboard</a>
             <a href="#RecommendationsSection" class="nav-link">Recommendations Section</a>
             <a href="#Stock" class="nav-link">Stock View</a>
+            <a href="#AdminUsersPage" class="nav-link">Admin User Management</a>
             
             <span class="nav-header">Dashboard Widgets</span>
             <a href="#MarketOverviewCard" class="nav-link">Market Overview</a>
@@ -869,6 +870,27 @@
                 <div class="component-title">
                     PurchaseFromWatchlistModal
                     <span class="file-path">src/app/components/modals/PurchaseFromWatchlistModal.tsx</span>
+                </div>
+                <p>Form for making an initial purchase of a stock currently on the user's watchlist.</p>
+                <p><strong>Example usage:</strong> Used by <code>WatchlistSection</code> when a user buys a stock directly from the watchlist.</p>
+                <table class="prop-table">
+                    <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>stock</code></td><td><code>WatchlistItem</code></td><td>Details of the stock to purchase.</td></tr>
+                        <tr><td><code>onClose</code></td><td><code>() => void</code></td><td>Callback to close the modal.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem; text-align: center;">
+            MoneyGoUp Component Registry &copy; 2026
+        </footer>
+    </main>
+    </div>
+</body>
+</html>
+dals/PurchaseFromWatchlistModal.tsx</span>
                 </div>
                 <p>Form for making an initial purchase of a stock currently on the user's watchlist.</p>
                 <p><strong>Example usage:</strong> Used by <code>WatchlistSection</code> when a user buys a stock directly from the watchlist.</p>

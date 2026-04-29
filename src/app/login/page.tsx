@@ -5,6 +5,7 @@ import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
+import { APPROVAL_ERROR_CODES } from '@/types/auth';
 
 function LoginForm() {
   const [username, setUsername] = useState('');
@@ -35,7 +36,13 @@ function LoginForm() {
       });
 
       if (result?.error) {
-        setError('Invalid username or password');
+        if (result.error === APPROVAL_ERROR_CODES.PENDING) {
+          setError('Your account is awaiting admin approval.');
+        } else if (result.error === APPROVAL_ERROR_CODES.REJECTED) {
+          setError('Your account request was rejected. Contact support/admin.');
+        } else {
+          setError('Invalid username or password');
+        }
       } else {
         router.push('/');
         router.refresh();

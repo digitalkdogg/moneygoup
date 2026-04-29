@@ -5,6 +5,7 @@ import { executeRawQuery } from '@/utils/databaseHelper';
 import { checkOrigin } from '@/utils/originCheck';
 import { fetchYahooQuotesForSymbols } from '@/utils/yahooFinanceHelper';
 import { calculateTechnicalIndicators } from '@/utils/technicalIndicators';
+import { checkApprovalGuard } from '@/utils/approvalStatus';
 
 // Mock dependencies
 jest.mock('next-auth');
@@ -12,6 +13,7 @@ jest.mock('@/utils/databaseHelper');
 jest.mock('@/utils/originCheck');
 jest.mock('@/utils/yahooFinanceHelper');
 jest.mock('@/utils/technicalIndicators');
+jest.mock('@/utils/approvalStatus');
 jest.mock('@/utils/logger', () => ({
   createLogger: () => ({
     info: jest.fn(),
@@ -27,6 +29,7 @@ describe('GET /api/dashboard', () => {
     jest.clearAllMocks();
     (checkOrigin as jest.Mock).mockReturnValue(null);
     (getServerSession as jest.Mock).mockResolvedValue({ user: { id: 123 } });
+    (checkApprovalGuard as jest.Mock).mockResolvedValue({ allowed: true });
 
     mockRequest = {
       headers: new Headers(),

@@ -52,7 +52,7 @@ describe('POST /api/auth/register', () => {
     const data = await response.json();
 
     expect(response.status).toBe(201);
-    expect(data.message).toBe('User registered successfully');
+    expect(data.message).toBe('Account created and awaiting admin approval');
     expect(data.userId).toBe(1);
     expect(executeRawQuery).toHaveBeenCalledTimes(2);
   });

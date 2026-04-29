@@ -5,6 +5,7 @@ import { checkOrigin } from '@/utils/originCheck';
 import { checkRateLimit } from '@/utils/rateLimitMiddleware';
 import { fetchYahooStockSummary } from '@/utils/yahooFinanceHelper';
 import { calculateTechnicalIndicators } from '@/utils/technicalIndicators';
+import { LimitService } from '@/utils/limitService';
 
 // Mock dependencies
 jest.mock('next-auth');
@@ -12,6 +13,7 @@ jest.mock('@/utils/originCheck');
 jest.mock('@/utils/rateLimitMiddleware');
 jest.mock('@/utils/yahooFinanceHelper');
 jest.mock('@/utils/technicalIndicators');
+jest.mock('@/utils/limitService');
 jest.mock('@/utils/logger', () => ({
   createLogger: () => ({
     info: jest.fn(),
@@ -31,6 +33,8 @@ describe('GET /api/stock_data/[ticker]', () => {
     (checkOrigin as jest.Mock).mockReturnValue(null);
     (checkRateLimit as jest.Mock).mockReturnValue(null);
     (getServerSession as jest.Mock).mockResolvedValue({ user: { id: 1 } });
+    (LimitService.canPerformLookup as jest.Mock).mockResolvedValue({ allowed: true });
+    (LimitService.recordLookupEvent as jest.Mock).mockResolvedValue(undefined);
 
     mockRequest = {
       headers: new Headers(),

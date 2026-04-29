@@ -28,7 +28,7 @@ export default function Search() {
         }))
         setTickers(list)
       })
-      .catch(err => logger.error('Failed to fetch tickers', err))
+      .catch(err => logger.error('Failed to fetch tickers', { error: err }))
   }, [])
 
   // Filter tickers as user types

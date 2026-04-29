@@ -5,8 +5,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { executeRawQuery } from '@/utils/databaseHelper';
 import { checkOrigin } from '@/utils/originCheck';
 import { calculateTechnicalIndicators, HistoricalData } from '@/utils/technicalIndicators';
-import { createErrorResponse, unauthorizedResponse } from '@/utils/errorResponse';
+import { createErrorResponse, unauthorizedResponse, forbiddenResponse } from '@/utils/errorResponse';
 import { fetchYahooQuotesForSymbols } from '@/utils/yahooFinanceHelper'; // Import the new utility
+import { checkApprovalGuard } from '@/utils/approvalStatus';
 
 interface DailyPriceRow {
   stock_id: number;
@@ -32,12 +33,27 @@ export async function GET(request: NextRequest) {
     return unauthorizedResponse();
   }
 
+  const userId = session.user?.id;
+  if (!userId) {
+    logger.error('Session user ID is undefined or null for an authenticated session.');
+    return unauthorizedResponse('Unauthorized: User ID missing or invalid from session.');
+  }
+
+  // Check approval status guard
+  const approvalOutcome = await checkApprovalGuard(userId);
+  if (!approvalOutcome.allowed) {
+    logger.warn('Access denied due to approval status:', { userId, code: approvalOutcome.code });
+    return NextResponse.json(
+      { 
+        message: approvalOutcome.message, 
+        code: approvalOutcome.code,
+        reason: (approvalOutcome as any).reason 
+      }, 
+      { status: 403 }
+    );
+  }
+
   try {
-    const userId = session.user?.id; // Use optional chaining to safely access id
-    if (!userId) {
-      logger.error('Session user ID is undefined or null for an authenticated session.');
-      return unauthorizedResponse('Unauthorized: User ID missing or invalid from session.');
-    }
 
 
     // 1. Fetch user-specific stock holdings
@@ -227,7 +243,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ stocks: data, summary });
 
   } catch (error: any) {
-    logger.error("Failed to fetch dashboard data.", error);
+    logger.error("Failed to fetch dashboard data.", { error });
     return createErrorResponse(error, 'Failed to fetch dashboard data.', { status: 500 });
   }
 }

@@ -176,8 +176,10 @@
             
             <span class="nav-header">Core Tables</span>
             <a href="#users" class="nav-link">users</a>
+            <a href="#role_limits" class="nav-link">role_limits</a>
             <a href="#stocks" class="nav-link">stocks</a>
             <a href="#user_stocks" class="nav-link">user_stocks</a>
+            <a href="#user_lookup_events" class="nav-link">user_lookup_events</a>
             <a href="#stocksdailyprice" class="nav-link">stocksdailyprice</a>
             
             <span class="nav-header">Discovery & AI</span>
@@ -221,11 +223,12 @@
             </div>
 
             <div id="auth-logic" class="logic-card" style="border-color: var(--primary);">
-                <h4 style="color: var(--primary);">Authentication & Session Tracking</h4>
-                <p>User accounts are managed in the <code>users</code> table. Password security uses <code>bcrypt</code> hashing.</p>
+                <h4 style="color: var(--primary);">Authentication & Governance</h4>
+                <p>User accounts are managed in the <code>users</code> table. Governance is enforced through registration approvals and role-based limits.</p>
                 <ul>
-                    <li><strong>Last Login:</strong> The <code>last_login</code> field is updated asynchronously every time a user successfully authenticates via the <code>/api/auth/login</code> process.</li>
-                    <li><strong>Roles:</strong> The <code>role</code> field (default 'user') determines access to administrative features like <code>/api/cache-stats</code>.</li>
+                    <li><strong>Approval Workflow:</strong> New users are created with <code>approval_status = 'pending'</code>. Only <code>'approved'</code> users can establish a session. Administrators can <code>'reject'</code> users with a specific reason.</li>
+                    <li><strong>Role-Based Limits:</strong> The system enforces quotas based on <code>role</code> (user, superuser, admin) for watchlist size, portfolio positions, and daily lookups. These are controlled by the <code>role_limits</code> configuration table.</li>
+                    <li><strong>Last Login:</strong> The <code>last_login</code> field is updated asynchronously every time a user successfully authenticates.</li>
                 </ul>
             </div>
         </section>
@@ -277,8 +280,28 @@
                         <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key</td></tr>
                         <tr><td><code>username</code></td><td><code>VARCHAR(255)</code></td><td>Unique.</td></tr>
                         <tr><td><code>password_hash</code></td><td><code>VARCHAR(255)</code></td><td>Bcrypt.</td></tr>
-                        <tr><td><code>role</code></td><td><code>VARCHAR(50)</code></td><td>'user' or 'admin'.</td></tr>
+                        <tr><td><code>role</code></td><td><code>ENUM</code></td><td>'user', 'superuser', 'admin'.</td></tr>
+                        <tr><td><code>approval_status</code></td><td><code>ENUM</code></td><td>'pending', 'approved', 'rejected'.</td></tr>
+                        <tr><td><code>approved_by</code></td><td><code>INT</code></td><td>FK to users.id.</td></tr>
+                        <tr><td><code>approved_at</code></td><td><code>DATETIME</code></td><td>Approval timestamp.</td></tr>
+                        <tr><td><code>rejected_reason</code></td><td><code>VARCHAR(255)</code></td><td>Reason for rejection.</td></tr>
                         <tr><td><code>last_login</code></td><td><code>DATETIME</code></td><td>Updated on login.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- ROLE_LIMITS -->
+            <div id="role_limits" class="table-card">
+                <div class="table-title">role_limits</div>
+                <p>Configuration table defining the quotas for each user role.</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>role</code></td><td><code>ENUM</code></td><td>Primary Key (user, superuser, admin)</td></tr>
+                        <tr><td><code>max_watchlist_items</code></td><td><code>INT</code></td><td>Quota for monitor list.</td></tr>
+                        <tr><td><code>max_portfolio_items</code></td><td><code>INT</code></td><td>Quota for owned positions.</td></tr>
+                        <tr><td><code>max_lookups_per_24h</code></td><td><code>INT</code></td><td>Daily lookup rate limit.</td></tr>
+                        <tr><td><code>updated_at</code></td><td><code>DATETIME</code></td><td>Last modification.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -310,6 +333,22 @@
                         <tr><td><code>is_purchased</code></td><td><code>TINYINT(1)</code></td><td>0 = Watchlist, 1 = Portfolio.</td></tr>
                         <tr><td><code>shares</code></td><td><code>DECIMAL(10,4)</code></td><td>Quantity.</td></tr>
                         <tr><td><code>user_confirmed</code></td><td><code>TINYINT(1)</code></td><td>1 = Manual, 0 = AI Auto-discovery.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- USER_LOOKUP_EVENTS -->
+            <div id="user_lookup_events" class="table-card">
+                <div class="table-title">user_lookup_events</div>
+                <p>Audit trail for user stock lookups, used to enforce 24-hour rate limits.</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>id</code></td><td><code>BIGINT</code></td><td>Primary Key</td></tr>
+                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>FK to users.id.</td></tr>
+                        <tr><td><code>ticker</code></td><td><code>VARCHAR(20)</code></td><td>The symbol looked up.</td></tr>
+                        <tr><td><code>looked_up_at</code></td><td><code>DATETIME</code></td><td>Event timestamp.</td></tr>
+                        <tr><td><code>source</code></td><td><code>VARCHAR(50)</code></td><td>API source (web, mobile).</td></tr>
                     </tbody>
                 </table>
             </div>

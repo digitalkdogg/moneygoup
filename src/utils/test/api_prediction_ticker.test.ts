@@ -4,12 +4,14 @@ import { getServerSession } from 'next-auth';
 import { checkOrigin } from '@/utils/originCheck';
 import { predictionSemaphore } from '@/utils/predictionQueue';
 import { spawn } from 'child_process';
+import { LimitService } from '@/utils/limitService';
 
 // Mock dependencies
 jest.mock('next-auth');
 jest.mock('@/utils/originCheck');
 jest.mock('@/utils/predictionQueue');
 jest.mock('child_process');
+jest.mock('@/utils/limitService');
 jest.mock('@/utils/logger', () => ({
   createLogger: () => ({
     info: jest.fn(),
@@ -37,6 +39,8 @@ describe('POST /api/prediction/[ticker]', () => {
     (predictionSemaphore.isFull as jest.Mock).mockReturnValue(false);
     (predictionSemaphore.acquire as jest.Mock).mockResolvedValue(undefined);
     (predictionSemaphore.release as jest.Mock).mockResolvedValue(undefined);
+    (LimitService.canPerformLookup as jest.Mock).mockResolvedValue({ allowed: true });
+    (LimitService.recordLookupEvent as jest.Mock).mockResolvedValue(undefined);
   });
 
   test('validates 1_day outlook parameter', async () => {

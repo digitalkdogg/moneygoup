@@ -16,6 +16,7 @@ import { z } from 'zod';
 import { getClientIP } from '@/utils/rateLimitMiddleware';
 import { predictionCache } from '@/utils/cache';
 import { calculateGpsScore } from '@/utils/gps';
+import { LimitService } from '@/utils/limitService';
 
 const logger = createLogger('api/prediction');
 
@@ -49,8 +50,25 @@ export async function POST(
     if (originCheck) return originCheck;
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return unauthorizedResponse('Authentication required');
-    var userId = session.user.email || session.user.id;
+    var userId = session.user.id;
+    var userRole = (session.user as any).role || 'user';
     var ip = getClientIP(request);
+
+    // Check role-based lookup limits
+    const limitCheck = await LimitService.canPerformLookup(userId, userRole);
+    if (!limitCheck.allowed) {
+      logger.warn('Lookup limit exceeded in prediction API', { userId, userRole });
+      return NextResponse.json(
+        {
+          code: 'LIMIT_EXCEEDED',
+          dimension: 'lookups',
+          allowed: limitCheck.max,
+          current: limitCheck.current,
+          message: `Lookup limit exceeded. Your current limit is ${limitCheck.max} lookups per 24h.`
+        },
+        { status: 403 }
+      );
+    }
   } else {
     var userId = 'internal';
     var ip = '127.0.0.1';
@@ -137,7 +155,6 @@ export async function POST(
       result.predicted_price = result.predicted_price ?? result.predicted_price_1y;
       result.predicted_price_1y = result.predicted_price_1y ?? result.predicted_price;
     }
-
     predictionCache.set(`${validatedTicker}_${validatedOutlook}`, result);
 
     if (!isInternal && result.predicted_price_1m) {

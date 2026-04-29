@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import { executeRawQuery } from '@/utils/databaseHelper';
 import { createLogger } from '@/utils/logger';
 import type { NextAuthOptions } from 'next-auth';
+import { evaluateApprovalStatus } from '@/utils/approvalStatus';
 
 const logger = createLogger('auth');
 
@@ -28,15 +29,13 @@ export const authOptions: NextAuthOptions = {
         const { allowed } = loginLimiter.check(ip);
 
         if (!allowed) {
-          // Returning null tells NextAuth "credentials invalid" without leaking rate limit info
-          // to the client via the error message. The 429 is not surfaced directly here.
           logger.warn('Login rate limit exceeded', { ip });
           return null;
         }
 
         try {
           const [rows] = await executeRawQuery(
-            'SELECT id, username, password_hash, role FROM users WHERE username = ?',
+            'SELECT id, username, password_hash, role, approval_status, rejected_reason FROM users WHERE username = ?',
             [credentials.username]
           );
 
@@ -62,6 +61,19 @@ export const authOptions: NextAuthOptions = {
             return null;
           }
 
+          // Check approval status
+          const approvalOutcome = evaluateApprovalStatus(user.approval_status, user.rejected_reason);
+          if (!approvalOutcome.allowed) {
+            logger.warn('Authorization denied due to approval status:', {
+              userId: user.id,
+              username: credentials.username,
+              status: user.approval_status,
+              code: approvalOutcome.code
+            });
+            // Throwing an error with the code so the frontend can handle it
+            throw new Error(approvalOutcome.code);
+          }
+
           logger.info('User authorized successfully:', {
             userId: user.id,
             username: credentials.username,
@@ -80,11 +92,14 @@ export const authOptions: NextAuthOptions = {
 
             return {
             id: user.id.toString(),
-
             name: user.username,
             role: user.role || 'user',
+            approvalStatus: user.approval_status || 'pending'
           };
         } catch (error: unknown) {
+          if (error instanceof Error && (error.message === 'ACCOUNT_PENDING_APPROVAL' || error.message === 'ACCOUNT_REJECTED')) {
+            throw error;
+          }
           logger.error(
             'Database error during authorization:',
             { error: error instanceof Error ? error : String(error) }
@@ -116,6 +131,7 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.name = user.name;
         token.role = (user as any).role;
+        token.approvalStatus = (user as any).approvalStatus;
       }
       return token;
     },
@@ -123,6 +139,7 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.id = token.id as string;
         (session.user as any).role = token.role as string;
+        (session.user as any).approvalStatus = token.approvalStatus as string;
       }
       return session;
     },

@@ -194,7 +194,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(response);
  
   } catch (error: any) {
-    logger.error("Failed to fetch dashboard recommendations.", error);
+    logger.error("Failed to fetch dashboard recommendations.", { error });
     return createErrorResponse(error, 'Failed to fetch recommendations.', { status: 500 });
   }
 }
