@@ -331,7 +331,15 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
 
   // If there's already an in-flight request for this ticker, wait for it instead of duplicating
   if (inflightRequests.has(validatedTicker)) {
-    return inflightRequests.get(validatedTicker)!;
+    try {
+      const data = await inflightRequests.get(validatedTicker)!;
+      return NextResponse.json({ ...data, source: 'livedata' });
+    } catch (error) {
+      return NextResponse.json({ 
+        error: 'Failed to fetch consolidated stock data', 
+        details: error instanceof Error ? error.message : String(error) 
+      }, { status: 500 });
+    }
   }
 
   const tickerArray = validatedTicker.split(',').map(t => t.trim())
@@ -340,13 +348,13 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
   // Create the promise FIRST and add to map immediately to prevent race condition
   let resolvePromise: (value: any) => void;
   let rejectPromise: (reason?: any) => void;
-  const requestPromise = new Promise((resolve, reject) => {
+  const dataPromise = new Promise<any>((resolve, reject) => {
     resolvePromise = resolve;
     rejectPromise = reject;
   });
 
   // Mark as in-flight BEFORE doing any async work
-  inflightRequests.set(validatedTicker, requestPromise);
+  inflightRequests.set(validatedTicker, dataPromise);
 
   // Now execute the actual fetch logic
   (async () => {
@@ -477,10 +485,8 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
     // Cache final result
     stockDataCache.set(validatedTicker, finalResponse);
 
-    const response = NextResponse.json({ ...finalResponse as any, source: 'livedata' });
-    resolvePromise!(response);
+    resolvePromise!(finalResponse);
   } catch (error) {
-    const response = NextResponse.json({ error: 'Failed to fetch consolidated stock data', details: error instanceof Error ? error.message : String(error) }, { status: 500 });
     rejectPromise!(error);
   } finally {
     inflightRequests.delete(validatedTicker);
@@ -488,7 +494,15 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
   })();
 
   // Return the promise that will be resolved with the response
-  return requestPromise;
+  try {
+    const data = await dataPromise;
+    return NextResponse.json({ ...data, source: 'livedata' });
+  } catch (error) {
+    return NextResponse.json({ 
+      error: 'Failed to fetch consolidated stock data', 
+      details: error instanceof Error ? error.message : String(error) 
+    }, { status: 500 });
+  }
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: { ticker: string } }) {
