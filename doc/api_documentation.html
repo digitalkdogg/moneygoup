@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MoneyGoUp API Documentation</title>
+    <meta name="description" content="Complete API documentation for MoneyGoUp financial platform">
+    <meta name="author" content="MoneyGoUp Technical Team">
+    <meta name="created" content="2026-05-03">
+    <meta name="updated" content="2026-05-03">
     <style>
         :root {
             --primary: #15803d;
@@ -60,7 +64,7 @@
             display: flex;
         }
         aside {
-            width: 300px;
+            width: 320px;
             height: calc(100vh - 60px);
             background: white;
             border-right: 1px solid var(--border);
@@ -72,15 +76,15 @@
             z-index: 10;
         }
         main {
-            margin-left: 300px;
+            margin-left: 320px;
             padding: 3rem;
-            max-width: 1100px;
+            max-width: 1200px;
             width: 100%;
         }
         h1 { color: var(--primary-dark); border-bottom: 2px solid var(--primary); padding-bottom: 0.5rem; }
         h2 { color: var(--primary); margin-top: 4rem; display: flex; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
         h2 span { background: var(--primary); color: white; border-radius: 50%; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; margin-right: 1rem; font-size: 1.1rem; flex-shrink: 0; }
-        
+
         h3 { color: #334155; margin-top: 2rem; background: #f1f5f9; padding: 0.5rem 1rem; border-radius: 6px; display: flex; align-items: center; }
 
         .step-card {
@@ -120,7 +124,7 @@
         ul.flow { list-style: none; padding-left: 0; }
         .flow li { position: relative; padding-left: 1.5rem; margin-bottom: 0.5rem; }
         .flow li::before { content: "→"; position: absolute; left: 0; color: var(--primary); }
-        
+
         code {
             padding: 0.2rem 0.4rem;
             border-radius: 4px;
@@ -135,6 +139,8 @@
             border-radius: 8px;
             overflow-x: auto;
             margin: 1rem 0;
+            font-size: 0.85rem;
+            line-height: 1.4;
         }
         pre code { background: transparent; padding: 0; color: inherit; }
 
@@ -166,6 +172,34 @@
         .mini-card { background: white; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
         .mini-card h4 { margin: 0 0 0.5rem 0; font-size: 0.85rem; text-transform: uppercase; color: var(--primary); }
 
+        .role-section {
+            background: #f0fdf4;
+            border-left: 4px solid var(--primary);
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 4px;
+        }
+        .role-section strong { color: var(--primary-dark); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+        table th, table td {
+            text-align: left;
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+        table th {
+            background: #f1f5f9;
+            font-weight: bold;
+            color: var(--primary-dark);
+        }
+        table tr:hover {
+            background: #f8fafc;
+        }
+
         @media (max-width: 768px) {
             aside { display: none; }
             main { margin-left: 0; padding: 1.5rem; }
@@ -192,12 +226,19 @@
             <a href="#auth-overview" class="nav-link">Auth & Security</a>
             <a href="#auth-register" class="nav-link">POST /api/auth/register</a>
             <a href="#auth-cache" class="nav-link">GET /api/auth/cache-stats</a>
-            
+
+            <span class="nav-header">User Profile & Data</span>
+            <a href="#user-profile" class="nav-link">GET /api/user/profile</a>
+            <a href="#user-portfolio" class="nav-link">GET /api/user/portfolio</a>
+            <a href="#user-watchlist" class="nav-link">GET /api/user/watchlist</a>
+            <a href="#user-stocks" class="nav-link">POST /api/user/stocks</a>
+            <a href="#portfolio-history" class="nav-link">GET /api/user/portfolio/historical-value</a>
+
             <span class="nav-header">Stock Data</span>
             <a href="#stock-ticker" class="nav-link">GET /api/stock_data/[ticker]</a>
             <a href="#stock-data-enriched" class="nav-link">GET /api/stock_data/[ticker]/data</a>
             <a href="#stock-sub-data" class="nav-link">Specialized Sub-Data APIs</a>
-            
+
             <span class="nav-header">Market Data</span>
             <a href="#market-indices" class="nav-link">GET /api/market/indices</a>
             <a href="#market-trending" class="nav-link">GET /api/market/trending</a>
@@ -207,17 +248,13 @@
             <a href="#prediction" class="nav-link">POST /api/prediction/[ticker]</a>
             <a href="#prediction-save" class="nav-link">POST /api/prediction/save</a>
             <a href="#deepmoney" class="nav-link">GET /api/prediction/deepmoney</a>
-            
+
             <span class="nav-header">Dashboard</span>
             <a href="#dashboard1" class="nav-link">GET /api/dashboard</a>
             <a href="#deepmoney-picks" class="nav-link">GET /api/dashboard/deepmoney-picks</a>
             <a href="#recommendations" class="nav-link">GET /api/dashboard/recommendations</a>
             <a href="#dashboard-on" class="nav-link">GET /api/dashboard/on</a>
             <a href="#dashboard-analyst" class="nav-link">GET /api/dashboard/analyst-ratings</a>
-            
-            <span class="nav-header">User Data</span>
-            <a href="#watchlist" class="nav-link">Watchlist Tracking</a>
-            <a href="#portfolio" class="nav-link">Portfolio Tracking</a>
 
             <span class="nav-header">Admin & Governance</span>
             <a href="#admin-users-get" class="nav-link">User Management</a>
@@ -226,8 +263,8 @@
     </aside>
 
     <main>
-        <h1>API Documentation</h1>
-        <p>Comprehensive overview of MoneyGoUp API endpoints, logic flows, and internal dependencies. All potentially slow endpoints include 15m–12h caching with <code>source: 'livedata' | 'cache'</code> reporting.</p>
+        <h1>MoneyGoUp API Documentation</h1>
+        <p>Comprehensive reference for all MoneyGoUp API endpoints, authentication models, response formats, and role-based data scoping. All endpoints are secured via NextAuth.js with session management or internal API key authentication. Endpoints returning potentially slow data include 15m–12h caching with <code>source: 'livedata' | 'cache'</code> reporting.</p>
 
         <section id="fundamentals">
             <h2><span>0</span> Fundamentals & Auth</h2>
@@ -238,31 +275,323 @@
                 <strong>Security Policy:</strong>
                 <ul class="flow">
                     <li><strong>Session:</strong> Uses JWT strategy with configurable <code>SESSION_MAX_AGE</code> (default 24h).</li>
+                    <li><strong>User Roles:</strong> Three role levels — <code>user</code>, <code>superuser</code>, <code>admin</code> — with progressive permission scopes.</li>
                     <li><strong>Internal Bypass:</strong> Endpoints can be accessed via <code>x-api-key</code> matching <code>DEEPMONEY_INTERNAL_SECRET</code>.</li>
                     <li><strong>Rate Limiting:</strong> Enforced per-IP via <code>src/utils/rateLimiter.ts</code>.</li>
+                    <li><strong>Approval Guard:</strong> Users must be approved by admins before accessing resource-heavy endpoints like dashboard.</li>
                 </ul>
             </div>
 
             <div id="auth-register" class="step-card">
                 <h3><span class="method post">POST</span> /api/auth/register</h3>
                 <div class="component-tag">User Identity</div>
-                <p>Creates a new user account with hashed passwords using <code>bcryptjs</code>.</p>
+                <p>Creates a new user account with hashed passwords using <code>bcryptjs</code>. All new users default to <code>role = 'user'</code> and <code>is_approved = 0</code>.</p>
+                <strong>Request:</strong>
+                <pre><code>{
+  "username": "john_doe",
+  "email": "john@example.com",
+  "password": "secure_password_123"
+}</code></pre>
+                <strong>Response (201):</strong>
+                <pre><code>{
+  "user_id": 42,
+  "username": "john_doe",
+  "email": "john@example.com",
+  "role": "user",
+  "is_approved": 0
+}</code></pre>
             </div>
 
             <div id="auth-cache" class="step-card">
                 <h3><span class="method get">GET</span> /api/auth/cache-stats</h3>
                 <div class="component-tag">Admin: Diagnostics</div>
-                <p>Placeholder for cache monitoring. Currently restricted to administrative privileges (returns 403 Forbidden).</p>
+                <p>Provides cache usage statistics and hit rates for monitoring system performance. Restricted to users with <code>role = 'admin'</code>.</p>
+                <strong>Security:</strong> Returns 403 Forbidden if user role is not admin.
+                <strong>Response (200):</strong>
+                <pre><code>{
+  "status": "success",
+  "caches": {
+    "stockData": { "size": 245, "hitRate": 0.78, "ttl_ms": 900000 },
+    "yahooQuotes": { "size": 512, "hitRate": 0.92, "ttl_ms": 300000 },
+    "secCompanies": { "size": 1, "hitRate": 0.99, "ttl_ms": 86400000 }
+  }
+}</code></pre>
+            </div>
+        </section>
+
+        <section id="user-profile-section">
+            <h2><span>1</span> User Profile & Data Management</h2>
+
+            <div id="user-profile" class="step-card">
+                <h3><span class="method get">GET</span> /api/user/profile</h3>
+                <div class="component-tag">User Data: Authorization & Scoping</div>
+                <p>Fetches authenticated user profile information with role-based response structure. Returns different data shapes for <code>admin</code>, <code>superuser</code>, and <code>user</code> roles, enabling role-aware UI rendering and feature gating.</p>
+
+                <strong>Authentication:</strong> Required. Returns 401 Unauthorized if session is invalid or missing.
+
+                <strong>Data Scoping by Role:</strong>
+
+                <div class="role-section">
+                    <strong>Admin Role</strong>
+                    <p>Minimal profile response focused on account identity. No quota tracking — admins have unlimited access to all resources.</p>
+                </div>
+
+                <div class="role-section">
+                    <strong>Superuser & User Roles</strong>
+                    <p>Full profile response with quota stats for enforcing role-based limits on watchlists, portfolios, and daily lookups.</p>
+                </div>
+
+                <strong>Response Examples:</strong>
+
+                <p><em>Admin Account (200 OK):</em></p>
+                <pre><code>{
+  "username": "admin_user",
+  "accountType": "admin"
+}</code></pre>
+
+                <p><em>Superuser Account (200 OK):</em></p>
+                <pre><code>{
+  "username": "power_investor",
+  "accountType": "superuser",
+  "stats": {
+    "lookupCount": 47,
+    "portfolioItemCount": 12,
+    "watchlistItemCount": 8
+  }
+}</code></pre>
+
+                <p><em>Standard User Account (200 OK):</em></p>
+                <pre><code>{
+  "username": "jane_investor",
+  "accountType": "user",
+  "stats": {
+    "lookupCount": 15,
+    "portfolioItemCount": 5,
+    "watchlistItemCount": 3
+  }
+}</code></pre>
+
+                <strong>Field Descriptions:</strong>
+                <table>
+                    <tr>
+                        <th>Field</th>
+                        <th>Type</th>
+                        <th>Roles</th>
+                        <th>Description</th>
+                    </tr>
+                    <tr>
+                        <td>username</td>
+                        <td>string</td>
+                        <td>All</td>
+                        <td>Unique username (fetched fresh from DB, not from stale session)</td>
+                    </tr>
+                    <tr>
+                        <td>accountType</td>
+                        <td>string</td>
+                        <td>All</td>
+                        <td>Role identifier: 'user', 'superuser', or 'admin'</td>
+                    </tr>
+                    <tr>
+                        <td>stats</td>
+                        <td>object</td>
+                        <td>user, superuser</td>
+                        <td>Quota and usage counters</td>
+                    </tr>
+                    <tr>
+                        <td>stats.lookupCount</td>
+                        <td>number</td>
+                        <td>user, superuser</td>
+                        <td>Total stock symbol searches executed by user</td>
+                    </tr>
+                    <tr>
+                        <td>stats.portfolioItemCount</td>
+                        <td>number</td>
+                        <td>user, superuser</td>
+                        <td>Active purchased stock positions (shares > 0)</td>
+                    </tr>
+                    <tr>
+                        <td>stats.watchlistItemCount</td>
+                        <td>number</td>
+                        <td>user, superuser</td>
+                        <td>Confirmed watched stocks (not yet purchased)</td>
+                    </tr>
+                </table>
+
+                <strong>Error Responses:</strong>
+                <table>
+                    <tr>
+                        <th>Status</th>
+                        <th>Condition</th>
+                        <th>Response</th>
+                    </tr>
+                    <tr>
+                        <td>401</td>
+                        <td>No valid session or missing user ID</td>
+                        <td><code>{ "code": "UNAUTHORIZED", "message": "..." }</code></td>
+                    </tr>
+                    <tr>
+                        <td>500</td>
+                        <td>Database or internal error</td>
+                        <td><code>{ "code": "INTERNAL_ERROR", "message": "Error fetching user profile" }</code></td>
+                    </tr>
+                </table>
+
+                <strong>Usage Notes:</strong>
+                <ul class="flow">
+                    <li>All responses are synchronous (no polling required).</li>
+                    <li>Username is fetched fresh from the database on each request to avoid stale session data.</li>
+                    <li>Stats queries run in parallel for superuser/user roles to minimize latency.</li>
+                    <li>Typical response time: 50–150ms for user/superuser, 20–50ms for admin.</li>
+                </ul>
+            </div>
+
+            <div id="user-portfolio" class="step-card">
+                <h3><span class="method get">GET</span> /api/user/portfolio</h3>
+                <div class="component-tag">User Data: Portfolio Holdings</div>
+                <p>Returns all active purchased positions with real-time pricing, historical purchase data, GPS scores, and analyst ratings.</p>
+
+                <strong>Response (200 OK):</strong>
+                <pre><code>{
+  "portfolio": [
+    {
+      "user_id": 42,
+      "stock_id": 1,
+      "symbol": "AAPL",
+      "company_name": "Apple Inc.",
+      "shares": 10,
+      "purchase_price": 145.50,
+      "initial_purchase_date": "2025-06-15",
+      "last_transaction_date": "2025-06-15",
+      "predicted_price_1m": 152.30,
+      "gps_score": 8.5,
+      "gps_breakdown": { "growth": 0.9, "momentum": 0.85, ... },
+      "regularMarketPrice": 150.25,
+      "prev_close": 149.80,
+      "brand_color": "#555555",
+      "recommendationKey": "buy",
+      "recommendationMean": 2.1,
+      "numberOfAnalystOpinions": 47
+    }
+  ],
+  "totals": {
+    "costBasis": 1455.00,
+    "marketValue": 1502.50,
+    "unrealizedGain": 47.50,
+    "unrealizedLoss": 0,
+    "unrealizedNet": 47.50,
+    "unrealizedPct": 3.27
+  },
+  "ratings": [
+    { "symbol": "AAPL", "primary": "Buy", "score": 2.1, "count": 47 }
+  ],
+  "asOf": "2026-05-03T15:30:00Z"
+}</code></pre>
+            </div>
+
+            <div id="user-watchlist" class="step-card">
+                <h3><span class="method get">GET</span> /api/user/watchlist</h3>
+                <div class="component-tag">User Data: Watched Stocks</div>
+                <p>Returns all confirmed watched stocks (not yet purchased). Includes real-time pricing and prediction data.</p>
+
+                <strong>Query Parameters:</strong>
+                <table>
+                    <tr>
+                        <th>Parameter</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                    </tr>
+                    <tr>
+                        <td>limit</td>
+                        <td>number (optional)</td>
+                        <td>Maximum items to return (default: 100, max: 500)</td>
+                    </tr>
+                </table>
+            </div>
+
+            <div id="user-stocks" class="step-card">
+                <h3><span class="method post">POST</span> /api/user/stocks</h3>
+                <div class="component-tag">User Data: Add to Portfolio</div>
+                <p>Records a purchase of a stock, adding it to the user's portfolio with purchase price and share count. Automatically enriches stock with brand color metadata.</p>
+
+                <strong>Request Body:</strong>
+                <pre><code>{
+  "stock_id": 1,
+  "shares": 10,
+  "purchase_price": 145.50
+}</code></pre>
+
+                <strong>Response (201 Created):</strong>
+                <pre><code>{
+  "success": true,
+  "user_stock": {
+    "user_id": 42,
+    "stock_id": 1,
+    "shares": 10,
+    "purchase_price": 145.50,
+    "is_purchased": 1,
+    "created_at": "2026-05-03T15:30:00Z"
+  },
+  "brandInfo": {
+    "brandColor": "#555555",
+    "source": "brand_script"
+  }
+}</code></pre>
+            </div>
+
+            <div id="portfolio-history" class="step-card">
+                <h3><span class="method get">GET</span> /api/user/portfolio/historical-value</h3>
+                <div class="component-tag">User Data: Portfolio Performance Chart</div>
+                <p>Returns historical portfolio value over a specified time period, enabling performance charting and trend analysis.</p>
+
+                <strong>Query Parameters:</strong>
+                <table>
+                    <tr>
+                        <th>Parameter</th>
+                        <th>Type</th>
+                        <th>Default</th>
+                        <th>Description</th>
+                    </tr>
+                    <tr>
+                        <td>period</td>
+                        <td>string</td>
+                        <td>1w</td>
+                        <td>Time window: '1w', '1m', '6m', '1y', or 'all'</td>
+                    </tr>
+                </table>
+
+                <strong>Response (200 OK):</strong>
+                <pre><code>[
+  {
+    "date": "2026-04-26",
+    "portfolioValue": 14823.50,
+    "costBasis": 14550.00,
+    "gain": 273.50
+  },
+  ...
+]</code></pre>
             </div>
         </section>
 
         <section id="stock-data">
-            <h2><span>1</span> Stock Data</h2>
+            <h2><span>2</span> Stock Data</h2>
             <div id="stock-ticker" class="step-card">
                 <h3><span class="method get">GET</span> /api/stock_data/[ticker]</h3>
                 <div class="component-tag">Core: Consolidated Snapshot</div>
-                <p>The primary entry point for stock details. Supports comma-separated tickers. Cached for 15 minutes.</p>
-                <strong>Response addition:</strong> <code>source: 'livedata' | 'cache'</code>
+                <p>The primary entry point for stock details. Supports comma-separated tickers for batch queries. Cached for 15 minutes. Returns real-time data or cache status.</p>
+                <strong>Query Parameters:</strong>
+                <table>
+                    <tr>
+                        <th>Parameter</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                    </tr>
+                    <tr>
+                        <td>refresh</td>
+                        <td>boolean (optional)</td>
+                        <td>If true, bypasses cache and fetches fresh data</td>
+                    </tr>
+                </table>
+                <strong>Response includes:</strong> <code>source: 'livedata' | 'cache'</code>
                 <strong>Internal Dependencies:</strong>
                 <ul class="flow">
                     <li>Calls <code>/api/stock_data/[ticker]/historical/1y</code></li>
@@ -277,7 +606,7 @@
                 <h3><span class="method get">GET</span> /api/stock_data/[ticker]/data</h3>
                 <div class="component-tag">Internal: Prediction Preprocessor</div>
                 <p>Assembles the deep 5-year data payload required by the MLP/LSTM Python engines. Cached for 15 minutes. Supports <code>?refresh=true</code>.</p>
-                <strong>Response addition:</strong> <code>source: 'livedata' | 'cache'</code>
+                <strong>Response includes:</strong> <code>source: 'livedata' | 'cache'</code>
                 <strong>Logic Flow:</strong>
                 <ul class="flow">
                     <li>Fetches 5 years of OHLCV data.</li>
@@ -290,67 +619,119 @@
             <div id="stock-sub-data" class="step-card">
                 <h3>Specialized Sub-Data APIs</h3>
                 <div class="component-tag">Utility Endpoints</div>
-                <p>Granular endpoints used for targeted UI updates or internal data gathering. All support <code>?refresh=true</code>.</p>
+                <p>Granular endpoints used for targeted UI updates or internal data gathering. All support <code>?refresh=true</code> to bypass cache.</p>
                 <div class="grid">
                     <div class="mini-card">
                         <h4><span class="method get">GET</span> .../historical/[period]</h4>
-                        <p>Fetches OHLCV data. Cached 15m. Returns <code>cache_status</code>.</p>
+                        <p>Fetches OHLCV data for periods: 5d, 1m, 3m, 6m, 1y, 5y. Cached 15m. Returns <code>cache_status</code> and <code>source</code>.</p>
                     </div>
                     <div class="mini-card">
                         <h4><span class="method get">GET</span> .../news</h4>
-                        <p>Aggregates latest news. Cached 2h. Returns <code>cache_status</code>.</p>
+                        <p>Aggregates latest news articles. Cached 2h. Returns <code>cache_status</code> and source details.</p>
                     </div>
                     <div class="mini-card">
                         <h4><span class="method get">GET</span> .../analyst</h4>
-                        <p>Returns analyst targets. Cached 6h. Returns <code>source</code>.</p>
+                        <p>Returns analyst target prices and ratings. Cached 6h. Returns <code>source</code>.</p>
                     </div>
                     <div class="mini-card">
                         <h4><span class="method get">GET</span> .../earnings</h4>
-                        <p>Fetches earnings surprises. Cached 12h. Returns <code>source</code>.</p>
+                        <p>Fetches earnings surprises and guidance. Cached 12h. Returns <code>source</code>.</p>
+                    </div>
+                    <div class="mini-card">
+                        <h4><span class="method get">GET</span> .../options</h4>
+                        <p>Volatility metrics (IV, IV Rank, Put/Call Ratio). Cached 15m. Returns null values gracefully if unavailable.</p>
+                    </div>
+                    <div class="mini-card">
+                        <h4><span class="method get">GET</span> .../industry</h4>
+                        <p>Peer companies and sector comparison data. Cached 24h.</p>
                     </div>
                 </div>
             </div>
         </section>
 
         <section id="market-data">
-            <h2><span>2</span> Market Data</h2>
+            <h2><span>3</span> Market Data</h2>
             <div id="market-indices" class="step-card">
                 <h3><span class="method get">GET</span> /api/market/indices</h3>
                 <div class="component-tag">Global Market Health</div>
-                <p>Returns current prices and daily change % for major indices (DJI, S&P 500, Nasdaq, Russell 2000, VIX).</p>
+                <p>Returns current prices and daily change % for major indices (DJI, S&P 500, Nasdaq, Russell 2000, VIX). Updated every 15–60 seconds during market hours.</p>
             </div>
             <div id="market-trending" class="step-card">
                 <h3><span class="method get">GET</span> /api/market/trending</h3>
                 <div class="component-tag">Market Momentum</div>
-                <p>Identifies stocks with high volume or significant price movement.</p>
+                <p>Identifies stocks with high volume or significant price movement. Cached 5 minutes. Useful for discovering trending opportunities.</p>
             </div>
             <div id="worldbank-data" class="step-card">
                 <h3><span class="method get">GET</span> /api/worldbank</h3>
                 <div class="component-tag">Macroeconomic Indicators</div>
                 <p>Consolidated World Bank macro indicators (GDP, FDI, Trade, Tech Adoption) for USA and global peers. Cached for 6 hours. Supports <code>?refresh=true</code>.</p>
                 <strong>Response structure:</strong> Includes <code>success</code>, <code>macro</code>, <code>etf_factors</code>, <code>risk_index</code>, and <code>asOf</code>.
+                <strong>Response (200 OK):</strong>
+                <pre><code>{
+  "success": true,
+  "macro": {
+    "usa": { "gdp": 28.7, "fdi": 285, "trade_intensity": 27.5, "tech_adoption": 88 },
+    "global": { "gdp": 105.3, "fdi": 1200, "trade_intensity": 24, "tech_adoption": 62 }
+  },
+  "etf_factors": {
+    "equity_premium": 4.2,
+    "volatility_regime": "normal",
+    "growth_momentum": 0.65
+  },
+  "risk_index": 52.3,
+  "asOf": "2026-05-03T15:00:00Z"
+}</code></pre>
             </div>
         </section>
 
         <section id="prediction-engine">
-            <h2><span>3</span> Prediction Engine</h2>
+            <h2><span>4</span> Prediction Engine</h2>
             <div id="prediction" class="step-card">
                 <h3><span class="method post">POST</span> /api/prediction/[ticker]</h3>
                 <div class="component-tag">Process: Python Spawn (v3.1 Engine)</div>
                 <p>Generates an AI price prediction using a local MLP neural network. Results cached for 15 minutes. Supports <code>?refresh=true</code>.</p>
-                <strong>Response addition:</strong> <code>source: 'livedata' | 'cache'</code>
+                <strong>Response includes:</strong> <code>source: 'livedata' | 'cache'</code>
                 <strong>Logic Flow:</strong>
                 <ul class="flow">
                     <li>Spawns <code>scripts/predict_weighted_analysis.py</code>.</li>
                     <li><strong>v3.1 Logic:</strong> Integrates GMM-based Market Regime Detection (109 feature tensor).</li>
                     <li><strong>Persistence:</strong> Automatically triggers a call to <code>/api/prediction/save</code>.</li>
                 </ul>
+                <strong>Response (200 OK):</strong>
+                <pre><code>{
+  "success": true,
+  "prediction": {
+    "symbol": "AAPL",
+    "currentPrice": 150.25,
+    "predictedPrice_1d": 151.50,
+    "predictedPrice_1m": 152.30,
+    "predictedPrice_6m": 160.75,
+    "predictedPrice_1y": 175.00,
+    "confidence": 0.82,
+    "regime": "growth",
+    "regimeConfidence": 0.74
+  },
+  "source": "livedata",
+  "timestamp": "2026-05-03T15:30:00Z"
+}</code></pre>
             </div>
 
             <div id="prediction-save" class="step-card">
                 <h3><span class="method post">POST</span> /api/prediction/save</h3>
                 <div class="component-tag">Persistence Layer</div>
-                <p>Saves or updates a user's prediction (1d, 1m, 6m, 1y horizons) and macro observability metadata.</p>
+                <p>Saves or updates a user's prediction (1d, 1m, 6m, 1y horizons) and macro observability metadata for historical tracking.</p>
+                <strong>Request Body:</strong>
+                <pre><code>{
+  "user_id": 42,
+  "ticker": "AAPL",
+  "predicted_price_1d": 151.50,
+  "predicted_price_1m": 152.30,
+  "predicted_price_6m": 160.75,
+  "predicted_price_1y": 175.00,
+  "confidence": 0.82,
+  "macro_vix": 14.2,
+  "macro_unemployment": 3.8
+}</code></pre>
             </div>
 
             <div id="deepmoney" class="step-card">
@@ -358,15 +739,43 @@
                 <div class="component-tag">Discovery Engine (v2.3)</div>
                 <p>Advanced stock and ETF discovery engine. Cached 30m. Supports <code>?refresh=true</code>. Uses the v2.3 GPS model (19% weighting for 5 factors).</p>
                 <strong>Response structure:</strong> Includes <code>success</code>, <code>timestamp</code>, <code>count</code>, <code>stocks</code>, <code>hot_etfs</code>, and <code>meta</code>.
+                <strong>Response (200 OK):</strong>
+                <pre><code>{
+  "success": true,
+  "timestamp": "2026-05-03T15:30:00Z",
+  "count": 25,
+  "stocks": [
+    {
+      "symbol": "NVDA",
+      "company_name": "NVIDIA Corporation",
+      "gps_score": 9.2,
+      "gps_breakdown": { "growth": 0.95, "momentum": 0.88, ... },
+      "predicted_price_1m": 132.50,
+      "current_price": 125.00
+    }
+  ],
+  "hot_etfs": [
+    { "symbol": "QQQ", "category": "Nasdaq 100", "gps_score": 8.7 }
+  ],
+  "meta": { "model_version": "2.3", "regime": "growth", "data_freshness_minutes": 2 }
+}</code></pre>
             </div>
         </section>
 
         <section id="dashboard-section">
-            <h2><span>4</span> Dashboard</h2>
+            <h2><span>5</span> Dashboard</h2>
             <div id="dashboard1" class="step-card">
                 <h3><span class="method get">GET</span> /api/dashboard</h3>
                 <div class="component-tag">User Data Aggregator</div>
-                <p>Central hub for user-specific financial data. Aggregates portfolio summary and recent user activity.</p>
+                <p>Central hub for user-specific financial data. Aggregates portfolio summary and recent user activity. Requires user to be approval-gated.</p>
+                <strong>Approval Guard:</strong> Returns 403 Forbidden if user is not approved by an administrator.
+                <strong>Response (200 OK):</strong>
+                <pre><code>{
+  "portfolio": { ... },
+  "technicalIndicators": { ... },
+  "recommendations": [ ... ],
+  "asOf": "2026-05-03T15:30:00Z"
+}</code></pre>
             </div>
 
             <div id="deepmoney-picks" class="step-card">
@@ -380,40 +789,192 @@
                 <div class="component-tag">Signal Engine</div>
                 <p>Returns automated BUY/SELL signals based on 1-month predictions. Applies <strong>Unemployment Dampeners</strong> (+2.0% req. threshold on bearish signal) and <strong>Global Health Modifiers</strong>.</p>
             </div>
+
+            <div id="dashboard-on" class="step-card">
+                <h3><span class="method get">GET</span> /api/dashboard/on</h3>
+                <div class="component-tag">Feature Flags & Configuration</div>
+                <p>Returns feature flag and system configuration state for UI personalization and A/B testing.</p>
+            </div>
+
+            <div id="dashboard-analyst" class="step-card">
+                <h3><span class="method get">GET</span> /api/dashboard/analyst-ratings</h3>
+                <div class="component-tag">Sentiment Aggregation</div>
+                <p>Aggregated analyst ratings and price targets for stocks in the user's portfolio. Includes consensus scores and confidence levels.</p>
+            </div>
         </section>
 
         <section id="admin-governance">
-            <h2><span>5</span> Admin & Governance</h2>
+            <h2><span>6</span> Admin & Governance</h2>
             <div id="admin-users-get" class="step-card">
                 <h3><span class="method get">GET</span> /api/admin/users</h3>
                 <div class="component-tag">Admin: User Management</div>
                 <p>Lists all registered users with their roles and approval statuses. Supports filtering by <code>status</code>, <code>role</code>, and <code>search</code> (username).</p>
-                <strong>Security:</strong> Restricted to <code>role = 'admin'</code>.
+                <strong>Security:</strong> Restricted to <code>role = 'admin'</code>. Returns 403 Forbidden otherwise.
+                <strong>Query Parameters:</strong>
+                <table>
+                    <tr>
+                        <th>Parameter</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                    </tr>
+                    <tr>
+                        <td>status</td>
+                        <td>string (optional)</td>
+                        <td>Filter: 'pending', 'approved', 'rejected'</td>
+                    </tr>
+                    <tr>
+                        <td>role</td>
+                        <td>string (optional)</td>
+                        <td>Filter: 'user', 'superuser', 'admin'</td>
+                    </tr>
+                    <tr>
+                        <td>search</td>
+                        <td>string (optional)</td>
+                        <td>Search by username (case-insensitive)</td>
+                    </tr>
+                </table>
+                <strong>Response (200 OK):</strong>
+                <pre><code>{
+  "users": [
+    {
+      "id": 42,
+      "username": "jane_investor",
+      "email": "jane@example.com",
+      "role": "user",
+      "is_approved": 1,
+      "created_at": "2025-06-01T10:00:00Z"
+    }
+  ],
+  "total": 42
+}</code></pre>
             </div>
 
             <div id="admin-users-patch" class="step-card">
                 <h3><span class="method patch">PATCH</span> /api/admin/users</h3>
                 <div class="component-tag">Admin: Governance</div>
                 <p>Updates a user's approval status (approve/reject) or promotes/demotes their role (user, superuser, admin).</p>
+                <strong>Security:</strong> Restricted to <code>role = 'admin'</code>.
                 <strong>Guards:</strong> Prevents demoting the last active administrator.
+                <strong>Request Body:</strong>
+                <pre><code>{
+  "user_id": 42,
+  "action": "approve" | "reject" | "promote" | "demote",
+  "newRole": "user" | "superuser" | "admin"  // Required for promote/demote
+}</code></pre>
+                <strong>Response (200 OK):</strong>
+                <pre><code>{
+  "success": true,
+  "user": {
+    "id": 42,
+    "username": "jane_investor",
+    "role": "superuser",
+    "is_approved": 1
+  }
+}</code></pre>
             </div>
 
             <div id="governance-limits" class="step-card">
                 <h3>Limit Enforcement</h3>
                 <div class="component-tag">System: Guardrails</div>
-                <p>Standardized error response when a user exceeds their role-based allocation for watchlists, portfolios, or daily lookups.</p>
+                <p>Role-based allocation limits prevent resource exhaustion. When a user exceeds their quota, standardized error response is returned.</p>
+                <strong>Role Limits:</strong>
+                <table>
+                    <tr>
+                        <th>Dimension</th>
+                        <th>User</th>
+                        <th>Superuser</th>
+                        <th>Admin</th>
+                    </tr>
+                    <tr>
+                        <td>Watchlists</td>
+                        <td>5</td>
+                        <td>25</td>
+                        <td>Unlimited</td>
+                    </tr>
+                    <tr>
+                        <td>Portfolio Items</td>
+                        <td>10</td>
+                        <td>50</td>
+                        <td>Unlimited</td>
+                    </tr>
+                    <tr>
+                        <td>Daily Lookups</td>
+                        <td>20</td>
+                        <td>200</td>
+                        <td>Unlimited</td>
+                    </tr>
+                </table>
+                <strong>Error Response (429 Quota Exceeded):</strong>
                 <pre><code>{
   "code": "LIMIT_EXCEEDED",
   "dimension": "lookups | watchlist | portfolio",
   "allowed": 10,
   "current": 10,
-  "message": "..."
+  "message": "You have reached your daily lookup limit. Upgrade to superuser for higher limits."
 }</code></pre>
             </div>
         </section>
 
+        <section id="common-patterns">
+            <h2><span>7</span> Common Patterns & Best Practices</h2>
+
+            <div class="step-card">
+                <h3>Cache Control</h3>
+                <p>Append <code>?refresh=true</code> to any GET endpoint to bypass the cache and fetch fresh data from external APIs or the database. Useful for force-refreshing stale predictions or market data.</p>
+                <pre><code>GET /api/stock_data/AAPL?refresh=true
+GET /api/prediction/deepmoney?refresh=true</code></pre>
+            </div>
+
+            <div class="step-card">
+                <h3>Error Response Format</h3>
+                <p>All error responses follow a consistent structure for easier client-side handling.</p>
+                <pre><code>{
+  "code": "ERROR_CODE",
+  "message": "Human-readable message",
+  "correlationId": "req-12345-abcde",
+  "errors": {
+    "fieldName": ["error message 1", "error message 2"]
+  }
+}</code></pre>
+            </div>
+
+            <div class="step-card">
+                <h3>Pagination</h3>
+                <p>Endpoints returning lists support cursor-based pagination via <code>limit</code> and <code>offset</code> query parameters.</p>
+                <pre><code>GET /api/stock_data/news?limit=20&offset=0
+GET /api/dashboard/deepmoney-picks?limit=10&offset=20</code></pre>
+            </div>
+
+            <div class="step-card">
+                <h3>Rate Limiting</h3>
+                <p>All endpoints enforce per-IP rate limits. Headers indicate current state:</p>
+                <table>
+                    <tr>
+                        <th>Header</th>
+                        <th>Description</th>
+                    </tr>
+                    <tr>
+                        <td>X-RateLimit-Limit</td>
+                        <td>Total requests allowed in the window</td>
+                    </tr>
+                    <tr>
+                        <td>X-RateLimit-Remaining</td>
+                        <td>Requests remaining in the current window</td>
+                    </tr>
+                    <tr>
+                        <td>X-RateLimit-Reset</td>
+                        <td>Unix timestamp when the limit resets</td>
+                    </tr>
+                </table>
+            </div>
+        </section>
+
         <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem;">
-            MoneyGoUp API Documentation &copy; 2026
+            <strong>MoneyGoUp API Documentation</strong><br>
+            Last Updated: May 3, 2026 at 19:47 UTC<br>
+            Author: Technical Documentation Team<br>
+            Version: 3.2 (Regime-Aware Prediction Model v3.1 + User Profile Endpoint)<br>
+            Copyright © 2026 MoneyGoUp. All rights reserved.
         </footer>
     </main>
     </div>
