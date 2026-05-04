@@ -7,10 +7,16 @@ module.exports = {
   },
   testMatch: [
     "**/__tests__/**/*.ts",
-    "**/?(*.)+(spec|test).ts"
+    "**/__tests__/**/*.tsx",
+    "**/?(*.)+(spec|test).ts",
+    "**/?(*.)+(spec|test).tsx"
   ],
   transform: {
-    '^.+\.ts?$': 'ts-jest',
+    '^.+\.tsx?$': ['ts-jest', {
+      tsconfig: {
+        jsx: 'react',
+      },
+    }],
   },
   transformIgnorePatterns: [
     '/node_modules/(?!next-auth)',

@@ -57,3 +57,13 @@ export interface PredictionResponse {
   timestamp: string;
   modelVersion: string;
 }
+
+export interface ProfileStats {
+  lookupCount: number;
+  portfolioItemCount: number;
+  watchlistItemCount: number;
+}
+
+export type ProfileResponse =
+  | { username: string; accountType: 'user' | 'superuser'; stats: ProfileStats }
+  | { username: string; accountType: 'admin' };
