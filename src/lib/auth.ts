@@ -121,6 +121,7 @@ export const authOptions: NextAuthOptions = {
         secure: process.env.NEXTAUTH_URL?.startsWith('https') ?? false,
         sameSite: 'lax',
         path: '/',
+        domain: process.env.NODE_ENV === 'production' ? '.onrender.com' : undefined,
         maxAge: process.env.SESSION_MAX_AGE ? (parseInt(process.env.SESSION_MAX_AGE) || 30 * 24 * 60 * 60) : 30 * 24 * 60 * 60,
       },
     },
