@@ -8,6 +8,12 @@ import Image from 'next/image'
 
 export default function Navigation() {
   const pathname = usePathname()
+
+  // Hide navigation on preview page
+  if (pathname === '/preview') {
+    return null;
+  }
+
   const { data: session } = useSession();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
