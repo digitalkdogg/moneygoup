@@ -4,6 +4,7 @@ import Features from './components/Features';
 import CTA from './components/CTA';
 import ContactForm from './components/ContactForm';
 import Footer from './components/Footer';
+import PreviewVisitLogger from './components/PreviewVisitLogger';
 
 export const metadata: Metadata = {
   title: 'GrowMyStock Preview - AI-Powered Stock Analysis',
@@ -42,7 +43,8 @@ export const metadata: Metadata = {
 
 export default function PreviewPage() {
   return (
-    <main className="w-full bg-white">
+    <main className="w-full bg-white" id="main-content">
+      <PreviewVisitLogger />
       <Hero />
       <Features />
       <CTA />

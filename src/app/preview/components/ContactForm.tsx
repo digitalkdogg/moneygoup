@@ -7,6 +7,7 @@ interface FormData {
   email: string;
   company: string;
   message: string;
+  website?: string; // Honeypot field - should remain empty
 }
 
 interface FormStatus {
@@ -83,6 +84,17 @@ export default function ContactForm() {
           noValidate
           aria-label="Early access request form"
         >
+          {/* Honeypot field - hidden from users */}
+          <input
+            type="text"
+            name="website"
+            value={formData.website || ''}
+            onChange={handleChange}
+            style={{ display: 'none' }}
+            tabIndex={-1}
+            autoComplete="off"
+            aria-hidden="true"
+          />
           <div>
             <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
               Full Name <span className="text-red-600" aria-label="required">*</span>

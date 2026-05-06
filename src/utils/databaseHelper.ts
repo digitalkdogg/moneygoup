@@ -17,6 +17,7 @@ const ALLOWED_TABLES = new Set([
   'recommended_markets',
   'user_stock_predictions',
   'preview_leads',
+  'preview_visits',
 ]);
 
 /**
