@@ -52,6 +52,11 @@ export default withAuth(
         const isPreview = isPreviewModeEnabled();
         const pathname = req.nextUrl.pathname;
 
+        // Allow debug endpoints without auth
+        if (pathname.startsWith('/api/debug')) {
+          return true;
+        }
+
         // Allow preview page access without auth
         if (isPreview && pathname === '/preview') {
           return true;
@@ -78,8 +83,10 @@ export default withAuth(
 );
 
 export const config = {
-  // Protect all routes except login, register, and public assets
   matcher: [
+    // Match root path
+    "/",
+    // Match all paths except auth, login, register, and static assets
     "/((?!api/auth|login|register|_next/static|_next/image|growmystock_logo.svg|favicon.ico).*)",
   ],
 };
