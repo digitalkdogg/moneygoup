@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: moneygoup
+    env: node
+    buildCommand: npm ci && npm run build
+    startCommand: next start -p 3001
+    envVars:
+      - key: PREVIEW
+        value: "true"
