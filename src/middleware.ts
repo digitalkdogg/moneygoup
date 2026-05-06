@@ -26,7 +26,10 @@ function handlePreviewMode(req: NextRequest): NextResponse | null {
   }
 
   // In preview mode, block access to non-preview app pages
-  if (!pathname.startsWith('/preview') && !pathname.startsWith('/api/preview') && !pathname.startsWith('/api/auth')) {
+  if (!pathname.startsWith('/preview') &&
+      !pathname.startsWith('/api/preview') &&
+      !pathname.startsWith('/api/auth') &&
+      !pathname.startsWith('/api/debug')) {
     // Allow static assets and system routes
     if (!pathname.startsWith('/_next') && !pathname.match(/\.(svg|ico|png|jpg|jpeg|gif|webp)$/)) {
       return NextResponse.redirect(new URL('/preview', req.url));
