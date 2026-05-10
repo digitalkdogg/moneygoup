@@ -1,5 +1,6 @@
 import YahooFinance from 'yahoo-finance2';
 import { createLogger } from '@/utils/logger';
+import { getPythonExecutable } from '@/utils/pythonPath';
 import { spawn } from 'child_process';
 import { writeFileSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
@@ -71,7 +72,7 @@ export function runPredictionInternal(ticker: string, payload: any, outlook: str
     const tempFile = join(tmpdir(), `tf_sync_input_${randomUUID()}.json`);
     try {
       writeFileSync(tempFile, JSON.stringify(payload));
-      const python = spawn('python3', ['scripts/predict_weighted_analysis.py', ticker, '--input_file', tempFile, '--outlook', outlook]);
+      const python = spawn(getPythonExecutable(), ['scripts/predict_weighted_analysis.py', ticker, '--input_file', tempFile, '--outlook', outlook]);
       let stdout = '', stderr = '';
       python.stdout.on('data', d => { stdout += d; });
       python.stderr.on('data', d => { stderr += d; });

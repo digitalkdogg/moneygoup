@@ -1,6 +1,7 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { createLogger } from './logger';
+import { getPythonExecutable } from './pythonPath';
 
 const execFileAsync = promisify(execFile);
 const logger = createLogger('utils/brandColor');
@@ -21,7 +22,7 @@ export async function getBrandColorFromScript(
   logger.info(`getBrandColorFromScript: Executing script at ${scriptPath} for ${ticker}`);
 
   try {
-    const { stdout, stderr } = await execFileAsync('python3', [
+    const { stdout, stderr } = await execFileAsync(getPythonExecutable(), [
       scriptPath,
       '--ticker',
       ticker,

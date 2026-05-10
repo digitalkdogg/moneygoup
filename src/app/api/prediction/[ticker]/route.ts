@@ -13,6 +13,7 @@ import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { tickerSchema } from '@/utils/validationSchemas';
 import { z } from 'zod';
+import { getPythonExecutable } from '@/utils/pythonPath';
 import { getClientIP } from '@/utils/rateLimitMiddleware';
 import { predictionCache } from '@/utils/cache';
 import { calculateGpsScore } from '@/utils/gps';
@@ -192,7 +193,7 @@ export async function POST(
 
 function runPythonPrediction(ticker: string, inputFile: string, outlook: string): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    const python = spawn('python3', ['scripts/predict_weighted_analysis.py', ticker, '--input_file', inputFile, '--outlook', outlook]);
+    const python = spawn(getPythonExecutable(), ['scripts/predict_weighted_analysis.py', ticker, '--input_file', inputFile, '--outlook', outlook]);
     let stdout = '', stderr = '';
     python.stdout.on('data', d => { stdout += d; });
     python.stderr.on('data', d => { stderr += d; });
