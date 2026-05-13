@@ -170,7 +170,7 @@ export default function StockSignalPanel({
         <button
           onClick={onGeneratePrediction}
           disabled={predictionLoading}
-          style={!predictionLoading ? { backgroundColor: '#017e3b' } : {}}
+          style={!predictionLoading ? { backgroundColor: '#017e3b', fontSize:'14px' } : {}}
           className="inline-flex items-center gap-2 text-white font-semibold py-2.5 px-5 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-wait hover:opacity-90 text-sm"
         >
           {predictionLoading ? (
