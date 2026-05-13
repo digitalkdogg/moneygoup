@@ -12,6 +12,7 @@
   /* Focus Indicator */
   --focus-ring-color: #2563eb; /* Accessible blue focus ring */
   --focus-ring-offset: 2px;
+  letter-spacing: 0.35px;
 }
 
 .focus-ring {
@@ -37,6 +38,10 @@ a:focus-visible {
 
 @import "tailwindcss";
 
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 500;
+}
+
 @theme {
   --color-green-600: #005a00;
   --color-green-700: #017e3b;
@@ -53,7 +58,7 @@ button {
 
 /* ── Typography ─────────────────────────────────────────── */
 h1, h2, h3, h4, h5, h6 {
-  font-weight: 700;
+  font-weight: 500;
   line-height: 1.2;
 }
  

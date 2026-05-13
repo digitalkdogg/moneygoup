@@ -99,7 +99,7 @@ export default function Navigation() {
         href="/" 
         onClick={() => setIsMobileMenuOpen(false)}
         aria-current={pathname === '/' ? 'page' : undefined}
-        className={`px-4 py-3 md:py-2 rounded-lg font-semibold transition duration-200 flex items-center justify-between border-2 ${
+        className={`px-4 py-3 md:py-2 rounded-lg font-medium transition duration-200 flex items-center justify-between border-2 ${
           pathname === '/'
             ? mobile 
               ? 'bg-green-800 text-white border-white/40' 
@@ -117,7 +117,7 @@ export default function Navigation() {
         href="/search"
         onClick={() => setIsMobileMenuOpen(false)}
         aria-current={pathname === '/search' ? 'page' : undefined}
-        className={`px-4 py-3 md:py-2 rounded-lg font-semibold transition duration-200 flex items-center justify-between border-2 ${
+        className={`px-4 py-3 md:py-2 rounded-lg font-medium transition duration-200 flex items-center justify-between border-2 ${
           pathname === '/search'
             ? mobile
               ? 'bg-green-800 text-white border-white/40'
@@ -136,7 +136,7 @@ export default function Navigation() {
           href="/admin/users" 
           onClick={() => setIsMobileMenuOpen(false)}
           aria-current={pathname === '/admin/users' ? 'page' : undefined}
-          className={`px-4 py-3 md:py-2 rounded-lg font-semibold transition duration-200 flex items-center justify-between border-2 ${
+          className={`px-4 py-3 md:py-2 rounded-lg font-medium transition duration-200 flex items-center justify-between border-2 ${
             pathname === '/admin/users'
               ? mobile 
                 ? 'bg-green-800 text-white border-white/40' 
@@ -169,11 +169,11 @@ export default function Navigation() {
                   priority
                 />
                 <span aria-hidden="true">
-                  Grow
-                  <span style={{ color: '#dcfce7', fontWeight: 'bold', fontSize: '1.1em', marginRight: '1px', marginLeft:'3px'}}>
+                  <span style={{ fontWeight: 500 }}>Grow</span>
+                  <span style={{ color: '#dcfce7', fontWeight: '600', fontSize: '1.1em', marginRight: '1px', marginLeft:'3px'}}>
                     MY
                   </span>
-                  <span >Stock</span>
+                  <span style={{ fontWeight: 500 }}>Stock</span>
                 </span>
               </Link>
             </div>
@@ -278,7 +278,7 @@ export default function Navigation() {
         >
           <div className="flex flex-col h-full pt-5 pb-6">
             <div className="px-5 mb-8 flex justify-between items-center">
-              <span className="text-xl font-bold text-white">Grow<span style={{ color: '#baeb9e', fontWeight: 'bold' }}> My </span>Stock</span>
+              <span className="text-xl text-white"><span style={{ fontWeight: 500 }}>Grow</span><span style={{ color: '#baeb9e', fontWeight: '600' }}> My </span><span style={{ fontWeight: 500 }}>Stock</span></span>
               <button 
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="text-white p-2 w-[44px] h-[44px] flex items-center justify-center hover:bg-green-800 rounded-md focus-visible:ring-2 focus-visible:ring-white"
