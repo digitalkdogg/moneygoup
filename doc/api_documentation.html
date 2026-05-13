@@ -237,6 +237,7 @@
             <span class="nav-header">Stock Data</span>
             <a href="#stock-ticker" class="nav-link">GET /api/stock_data/[ticker]</a>
             <a href="#stock-data-enriched" class="nav-link">GET /api/stock_data/[ticker]/data</a>
+            <a href="#stock-gps" class="nav-link">GET /api/stock_data/[ticker]/gps</a>
             <a href="#stock-sub-data" class="nav-link">Specialized Sub-Data APIs</a>
 
             <span class="nav-header">Market Data</span>
@@ -616,6 +617,57 @@
                 </ul>
             </div>
 
+            <div id="stock-gps" class="step-card">
+                <h3><span class="method get">GET</span> /api/stock_data/[ticker]/gps</h3>
+                <div class="component-tag">GPS Score Lookup</div>
+                <p>Returns the GPS score and breakdown for a given ticker. Session-aware: always returns HTTP 200 and falls back gracefully through three sources so the UI never needs error handling.</p>
+
+                <strong>Lookup priority:</strong>
+                <ol style="margin-left: 1.5rem; margin-top: 0.5rem;">
+                    <li><strong>user_stock_predictions</strong> — if the session user has previously generated a prediction for this ticker, the most recent row is returned (source: <code>'user_stock_predictions'</code>).</li>
+                    <li><strong>recommended_stocks</strong> — if no user prediction exists, the latest DeepMoney sync record for the ticker is used (source: <code>'recommended_stocks'</code>).</li>
+                    <li><strong>none</strong> — if neither table has a score, returns the empty sentinel (source: <code>'none'</code>, all values null).</li>
+                </ol>
+
+                <strong>Authentication:</strong> Session is checked via NextAuth but the endpoint is publicly callable; unauthenticated requests skip step 1 and go directly to step 2.
+
+                <strong>Validation:</strong> Ticker is validated against <code>tickerSchema</code> (Zod). Invalid tickers return the empty sentinel with HTTP 200 rather than a 4xx error.
+
+                <strong>Response (200 OK — all cases):</strong>
+                <pre><code>{
+  "gpsScore": 72.4,
+  "gpsBreakdown": {
+    "analystUpside": 18.5,
+    "revenueGrowth": 14.2,
+    "earningsGrowth": 12.8,
+    "fiftyTwoWeekChange": 11.0,
+    "mlpUpside": 9.6,
+    "mlpConfidence": 6.3
+  },
+  "source": "user_stock_predictions",
+  "asOf": "2026-05-10T14:22:00.000Z"
+}</code></pre>
+
+                <strong>Empty sentinel (no data found):</strong>
+                <pre><code>{
+  "gpsScore": null,
+  "gpsBreakdown": null,
+  "source": "none",
+  "asOf": null
+}</code></pre>
+
+                <strong>Field descriptions:</strong>
+                <table>
+                    <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+                    <tr><td>gpsScore</td><td>number | null</td><td>Overall GPS score on a 0–100 scale.</td></tr>
+                    <tr><td>gpsBreakdown</td><td>object | null</td><td>Named component scores. Keys: analystUpside, revenueGrowth, earningsGrowth, fiftyTwoWeekChange, mlpUpside, mlpConfidence.</td></tr>
+                    <tr><td>source</td><td>string</td><td>'user_stock_predictions' | 'recommended_stocks' | 'none'</td></tr>
+                    <tr><td>asOf</td><td>string | null</td><td>ISO 8601 timestamp of the source record.</td></tr>
+                </table>
+
+                <strong>Used by:</strong> <code>Stock</code> component (single-ticker mount effect) and <code>StockSignalPanel</code> to display the score chip and top drivers.
+            </div>
+
             <div id="stock-sub-data" class="step-card">
                 <h3>Specialized Sub-Data APIs</h3>
                 <div class="component-tag">Utility Endpoints</div>
@@ -971,10 +1023,10 @@ GET /api/dashboard/deepmoney-picks?limit=10&offset=20</code></pre>
 
         <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem;">
             <strong>MoneyGoUp API Documentation</strong><br>
-            Last Updated: May 3, 2026 at 19:47 UTC<br>
+            Last Updated: May 12, 2026<br>
             Author: Technical Documentation Team<br>
-            Version: 3.2 (Regime-Aware Prediction Model v3.1 + User Profile Endpoint)<br>
-            Copyright © 2026 MoneyGoUp. All rights reserved.
+            Version: 3.3 (GPS endpoint + StockSignalPanel integration)<br>
+            Copyright &copy; 2026 MoneyGoUp. All rights reserved.
         </footer>
     </main>
     </div>

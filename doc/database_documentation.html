@@ -353,6 +353,54 @@
                 </table>
             </div>
 
+            <!-- STOCKSDAILYPRICE -->
+            <div id="stocksdailyprice" class="table-card">
+                <div class="table-title">stocksdailyprice</div>
+                <p>End-of-day historical price snapshots for tracked stocks, used for portfolio valuation charting.</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>FK to stocks.</td></tr>
+                        <tr><td><code>price_date</code></td><td><code>DATE</code></td><td>The trading date.</td></tr>
+                        <tr><td><code>close_price</code></td><td><code>DECIMAL(10,2)</code></td><td>Adjusted closing price.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- RECOMMENDED_STOCKS -->
+            <div id="recommended_stocks" class="table-card">
+                <div class="table-title">recommended_stocks</div>
+                <p>Stores the latest DeepMoney discovery results for individual stocks. This table is the second-tier fallback for <code>GET /api/stock_data/[ticker]/gps</code> — if a user has no personal prediction for a ticker, the GPS score is sourced from here.</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>ticker</code></td><td><code>VARCHAR(20)</code></td><td>Stock symbol.</td></tr>
+                        <tr><td><code>company_name</code></td><td><code>VARCHAR(255)</code></td><td>Full legal name.</td></tr>
+                        <tr><td><code>gps_score</code></td><td><code>DECIMAL(5,1)</code></td><td>0–100 GPS score. NULL if not yet scored.</td></tr>
+                        <tr><td><code>gps_breakdown</code></td><td><code>JSON</code></td><td>Named component scores (analystUpside, revenueGrowth, earningsGrowth, fiftyTwoWeekChange, mlpUpside, mlpConfidence).</td></tr>
+                        <tr><td><code>predicted_price_1m</code></td><td><code>DECIMAL(12,4)</code></td><td>1-month AI price target.</td></tr>
+                        <tr><td><code>current_price</code></td><td><code>DECIMAL(10,2)</code></td><td>Price at discovery time.</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>DATETIME</code></td><td>Discovery timestamp; used as <code>asOf</code> in GPS responses.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- RECOMMENDED_MARKETS -->
+            <div id="recommended_markets" class="table-card">
+                <div class="table-title">recommended_markets</div>
+                <p>Market-level context records written by the DeepMoney sync cycle (macro regime, risk index, model version).</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key.</td></tr>
+                        <tr><td><code>regime</code></td><td><code>VARCHAR(50)</code></td><td>GMM market regime label.</td></tr>
+                        <tr><td><code>risk_index</code></td><td><code>DECIMAL(5,2)</code></td><td>Composite market risk score.</td></tr>
+                        <tr><td><code>model_version</code></td><td><code>VARCHAR(20)</code></td><td>Discovery engine version.</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>DATETIME</code></td><td>Record timestamp.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
             <!-- USER_STOCK_PREDICTIONS -->
             <div id="user_stock_predictions" class="table-card">
                 <div class="table-title">user_stock_predictions</div>

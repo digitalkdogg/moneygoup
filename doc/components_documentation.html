@@ -201,6 +201,7 @@
             <span class="nav-header">Analytics & Charts</span>
             <a href="#PortfolioHistoryChart" class="nav-link">Portfolio History Chart</a>
             <a href="#StockChart" class="nav-link">Price History Chart</a>
+            <a href="#StockSignalPanel" class="nav-link">Stock Signal Panel</a>
             <a href="#StockPrediction" class="nav-link">Stock Prediction</a>
             <a href="#TechnicalIndicatorsDisplay" class="nav-link">Technical Indicators</a>
             
@@ -224,6 +225,7 @@
             <a href="#WatchlistCardView" class="nav-link">Watchlist Card View</a>
             
             <span class="nav-header">Modals</span>
+            <a href="#GpsBreakdownModal" class="nav-link">GPS Breakdown Modal</a>
             <a href="#BuyMoreModal" class="nav-link">Buy More Modal</a>
             <a href="#SellModal" class="nav-link">Sell Modal</a>
             <a href="#PurchaseFromWatchlistModal" class="nav-link">Purchase Modal</a>
@@ -236,7 +238,7 @@
 
         <section id="main-layouts">
             <h2>Main Layouts & Logic</h2>
-            
+
             <div id="Dashboard" class="component-card">
                 <div class="component-title">
                     Dashboard
@@ -257,7 +259,7 @@
                     RecommendationsSection
                     <span class="file-path">src/app/components/RecommendationsSection.tsx</span>
                 </div>
-                <p>Displays AI-driven BUY/SELL alerts across three buckets: **Portfolio** (owned), **Watchlist** (user-monitored), and **Discovery** (AI-identified). Signals are generated based on configurable thresholds using 1-month predictions.</p>
+                <p>Displays AI-driven BUY/SELL alerts across three buckets: Portfolio (owned), Watchlist (user-monitored), and Discovery (AI-identified). Signals are generated based on configurable thresholds using 1-month predictions.</p>
                 <p><strong>Example usage:</strong> Used inside <code>Dashboard</code> on the dashboard page to surface actionable signals for all tracked assets.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
@@ -272,14 +274,24 @@
                     Stock
                     <span class="file-path">src/app/components/Stock.tsx</span>
                 </div>
-                <p>The primary container for the stock detail page. Manages consolidated data fetching for a ticker (quotes, news, history, earnings, analyst data) and provides a multi-ticker comparison view.</p>
+                <p>The primary container for the stock detail page. Manages consolidated data fetching for a ticker (quotes, news, history, earnings, analyst data) and provides a multi-ticker comparison view. In single-ticker mode, it also fetches GPS data in parallel via <code>GET /api/stock_data/[ticker]/gps</code> on mount, then renders <code>StockSignalPanel</code> and <code>StockPrediction</code> (embedded) together inside one shared card, placed immediately after the price history chart. The panel's "Show prediction details" CTA triggers <code>StockPrediction</code>'s generate function through a React ref.</p>
                 <p><strong>Example usage:</strong> Used on the stock detail route at <code>src/app/search/[ticker]/page.tsx</code> when a user opens a specific ticker.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
-                        <tr><td><code>ticker</code></td><td><code>string</code></td><td>The stock symbol to display.</td></tr>
-                        <tr><td><code>source</code></td><td><code>string</code></td><td><span class="tag tag-optional">Optional</span> Data source.</td></tr>
-                        <tr><td><code>companyName</code></td><td><code>string</code></td><td><span class="tag tag-optional">Optional</span> Pre-fetched company name.</td></tr>
+                        <tr><td><code>ticker</code></td><td><code>string</code></td><td>The stock symbol to display. Supports comma-separated values for multi-ticker comparison mode.</td></tr>
+                        <tr><td><code>source</code></td><td><code>string</code></td><td><span class="tag tag-optional">Optional</span> Data source hint.</td></tr>
+                        <tr><td><code>companyName</code></td><td><code>string</code></td><td><span class="tag tag-optional">Optional</span> Pre-fetched company name used when adding to watchlist.</td></tr>
+                    </tbody>
+                </table>
+                <h3 style="font-size:0.9rem; margin-top:1rem; background:none; padding:0; color:#334155;">Single-ticker GPS state</h3>
+                <table class="prop-table">
+                    <thead><tr><th>State</th><th>Type</th><th>Purpose</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>gpsData</code></td><td><code>GpsData | null</code></td><td>Holds GPS score, breakdown, source, and timestamp fetched from <code>/api/stock_data/[ticker]/gps</code>.</td></tr>
+                        <tr><td><code>gpsLoading</code></td><td><code>boolean</code></td><td>True while the GPS fetch is in flight.</td></tr>
+                        <tr><td><code>predictionLoading</code></td><td><code>boolean</code></td><td>Mirrors <code>StockPrediction</code>'s loading state via <code>onLoadingChange</code> callback; drives the CTA button's disabled state in <code>StockSignalPanel</code>.</td></tr>
+                        <tr><td><code>predictionTriggerRef</code></td><td><code>MutableRefObject&lt;() => void&gt;</code></td><td>Passed to <code>StockPrediction</code> as <code>triggerRef</code>; called by the panel's "Show prediction details" button to invoke the generate flow without prop drilling.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -522,13 +534,56 @@
                 </table>
             </div>
 
+            <div id="StockSignalPanel" class="component-card">
+                <div class="component-title">
+                    StockSignalPanel
+                    <span class="file-path">src/app/components/StockSignalPanel.tsx</span>
+                </div>
+                <p>Renders the GPS + AI Prediction header inside the single-ticker view. Displays the GPS score chip (color-coded), sentiment label (Strong Buy / Buy / Hold / Weak / Avoid), source badge (Your Prediction or Market Snapshot), as-of timestamp, a "View breakdown" link that opens <code>GpsBreakdownModal</code>, the top-3 GPS driver metrics, and a "Show prediction details" CTA button that triggers the embedded <code>StockPrediction</code> generate flow via the <code>onGeneratePrediction</code> callback.</p>
+                <p>Also exports the <code>GpsData</code> interface used by <code>Stock</code> to type the GPS fetch result.</p>
+                <p><strong>Example usage:</strong> Used in <code>Stock</code> on the single-ticker view at <code>/search/[ticker]</code>, rendered inside the shared GPS + prediction card above <code>StockPrediction</code> (embedded).</p>
+                <table class="prop-table">
+                    <thead><tr><th>Prop</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>ticker</code></td><td><code>string</code></td><td><span class="tag tag-required">Required</span></td><td>Stock symbol; used in the fallback "GPS not available" message and passed to <code>GpsBreakdownModal</code>.</td></tr>
+                        <tr><td><code>gpsData</code></td><td><code>GpsData | null</code></td><td><span class="tag tag-required">Required</span></td><td>GPS payload from <code>/api/stock_data/[ticker]/gps</code>. When null or score is null, renders the "not yet available" state.</td></tr>
+                        <tr><td><code>gpsLoading</code></td><td><code>boolean</code></td><td><span class="tag tag-required">Required</span></td><td>Shows an animated loading placeholder while the GPS fetch is in flight.</td></tr>
+                        <tr><td><code>onGeneratePrediction</code></td><td><code>() => void</code></td><td><span class="tag tag-required">Required</span></td><td>Callback fired by the "Show prediction details" CTA. In <code>Stock</code> this invokes <code>predictionTriggerRef.current()</code> which calls <code>StockPrediction</code>'s internal <code>generate()</code>.</td></tr>
+                        <tr><td><code>predictionLoading</code></td><td><code>boolean</code></td><td><span class="tag tag-required">Required</span></td><td>When true, disables the CTA button and shows a spinner with "Generating..." label.</td></tr>
+                    </tbody>
+                </table>
+                <h3 style="font-size:0.9rem; margin-top:1rem; background:none; padding:0; color:#334155;">GpsData interface (exported)</h3>
+                <table class="prop-table">
+                    <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>gpsScore</code></td><td><code>number | null</code></td><td>0–100 GPS score. Null means no score exists yet.</td></tr>
+                        <tr><td><code>gpsBreakdown</code></td><td><code>Record&lt;string, number&gt; | null</code></td><td>Named component scores (analystUpside, revenueGrowth, earningsGrowth, fiftyTwoWeekChange, mlpUpside, mlpConfidence).</td></tr>
+                        <tr><td><code>source</code></td><td><code>'user_stock_predictions' | 'recommended_stocks' | 'none'</code></td><td>Indicates where the score came from. Drives the source badge label.</td></tr>
+                        <tr><td><code>asOf</code></td><td><code>string | null</code></td><td>ISO 8601 timestamp of the score record.</td></tr>
+                    </tbody>
+                </table>
+                <h3 style="font-size:0.9rem; margin-top:1rem; background:none; padding:0; color:#334155;">Sentiment label thresholds</h3>
+                <table class="prop-table">
+                    <thead><tr><th>Score range</th><th>Label</th><th>Chip color</th></tr></thead>
+                    <tbody>
+                        <tr><td>80 – 100</td><td>Strong Buy</td><td>Green</td></tr>
+                        <tr><td>60 – 79</td><td>Buy</td><td>Green</td></tr>
+                        <tr><td>40 – 59</td><td>Hold</td><td>Gray</td></tr>
+                        <tr><td>20 – 39</td><td>Weak</td><td>Amber</td></tr>
+                        <tr><td>0 – 19</td><td>Avoid</td><td>Red</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
             <div id="StockPrediction" class="component-card">
                 <div class="component-title">
                     StockPrediction
                     <span class="file-path">src/app/components/StockPrediction.tsx</span>
                 </div>
-                <p>Triggers AI prediction workflow and displays results (price targets, trajectory, confidence scores, metric analysis) for a given stock.</p>
-                <p><strong>Example usage:</strong> Used in <code>Stock</code> on the ticker detail page to run and display AI forecast outputs.</p>
+                <p>Triggers the AI prediction workflow and displays results (1d/1m/6m/12m price targets, 18-month SVG trajectory chart, confidence scores, metric analysis accordion) for a given stock. Supports two rendering modes controlled by the <code>embedded</code> prop.</p>
+                <p><strong>Standalone mode</strong> (default, <code>embedded=false</code>): renders its own card wrapper, title, description, and a "Generate Prediction" button. Used in the multi-ticker comparison view.</p>
+                <p><strong>Embedded mode</strong> (<code>embedded=true</code>): hides the card wrapper, title, description, and standalone generate button. Only prediction results, data-quality warnings, and errors render, separated from the panel above by a top border. The generate function is exposed to the parent via <code>triggerRef</code>. Used inside the shared GPS + prediction card in the single-ticker view.</p>
+                <p><strong>Example usage:</strong> Used in <code>Stock</code> — in embedded mode for single-ticker and in standalone mode for each ticker in multi-ticker comparison.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
@@ -543,8 +598,12 @@
                         <tr><td><code>momentum</code></td><td><code>number</code></td><td><span class="tag tag-optional">Optional</span> 10-day price momentum.</td></tr>
                         <tr><td><code>technicalScore</code></td><td><code>number</code></td><td><span class="tag tag-optional">Optional</span> Pre-calculated technical score.</td></tr>
                         <tr><td><code>recommendationKey</code></td><td><code>string | null</code></td><td>Analyst recommendation key (e.g., 'buy').</td></tr>
-                        <tr><td><code>newsArticles</code></td><td><code>object[]</code></td><td><span class="tag tag-optional">Optional</span> Array of news articles.</td></tr>
-                        <tr><td><code>historicalEarnings</code></td><td><code>object[]</code></td><td><span class="tag tag-optional">Optional</span> Array of historical earnings data.</td></tr>
+                        <tr><td><code>newsArticles</code></td><td><code>object[]</code></td><td><span class="tag tag-optional">Optional</span> Array of news articles for sentiment scoring.</td></tr>
+                        <tr><td><code>historicalEarnings</code></td><td><code>object[]</code></td><td><span class="tag tag-optional">Optional</span> Array of historical earnings data (fallback if not returned by <code>/data</code> endpoint).</td></tr>
+                        <tr><td><code>titleLevel</code></td><td><code>'h1'–'h6'</code></td><td><span class="tag tag-optional">Optional</span> Heading level for the section title (default: <code>h2</code>).</td></tr>
+                        <tr><td><code>embedded</code></td><td><code>boolean</code></td><td><span class="tag tag-optional">Optional</span> When <code>true</code>, hides the card wrapper, title, description, and standalone generate button. Renders only results/errors with a top border separator. Default: <code>false</code>.</td></tr>
+                        <tr><td><code>triggerRef</code></td><td><code>React.MutableRefObject&lt;() => void&gt;</code></td><td><span class="tag tag-optional">Optional</span> When provided, the component writes its <code>generate()</code> function into this ref on every render, allowing a parent (such as <code>StockSignalPanel</code>'s CTA) to invoke prediction generation externally.</td></tr>
+                        <tr><td><code>onLoadingChange</code></td><td><code>(loading: boolean) => void</code></td><td><span class="tag tag-optional">Optional</span> Fires whenever the internal loading state changes. Used by <code>Stock</code> to mirror loading state into <code>predictionLoading</code>, which drives the CTA button state in <code>StockSignalPanel</code>.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -834,6 +893,25 @@
         <section id="modals">
             <h2>Modals</h2>
 
+            <div id="GpsBreakdownModal" class="component-card">
+                <div class="component-title">
+                    GpsBreakdownModal
+                    <span class="file-path">src/app/components/modals/GpsBreakdownModal.tsx</span>
+                </div>
+                <p>A full-screen overlay that displays a detailed breakdown of a stock's GPS score. Shows all six component scores (Analyst Upside, Revenue Growth, Earnings Growth, 52-Week Price, MLP Alpha, AI Confidence) in a monospaced table, plus a color-coded "Final Outlook" footer. Clicking outside the modal or the close button dismisses it.</p>
+                <p><strong>Example usage:</strong> Opened by <code>StockSignalPanel</code> when the user clicks "View breakdown" and a GPS breakdown object is available.</p>
+                <table class="prop-table">
+                    <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>isOpen</code></td><td><code>boolean</code></td><td>Controls modal visibility. Returns null when false.</td></tr>
+                        <tr><td><code>onClose</code></td><td><code>() => void</code></td><td>Callback to close the modal (called on backdrop click or X button).</td></tr>
+                        <tr><td><code>symbol</code></td><td><code>string</code></td><td>Ticker symbol displayed in the modal header.</td></tr>
+                        <tr><td><code>score</code></td><td><code>number | null</code></td><td>Overall GPS score (0–100).</td></tr>
+                        <tr><td><code>breakdown</code></td><td><code>object | null</code></td><td>Named component scores. If null, shows score-only fallback.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
             <div id="BuyMoreModal" class="component-card">
                 <div class="component-title">
                     BuyMoreModal
@@ -884,28 +962,7 @@
         </section>
 
         <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem; text-align: center;">
-            MoneyGoUp Component Registry &copy; 2026
-        </footer>
-    </main>
-    </div>
-</body>
-</html>
-dals/PurchaseFromWatchlistModal.tsx</span>
-                </div>
-                <p>Form for making an initial purchase of a stock currently on the user's watchlist.</p>
-                <p><strong>Example usage:</strong> Used by <code>WatchlistSection</code> when a user buys a stock directly from the watchlist.</p>
-                <table class="prop-table">
-                    <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
-                    <tbody>
-                        <tr><td><code>stock</code></td><td><code>WatchlistItem</code></td><td>Details of the stock to purchase.</td></tr>
-                        <tr><td><code>onClose</code></td><td><code>() => void</code></td><td>Callback to close the modal.</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
-
-        <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem; text-align: center;">
-            MoneyGoUp Component Registry &copy; 2026
+            MoneyGoUp Component Registry &copy; 2026 &mdash; Last updated: May 12, 2026
         </footer>
     </main>
     </div>

@@ -178,8 +178,13 @@
         <section id="step1">
             <h2><span>1</span> User Interaction</h2>
             <div class="step-card">
-                <div class="component-tag">Frontend Component: StockPrediction.tsx</div>
-                <p>Begins when a user clicks <strong>"Generate AI Prediction"</strong>. Requires 45 trading days of sequence context. Supports 15m server-side caching.</p>
+                <div class="component-tag">Frontend Components: StockSignalPanel.tsx + StockPrediction.tsx</div>
+                <p>In the single-ticker view (<code>/search/[ticker]</code>), the prediction workflow is initiated through one of two paths:</p>
+                <ul>
+                    <li><strong>CTA button</strong> — the user clicks "Show prediction details" in <code>StockSignalPanel</code>. This calls <code>onGeneratePrediction</code>, which invokes <code>predictionTriggerRef.current()</code> in <code>Stock</code>, which in turn calls <code>StockPrediction</code>'s internal <code>generate()</code> via the <code>triggerRef</code> prop.</li>
+                    <li><strong>Multi-ticker view</strong> — in the comparison layout, each <code>StockPrediction</code> is standalone and shows its own "Generate Prediction" button.</li>
+                </ul>
+                <p>Requires 45 trading days of sequence context. Supports 15m server-side caching.</p>
             </div>
         </section>
 

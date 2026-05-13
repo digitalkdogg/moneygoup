@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { formatNumber, formatCurrency } from '@/utils/formatters'
 
 // ---------------------------------------------------------------------------
@@ -34,6 +34,9 @@ interface StockPredictionProps {
     epsEstimate: number | null
   }>
   titleLevel?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
+  triggerRef?: React.MutableRefObject<() => void>
+  onLoadingChange?: (loading: boolean) => void
+  embedded?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -307,6 +310,9 @@ export default function StockPrediction({
   newsArticles,
   historicalEarnings,
   titleLevel = 'h2',
+  triggerRef,
+  onLoadingChange,
+  embedded = false,
 }: StockPredictionProps) {
   const [step, setStep]               = useState<'idle' | 'fetching' | 'predicting' | 'done'>('idle')
   const [prediction, setPrediction]   = useState<PredictionResult | null>(null)
@@ -391,6 +397,15 @@ export default function StockPrediction({
     }
   }
 
+  // Expose generate to StockSignalPanel via ref; keep ref current on every render
+  const generateRef = useRef(generate)
+  generateRef.current = generate
+  if (triggerRef) triggerRef.current = () => generateRef.current()
+
+  useEffect(() => {
+    onLoadingChange?.(loading)
+  }, [loading]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const btnLabel =
     step === 'fetching'   ? 'Fetching 5-year data...' :
     step === 'predicting' ? 'Running MLP model...' :
@@ -400,12 +415,16 @@ export default function StockPrediction({
   const dq = dataQuality
   const showDqWarnings = dq && (dq.historyYears < 4.9 || !dq.fundamentalsComplete || !dq.analystDataAvailable)
 
-  return (
-    <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
-      <TitleTag className="text-2xl font-semibold text-gray-800 mb-4">📊 AI-Powered Price Prediction</TitleTag>
-      <p className="text-gray-600 mb-4">
-        Click the button to generate 1-day, 1-month, 6-month and 12-month price predictions for {ticker} using an MLP neural network.
-      </p>
+  const content = (
+    <>
+      {!embedded && (
+        <>
+          <TitleTag className="text-2xl font-semibold text-gray-800 mb-4">📊 AI-Powered Price Prediction</TitleTag>
+          <p className="text-gray-600 mb-4">
+            Click the button to generate 1-day, 1-month, 6-month and 12-month price predictions for {ticker} using an MLP neural network.
+          </p>
+        </>
+      )}
 
       {/* Data quality warnings (shown after Step 1 completes) */}
       {showDqWarnings && (
@@ -422,16 +441,18 @@ export default function StockPrediction({
         </div>
       )}
 
-      <button
-        onClick={generate}
-        disabled={loading || cooldown > 0}
-        style={!(loading || cooldown > 0) ? { backgroundColor: '#017e3b' } : {}}
-        className={`text-white font-semibold py-2 px-5 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-wait ${
-          loading || cooldown > 0 ? 'bg-gray-400' : 'hover:opacity-90'
-        }`}
-      >
-        {btnLabel}
-      </button>
+      {!embedded && (
+        <button
+          onClick={generate}
+          disabled={loading || cooldown > 0}
+          style={!(loading || cooldown > 0) ? { backgroundColor: '#017e3b' } : {}}
+          className={`text-white font-semibold py-2 px-5 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-wait ${
+            loading || cooldown > 0 ? 'bg-gray-400' : 'hover:opacity-90'
+          }`}
+        >
+          {btnLabel}
+        </button>
+      )}
 
       {error && <p className="text-red-500 mt-4 text-sm">{error}</p>}
 
@@ -737,6 +758,21 @@ export default function StockPrediction({
           )}
         </div>
       )}
+    </>
+  )
+
+  if (embedded) {
+    const hasContent = !!(error || showDqWarnings || prediction)
+    return (
+      <div className={hasContent ? 'mt-6 pt-6 border-t border-gray-100' : ''}>
+        {content}
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
+      {content}
     </div>
   )
 }

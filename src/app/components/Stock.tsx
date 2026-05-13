@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { TechnicalIndicators } from '@/utils/technicalIndicators'
 import { getVolatilityRating } from '@/utils/volatility'
@@ -10,6 +10,7 @@ import StockChart from './StockChart'
 import StockNews from './StockNews'
 import { createLogger } from '@/utils/logger'
 import StockPrediction from './StockPrediction'
+import StockSignalPanel, { GpsData } from './StockSignalPanel'
 import { formatNumber, formatCurrency } from '@/utils/formatters' // Added import
 
 const logger = createLogger('components/Stock')
@@ -113,6 +114,12 @@ export default function Stock({
   const [earningsData, setEarningsData] = useState<EarningsData | null>(null);
   const [showFullSummary, setShowFullSummary] = useState(false); // State for showing full summary
   const TRUNCATE_LENGTH = 300; // Define truncation length
+
+  const [gpsData, setGpsData] = useState<GpsData | null>(null)
+  const [gpsLoading, setGpsLoading] = useState(false)
+  const [predictionLoading, setPredictionLoading] = useState(false)
+  const predictionTriggerRef = useRef<() => void>(() => {})
+  const onPredictionLoadingChange = useCallback((v: boolean) => setPredictionLoading(v), [])
 
   const router = useRouter()
 
@@ -320,6 +327,17 @@ export default function Stock({
   useEffect(() => {
     if (ticker) fetchStockData(ticker)
   }, [ticker])
+
+  useEffect(() => {
+    if (!isSingleTicker) return
+    setGpsData(null)
+    setGpsLoading(true)
+    fetch(`/api/stock_data/${primaryTicker}/gps`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setGpsData(d))
+      .catch(() => setGpsData(null))
+      .finally(() => setGpsLoading(false))
+  }, [primaryTicker, isSingleTicker])
 
   const handleWatchlistToggle = async (tickerToToggle: string) => {
     // Store previous state for rollback
@@ -615,22 +633,35 @@ export default function Stock({
           </div>
         )}
 
-        <StockPrediction
-          ticker={primaryTicker}
-          currentPrice={currentPrice}
-          peRatio={stockData?.peRatio}
-          pbRatio={stockData?.pbRatio}
-          marketCap={stockData?.marketCap}
-          sma20={indicators?.sma20 ?? undefined}
-          sma50={indicators?.sma50 ?? undefined}
-          rsi={indicators?.rsi14 ?? undefined}
-          momentum={indicators?.momentum ?? undefined}
-          technicalScore={indicators?.scoreBreakdown?.totalScore}
-          recommendationKey={data.analyst?.recommendationKey ?? null}
-          newsArticles={news}
-          historicalEarnings={earningsData?.historicalEarnings || []}
-          titleLevel="h2"
-        />
+        <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
+          <StockSignalPanel
+            ticker={primaryTicker}
+            gpsData={gpsData}
+            gpsLoading={gpsLoading}
+            onGeneratePrediction={() => predictionTriggerRef.current()}
+            predictionLoading={predictionLoading}
+          />
+
+          <StockPrediction
+            ticker={primaryTicker}
+            currentPrice={currentPrice}
+            peRatio={stockData?.peRatio}
+            pbRatio={stockData?.pbRatio}
+            marketCap={stockData?.marketCap}
+            sma20={indicators?.sma20 ?? undefined}
+            sma50={indicators?.sma50 ?? undefined}
+            rsi={indicators?.rsi14 ?? undefined}
+            momentum={indicators?.momentum ?? undefined}
+            technicalScore={indicators?.scoreBreakdown?.totalScore}
+            recommendationKey={data.analyst?.recommendationKey ?? null}
+            newsArticles={news}
+            historicalEarnings={earningsData?.historicalEarnings || []}
+            titleLevel="h2"
+            triggerRef={predictionTriggerRef}
+            onLoadingChange={onPredictionLoadingChange}
+            embedded
+          />
+        </div>
 
         {/* Analyst Sentiment & Price Targets */}
         {data.analyst && (
