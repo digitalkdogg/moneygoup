@@ -42,6 +42,10 @@ h1, h2, h3, h4, h5, h6 {
   font-weight: 500;
 }
 
+.font-bold, strong, b {
+  font-weight: 500 !important;
+}
+
 @theme {
   --color-green-600: #005a00;
   --color-green-700: #017e3b;
@@ -53,7 +57,9 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 button {
-	cursor:pointer;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 12px;
 }
 
 /* ── Typography ─────────────────────────────────────────── */

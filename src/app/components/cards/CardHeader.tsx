@@ -20,7 +20,7 @@ export const CardHeader: React.FC<CardHeaderProps> = ({ symbol, companyName, cha
     return (
       <div className="flex items-start justify-between px-5 py-3 border-b border-gray-200">
         <div>
-          <div className="text-2xl font-bold text-gray-900 leading-tight">
+          <div className="text-2xl font-medium text-gray-900 leading-tight">
             {symbol}
           </div>
           <div className="text-xs text-gray-500 font-medium mt-1 truncate max-w-[140px]">
@@ -51,7 +51,7 @@ export const CardHeader: React.FC<CardHeaderProps> = ({ symbol, companyName, cha
   return (
     <div className="flex items-start justify-between px-5 py-5">
       <div>
-        <div className="text-2xl font-bold text-gray-900 leading-none">
+        <div className="text-2xl font-medium text-gray-900 leading-none">
           {symbol}
         </div>
         <div className="text-xs text-gray-400 font-medium mt-1 truncate max-w-[140px]">

@@ -145,7 +145,7 @@ export default function StockChart({ ticker, historicalData, titleLevel = 'h2' }
                         borderRadius: '0.5rem',
                         boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                     }}
-                    labelStyle={{ fontWeight: 'bold', color: '#374151' }}
+                    labelStyle={{ fontWeight: 500, color: '#374151' }}
                     formatter={(value: number | undefined) => [typeof value === 'number' ? `$${value.toFixed(2)}` : 'N/A', 'Price']}
                     labelFormatter={(label) => {
                         if (typeof label === 'string') {
