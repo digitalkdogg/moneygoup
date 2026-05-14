@@ -115,10 +115,10 @@ export const authOptions: NextAuthOptions = {
   },
   cookies: {
     sessionToken: {
-      name: 'next-auth.session-token',
+      name: `${process.env.NEXTAUTH_URL?.startsWith('https://') ? '__Secure-' : ''}next-auth.session-token`,
       options: {
         httpOnly: true,
-        secure: true,
+        secure: process.env.NEXTAUTH_URL?.startsWith('https://') || false,
         sameSite: 'lax',
         path: '/',
         maxAge: 30 * 24 * 60 * 60,

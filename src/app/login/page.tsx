@@ -44,8 +44,9 @@ function LoginForm() {
           setError('Invalid username or password');
         }
       } else {
-        router.push('/');
-        router.refresh();
+        // Use a hard redirect to ensure the session is properly picked up
+        // and avoid race conditions with client-side session state
+        window.location.href = '/dashboard';
       }
     } catch (err) {
       setError('An error occurred. Please try again.');
