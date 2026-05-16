@@ -21,8 +21,8 @@ DB_USER     = os.getenv('DB_USER')
 DB_PASSWORD = os.getenv('DB_PASSWORD')
 DB_DATABASE = os.getenv('DB_DATABASE')
  
-INTERNAL_SECRET = os.getenv('DEEPMONEY_INTERNAL_SECRET')
-NEXTAUTH_URL    = os.getenv('NEXTAUTH_URL', 'http://localhost:3001')
+INTERNAL_SECRET  = os.getenv('DEEPMONEY_INTERNAL_SECRET')
+INTERNAL_API_URL = 'http://localhost:3001'
  
 # ---------------------------------------------------------------------------
 # Build the auth header the same way deepmoney_sync.py does, including the
@@ -117,7 +117,7 @@ def fetch_active_portfolio_rows(cursor) -> list[dict]:
 # payload that the prediction engine requires (≥365 rows of history).
 # ---------------------------------------------------------------------------
 def fetch_stock_data(ticker: str) -> dict | None:
-    url = f"{NEXTAUTH_URL}/api/stock_data/{ticker}/data"
+    url = f"{INTERNAL_API_URL}/api/stock_data/{ticker}/data"
     print(f"  [data] Fetching enriched data for {ticker}...")
     try:
         response = get_with_auth(url)
@@ -135,7 +135,7 @@ def fetch_stock_data(ticker: str) -> dict | None:
 # It returns JSON that includes predicted_price_1m (and other horizons).
 # ---------------------------------------------------------------------------
 def run_prediction(ticker: str, stock_data: dict) -> dict | None:
-    url = f"{NEXTAUTH_URL}/api/prediction/{ticker}?outlook=1_month"
+    url = f"{INTERNAL_API_URL}/api/prediction/{ticker}?outlook=1_month"
     print(f"  [pred] Running prediction model for {ticker}...")
     try:
         response = post_with_auth(url, stock_data)
@@ -159,7 +159,7 @@ def run_prediction(ticker: str, stock_data: dict) -> dict | None:
 # need to pass ticker, predicted_price_1m, and user_id (for internal calls).
 # ---------------------------------------------------------------------------
 def save_prediction(ticker: str, predicted_price: float, user_id: int, gps_score: float = None, gps_breakdown: dict = None) -> bool:
-    url = f"{NEXTAUTH_URL}/api/prediction/save"
+    url = f"{INTERNAL_API_URL}/api/prediction/save"
     payload = {
         'ticker':              ticker,
         'predicted_price_1m':  predicted_price,

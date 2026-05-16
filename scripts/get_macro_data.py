@@ -18,8 +18,9 @@ DB_HOST     = os.getenv('DB_HOST', 'localhost')
 DB_USER     = os.getenv('DB_USER')
 DB_PASSWORD = os.getenv('DB_PASSWORD')
 DB_DATABASE = os.getenv('DB_DATABASE')
-INTERNAL_SECRET = os.getenv('DEEPMONEY_INTERNAL_SECRET')
-NEXTAUTH_URL = os.getenv('NEXTAUTH_URL', 'http://localhost:3001')
+INTERNAL_SECRET  = os.getenv('DEEPMONEY_INTERNAL_SECRET')
+NEXTAUTH_URL     = os.getenv('NEXTAUTH_URL', 'http://localhost:3001')
+INTERNAL_API_URL = 'http://localhost:3001'
 
 def get_db_connection():
     return mysql.connector.connect(
@@ -129,7 +130,7 @@ def update_macro_snapshot(cursor):
     Calls the local API to get processed signals and saves them to macro_context_snapshots.
     """
     print(f"  [snapshot] Calling internal API to update processed snapshot...")
-    url = f"{NEXTAUTH_URL}/api/worldbank?refresh=true"
+    url = f"{INTERNAL_API_URL}/api/worldbank?refresh=true"
     headers = {'x-api-key': INTERNAL_SECRET}
     
     try:

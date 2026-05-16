@@ -21,8 +21,11 @@ DB_PASSWORD = os.getenv('DB_PASSWORD')
 DB_DATABASE = os.getenv('DB_DATABASE')
 INTERNAL_SECRET = os.getenv('DEEPMONEY_INTERNAL_SECRET')
 NEXTAUTH_URL = os.getenv('NEXTAUTH_URL', 'http://localhost:3001')
-API_URL = f"{NEXTAUTH_URL}/api/prediction/deepmoney?refresh=true"
-WB_API_URL = f"{NEXTAUTH_URL}/api/worldbank"
+# Scripts always run on the same machine as Next.js, so call localhost directly
+# to bypass nginx and its 60s proxy timeout. The deepmoney route can take 2+ min.
+INTERNAL_API_URL = 'http://localhost:3001'
+API_URL = f"{INTERNAL_API_URL}/api/prediction/deepmoney?refresh=true"
+WB_API_URL = f"{INTERNAL_API_URL}/api/worldbank"
 
 # Global cache for market indices
 _indices_cache = None
@@ -33,7 +36,7 @@ def get_market_indices(headers: dict) -> dict | None:
     if _indices_cache is not None:
         return _indices_cache
     
-    url = f"{NEXTAUTH_URL}/api/market/indices"
+    url = f"{INTERNAL_API_URL}/api/market/indices"
     print(f"  [indices] Fetching major indices from {url}...")
     try:
         response = requests.get(url, headers=headers)
