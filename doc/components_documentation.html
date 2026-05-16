@@ -179,6 +179,8 @@
             <a href="#RecommendationsSection" class="nav-link">Recommendations Section</a>
             <a href="#Stock" class="nav-link">Stock View</a>
             <a href="#AdminUsersPage" class="nav-link">Admin User Management</a>
+            <a href="#ForgotPasswordPage" class="nav-link">Forgot Password</a>
+            <a href="#ResetPasswordPage" class="nav-link">Reset Password</a>
             
             <span class="nav-header">Dashboard Widgets</span>
             <a href="#MarketOverviewCard" class="nav-link">Market Overview</a>
@@ -292,6 +294,33 @@
                         <tr><td><code>gpsLoading</code></td><td><code>boolean</code></td><td>True while the GPS fetch is in flight.</td></tr>
                         <tr><td><code>predictionLoading</code></td><td><code>boolean</code></td><td>Mirrors <code>StockPrediction</code>'s loading state via <code>onLoadingChange</code> callback; drives the CTA button's disabled state in <code>StockSignalPanel</code>.</td></tr>
                         <tr><td><code>predictionTriggerRef</code></td><td><code>MutableRefObject&lt;() => void&gt;</code></td><td>Passed to <code>StockPrediction</code> as <code>triggerRef</code>; called by the panel's "Show prediction details" button to invoke the generate flow without prop drilling.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="ForgotPasswordPage" class="component-card">
+                <div class="component-title">
+                    Forgot Password Page
+                    <span class="file-path">src/app/forgot-password/page.tsx</span>
+                </div>
+                <p>Standalone page at <code>/forgot-password</code> that allows users to request a password reset email. Renders a single email input form. On submission, calls <code>POST /api/auth/forgot-password</code> and always displays the same success message regardless of whether the email exists, preventing user enumeration. Includes a link back to the login page.</p>
+                <table class="prop-table">
+                    <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
+                    <tbody>
+                        <tr><td>None</td><td>-</td><td>Client component. Manages local form state (email, submitting, submitted).</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="ResetPasswordPage" class="component-card">
+                <div class="component-title">
+                    Reset Password Page
+                    <span class="file-path">src/app/reset-password/page.tsx</span>
+                </div>
+                <p>Standalone page at <code>/reset-password?token=&lt;token&gt;</code> that completes the password reset flow. On mount, reads the <code>token</code> query parameter and calls <code>GET /api/auth/reset-password?token=</code> to validate it. If valid, renders a new-password form; if invalid or expired, renders an error message with a link back to <code>/forgot-password</code>. On form submission, calls <code>POST /api/auth/reset-password</code> with the token and new password.</p>
+                <table class="prop-table">
+                    <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
+                    <tbody>
+                        <tr><td>None</td><td>-</td><td>Client component. Reads <code>token</code> from URL search params via <code>useSearchParams</code>. Manages local state for token validity, password input, submitting, and success/error messages.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -879,12 +908,26 @@
                     CardActions
                     <span class="file-path">src/app/components/cards/CardActions.tsx</span>
                 </div>
-                <p>The bottom action area for cards, containing context-specific buttons.</p>
+                <p>The bottom action area for cards, containing context-specific buttons. Also exports the internal <code>ActionButton</code> component used to render individual card action buttons.</p>
                 <p><strong>Example usage:</strong> Used internally across card variants to align and style action button rows consistently.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
                         <tr><td><code>children</code></td><td><code>ReactNode</code></td><td>The action buttons to render.</td></tr>
+                        <tr><td><code>compact</code></td><td><code>boolean</code></td><td><span class="tag tag-optional">Optional</span> When true, uses <code>p-3</code> padding instead of <code>p-5</code>.</td></tr>
+                    </tbody>
+                </table>
+                <h3 style="font-size:0.9rem; margin-top:1rem; background:none; padding:0; color:#334155;">ActionButton (internal export)</h3>
+                <p>Renders a single button within a <code>CardActions</code> row. Always applies the CSS class <code>sm</code> to its <code>&lt;button&gt;</code> element, which activates the <code>button.sm</code> global rule (<code>font-size: 12px; font-weight: 500</code>) from <code>globals.css</code>.</p>
+                <table class="prop-table">
+                    <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>label</code></td><td><code>string</code></td><td>Button text.</td></tr>
+                        <tr><td><code>onClick</code></td><td><code>(e: React.MouseEvent) => void</code></td><td>Click handler.</td></tr>
+                        <tr><td><code>variant</code></td><td><code>'primary' | 'secondary' | 'danger' | 'neutral'</code></td><td><span class="tag tag-optional">Optional</span> Controls background/text color. Default: <code>'neutral'</code>.</td></tr>
+                        <tr><td><code>size</code></td><td><code>'sm' | 'md'</code></td><td><span class="tag tag-optional">Optional</span> Controls padding (<code>sm</code>: <code>py-1.5 px-2</code>, <code>md</code>: <code>py-2.5 px-3</code>). Default: <code>'md'</code>. Note: this prop controls <em>padding only</em> — font size/weight always come from the global <code>button.sm</code> CSS rule.</td></tr>
+                        <tr><td><code>outline</code></td><td><code>boolean</code></td><td><span class="tag tag-optional">Optional</span> When true, renders an outlined/ghost style instead of filled.</td></tr>
+                        <tr><td><code>ariaLabel</code></td><td><code>string</code></td><td><span class="tag tag-optional">Optional</span> Accessible label for the button.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -962,7 +1005,7 @@
         </section>
 
         <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem; text-align: center;">
-            MoneyGoUp Component Registry &copy; 2026 &mdash; Last updated: May 12, 2026
+            MoneyGoUp Component Registry &copy; 2026 &mdash; Last updated: May 16, 2026
         </footer>
     </main>
     </div>

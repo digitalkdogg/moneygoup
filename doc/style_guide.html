@@ -122,6 +122,7 @@
         .card { background: white; border-radius: 1rem; padding: 1.5rem; border: 1px solid #f1f5f9; shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
         
         code { padding: 0.2rem 0.4rem; border-radius: 4px; font-family: ui-monospace, monospace; font-size: 0.9rem; background: #f1f5f9; color: #475569; }
+        .highlight-box { padding: 1rem; margin: 1rem 0; border-left: 4px solid; border-radius: 0 4px 4px 0; }
 
         @media (max-width: 768px) {
             aside { display: none; }
@@ -152,6 +153,7 @@
             
             <span class="nav-header">Components</span>
             <a href="#buttons" class="nav-link">Buttons & Bubbles</a>
+            <a href="#button-typography" class="nav-link">Button Typography</a>
             <a href="#cards" class="nav-link">Cards & Layout</a>
             <a href="#badges" class="nav-link">Badges & Indicators</a>
             
@@ -267,6 +269,88 @@
                 <p>Used for status indicators and metadata in headers. Bubbles use <code>rounded-full</code> (9999px) and a subtle shadow.</p>
                 <div class="type-sample">
                     <code>bg-white border border-gray-200 rounded-full px-4 py-1.5 text-sm font-semibold text-gray-700 shadow-sm</code>
+                </div>
+            </div>
+        </section>
+
+        <section id="button-typography">
+            <h2>Button Typography</h2>
+            <p>All button font sizes and weights are controlled by a 3-tier global CSS system defined in <code>src/app/globals.css</code>. Explicit Tailwind font-size/font-weight classes are not used on buttons — the global rules are the single source of truth.</p>
+
+            <h3>Tier 1 — Base (<code>button</code>)</h3>
+            <div class="component-section">
+                <div class="demo-box">
+                    <button style="background: #017e3b; color: white; padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer; font-size: 14px; font-weight: normal;">Base Button (14px)</button>
+                </div>
+                <p>Applied to every <code>&lt;button&gt;</code> element by default. Sets the baseline appearance for all buttons across the app.</p>
+                <div class="type-sample">
+                    <code>button { font-size: 14px; font-weight: normal; cursor: pointer; }</code>
+                </div>
+                <p><strong>Used for:</strong> General-purpose action buttons that do not carry a size class.</p>
+            </div>
+
+            <h3>Tier 2 — Small (<code>button.sm</code>)</h3>
+            <div class="component-section">
+                <div class="demo-box">
+                    <button style="background: #017e3b; color: white; padding: 0.375rem 0.5rem; border-radius: 0.5rem; border: none; cursor: pointer; font-size: 12px; font-weight: 500;">Buy (12px / 500)</button>
+                    <button style="background: white; border: 1px solid #b91c1c; color: #b91c1c; padding: 0.375rem 0.5rem; border-radius: 0.5rem; cursor: pointer; font-size: 12px; font-weight: 500; margin-left: 8px;">Sell (12px / 500)</button>
+                </div>
+                <p>Applied to card action buttons by adding the <code>sm</code> class. Renders slightly smaller text with medium weight for compact card layouts.</p>
+                <div class="type-sample">
+                    <code>button.sm { font-size: 12px; font-weight: 500; }</code>
+                </div>
+                <p><strong>Used for:</strong> Portfolio card and Watchlist card action buttons. <code>ActionButton</code> in <code>CardActions.tsx</code> always adds the <code>sm</code> class (<code>className="... sm ..."</code>), so all card action buttons automatically receive this tier.</p>
+            </div>
+
+            <h3>Tier 3 — Extra Small (<code>button.xs</code>)</h3>
+            <div class="component-section">
+                <div class="demo-box">
+                    <button style="background: #f1f5f9; color: #374151; padding: 0.2rem 0.5rem; border-radius: 0.375rem; border: 1px solid #e2e8f0; cursor: pointer; font-size: 11px; font-weight: normal;">1W</button>
+                    <button style="background: #f1f5f9; color: #374151; padding: 0.2rem 0.5rem; border-radius: 0.375rem; border: 1px solid #e2e8f0; cursor: pointer; font-size: 11px; font-weight: normal; margin-left: 4px;">1M</button>
+                    <button style="background: #f1f5f9; color: #374151; padding: 0.2rem 0.5rem; border-radius: 0.375rem; border: 1px solid #e2e8f0; cursor: pointer; font-size: 11px; font-weight: normal; margin-left: 4px;">6M</button>
+                    <button style="background: #f1f5f9; color: #374151; padding: 0.2rem 0.5rem; border-radius: 0.375rem; border: 1px solid #e2e8f0; cursor: pointer; font-size: 11px; font-weight: normal; margin-left: 4px;">1Y</button>
+                </div>
+                <p>Applied to compact period-selector buttons by adding the <code>xs</code> class. Used where minimum footprint is required, such as inline chart controls.</p>
+                <div class="type-sample">
+                    <code>button.xs { font-size: 11px; font-weight: normal; }</code>
+                </div>
+                <p><strong>Used for:</strong> Chart period buttons (1W / 1M / 6M / 1Y) in <code>StockChart.tsx</code> and <code>PortfolioHistoryChart.tsx</code>.</p>
+            </div>
+
+            <h3>Summary Table</h3>
+            <div class="component-section">
+                <table style="width:100%; border-collapse: collapse; font-size: 0.9rem;">
+                    <thead>
+                        <tr style="background: #f8fafc;">
+                            <th style="text-align:left; padding: 0.75rem; border-bottom: 2px solid #e2e8f0; color: #64748b; font-size: 0.75rem; text-transform: uppercase;">CSS Class</th>
+                            <th style="text-align:left; padding: 0.75rem; border-bottom: 2px solid #e2e8f0; color: #64748b; font-size: 0.75rem; text-transform: uppercase;">font-size</th>
+                            <th style="text-align:left; padding: 0.75rem; border-bottom: 2px solid #e2e8f0; color: #64748b; font-size: 0.75rem; text-transform: uppercase;">font-weight</th>
+                            <th style="text-align:left; padding: 0.75rem; border-bottom: 2px solid #e2e8f0; color: #64748b; font-size: 0.75rem; text-transform: uppercase;">Where Applied</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;"><code>button</code></td>
+                            <td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">14px</td>
+                            <td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">normal</td>
+                            <td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">All buttons (base default)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;"><code>button.sm</code></td>
+                            <td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">12px</td>
+                            <td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">500</td>
+                            <td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">Portfolio &amp; Watchlist card action buttons (<code>ActionButton</code> in <code>CardActions.tsx</code>)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem;"><code>button.xs</code></td>
+                            <td style="padding: 0.75rem;">11px</td>
+                            <td style="padding: 0.75rem;">normal</td>
+                            <td style="padding: 0.75rem;">Chart period selectors (1W/1M/6M/1Y) in <code>StockChart.tsx</code> and <code>PortfolioHistoryChart.tsx</code></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="highlight-box" style="background: #eff6ff; border-left-color: #2563eb; margin-top: 1rem;">
+                    <strong>Important:</strong> Do not add Tailwind <code>text-*</code> or <code>font-*</code> classes directly to <code>&lt;button&gt;</code> elements. The global CSS rules take precedence as the single source of truth for button typography.
                 </div>
             </div>
         </section>

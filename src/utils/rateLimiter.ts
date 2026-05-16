@@ -100,3 +100,9 @@ export const historicalLimiter = new RateLimiter({ limit: 10, windowMs: 60 * 100
 
 /** 2 heavy analysis requests per hour per user/IP */
 export const deepmoneyLimiter = new RateLimiter({ limit: 2, windowMs: 60 * 60 * 1000 });
+
+/** 3 forgot-password requests per IP per 15 minutes */
+export const forgotPasswordLimiter = new RateLimiter({ limit: 3, windowMs: 15 * 60 * 1000 });
+
+/** 5 reset-password attempts per IP per 15 minutes */
+export const resetPasswordLimiter = new RateLimiter({ limit: 5, windowMs: 15 * 60 * 1000 });

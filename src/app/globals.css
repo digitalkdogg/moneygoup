@@ -58,8 +58,18 @@ h1, h2, h3, h4, h5, h6 {
 
 button {
   cursor: pointer;
+  font-weight: normal;
+  font-size: 14px;
+}
+
+button.sm {
   font-weight: 500;
-  font-size: 12px;
+  font-size:12px;
+}
+
+button.xs {
+  font-weight: normal;
+  font-size: 11px;
 }
 
 /* ── Typography ─────────────────────────────────────────── */

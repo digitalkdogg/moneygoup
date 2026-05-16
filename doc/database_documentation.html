@@ -176,6 +176,7 @@
             
             <span class="nav-header">Core Tables</span>
             <a href="#users" class="nav-link">users</a>
+            <a href="#password_reset_tokens" class="nav-link">password_reset_tokens</a>
             <a href="#role_limits" class="nav-link">role_limits</a>
             <a href="#stocks" class="nav-link">stocks</a>
             <a href="#user_stocks" class="nav-link">user_stocks</a>
@@ -229,6 +230,7 @@
                     <li><strong>Approval Workflow:</strong> New users are created with <code>approval_status = 'pending'</code>. Only <code>'approved'</code> users can establish a session. Administrators can <code>'reject'</code> users with a specific reason.</li>
                     <li><strong>Role-Based Limits:</strong> The system enforces quotas based on <code>role</code> (user, superuser, admin) for watchlist size, portfolio positions, and daily lookups. These are controlled by the <code>role_limits</code> configuration table.</li>
                     <li><strong>Last Login:</strong> The <code>last_login</code> field is updated asynchronously every time a user successfully authenticates.</li>
+                    <li><strong>Password Reset:</strong> Users with a registered <code>email</code> can request a reset link via <code>POST /api/auth/forgot-password</code>. Tokens are stored (hashed) in <code>password_reset_tokens</code> and expire after 1 hour. Only approved accounts can receive reset emails.</li>
                 </ul>
             </div>
         </section>
@@ -273,12 +275,13 @@
             <!-- USERS -->
             <div id="users" class="table-card">
                 <div class="table-title">users</div>
-                <p>Stores core user account data and authentication metadata.</p>
+                <p>Stores core user account data and authentication metadata. Registration requires an email address, which is used for password reset flow.</p>
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
                         <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key</td></tr>
                         <tr><td><code>username</code></td><td><code>VARCHAR(255)</code></td><td>Unique.</td></tr>
+                        <tr><td><code>email</code></td><td><code>VARCHAR(255)</code></td><td>Unique, nullable. Required at registration. Used to send password reset emails.</td></tr>
                         <tr><td><code>password_hash</code></td><td><code>VARCHAR(255)</code></td><td>Bcrypt.</td></tr>
                         <tr><td><code>role</code></td><td><code>ENUM</code></td><td>'user', 'superuser', 'admin'.</td></tr>
                         <tr><td><code>approval_status</code></td><td><code>ENUM</code></td><td>'pending', 'approved', 'rejected'.</td></tr>
@@ -288,6 +291,26 @@
                         <tr><td><code>last_login</code></td><td><code>DATETIME</code></td><td>Updated on login.</td></tr>
                     </tbody>
                 </table>
+            </div>
+
+            <!-- PASSWORD_RESET_TOKENS -->
+            <div id="password_reset_tokens" class="table-card">
+                <div class="table-title">password_reset_tokens</div>
+                <p>Stores single-use, time-limited tokens for the password reset flow. The raw token is sent to the user's email; only its SHA-256 hash is persisted here. Tokens expire after 1 hour.</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key.</td></tr>
+                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>FK to users.id. The account the reset applies to.</td></tr>
+                        <tr><td><code>token_hash</code></td><td><code>VARCHAR(64)</code></td><td>SHA-256 hash of the raw 32-byte hex token sent in the reset link.</td></tr>
+                        <tr><td><code>expires_at</code></td><td><code>DATETIME</code></td><td>Expiry timestamp (1 hour from creation).</td></tr>
+                        <tr><td><code>used_at</code></td><td><code>DATETIME</code></td><td>NULL until consumed; set to NOW() when the POST /reset-password succeeds. Used tokens are rejected on subsequent attempts.</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>DATETIME</code></td><td>Row creation timestamp (auto-set by DB default).</td></tr>
+                    </tbody>
+                </table>
+                <div class="highlight-box">
+                    <strong>Security note:</strong> Any existing unused tokens for a user are deleted before a new one is created, ensuring only one active reset link per user at a time.
+                </div>
             </div>
 
             <!-- ROLE_LIMITS -->

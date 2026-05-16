@@ -185,8 +185,8 @@ export default function Navigation() {
                 <div className="relative" ref={profileRef}>
                   <button
                     onClick={() => setIsProfileOpen(!isProfileOpen)}
-                    style={{ backgroundColor: '#95c779', color:'#09522b', fontSize: '18px' }}
-                    className="flex items-center justify-center h-11 w-11 rounded-full font-bold cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600"
+                    style={{ backgroundColor: '#95c779', color:'#09522b' }}
+                    className="flex items-center justify-center h-11 w-11 rounded-full cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600"
                     aria-expanded={isProfileOpen}
                     aria-haspopup="true"
                     aria-label={`User menu for ${session.user.name}`}
@@ -220,7 +220,6 @@ export default function Navigation() {
                       <button
                         onClick={() => signOut({ callbackUrl: `${process.env.NEXT_PUBLIC_NEXTAUTH_URL || ''}/login` })}
                         className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer focus:bg-gray-100 focus:outline-none"
-                        style={{ fontSize: '14px', fontWeight: 400 }}
                         role="menuitem"
                       >
                         Log Out
@@ -318,7 +317,7 @@ export default function Navigation() {
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1h3v-3H7" />
                 </svg>
-                <span style={{ fontSize: '14px', fontWeight: 400 }} className="font-medium">Log Out</span>
+                <span>Log Out</span>
               </button>
             </div>
           </div>

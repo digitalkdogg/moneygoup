@@ -51,7 +51,7 @@ const MarketOverviewCard: React.FC = () => {
     return (
       <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm h-full flex flex-col justify-center items-center">
         <p className="text-red-500 text-sm font-medium">{error}</p>
-        <button onClick={fetchData} className="mt-2 text-xs text-blue-600 hover:underline">Retry</button>
+        <button onClick={fetchData} className="mt-2 text-blue-600 hover:underline">Retry</button>
       </div>
     );
   }

@@ -55,7 +55,7 @@ const RecommendationsSection: React.FC = () => {
     return (
       <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm mb-8 flex flex-col items-center">
         <p className="text-red-500 text-sm font-medium">{error}</p>
-        <button onClick={fetchData} className="mt-2 text-xs text-blue-600 hover:underline">Retry</button>
+        <button onClick={fetchData} className="mt-2 text-blue-600 hover:underline">Retry</button>
       </div>
     );
   }

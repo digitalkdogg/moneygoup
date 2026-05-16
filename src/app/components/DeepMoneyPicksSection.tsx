@@ -109,7 +109,7 @@ export default function DeepMoneyPicksSection() {
         <button
           onClick={fetchData}
           disabled={loading}
-          className="px-4 py-2 bg-white border border-gray-200 rounded-xl shadow-sm text-sm text-green-700 hover:bg-gray-100 font-bold disabled:opacity-40 transition-all cursor-pointer"
+          className="px-4 py-2 bg-white border border-gray-200 rounded-xl shadow-sm text-green-700 hover:bg-gray-100 disabled:opacity-40 transition-all cursor-pointer"
         >
           {loading ? 'Analyzing...' : '↻ Refresh Analysis'}
         </button>

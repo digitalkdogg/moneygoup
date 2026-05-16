@@ -146,7 +146,7 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
           <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-700 mb-4 flex justify-between items-center" role="alert">
             <span>{deleteError}</span>
             <button 
-              className="ml-2 underline font-medium focus-ring rounded p-1" 
+              className="ml-2 underline focus-ring rounded p-1"
               onClick={() => setDeleteError(null)}
               aria-label="Dismiss error"
             >
@@ -188,10 +188,10 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
               Remove <strong>{pendingDeleteTicker}</strong> from your watchlist?
             </p>
             <div className="flex gap-3 justify-end">
-              <button className="px-4 py-2 text-sm rounded border cursor-pointer font-medium focus-ring" onClick={() => setPendingDeleteTicker(null)}>
+              <button className="px-4 py-2 rounded border cursor-pointer focus-ring" onClick={() => setPendingDeleteTicker(null)}>
                 Cancel
               </button>
-              <button className="px-4 py-2 text-sm rounded bg-red-600 text-white cursor-pointer font-medium hover:bg-red-700 focus-ring" onClick={handleConfirmRemove}>
+              <button className="px-4 py-2 rounded bg-red-600 text-white cursor-pointer hover:bg-red-700 focus-ring" onClick={handleConfirmRemove}>
                 Remove
               </button>
             </div>

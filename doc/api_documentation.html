@@ -225,6 +225,9 @@
             <span class="nav-header">Fundamentals & Auth</span>
             <a href="#auth-overview" class="nav-link">Auth & Security</a>
             <a href="#auth-register" class="nav-link">POST /api/auth/register</a>
+            <a href="#auth-forgot-password" class="nav-link">POST /api/auth/forgot-password</a>
+            <a href="#auth-reset-password-get" class="nav-link">GET /api/auth/reset-password</a>
+            <a href="#auth-reset-password-post" class="nav-link">POST /api/auth/reset-password</a>
             <a href="#auth-cache" class="nav-link">GET /api/auth/cache-stats</a>
 
             <span class="nav-header">User Profile & Data</span>
@@ -301,6 +304,70 @@
   "role": "user",
   "is_approved": 0
 }</code></pre>
+            </div>
+
+            <div id="auth-forgot-password" class="step-card">
+                <h3><span class="method post">POST</span> /api/auth/forgot-password</h3>
+                <div class="component-tag">Password Reset: Request</div>
+                <p>Initiates the password reset flow. If the submitted email belongs to an approved account, a reset link is emailed via Resend. The response is always identical regardless of whether the email exists, preventing user enumeration.</p>
+                <strong>Rate Limit:</strong> 3 requests per IP per 15 minutes (<code>forgotPasswordLimiter</code>).
+                <strong>Request:</strong>
+                <pre><code>{
+  "email": "john@example.com"
+}</code></pre>
+                <strong>Response (200 OK — always):</strong>
+                <pre><code>{
+  "message": "If that email address is registered, you will receive a password reset link shortly."
+}</code></pre>
+                <strong>Flow:</strong>
+                <ul class="flow">
+                    <li>Validates email format via Zod. Invalid format returns the same 200 success response.</li>
+                    <li>Looks up the email in <code>users</code>. No match or non-approved account: returns success silently.</li>
+                    <li>Deletes any existing unused tokens for the user from <code>password_reset_tokens</code>.</li>
+                    <li>Generates a 32-byte random token (hex), stores its SHA-256 hash with a 1-hour expiry.</li>
+                    <li>Sends the reset URL (<code>NEXTAUTH_URL/reset-password?token=&lt;raw_token&gt;</code>) via <code>src/lib/email.ts</code> (Resend).</li>
+                </ul>
+                <strong>Required env vars:</strong> <code>RESEND_API_KEY</code>, <code>RESEND_FROM_EMAIL</code>
+            </div>
+
+            <div id="auth-reset-password-get" class="step-card">
+                <h3><span class="method get">GET</span> /api/auth/reset-password?token=</h3>
+                <div class="component-tag">Password Reset: Validate Token</div>
+                <p>Validates a password reset token without consuming it. Called by the <code>/reset-password</code> page on load to determine whether to render the form or an error message.</p>
+                <strong>Query Parameters:</strong>
+                <table>
+                    <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+                    <tr><td>token</td><td>string (64 chars)</td><td>The raw hex token from the reset link URL.</td></tr>
+                </table>
+                <strong>Response (200 OK — token valid):</strong>
+                <pre><code>{ "valid": true }</code></pre>
+                <strong>Response (400 — token invalid/expired/used):</strong>
+                <pre><code>{ "valid": false, "message": "This reset link has expired." }</code></pre>
+                <p>Possible messages: <em>"Invalid or missing reset token."</em>, <em>"Invalid or expired reset link."</em>, <em>"This reset link has already been used."</em>, <em>"This reset link has expired."</em></p>
+            </div>
+
+            <div id="auth-reset-password-post" class="step-card">
+                <h3><span class="method post">POST</span> /api/auth/reset-password</h3>
+                <div class="component-tag">Password Reset: Consume Token</div>
+                <p>Validates and consumes the reset token, then updates the user's password. The token is marked as used and cannot be reused.</p>
+                <strong>Rate Limit:</strong> 5 requests per IP per 15 minutes (<code>resetPasswordLimiter</code>).
+                <strong>Request:</strong>
+                <pre><code>{
+  "token": "&lt;64-char hex token from URL&gt;",
+  "password": "new_secure_password"
+}</code></pre>
+                <strong>Validation:</strong> <code>token</code> must be exactly 64 characters. <code>password</code> must be 6–100 characters.
+                <strong>Response (200 OK):</strong>
+                <pre><code>{ "message": "Password updated successfully." }</code></pre>
+                <strong>Response (400):</strong>
+                <pre><code>{ "message": "This reset link has expired." }</code></pre>
+                <strong>Flow:</strong>
+                <ul class="flow">
+                    <li>Hashes the raw token (SHA-256) and looks it up in <code>password_reset_tokens</code>.</li>
+                    <li>Rejects if not found, already used (<code>used_at IS NOT NULL</code>), or expired.</li>
+                    <li>Bcrypt-hashes the new password (cost 10) and updates <code>users.password_hash</code>.</li>
+                    <li>Sets <code>password_reset_tokens.used_at = NOW()</code> to invalidate the token.</li>
+                </ul>
             </div>
 
             <div id="auth-cache" class="step-card">
@@ -1023,9 +1090,9 @@ GET /api/dashboard/deepmoney-picks?limit=10&offset=20</code></pre>
 
         <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem;">
             <strong>MoneyGoUp API Documentation</strong><br>
-            Last Updated: May 12, 2026<br>
+            Last Updated: May 16, 2026<br>
             Author: Technical Documentation Team<br>
-            Version: 3.3 (GPS endpoint + StockSignalPanel integration)<br>
+            Version: 3.4 (Password reset endpoints + email field)<br>
             Copyright &copy; 2026 MoneyGoUp. All rights reserved.
         </footer>
     </main>

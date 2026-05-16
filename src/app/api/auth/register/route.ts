@@ -14,6 +14,7 @@ const logger = createLogger('api/auth/register');
 // Define schema for input validation
 const registerSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters long').max(50, 'Username cannot exceed 50 characters'),
+  email: z.string().email('Invalid email address').max(255, 'Email cannot exceed 255 characters'),
   password: z.string().min(6, 'Password must be at least 6 characters long').max(100, 'Password cannot exceed 100 characters'),
 });
 
@@ -40,18 +41,18 @@ export async function POST(request: NextRequest) {
     if (rateLimitResponse) return rateLimitResponse;
 
     const body = await request.json();
-    const { username, password } = registerSchema.parse(body);
+    const { username, email, password } = registerSchema.parse(body);
 
-    // Check if user already exists
-    const [existingUsers] = await executeRawQuery('SELECT id FROM users WHERE username = ?', [username]);
+    // Check if username or email already exists
+    const [existingUsers] = await executeRawQuery('SELECT id FROM users WHERE username = ? OR email = ?', [username, email]);
     if (Array.isArray(existingUsers) && existingUsers.length > 0) {
-      logger.warn('Registration attempt with existing username:', { username });
-      return createErrorResponse(null, 'Username already exists', { status: 409 });
+      logger.warn('Registration attempt with existing username or email:', { username });
+      return createErrorResponse(null, 'Username or email already exists', { status: 409 });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10); // Hash password with salt rounds = 10
 
-    const [result] = await executeRawQuery('INSERT INTO users (username, password_hash, approval_status) VALUES (?, ?, ?)', [username, hashedPassword, 'pending']);
+    const [result] = await executeRawQuery('INSERT INTO users (username, email, password_hash, approval_status) VALUES (?, ?, ?, ?)', [username, email, hashedPassword, 'pending']);
 
     // Check if result is an array and if insertId exists
     const resultHeader = result as mysql.ResultSetHeader;

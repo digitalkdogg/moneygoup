@@ -39,7 +39,7 @@ describe('POST /api/auth/register', () => {
   };
 
   test('registers a new user successfully', async () => {
-    const body = { username: 'testuser', password: 'password123' };
+    const body = { username: 'testuser', email: 'testuser@example.com', password: 'password123' };
     mockRequest = createMockRequest(body);
 
     (executeRawQuery as jest.Mock)
@@ -58,7 +58,7 @@ describe('POST /api/auth/register', () => {
   });
 
   test('returns 409 if user already exists', async () => {
-    const body = { username: 'existinguser', password: 'password123' };
+    const body = { username: 'existinguser', email: 'existing@example.com', password: 'password123' };
     mockRequest = createMockRequest(body);
 
     (executeRawQuery as jest.Mock).mockResolvedValueOnce([[{ id: 1 }]]);
@@ -66,7 +66,7 @@ describe('POST /api/auth/register', () => {
     const response = await POST(mockRequest);
     expect(response.status).toBe(409);
     const data = await response.json();
-    expect(data.message).toBe('Username already exists');
+    expect(data.message).toBe('Username or email already exists');
   });
 
   test('returns 400 for invalid input (zod error)', async () => {

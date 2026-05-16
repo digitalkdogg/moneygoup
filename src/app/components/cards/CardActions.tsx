@@ -33,9 +33,9 @@ const ActionButton: React.FC<ActionButtonProps> = ({ label, onClick, variant = '
 
   const getSizeStyles = () => {
     switch (size) {
-      case 'sm': return 'py-1.5 px-2 text-[10px]'
-      case 'md': return 'py-2.5 px-3 text-xs'
-      default: return 'py-2.5 px-3 text-xs'
+      case 'sm': return 'py-1.5 px-2'
+      case 'md': return 'py-2.5 px-3'
+      default: return 'py-2.5 px-3'
     }
   }
 
@@ -43,7 +43,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({ label, onClick, variant = '
     <button
       onClick={onClick}
       aria-label={ariaLabel}
-      className={`flex-1 rounded-lg font-bold transition-colors duration-200 focus-ring ${getSizeStyles()} ${getStyles()}`}
+      className={`flex-1 rounded-lg sm transition-colors duration-200 focus-ring ${getSizeStyles()} ${getStyles()}`}
     >
       {label}
     </button>

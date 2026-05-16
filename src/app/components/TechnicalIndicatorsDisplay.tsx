@@ -288,7 +288,7 @@ const AccordionItem: React.FC<AccordionItemProps> = ({ title, children }) => {
   return (
     <div className="border-b border-gray-200">
       <button
-        className="flex justify-between items-center w-full py-3 text-left font-semibold text-gray-800 hover:text-green-600 transition duration-150 ease-in-out focus:outline-none"
+        className="flex justify-between items-center w-full py-3 text-left text-gray-800 hover:text-green-600 transition duration-150 ease-in-out focus:outline-none"
         onClick={() => setIsOpen(!isOpen)}
       >
         <span>{title}</span>

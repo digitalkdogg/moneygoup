@@ -84,7 +84,7 @@ function LoginForm() {
               required
             />
           </div>
-          <div className="mb-6">
+          <div className="mb-2">
             <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">Password</label>
             <input
               type="password"
@@ -95,6 +95,11 @@ function LoginForm() {
               required
             />
           </div>
+          <div className="mb-6 text-right">
+            <Link href="/forgot-password" className="text-sm hover:text-green-800" style={{ color: '#005a00' }}>
+              Forgot password?
+            </Link>
+          </div>
           {error && (
             <div className="bg-red-100 border-2 border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-4" role="alert">
               <span className="block sm:inline">{error}</span>
@@ -104,7 +109,7 @@ function LoginForm() {
             type="submit"
             disabled={loading}
             style={{ backgroundColor: '#017e3b' }}
-            className="w-full hover:opacity-90 text-white font-bold py-2 px-4 rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600 disabled:opacity-50 cursor-pointer"
+            className="w-full hover:opacity-90 text-white py-2 px-4 rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600 disabled:opacity-50 cursor-pointer"
           >
             {loading ? 'Logging in...' : 'Login'}
           </button>

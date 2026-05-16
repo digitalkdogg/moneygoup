@@ -115,7 +115,7 @@ export const PortfolioHistoryChart: React.FC = () => {
                         <button
                             key={option.value}
                             onClick={() => setPeriod(option.value)}
-                            className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors duration-200 cursor-pointer ${
+                            className={`px-3 py-1 rounded-md transition-colors duration-200 cursor-pointer ${
                                 period === option.value
                                     ? 'text-white shadow'
                                     : 'text-gray-600 hover:bg-gray-200'

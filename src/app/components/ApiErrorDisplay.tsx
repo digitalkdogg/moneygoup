@@ -66,7 +66,7 @@ export default function ApiErrorDisplay({
               <button
                 onClick={onRetryStock}
                 style={{ backgroundColor: '#017e3b' }}
-                className="flex-1 hover:opacity-90 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
+                className="flex-1 hover:opacity-90 text-white py-2 px-4 rounded-lg transition duration-200"
               >
                 🔄 Retry Stock Data
               </button>
@@ -75,7 +75,7 @@ export default function ApiErrorDisplay({
               <button
                 onClick={onRetryHistorical}
                 style={{ backgroundColor: '#017e3b' }}
-                className="flex-1 hover:opacity-90 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
+                className="flex-1 hover:opacity-90 text-white py-2 px-4 rounded-lg transition duration-200"
               >
                 📊 Retry Historical Data
               </button>

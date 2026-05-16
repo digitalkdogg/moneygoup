@@ -58,9 +58,8 @@ export default function SectorExplorer() {
             onClick={() => handleSectorClick(sector)}
             aria-label={`Browse ${SECTOR_DISPLAY_NAMES[sector] || sector} stocks`}
             className="p-4 bg-[#fbf9fa] border border-gray-200 rounded-2xl transition-all duration-200 hover:shadow-lg hover:-translate-y-1 text-left"
-            style={{ fontSize: '14px' }}
           >
-            <span className="font-semibold text-gray-900">
+            <span className="text-gray-900">
               {SECTOR_DISPLAY_NAMES[sector] || sector}
             </span>
             <div className="text-xs text-gray-500 mt-1">

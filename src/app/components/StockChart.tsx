@@ -93,7 +93,7 @@ export default function StockChart({ ticker, historicalData, titleLevel = 'h2' }
             <button
               key={p}
               onClick={() => handlePeriodChange(p)}
-              className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors duration-200 cursor-pointer ${
+              className={`px-3 py-1 rounded-md xs transition-colors duration-200 cursor-pointer ${
                 period === p
                   ? 'text-white shadow'
                   : 'text-gray-600 hover:bg-gray-200'

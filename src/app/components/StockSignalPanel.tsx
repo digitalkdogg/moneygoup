@@ -113,7 +113,7 @@ export default function StockSignalPanel({
             {breakdown && (
               <button
                 onClick={() => setModalOpen(true)}
-                className="text-sm font-medium hover:underline ml-1"
+                className="hover:underline ml-1"
                 style={{ color: '#017e3b' }}
               >
                 View breakdown
@@ -170,8 +170,8 @@ export default function StockSignalPanel({
         <button
           onClick={onGeneratePrediction}
           disabled={predictionLoading}
-          style={!predictionLoading ? { backgroundColor: '#017e3b', fontSize:'14px' } : {}}
-          className="inline-flex items-center gap-2 text-white font-semibold py-2.5 px-5 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-wait hover:opacity-90 text-sm"
+          style={!predictionLoading ? { backgroundColor: '#017e3b' } : {}}
+          className="inline-flex items-center gap-2 text-white py-2.5 px-5 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-wait hover:opacity-90"
         >
           {predictionLoading ? (
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animate-spin" aria-hidden="true">

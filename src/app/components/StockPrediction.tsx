@@ -446,7 +446,7 @@ export default function StockPrediction({
           onClick={generate}
           disabled={loading || cooldown > 0}
           style={!(loading || cooldown > 0) ? { backgroundColor: '#017e3b' } : {}}
-          className={`text-white font-semibold py-2 px-5 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-wait ${
+          className={`text-white py-2 px-5 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-wait ${
             loading || cooldown > 0 ? 'bg-gray-400' : 'hover:opacity-90'
           }`}
         >
@@ -467,7 +467,7 @@ export default function StockPrediction({
               </p>
               <button
                 onClick={() => setBannerDismissed(true)}
-                className="ml-3 text-yellow-600 hover:text-yellow-800 font-bold shrink-0"
+                className="ml-3 text-yellow-600 hover:text-yellow-800 shrink-0"
                 aria-label="Dismiss"
               >
                 ✕

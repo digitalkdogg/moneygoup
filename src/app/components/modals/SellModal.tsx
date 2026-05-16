@@ -247,14 +247,14 @@ export default function SellModal({ stock, onClose }: SellModalProps) {
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors font-semibold disabled:opacity-50 focus-ring"
+              className="px-6 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50 focus-ring"
               disabled={loading}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-6 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors font-semibold disabled:opacity-50 focus-ring"
+              className="px-6 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 focus-ring"
               disabled={loading}
             >
               {loading ? 'Selling...' : 'Confirm Sell'}

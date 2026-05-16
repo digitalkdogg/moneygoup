@@ -166,14 +166,14 @@ export default function BuyMoreModal({ stock, onClose }: BuyMoreModalProps) {
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors font-semibold disabled:opacity-50 focus-ring"
+              className="px-6 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50 focus-ring"
               disabled={loading}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-6 py-2 text-white rounded-lg hover:bg-green-800 transition-colors font-semibold disabled:opacity-50 focus-ring"
+              className="px-6 py-2 text-white rounded-lg hover:bg-green-800 transition-colors disabled:opacity-50 focus-ring"
               style={{ backgroundColor: "var(--brand-green-700)" }}
               disabled={loading}
             >
