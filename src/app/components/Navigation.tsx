@@ -99,13 +99,13 @@ export default function Navigation() {
         href="/" 
         onClick={() => setIsMobileMenuOpen(false)}
         aria-current={pathname === '/' ? 'page' : undefined}
-        className={`px-4 py-3 md:py-2 rounded-lg font-medium transition duration-200 flex items-center justify-between border-2 ${
+        className={`md:px-2 lg:px-4 px-4 py-3 md:py-2 rounded-lg font-medium transition duration-200 flex items-center justify-between border-2 ${
           pathname === '/'
             ? mobile 
               ? 'bg-green-800 text-white border-white/40' 
               : 'bg-white text-green-700 shadow-lg border-white'
             : 'text-white border-transparent hover:bg-green-800 hover:border-white/20'
-        } ${mobile ? 'w-full text-lg h-[56px]' : 'focus-visible:ring-2 focus-visible:ring-white'}`}
+        } ${mobile ? 'w-full text-lg h-[56px]' : 'md:text-sm lg:text-base focus-visible:ring-2 focus-visible:ring-white'}`}
       >
         <span className="flex items-center">
           {pathname === '/' && !mobile && <span className="mr-2" aria-hidden="true">🏠</span>}
@@ -117,13 +117,13 @@ export default function Navigation() {
         href="/portfolio"
         onClick={() => setIsMobileMenuOpen(false)}
         aria-current={pathname === '/portfolio' ? 'page' : undefined}
-        className={`px-4 py-3 md:py-2 rounded-lg font-medium transition duration-200 flex items-center justify-between border-2 ${
+        className={`md:px-2 lg:px-4 px-4 py-3 md:py-2 rounded-lg font-medium transition duration-200 flex items-center justify-between border-2 ${
           pathname === '/portfolio'
             ? mobile
               ? 'bg-green-800 text-white border-white/40'
               : 'bg-white text-green-700 shadow-lg border-white'
             : 'text-white border-transparent hover:bg-green-800 hover:border-white/20'
-        } ${mobile ? 'w-full text-lg h-[56px]' : 'focus-visible:ring-2 focus-visible:ring-white'}`}
+        } ${mobile ? 'w-full text-lg h-[56px]' : 'md:text-sm lg:text-base focus-visible:ring-2 focus-visible:ring-white'}`}
       >
         <span className="flex items-center">
           {pathname === '/portfolio' && !mobile && <span className="mr-2" aria-hidden="true">📈</span>}
@@ -135,13 +135,13 @@ export default function Navigation() {
         href="/search"
         onClick={() => setIsMobileMenuOpen(false)}
         aria-current={pathname === '/search' ? 'page' : undefined}
-        className={`px-4 py-3 md:py-2 rounded-lg font-medium transition duration-200 flex items-center justify-between border-2 ${
+        className={`md:px-2 lg:px-4 px-4 py-3 md:py-2 rounded-lg font-medium transition duration-200 flex items-center justify-between border-2 ${
           pathname === '/search'
             ? mobile
               ? 'bg-green-800 text-white border-white/40'
               : 'bg-white text-green-700 shadow-lg border-white'
             : 'text-white border-transparent hover:bg-green-800 hover:border-white/20'
-        } ${mobile ? 'w-full text-lg h-[56px]' : 'focus-visible:ring-2 focus-visible:ring-white'}`}
+        } ${mobile ? 'w-full text-lg h-[56px]' : 'md:text-sm lg:text-base focus-visible:ring-2 focus-visible:ring-white'}`}
       >
         <span className="flex items-center">
           {pathname === '/search' && !mobile && <span className="mr-2" aria-hidden="true">🔍</span>}
@@ -154,13 +154,13 @@ export default function Navigation() {
           href="/admin/users" 
           onClick={() => setIsMobileMenuOpen(false)}
           aria-current={pathname === '/admin/users' ? 'page' : undefined}
-          className={`px-4 py-3 md:py-2 rounded-lg font-medium transition duration-200 flex items-center justify-between border-2 ${
+          className={`md:px-2 lg:px-4 px-4 py-3 md:py-2 rounded-lg font-medium transition duration-200 flex items-center justify-between border-2 ${
             pathname === '/admin/users'
               ? mobile 
                 ? 'bg-green-800 text-white border-white/40' 
                 : 'bg-white text-green-700 shadow-lg border-white'
               : 'text-white border-transparent hover:bg-green-800 hover:border-white/20'
-          } ${mobile ? 'w-full text-lg h-[56px]' : 'focus-visible:ring-2 focus-visible:ring-white'}`}
+          } ${mobile ? 'w-full text-lg h-[56px]' : 'md:text-sm lg:text-base focus-visible:ring-2 focus-visible:ring-white'}`}
         >
           <span className="flex items-center">
             {pathname === '/admin/users' && !mobile && <span className="mr-2" aria-hidden="true">🛡️</span>}
@@ -178,7 +178,7 @@ export default function Navigation() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
-              <Link href="/" className="flex items-center gap-2 text-2xl font-bold text-white focus-visible:ring-2 focus-visible:ring-white rounded-md p-1">
+              <Link href="/" className="flex items-center md:gap-1 lg:gap-2 md:text-lg lg:text-2xl text-2xl font-bold text-white focus-visible:ring-2 focus-visible:ring-white rounded-md p-1">
                 <Image
                   src="/growmystock_logo.svg"
                   alt="Grow My Stock"
@@ -197,14 +197,14 @@ export default function Navigation() {
             </div>
 
             {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center space-x-4">
+            <div className="hidden md:flex items-center md:space-x-1 lg:space-x-4">
               <NavLinks />
               {session?.user?.name && (
                 <div className="relative" ref={profileRef}>
                   <button
                     onClick={() => setIsProfileOpen(!isProfileOpen)}
                     style={{ backgroundColor: '#95c779', color:'#09522b' }}
-                    className="flex items-center justify-center h-11 w-11 rounded-full cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600"
+                    className="flex items-center justify-center md:h-9 md:w-9 lg:h-11 lg:w-11 rounded-full cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600"
                     aria-expanded={isProfileOpen}
                     aria-haspopup="true"
                     aria-label={`User menu for ${session.user.name}`}
