@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { executeRawQuery, update } from '@/utils/databaseHelper';
 import { unauthorizedResponse, forbiddenResponse, createErrorResponse } from '@/utils/errorResponse';
 import { createLogger } from '@/utils/logger';
+import { sendApprovalEmail } from '@/lib/email';
 
 const logger = createLogger('api/admin/users');
 
@@ -115,6 +116,21 @@ export async function PATCH(request: NextRequest) {
     await update('users', updates, { id: userId });
 
     logger.info('Admin updated user', { adminId: adminUser.id, targetUserId: userId, updates });
+
+    if (approval_status === 'approved') {
+      const [rows]: any = await executeRawQuery(
+        'SELECT email, username FROM users WHERE id = ?',
+        [userId]
+      );
+      const user = rows[0];
+      if (user?.email) {
+        try {
+          await sendApprovalEmail(user.email, user.username);
+        } catch (emailErr) {
+          logger.error('Failed to send approval email', { emailErr, targetUserId: userId });
+        }
+      }
+    }
 
     return NextResponse.json({ message: 'User updated successfully' });
   } catch (error) {

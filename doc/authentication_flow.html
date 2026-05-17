@@ -282,6 +282,7 @@
         <span class="nav-header">Roles & Approvals</span>
         <a href="#roles" class="nav-link">User Roles</a>
         <a href="#approval-states" class="nav-link">Approval States</a>
+        <a href="#email-system" class="nav-link">Email Notification System</a>
 
         <span class="nav-header">Testing</span>
         <a href="#test-coverage" class="nav-link">Test Coverage</a>
@@ -300,7 +301,8 @@
             <li><strong>Register page UI widened</strong> — card changed from <code>max-w-md / p-4</code> to <code>max-w-xl / p-2</code>. Login page now uses the same wider layout.</li>
             <li><strong>Password hint text added</strong> — both the Register page and the Reset Password page display <em>"At least 8 characters and one number."</em> below the password field.</li>
             <li><strong>Register API response updated</strong> — field names changed to <code>userId</code> and <code>approvalStatus</code>; email is no longer echoed back.</li>
-            <li><strong>Test suite extended</strong> — no-digit and boundary (exactly 8 chars) cases added to register and reset-password test files; <code>jest.mock('@/lib/email')</code> added to register tests to prevent real email sends during test runs.</li>
+            <li><strong>Approval email added</strong> <span class="badge-new">NEW</span> — <code>sendApprovalEmail()</code> added to <code>src/lib/email.ts</code>. The admin PATCH route now sends this email automatically when a user's account is approved. Email failures are caught and logged without blocking the admin action.</li>
+            <li><strong>Test suite extended</strong> — no-digit and boundary (exactly 8 chars) cases added to register and reset-password test files; <code>jest.mock('@/lib/email')</code> added to register tests to prevent real email sends during test runs. Admin users test file updated with 3 new cases covering approval email send, no-email skip, and email failure resilience.</li>
         </ul>
     </div>
 
@@ -315,7 +317,7 @@
             <tr><td>Session strategy</td><td>JWT — stored in an HttpOnly cookie</td></tr>
             <tr><td>Password hashing</td><td>bcryptjs, cost factor 10</td></tr>
             <tr><td>Input validation</td><td>Zod schemas on all API routes</td></tr>
-            <tr><td>Email service</td><td>Resend (registration confirmation + password reset)</td></tr>
+            <tr><td>Email service</td><td>Resend — registration confirmation, admin approval notification, and password reset</td></tr>
             <tr><td>Route protection</td><td><code>src/middleware.ts</code> — wraps all non-auth routes</td></tr>
             <tr><td>Rate limiting</td><td>Per-IP token bucket (<code>src/utils/rateLimiter.ts</code>)</td></tr>
             <tr><td>Internal API bypass</td><td><code>x-api-key: DEEPMONEY_INTERNAL_SECRET</code> header</td></tr>
@@ -740,10 +742,73 @@ Page shows success banner → redirects to /login after 3 seconds</div>
         </div>
     </section>
 
+    <!-- EMAIL NOTIFICATION SYSTEM -->
+    <section id="email-system">
+        <h2><span class="num">11</span> Email Notification System <span class="badge-updated">Updated May 2026</span></h2>
+        <p>All transactional emails are sent via <strong>Resend</strong>, a developer email API. The email sending logic is centralised in <code>src/lib/email.ts</code>, which exports three functions. Each function uses a separate API key environment variable, allowing fine-grained access control and independent key rotation.</p>
+
+        <table>
+            <tr>
+                <th>Function</th>
+                <th>Trigger</th>
+                <th>Env var (API key)</th>
+                <th>Subject</th>
+                <th>Failure behaviour</th>
+            </tr>
+            <tr>
+                <td><code>sendRegistrationEmail()</code></td>
+                <td>User completes registration (POST /api/auth/register)</td>
+                <td><code>resend_reg_api_key</code></td>
+                <td>"Welcome to GrowMyStock — Account Pending Approval"</td>
+                <td>Caught and logged as warning; registration still succeeds</td>
+            </tr>
+            <tr>
+                <td><code>sendApprovalEmail()</code> <span class="badge-new">NEW</span></td>
+                <td>Admin approves a user account (PATCH /api/admin/users)</td>
+                <td><code>resend_reg_final_api_key</code></td>
+                <td>"Your GrowMyStock Account Has Been Approved!"</td>
+                <td>Caught and logged as error; admin action still returns 200</td>
+            </tr>
+            <tr>
+                <td><code>sendPasswordResetEmail()</code></td>
+                <td>User requests a password reset (POST /api/auth/forgot-password)</td>
+                <td><code>RESEND_API_KEY</code></td>
+                <td>"Reset your GrowMyStock password"</td>
+                <td>Propagated — outer handler catches and logs; endpoint returns 200 (silent)</td>
+            </tr>
+        </table>
+
+        <h3>Shared Environment Variables</h3>
+        <table>
+            <tr><th>Variable</th><th>Purpose</th></tr>
+            <tr><td><code>resend_reg_api_key</code></td><td>Resend API key for registration confirmation emails</td></tr>
+            <tr><td><code>resend_reg_final_api_key</code></td><td>Resend API key for account approval emails</td></tr>
+            <tr><td><code>RESEND_API_KEY</code></td><td>Resend API key for password reset emails</td></tr>
+            <tr><td><code>RESEND_FROM_EMAIL</code></td><td>Sender address used by all three functions (default: <code>noreply@growmystock.com</code>)</td></tr>
+        </table>
+
+        <h3>Approval Email — What the User Receives</h3>
+        <p>When an admin clicks "Approve" on the admin user management page, the system immediately looks up the user's email address and username from the database and sends them an approval notification. The email contains:</p>
+        <ul>
+            <li>A personalised greeting using the user's username</li>
+            <li>Confirmation that their account has been approved</li>
+            <li>A prominent "Log In Now" call-to-action button linking to <code>https://growmystock.com/login</code></li>
+            <li>A plain-text fallback URL for email clients that block HTML buttons</li>
+        </ul>
+
+        <div class="highlight">
+            <strong>Resilience design:</strong> If the Resend API call fails for any reason (network error, invalid key, rate limit), the failure is caught and logged by the server. The admin's approve action is not rolled back — the user's database record remains approved, and the admin receives a 200 OK response. This ensures an email delivery issue never prevents an admin from completing a workflow. If the email is not received, the admin can manually inform the user.
+        </div>
+
+        <div class="warning-box">
+            <strong>No-email guard:</strong> If the approved user's record does not have an email address stored (the <code>email</code> column allows NULL), <code>sendApprovalEmail()</code> is skipped entirely. No error is thrown or logged in this case.
+        </div>
+    </section>
+
     <!-- TEST COVERAGE -->
     <section id="test-coverage">
-        <h2><span class="num">11</span> Test Coverage <span class="badge-updated">Updated May 2026</span></h2>
-        <p>Authentication routes are covered by Jest unit tests that mock the database, bcrypt, origin check, rate limiter, and email service. The test files are located in <code>src/utils/test/</code>.</p>
+        <h2><span class="num">12</span> Test Coverage <span class="badge-updated">Updated May 2026</span></h2>
+        <p>Authentication and admin routes are covered by Jest unit tests that mock the database, bcrypt, origin check, rate limiter, and email service. The test files are located in <code>src/utils/test/</code>.</p>
 
         <table>
             <tr><th>Test file</th><th>Routes covered</th><th>Key scenarios</th></tr>
@@ -774,6 +839,16 @@ Page shows success banner → redirects to /login after 3 seconds</div>
                 <td>POST /api/auth/forgot-password</td>
                 <td>Email enumeration protection, token creation, Resend call.</td>
             </tr>
+            <tr>
+                <td><code>api_admin_users.test.ts</code> <span class="badge-updated">Updated</span></td>
+                <td>GET and PATCH /api/admin/users</td>
+                <td>
+                    GET: 401 no session, 403 non-admin, 200 user list, filter parameters applied.<br>
+                    PATCH: approval status update, role update, prevent demoting last admin.<br>
+                    <strong>New cases (May 2026):</strong> approval email sent on approve action; email skipped when user has no email address; endpoint returns 200 even when email send fails.
+                    <code>sendApprovalEmail</code> is mocked (<code>jest.mock('@/lib/email')</code>).
+                </td>
+            </tr>
         </table>
     </section>
 
@@ -781,7 +856,7 @@ Page shows success banner → redirects to /login after 3 seconds</div>
         <strong>MoneyGoUp — Authentication Flow Documentation</strong><br>
         Created: May 17, 2026 &nbsp;|&nbsp; Last Updated: May 17, 2026<br>
         Author: Technical Documentation Team<br>
-        Version: 1.0 — covers password policy hardening (min 8 chars + digit), register/reset-password flow, and UI layout updates<br>
+        Version: 1.1 — adds Email Notification System section documenting <code>sendApprovalEmail()</code>; updates admin test coverage table; updates Recent Changes callout<br>
         Copyright &copy; 2026 MoneyGoUp. All rights reserved.
     </footer>
 </main>

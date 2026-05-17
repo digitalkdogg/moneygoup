@@ -30,6 +30,37 @@ export async function sendRegistrationEmail(to: string, username: string): Promi
   }
 }
 
+export async function sendApprovalEmail(to: string, username: string): Promise<void> {
+  const resend = new Resend(process.env.resend_reg_final_api_key);
+  const from = process.env.RESEND_FROM_EMAIL || 'noreply@growmystock.com';
+
+  const { error } = await resend.emails.send({
+    from,
+    to,
+    subject: 'Your GrowMyStock Account Has Been Approved!',
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;">
+        <h2 style="color:#017e3b;margin-top:0;">You're Approved!</h2>
+        <p>Hi <strong>${username}</strong>,</p>
+        <p>Great news — your GrowMyStock account has been <strong>approved</strong>. You can now log in and start using all of our features.</p>
+        <a href="https://growmystock.com/login"
+           style="display:inline-block;background-color:#017e3b;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;font-weight:bold;margin:16px 0;">
+          Log In Now
+        </a>
+        <p>If the button doesn't work, paste this link into your browser:<br/>
+          <span style="word-break:break-all;">https://growmystock.com/login</span>
+        </p>
+        <hr style="border:none;border-top:1px solid #eee;margin:24px 0;"/>
+        <p style="color:#999;font-size:12px;margin:0;">GrowMyStock &mdash; Your stock analysis platform</p>
+      </div>
+    `,
+  });
+
+  if (error) {
+    throw new Error(`Resend API error: ${JSON.stringify(error)}`);
+  }
+}
+
 export async function sendPasswordResetEmail(to: string, resetUrl: string): Promise<void> {
   const resend = new Resend(process.env.RESEND_API_KEY);
   const from = process.env.RESEND_FROM_EMAIL || 'noreply@growmystock.com';

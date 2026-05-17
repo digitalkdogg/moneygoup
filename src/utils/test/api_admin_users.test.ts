@@ -2,10 +2,12 @@ import { NextRequest } from 'next/server';
 import { GET, PATCH } from '@/app/api/admin/users/route';
 import { getServerSession } from 'next-auth';
 import { executeRawQuery, update } from '@/utils/databaseHelper';
+import { sendApprovalEmail } from '@/lib/email';
 
 // Mock dependencies
 jest.mock('next-auth');
 jest.mock('@/utils/databaseHelper');
+jest.mock('@/lib/email', () => ({ sendApprovalEmail: jest.fn() }));
 jest.mock('@/utils/logger', () => ({
   createLogger: () => ({
     info: jest.fn(),
@@ -78,25 +80,69 @@ describe('Admin Users API', () => {
       const adminSession = { user: { id: 99, role: 'admin' } };
       (getServerSession as jest.Mock).mockResolvedValue(adminSession);
       (update as jest.Mock).mockResolvedValue(1);
+      (executeRawQuery as jest.Mock).mockResolvedValueOnce([[{ email: 'user@example.com', username: 'testuser' }]]);
 
       mockRequest = {
-        json: jest.fn().mockResolvedValue({ 
-          userId: 1, 
-          approval_status: 'approved' 
+        json: jest.fn().mockResolvedValue({
+          userId: 1,
+          approval_status: 'approved'
         })
       } as unknown as NextRequest;
 
       const response = await PATCH(mockRequest);
       expect(response.status).toBe(200);
-      
+
       expect(update).toHaveBeenCalledWith(
-        'users', 
-        expect.objectContaining({ 
+        'users',
+        expect.objectContaining({
           approval_status: 'approved',
-          approved_by: 99 
-        }), 
+          approved_by: 99
+        }),
         { id: 1 }
       );
+    });
+
+    test('sends approval email when user is approved', async () => {
+      (getServerSession as jest.Mock).mockResolvedValue({ user: { id: 99, role: 'admin' } });
+      (update as jest.Mock).mockResolvedValue(1);
+      (executeRawQuery as jest.Mock).mockResolvedValueOnce([[{ email: 'user@example.com', username: 'testuser' }]]);
+      (sendApprovalEmail as jest.Mock).mockResolvedValue(undefined);
+
+      mockRequest = {
+        json: jest.fn().mockResolvedValue({ userId: 1, approval_status: 'approved' })
+      } as unknown as NextRequest;
+
+      await PATCH(mockRequest);
+
+      expect(sendApprovalEmail).toHaveBeenCalledWith('user@example.com', 'testuser');
+    });
+
+    test('does not send approval email when user has no email', async () => {
+      (getServerSession as jest.Mock).mockResolvedValue({ user: { id: 99, role: 'admin' } });
+      (update as jest.Mock).mockResolvedValue(1);
+      (executeRawQuery as jest.Mock).mockResolvedValueOnce([[{ email: null, username: 'testuser' }]]);
+
+      mockRequest = {
+        json: jest.fn().mockResolvedValue({ userId: 1, approval_status: 'approved' })
+      } as unknown as NextRequest;
+
+      await PATCH(mockRequest);
+
+      expect(sendApprovalEmail).not.toHaveBeenCalled();
+    });
+
+    test('still returns 200 if approval email fails to send', async () => {
+      (getServerSession as jest.Mock).mockResolvedValue({ user: { id: 99, role: 'admin' } });
+      (update as jest.Mock).mockResolvedValue(1);
+      (executeRawQuery as jest.Mock).mockResolvedValueOnce([[{ email: 'user@example.com', username: 'testuser' }]]);
+      (sendApprovalEmail as jest.Mock).mockRejectedValue(new Error('Resend API error'));
+
+      mockRequest = {
+        json: jest.fn().mockResolvedValue({ userId: 1, approval_status: 'approved' })
+      } as unknown as NextRequest;
+
+      const response = await PATCH(mockRequest);
+      expect(response.status).toBe(200);
     });
 
     test('prevents demoting the last admin', async () => {
