@@ -8,13 +8,10 @@ import PortfolioSection from './PortfolioSection'; // Updated to use StockCardSe
 import WatchlistSection from './WatchlistSection'; // Updated to use StockCardSection internally
 import PortfolioSummary from './PortfolioSummary';
 import MajorIndicesStrip from './MajorIndicesStrip';
-import GainsBreakdownCard from './GainsBreakdownCard';
 import RecommendationsSection from './RecommendationsSection';
 
 import { formatNumber, formatCurrency as formatUtilityCurrency } from '@/utils/formatters'; // Import formatters
 import { PortfolioItem } from '@/types/portfolio'; // NEW: Import PortfolioItem
-import { PortfolioTotals, AnalystRatingsResponse } from '@/types/dashboard';
-import { PortfolioHistoryChart } from './PortfolioHistoryChart';
 import { getMarketStatus } from '@/utils/marketStatus';
 
 interface StockData {
@@ -84,15 +81,11 @@ type ColumnDefinition<T> = {
 export default function Dashboard() {
   // NEW: Portfolio state and market status
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
-  const [portfolioTotals, setPortfolioTotals] = useState<PortfolioTotals | null>(null);
-  const [portfolioRatings, setPortfolioRatings] = useState<AnalystRatingsResponse | null>(null);
   const [marketStatus, setMarketStatus] = useState<'open' | 'closed'>('closed');
   const [todayDate, setTodayDate] = useState<string>('');
   const [loadingPortfolio, setLoadingPortfolio] = useState(true);
   const [portfolioError, setPortfolioError] = useState<string | null>(null);
 
-  const [showChart, setShowChart] = useState(false);
-  
   const router = useRouter();
 
 
@@ -114,14 +107,6 @@ export default function Dashboard() {
         prev_close: typeof item.prev_close === 'number' ? item.prev_close : null,
       }));
       setPortfolio(fetchedPortfolio);
-      setPortfolioTotals(data.totals || null);
-      if (data.ratings) {
-        setPortfolioRatings({
-          ratings: data.ratings,
-          asOf: data.asOf || new Date().toISOString()
-        });
-      }
-
     } catch (err) {
       setPortfolioError(err instanceof Error ? err.message : 'An unknown error occurred while fetching portfolio');
     } finally {
@@ -197,32 +182,22 @@ export default function Dashboard() {
             <span className="mr-3">📈</span>My Portfolio
           </h2>
 
-          {/* Portfolio Grid */}
-          <div className="mb-10">
-            <PortfolioSection 
-                portfolio={portfolio} 
-                onRefresh={fetchPortfolioData} 
-            />
-          </div>
-
           {/* Portfolio Summary Cards */}
-          <div className="mb-10">
-            <PortfolioSummary 
-                portfolio={portfolio} 
-                marketStatus={marketStatus} 
+          <div className="mb-6">
+            <PortfolioSummary
+                portfolio={portfolio}
+                marketStatus={marketStatus}
                 showChart={true}
                 onToggleChart={() => {}}
             />
           </div>
 
-          {/* Bottom Grid: History Chart and Gains Breakdown */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10 items-stretch">
-            <div className="lg:col-span-2">
-              <PortfolioHistoryChart />
-            </div>
-            <div className="lg:col-span-1">
-              <GainsBreakdownCard totals={portfolioTotals} loading={loadingPortfolio} />
-            </div>
+          {/* Portfolio Grid */}
+          <div className="mb-10">
+            <PortfolioSection
+                portfolio={portfolio}
+                onRefresh={fetchPortfolioData}
+            />
           </div>
 
           {/* Discovery & Watchlist */}
