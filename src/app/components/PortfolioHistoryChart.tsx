@@ -143,7 +143,7 @@ export const PortfolioHistoryChart: React.FC = () => {
                         const domain = [Math.max(0, minValue - padding), maxValue + padding];
 
                         return (
-                            <ResponsiveContainer width="100%" height="100%">
+                            <ResponsiveContainer width="100%" height={350}>
                                 <LineChart
                                     data={data}
                                     margin={{

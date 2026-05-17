@@ -62,12 +62,12 @@ button {
   font-size: 14px;
 }
 
-button.sm {
+button.sm, a.sm {
   font-weight: 500;
   font-size:12px;
 }
 
-button.xs {
+button.xs, a.xs {
   font-weight: normal;
   font-size: 11px;
 }
@@ -104,5 +104,12 @@ p {
 
 .skip-link:focus {
   top: 0;
+}
+
+@media (max-width: 1023px) {
+  .recharts-responsive-container {
+    height: 40vh !important;
+    min-height: 280px;
+  }
 }
  

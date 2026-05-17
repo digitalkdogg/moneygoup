@@ -176,6 +176,7 @@
         <nav>
             <span class="nav-header">Main Layouts & Logic</span>
             <a href="#Dashboard" class="nav-link">Dashboard</a>
+            <a href="#PortfolioPage" class="nav-link">My Portfolio Page</a>
             <a href="#RecommendationsSection" class="nav-link">Recommendations Section</a>
             <a href="#Stock" class="nav-link">Stock View</a>
             <a href="#AdminUsersPage" class="nav-link">Admin User Management</a>
@@ -202,6 +203,7 @@
             
             <span class="nav-header">Analytics & Charts</span>
             <a href="#PortfolioHistoryChart" class="nav-link">Portfolio History Chart</a>
+            <a href="#PortfolioCompareChart" class="nav-link">Portfolio Compare Chart</a>
             <a href="#StockChart" class="nav-link">Price History Chart</a>
             <a href="#StockSignalPanel" class="nav-link">Stock Signal Panel</a>
             <a href="#StockPrediction" class="nav-link">Stock Prediction</a>
@@ -256,17 +258,42 @@
                 </table>
             </div>
 
+            <div id="PortfolioPage" class="component-card">
+                <div class="component-title">
+                    My Portfolio Page
+                    <span class="file-path">src/app/portfolio/page.tsx</span>
+                </div>
+                <p>Dedicated full-page portfolio analytics view accessible at <code>/portfolio</code> via the main navigation. Provides performance-focused tools beyond the dashboard widget view. It is a client component that manages its own data fetching, KPI calculations, and chart overlay state.</p>
+                <p><strong>Layout structure:</strong></p>
+                <ul>
+                    <li><strong>KPI Row</strong>: Four <code>StatCard</code> tiles — Portfolio Value, Net Gain/Loss, CAGR (annualized over the selected period), and Volatility (annualized). KPIs are computed client-side from the <code>baseHistory</code> array using the <code>computeKPIs()</code> helper.</li>
+                    <li><strong>Chart + Sidebar</strong>: <code>PortfolioCompareChart</code> fills the left column. The right sidebar contains the Holdings list rendered as <code>HoldingRow</code> elements, each with Compare and Details buttons. Up to 4 holdings can be overlaid at once (<code>MAX_OVERLAYS = 4</code>).</li>
+                    <li><strong>Bottom row</strong>: <code>RecommendationsSection</code> (filtered to <code>portfolio</code> and <code>watchlist</code> scopes) sits beside <code>GainsBreakdownCard</code>.</li>
+                </ul>
+                <p><strong>Overlay toggle logic:</strong> Clicking Compare calls <code>GET /api/user/portfolio/compare-series?ticker=X&period=Y</code>, stores the result in a <code>Map&lt;string, ChartPoint[]&gt;</code>, and passes it to <code>PortfolioCompareChart</code> as <code>overlays</code>. When overlays are active, the chart auto-switches to <em>% Change</em> (normalized) mode. Removing all overlays reverts to <em>$ Absolute</em> mode.</p>
+                <table class="prop-table">
+                    <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
+                    <tbody>
+                        <tr><td>None</td><td>-</td><td>Page component; receives no props. All data is fetched internally.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
             <div id="RecommendationsSection" class="component-card">
                 <div class="component-title">
                     RecommendationsSection
                     <span class="file-path">src/app/components/RecommendationsSection.tsx</span>
                 </div>
-                <p>Displays AI-driven BUY/SELL alerts across three buckets: Portfolio (owned), Watchlist (user-monitored), and Discovery (AI-identified). Signals are generated based on configurable thresholds using 1-month predictions.</p>
-                <p><strong>Example usage:</strong> Used inside <code>Dashboard</code> on the dashboard page to surface actionable signals for all tracked assets.</p>
+                <p>Displays AI-driven BUY/SELL alerts across three buckets: Portfolio (owned), Watchlist (user-monitored), and Discovery (AI-identified). Signals are generated based on configurable thresholds using 1-month predictions. An optional <code>scopes</code> prop allows callers to restrict which recommendation buckets are shown.</p>
+                <p><strong>Example usage:</strong></p>
+                <ul>
+                    <li>Used inside <code>Dashboard</code> on the dashboard page with no <code>scopes</code> prop (all three buckets shown).</li>
+                    <li>Used inside the My Portfolio page (<code>src/app/portfolio/page.tsx</code>) with <code>scopes={['portfolio', 'watchlist']}</code> to exclude the Discovery bucket.</li>
+                </ul>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
-                        <tr><td>None</td><td>-</td><td>Fetches data internally from <code>/api/dashboard/recommendations</code>.</td></tr>
+                        <tr><td><code>scopes</code></td><td><code>Array&lt;'portfolio' | 'watchlist' | 'discovery'&gt;</code></td><td><span class="tag tag-optional">Optional</span> When provided, only recommendations matching one of the listed scopes are rendered. When omitted, all three buckets are shown. Data is always fetched from <code>/api/dashboard/recommendations</code>; filtering happens client-side.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -547,6 +574,43 @@
                 </table>
             </div>
 
+            <div id="PortfolioCompareChart" class="component-card">
+                <div class="component-title">
+                    PortfolioCompareChart
+                    <span class="file-path">src/app/components/PortfolioCompareChart.tsx</span>
+                </div>
+                <p>A multi-series Recharts <code>LineChart</code> used exclusively on the My Portfolio page. Renders the total portfolio value over time and optionally overlays individual holdings for comparison. Supports two display modes and four time periods.</p>
+                <p><strong>Display modes:</strong></p>
+                <ul>
+                    <li><strong>$ Absolute</strong> (<code>normalized=false</code>): Y-axis shows raw dollar values. When overlays are active, the Y-axis domain is scoped to the overlay series (not the portfolio total) to keep the scale readable.</li>
+                    <li><strong>% Change</strong> (<code>normalized=true</code>): Each series is indexed to 100 at its first data point. Y-axis labels show percent change from period start (e.g., +12%). The tooltip shows both the percent change and the raw dollar value.</li>
+                </ul>
+                <p>Series merging is handled by the internal <code>mergeData()</code> function, which joins the base portfolio series and all overlay series on the <code>date</code> key. Each overlay line uses a dashed stroke and a distinct color from the <code>OVERLAY_COLORS</code> palette.</p>
+                <p>Also exports the <code>OverlaySeries</code> interface used by the portfolio page to pass overlay data.</p>
+                <p><strong>Example usage:</strong> Used only in <code>src/app/portfolio/page.tsx</code> as the primary analytics chart.</p>
+                <table class="prop-table">
+                    <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>period</code></td><td><code>'1m' | '6m' | '1y' | 'all'</code></td><td>Currently selected time period; controls which tab is highlighted.</td></tr>
+                        <tr><td><code>onPeriodChange</code></td><td><code>(p: Period) => void</code></td><td>Callback fired when the user clicks a period tab.</td></tr>
+                        <tr><td><code>baseData</code></td><td><code>ChartPoint[]</code></td><td>Portfolio value history from <code>/api/user/portfolio/historical-value</code>. Each point: <code>{date: string, value: number}</code>.</td></tr>
+                        <tr><td><code>overlays</code></td><td><code>OverlaySeries[]</code></td><td>Array of holding series to overlay. Each entry: <code>{ticker, data: ChartPoint[], color: string}</code>.</td></tr>
+                        <tr><td><code>normalized</code></td><td><code>boolean</code></td><td>When true, renders in % Change mode. When false, renders raw dollar values.</td></tr>
+                        <tr><td><code>onNormalizedChange</code></td><td><code>(v: boolean) => void</code></td><td>Callback fired when the user toggles between $ Absolute and % Change modes.</td></tr>
+                        <tr><td><code>loading</code></td><td><code>boolean</code></td><td>When true, renders a spinner in place of the chart.</td></tr>
+                    </tbody>
+                </table>
+                <h3 style="font-size:0.9rem; margin-top:1rem; background:none; padding:0; color:#334155;">OverlaySeries interface (exported)</h3>
+                <table class="prop-table">
+                    <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>ticker</code></td><td><code>string</code></td><td>Stock symbol used as the Recharts <code>dataKey</code> and legend label.</td></tr>
+                        <tr><td><code>data</code></td><td><code>ChartPoint[]</code></td><td>Value series from <code>/api/user/portfolio/compare-series</code>.</td></tr>
+                        <tr><td><code>color</code></td><td><code>string</code></td><td>Hex color for the series line and legend dot.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
             <div id="StockChart" class="component-card">
                 <div class="component-title">
                     StockChart
@@ -661,12 +725,13 @@
                     Navigation
                     <span class="file-path">src/app/components/Navigation.tsx</span>
                 </div>
-                <p>The main site header component, handling both desktop and mobile navigation, user profile dropdown, and logout functionality.</p>
+                <p>The main site header component, handling both desktop and mobile navigation, user profile dropdown, and logout functionality. Hidden on the <code>/preview</code> route.</p>
+                <p><strong>Current nav links (in order):</strong> Dashboard &rarr; <strong>My Portfolio</strong> &rarr; Deepmoney Search &rarr; (Admin, if role = admin)</p>
                 <p><strong>Example usage:</strong> Used globally in <code>src/app/layout.tsx</code>, so it appears on all app routes.</p>
                 <table class="prop-table">
                     <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
                     <tbody>
-                        <tr><td>None</td><td>-</td><td>Relies on context from <code>next-auth</code> and <code>usePathname</code> hook.</td></tr>
+                        <tr><td>None</td><td>-</td><td>Relies on context from <code>next-auth</code> and <code>usePathname</code> hook. My Portfolio link (<code>href="/portfolio"</code>) was added between Dashboard and Deepmoney Search.</td></tr>
                     </tbody>
                 </table>
             </div>

@@ -183,6 +183,7 @@
                 <p>Initiates the core stock and ETF discovery cycle by calling the internal API.</p>
                 <ul>
                     <li><strong>Authorization:</strong> Uses <code>DEEPMONEY_INTERNAL_SECRET</code> via <code>x-api-key</code>.</li>
+                    <li><strong>Internal URL:</strong> All calls use <code>INTERNAL_API_URL = 'http://localhost:3001'</code> (hardcoded, not read from <code>NEXTAUTH_URL</code>). This bypasses nginx and its 60-second proxy timeout, which the long-running DeepMoney discovery route would otherwise exceed (runtime can exceed 2 minutes). The <code>predict_weighted_analysis.py</code> script uses the same approach.</li>
                     <li><strong>Parallel Discovery:</strong>
                         <ul>
                             <li><strong>Stocks:</strong> Recursive news discovery + co-mention analysis.</li>
@@ -190,6 +191,9 @@
                         </ul>
                     </li>
                 </ul>
+                <div class="highlight-box">
+                    <strong>Maintenance note:</strong> If the Next.js server port ever changes from 3001, <code>INTERNAL_API_URL</code> must be updated manually in each Python script — it is not controlled by environment variables.
+                </div>
             </div>
         </section>
 

@@ -176,6 +176,7 @@
             <a href="#prediction-engine" class="nav-link">AI Predictions</a>
             <a href="#gps-signal" class="nav-link">GPS Signal Panel</a>
             <a href="#portfolio-mgmt" class="nav-link">User Portfolios</a>
+            <a href="#portfolio-page" class="nav-link">My Portfolio Page</a>
             
             <span class="nav-header">Infrastructure</span>
             <a href="#architecture" class="nav-link">Architecture</a>
@@ -258,8 +259,20 @@
             </ul>
         </section>
 
+        <section id="portfolio-page">
+            <h3>2.7 My Portfolio Page (<code>/portfolio</code>)</h3>
+            <p>A dedicated full-page portfolio analytics view, separate from the main dashboard. It provides performance-focused analysis tools not available on the dashboard widget view.</p>
+            <ul>
+                <li><strong>4 KPI Stat Cards</strong>: Portfolio Value, Net Gain/Loss, CAGR (annualized), and Volatility (annualized), all computed from the portfolio's historical value series.</li>
+                <li><strong>Performance Chart</strong>: The <code>PortfolioCompareChart</code> component (Recharts) shows the total portfolio value over 1M / 6M / 1Y / All periods. Two view modes are available: <em>$ Absolute</em> (raw dollar value) and <em>% Change</em> (indexed to 100 at period start).</li>
+                <li><strong>Holdings Overlay</strong>: The sidebar lists every holding with Compare and Details buttons. Clicking Compare fetches the holding's individual value series from <code>GET /api/user/portfolio/compare-series?ticker=X&period=Y</code> and overlays it on the chart. Up to 4 holdings can be overlaid simultaneously.</li>
+                <li><strong>Gains Breakdown Card</strong>: A donut chart (reused from the dashboard) showing unrealized gains, losses, and cost basis split.</li>
+                <li><strong>Recommendations</strong>: Filtered to the <code>portfolio</code> and <code>watchlist</code> scopes only (Discovery bucket excluded) using the optional <code>scopes</code> prop on <code>RecommendationsSection</code>.</li>
+            </ul>
+        </section>
+
         <section id="governance">
-            <h3>2.7 Administrative Controls & Governance</h3>
+            <h3>2.8 Administrative Controls & Governance</h3>
             <p>Comprehensive management of the platform's user base and system guardrails.</p>
             <ul>
                 <li><strong>Registration Approval Flow</strong>: A multi-stage workflow ensuring all new accounts are vetted and approved by an administrator before gaining system access.</li>
@@ -286,6 +299,9 @@
                 <li>Trigger internal Discovery API with <code>?refresh=true</code>.</li>
                 <li>Commit enriched results to <code>recommended_stocks</code> and <code>hot_etfs</code>.</li>
             </ol>
+            <div class="highlight-box">
+                <strong>Internal URL hardcoding:</strong> All scripts use <code>INTERNAL_API_URL = 'http://localhost:3001'</code> (hardcoded, not read from env) to call the Next.js API directly, bypassing nginx and its 60-second proxy timeout. The DeepMoney discovery route can take over 2 minutes to complete.
+            </div>
         </section>
 
         <section id="endpoints">
@@ -296,13 +312,16 @@
                 <li><code>/api/prediction/[ticker]</code>: AI forecast workflow (MLP neural network, multi-horizon price targets).</li>
                 <li><code>/api/worldbank</code>: Consolidated macro indicators.</li>
                 <li><code>/api/dashboard</code>: Personalized user aggregation.</li>
-                <li><code>/api/dashboard/recommendations</code>: BUY/SELL signal generation across three buckets.</li>
+                <li><code>/api/dashboard/recommendations</code>: BUY/SELL signal generation across three buckets. The <code>RecommendationsSection</code> component accepts an optional <code>scopes</code> prop to filter which buckets are rendered.</li>
+                <li><code>/api/user/portfolio/compare-series?ticker=X&period=Y</code>: Returns <code>{date, value}[]</code> for a specific holding's value over time, used by the My Portfolio overlay chart.</li>
                 <li><code>/api/prediction/deepmoney</code>: DeepMoney discovery engine (growth stocks, hot ETFs).</li>
+                <li><code>/api/auth/forgot-password</code>: Initiates the password reset email flow.</li>
+                <li><code>/api/auth/reset-password</code>: Validates (GET) and consumes (POST) password reset tokens.</li>
             </ul>
         </section>
         
         <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem; text-align: center;">
-            MoneyGoUp Web Application Overview &copy; 2026 &mdash; Last updated: May 12, 2026
+            MoneyGoUp Web Application Overview &copy; 2026 &mdash; Last updated: May 16, 2026
         </footer>
     </main>
     </div>

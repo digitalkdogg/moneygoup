@@ -236,6 +236,7 @@
             <a href="#user-watchlist" class="nav-link">GET /api/user/watchlist</a>
             <a href="#user-stocks" class="nav-link">POST /api/user/stocks</a>
             <a href="#portfolio-history" class="nav-link">GET /api/user/portfolio/historical-value</a>
+            <a href="#portfolio-compare-series" class="nav-link">GET /api/user/portfolio/compare-series</a>
 
             <span class="nav-header">Stock Data</span>
             <a href="#stock-ticker" class="nav-link">GET /api/stock_data/[ticker]</a>
@@ -637,6 +638,45 @@
   },
   ...
 ]</code></pre>
+            </div>
+
+            <div id="portfolio-compare-series" class="step-card">
+                <h3><span class="method get">GET</span> /api/user/portfolio/compare-series</h3>
+                <div class="component-tag">User Data: Holdings Overlay Chart</div>
+                <p>Returns a time-series of the dollar value of a single portfolio holding over a given period. The response shape is identical to <code>/historical-value</code> — each point is <code>{date, value}</code> where <code>value = shares × close_price</code> — so both series can be plotted on the same Y-axis in the My Portfolio page.</p>
+                <p>Used exclusively by <code>PortfolioCompareChart</code> in <code>src/app/portfolio/page.tsx</code> when a user clicks <em>Compare</em> on a holding. Up to 4 holdings can be overlaid simultaneously.</p>
+
+                <strong>Authentication:</strong> Required. Returns 401 if no valid session. Returns 404 if the specified ticker is not an active holding of the authenticated user.
+
+                <strong>Query Parameters:</strong>
+                <table>
+                    <tr>
+                        <th>Parameter</th>
+                        <th>Type</th>
+                        <th>Required</th>
+                        <th>Description</th>
+                    </tr>
+                    <tr>
+                        <td>ticker</td>
+                        <td>string</td>
+                        <td>Yes</td>
+                        <td>Stock symbol (case-insensitive; normalized to uppercase internally).</td>
+                    </tr>
+                    <tr>
+                        <td>period</td>
+                        <td>string</td>
+                        <td>No (default: 1m)</td>
+                        <td>Time window: '1m', '6m', '1y', or 'all'. For 'all', the series starts at the holding's <code>initial_purchase_date</code>.</td>
+                    </tr>
+                </table>
+
+                <strong>Response (200 OK):</strong>
+                <pre><code>[
+  { "date": "2026-04-16", "value": 1502.50 },
+  { "date": "2026-04-17", "value": 1519.00 },
+  ...
+]</code></pre>
+                <strong>Data source:</strong> Historical OHLCV data is fetched from Yahoo Finance via <code>yahooFinance.historical()</code> using the adjusted close price. The user's share count is read from <code>user_stocks</code>.
             </div>
         </section>
 
