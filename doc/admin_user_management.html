@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoneyGoUp — Admin User Management</title>
+    <meta name="description" content="Reference for the GrowMyStock/MoneyGoUp admin user management system: approval flow, email notifications, API routes, database schema, and test coverage.">
+    <meta name="author" content="Technical Documentation Team">
+    <meta name="created" content="2026-05-17">
+    <meta name="updated" content="2026-05-17">
+    <style>
+        :root {
+            --primary: #15803d;
+            --primary-dark: #166534;
+            --warning: #b45309;
+            --danger: #991b1b;
+            --info: #1d4ed8;
+            --bg: #f8fafc;
+            --text: #1e293b;
+            --code-bg: #1e293b;
+            --code-text: #f8fafc;
+            --border: #e2e8f0;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background-color: var(--bg);
+            margin: 0;
+        }
+        .top-nav {
+            position: sticky;
+            top: 0;
+            width: 100%;
+            background: white;
+            border-bottom: 1px solid var(--border);
+            padding: 0.75rem 2rem;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            flex-wrap: wrap;
+        }
+        .top-nav a {
+            text-decoration: none;
+            color: #64748b;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            padding: 0.25rem 0;
+            border-bottom: 2px solid transparent;
+        }
+        .top-nav a:hover { color: var(--primary); }
+        .top-nav a.active {
+            color: var(--primary);
+            border-bottom: 2px solid var(--primary);
+        }
+        .page-container { display: flex; }
+        aside {
+            width: 290px;
+            height: calc(100vh - 60px);
+            background: white;
+            border-right: 1px solid var(--border);
+            position: fixed;
+            top: 60px;
+            padding: 1.75rem;
+            overflow-y: auto;
+            z-index: 10;
+        }
+        main {
+            margin-left: 290px;
+            padding: 3rem;
+            max-width: 1100px;
+            width: 100%;
+        }
+        h1 { color: var(--primary-dark); border-bottom: 2px solid var(--primary); padding-bottom: 0.5rem; margin-bottom: 0.5rem; }
+        h2 { color: var(--primary); margin-top: 3.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; display: flex; align-items: center; gap: 0.75rem; }
+        h2 .num { background: var(--primary); color: white; border-radius: 50%; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.95rem; flex-shrink: 0; }
+        h3 { color: #334155; margin-top: 2rem; background: #f1f5f9; padding: 0.5rem 1rem; border-radius: 6px; }
+        h4 { color: var(--primary-dark); margin-top: 1.5rem; }
+        p { margin-bottom: 1rem; }
+        ul, ol { margin-left: 1.5rem; padding-left: 0; }
+        li { margin-bottom: 0.4rem; }
+
+        .nav-link {
+            display: block;
+            padding: 0.5rem 0;
+            color: #64748b;
+            text-decoration: none;
+            font-size: 0.9rem;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .nav-link:hover { color: var(--primary); }
+        .nav-header {
+            font-weight: bold;
+            color: var(--text);
+            margin-top: 1.5rem;
+            display: block;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+        }
+
+        .step-card {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .method {
+            display: inline-block;
+            padding: 0.15rem 0.55rem;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.8rem;
+            margin-right: 0.4rem;
+            text-transform: uppercase;
+            vertical-align: middle;
+        }
+        .get    { background: #dcfce7; color: #166534; }
+        .post   { background: #dbeafe; color: #1e40af; }
+        .patch  { background: #fef9c3; color: #854d0e; }
+        .delete { background: #fee2e2; color: #991b1b; }
+
+        .tag {
+            display: inline-block;
+            font-size: 0.72rem;
+            font-weight: bold;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            background: #f1f5f9;
+            color: #64748b;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+        }
+
+        code {
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+            font-family: ui-monospace, SFMono-Regular, monospace;
+            font-size: 0.88rem;
+            background: #f1f5f9;
+        }
+        pre {
+            background: var(--code-bg);
+            color: var(--code-text);
+            padding: 1.1rem 1.3rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 0.8rem 0;
+            font-size: 0.84rem;
+            line-height: 1.45;
+        }
+        pre code { background: transparent; padding: 0; color: inherit; }
+
+        .highlight {
+            background: #f0fdf4;
+            border-left: 4px solid var(--primary);
+            padding: 1rem 1.2rem;
+            margin: 1rem 0;
+            border-radius: 0 6px 6px 0;
+        }
+        .warning-box {
+            background: #fffbeb;
+            border-left: 4px solid #f59e0b;
+            padding: 1rem 1.2rem;
+            margin: 1rem 0;
+            border-radius: 0 6px 6px 0;
+        }
+        .change-box {
+            background: #eff6ff;
+            border-left: 4px solid #3b82f6;
+            padding: 1rem 1.2rem;
+            margin: 1.5rem 0;
+            border-radius: 0 6px 6px 0;
+        }
+        .danger-box {
+            background: #fef2f2;
+            border-left: 4px solid #ef4444;
+            padding: 1rem 1.2rem;
+            margin: 1rem 0;
+            border-radius: 0 6px 6px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0.8rem 0 1.2rem;
+        }
+        table th, table td {
+            text-align: left;
+            padding: 0.65rem 0.85rem;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.93rem;
+        }
+        table th {
+            background: #f1f5f9;
+            font-weight: 600;
+            color: var(--primary-dark);
+        }
+        table tr:hover { background: #f8fafc; }
+
+        .flow-diagram {
+            font-family: ui-monospace, SFMono-Regular, monospace;
+            font-size: 0.85rem;
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1.2rem 0;
+            line-height: 1.8;
+            white-space: pre;
+            overflow-x: auto;
+        }
+
+        .badge-new {
+            display: inline-block;
+            background: #3b82f6;
+            color: white;
+            font-size: 0.7rem;
+            font-weight: bold;
+            padding: 0.1rem 0.45rem;
+            border-radius: 3px;
+            vertical-align: middle;
+            margin-left: 0.4rem;
+            text-transform: uppercase;
+        }
+        .badge-updated {
+            display: inline-block;
+            background: #f59e0b;
+            color: white;
+            font-size: 0.7rem;
+            font-weight: bold;
+            padding: 0.1rem 0.45rem;
+            border-radius: 3px;
+            vertical-align: middle;
+            margin-left: 0.4rem;
+            text-transform: uppercase;
+        }
+
+        .status-badge {
+            display: inline-block;
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 0.2rem 0.6rem;
+            border-radius: 999px;
+            text-transform: uppercase;
+        }
+        .status-pending  { background: #fef3c7; color: #92400e; }
+        .status-approved { background: #dcfce7; color: #166534; }
+        .status-rejected { background: #fee2e2; color: #991b1b; }
+
+        .email-preview {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1.5rem 2rem;
+            margin: 1rem 0;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+            max-width: 600px;
+        }
+        .email-preview h3 { background: none; padding: 0; margin: 0 0 0.25rem; color: var(--primary); font-size: 1.1rem; }
+        .email-preview .email-from { color: #64748b; font-size: 0.85rem; margin-bottom: 1rem; }
+        .email-preview .email-body { font-size: 0.9rem; line-height: 1.7; }
+        .email-btn {
+            display: inline-block;
+            background: #017e3b;
+            color: white;
+            padding: 10px 22px;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: bold;
+            margin: 12px 0;
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            aside { display: none; }
+            main { margin-left: 0; padding: 1.5rem; }
+        }
+    </style>
+</head>
+<body>
+
+<nav class="top-nav">
+    <a href="moneygoup_overview.html">Overview</a>
+    <a href="api_documentation.html">API Docs</a>
+    <a href="authentication_flow.html">Auth Flow</a>
+    <a href="admin_user_management.html" class="active">Admin User Mgmt</a>
+    <a href="recommendation_buckets.html">Rec Buckets</a>
+    <a href="components_documentation.html">Components</a>
+    <a href="database_documentation.html">Database</a>
+    <a href="prediction_workflow.html">Prediction Flow</a>
+    <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
+    <a href="technical_indicators_guide.html">Technical Guide</a>
+    <a href="style_guide.html">Style Guide</a>
+</nav>
+
+<div class="page-container">
+<aside>
+    <h2 style="font-size: 1.1rem; margin-top: 0; border: none; color: var(--primary-dark);">Admin User Mgmt</h2>
+    <nav>
+        <span class="nav-header">Overview</span>
+        <a href="#summary" class="nav-link">Summary</a>
+        <a href="#recent-changes" class="nav-link">Recent Changes (May 2026)</a>
+
+        <span class="nav-header">Approval Flow</span>
+        <a href="#user-lifecycle" class="nav-link">User Account Lifecycle</a>
+        <a href="#admin-console" class="nav-link">Admin Console UI</a>
+        <a href="#approval-actions" class="nav-link">Approve / Reject Actions</a>
+        <a href="#role-management" class="nav-link">Role Management</a>
+
+        <span class="nav-header">Email System</span>
+        <a href="#email-overview" class="nav-link">Email Overview</a>
+        <a href="#registration-email" class="nav-link">Registration Email</a>
+        <a href="#approval-email" class="nav-link">Approval Email (NEW)</a>
+        <a href="#reset-email" class="nav-link">Password Reset Email</a>
+        <a href="#email-resilience" class="nav-link">Failure Resilience</a>
+
+        <span class="nav-header">API Reference</span>
+        <a href="#api-get" class="nav-link">GET — List Users</a>
+        <a href="#api-patch" class="nav-link">PATCH — Update User</a>
+
+        <span class="nav-header">Data</span>
+        <a href="#db-schema" class="nav-link">Database Schema</a>
+
+        <span class="nav-header">Testing</span>
+        <a href="#test-coverage" class="nav-link">Test Coverage</a>
+    </nav>
+</aside>
+
+<main>
+    <h1>MoneyGoUp — Admin User Management</h1>
+    <p>This document describes the full lifecycle of a user account in GrowMyStock/MoneyGoUp, from self-registration through admin approval, email notifications, and ongoing role management. It is current as of <strong>May 17, 2026</strong> and is written for project managers who need to understand what the system does without reading code.</p>
+
+    <!-- RECENT CHANGES -->
+    <div id="recent-changes" class="change-box">
+        <strong style="color: #1d4ed8;">Recent Changes — May 17, 2026</strong>
+        <ul style="margin: 0.75rem 0 0 1.2rem; padding: 0;">
+            <li>
+                <strong>Approval email added</strong> <span class="badge-new">NEW</span> —
+                A new <code>sendApprovalEmail()</code> function was added to <code>src/lib/email.ts</code>.
+                When an admin approves a user account, the system now automatically sends that user a confirmation email
+                with a direct link to the login page.
+            </li>
+            <li>
+                <strong>Admin PATCH route updated</strong> — After successfully writing the approval to the database,
+                <code>PATCH /api/admin/users</code> fetches the user's email address and calls <code>sendApprovalEmail()</code>.
+                Email failures are caught and logged without affecting the admin's workflow.
+            </li>
+            <li>
+                <strong>Test suite updated</strong> — <code>api_admin_users.test.ts</code> was updated to mock
+                <code>@/lib/email</code> and add three new test cases: email sent on approval, email skipped when
+                no address is on file, and endpoint returns 200 even when the email send fails.
+            </li>
+        </ul>
+    </div>
+
+    <!-- SUMMARY -->
+    <section id="summary">
+        <h2><span class="num">1</span> Summary</h2>
+        <p>GrowMyStock uses a manual admin approval model. Users cannot access any protected feature until an administrator explicitly grants access. This gives the team full control over who can use the platform at any time.</p>
+
+        <table>
+            <tr><th>Aspect</th><th>Detail</th></tr>
+            <tr><td>User registration</td><td>Self-service at <code>/register</code> — anyone can create an account</td></tr>
+            <tr><td>Default state</td><td>All new accounts start as <code>pending</code> — login is blocked</td></tr>
+            <tr><td>Approval mechanism</td><td>Admin-only web console at <code>/admin/users</code></td></tr>
+            <tr><td>Email notifications</td><td>Resend API — one email on registration, one on approval, one for password reset</td></tr>
+            <tr><td>User roles</td><td><code>user</code>, <code>superuser</code>, <code>admin</code> — changeable post-approval</td></tr>
+            <tr><td>Security safeguard</td><td>System prevents demoting the last remaining admin account</td></tr>
+            <tr><td>Relevant source files</td><td>
+                <code>src/app/api/admin/users/route.ts</code>,
+                <code>src/lib/email.ts</code>,
+                <code>src/app/admin/users/page.tsx</code>
+            </td></tr>
+        </table>
+    </section>
+
+    <!-- USER LIFECYCLE -->
+    <section id="user-lifecycle">
+        <h2><span class="num">2</span> User Account Lifecycle</h2>
+        <p>Every account passes through a defined sequence of states. The diagram below shows the complete path from registration to active use, including email touchpoints.</p>
+
+        <div class="flow-diagram">User visits /register and submits username, email, password
+    ↓
+Server validates input (origin check, rate limit, Zod schema)
+    ↓
+Account created in database  →  approval_status = "pending"
+    ↓
+[EMAIL 1] Registration confirmation sent to user via Resend
+    "Welcome — your account is pending admin approval"
+    ↓
+Admin logs in and opens /admin/users
+Admin sees account in "Pending Approvals" tab
+    ↓
+Admin clicks "Approve"                   Admin clicks "Reject"
+    ↓                                        ↓
+approval_status = "approved"            approval_status = "rejected"
+approved_by = admin ID                  rejected_reason saved
+approved_at = timestamp                     ↓
+    ↓                                   User cannot log in
+[EMAIL 2] Approval email sent                (rejection shown at login)
+    "Your account is approved!"
+    ↓
+User clicks "Log In Now" → /login
+    ↓
+User accesses dashboard and all platform features</div>
+
+        <h3>Account States at a Glance</h3>
+        <table>
+            <tr><th>State</th><th>What it means</th><th>Can the user log in?</th></tr>
+            <tr>
+                <td><span class="status-badge status-pending">PENDING</span></td>
+                <td>Account created, waiting for admin to review</td>
+                <td>No — "Your account is awaiting admin approval."</td>
+            </tr>
+            <tr>
+                <td><span class="status-badge status-approved">APPROVED</span></td>
+                <td>Admin has granted access</td>
+                <td>Yes — full access based on their role</td>
+            </tr>
+            <tr>
+                <td><span class="status-badge status-rejected">REJECTED</span></td>
+                <td>Admin has denied the account</td>
+                <td>No — "Your account request was rejected."</td>
+            </tr>
+        </table>
+
+        <div class="warning-box">
+            <strong>Re-approval is possible:</strong> An admin can change a user's status at any time. A rejected user can be approved (and vice versa). The "Approve" and "Reject" buttons are available for all non-pending users in the All Users tab.
+        </div>
+    </section>
+
+    <!-- ADMIN CONSOLE UI -->
+    <section id="admin-console">
+        <h2><span class="num">3</span> Admin Console UI</h2>
+        <p>The admin user management interface is a protected page available only to users with the <code>admin</code> role. It is accessible at <code>/admin/users</code>.</p>
+
+        <div class="highlight">
+            <strong>Access control:</strong> The page checks the session on load. If the logged-in user is not an admin, they are immediately redirected to the homepage. The API routes perform an independent role check on every request — the UI check alone is not relied upon for security.
+        </div>
+
+        <h3>What admins see</h3>
+        <p>The page presents a two-tab interface:</p>
+
+        <div class="step-card">
+            <h4 style="margin-top: 0;">Tab 1 — Pending Approvals</h4>
+            <p>Shows only accounts with <code>approval_status = "pending"</code>. The count of pending accounts is shown as a badge on the tab. This is the default view when the page loads, surfacing the most actionable items first.</p>
+        </div>
+
+        <div class="step-card">
+            <h4 style="margin-top: 0;">Tab 2 — All Users</h4>
+            <p>Shows all accounts regardless of status. Admins can use this view to find specific users, check login history, or change roles for already-approved accounts.</p>
+        </div>
+
+        <h3>Search and Filtering</h3>
+        <p>A search field at the top of the table allows admins to filter results by username (partial match). Results update when the admin changes the tab or types in the search box. A manual "Refresh" button is available to reload the list without navigating away.</p>
+
+        <h3>User table columns</h3>
+        <table>
+            <tr><th>Column</th><th>Description</th></tr>
+            <tr><td>Username</td><td>The user's chosen display name (unique)</td></tr>
+            <tr><td>Status</td><td>Current approval status shown as a colour-coded badge (amber = pending, green = approved, red = rejected)</td></tr>
+            <tr><td>Role</td><td>Inline dropdown — admin can change role directly from the table row</td></tr>
+            <tr><td>Created At</td><td>Date the account was registered</td></tr>
+            <tr><td>Last Login</td><td>Most recent successful login, or "Never" if the user has not logged in</td></tr>
+            <tr><td>Actions</td><td>Approve / Reject buttons for pending users; a single toggle button for approved or rejected users</td></tr>
+        </table>
+    </section>
+
+    <!-- APPROVAL ACTIONS -->
+    <section id="approval-actions">
+        <h2><span class="num">4</span> Approve and Reject Actions</h2>
+
+        <h3>Approving a user</h3>
+        <ol>
+            <li>Admin clicks "Approve" next to a pending user.</li>
+            <li>The browser sends a <code>PATCH /api/admin/users</code> request with <code>{ userId, approval_status: "approved" }</code>.</li>
+            <li>The server verifies the requesting session belongs to an admin.</li>
+            <li>The database record is updated: <code>approval_status = "approved"</code>, <code>approved_by</code> set to the admin's user ID, <code>approved_at</code> set to the current timestamp, <code>rejected_reason</code> cleared.</li>
+            <li>The server fetches the user's email address and username from the database.</li>
+            <li>If an email address is on file, <code>sendApprovalEmail()</code> is called. If it fails, the failure is logged and the response is still 200 OK.</li>
+            <li>The admin console refreshes the user list automatically.</li>
+        </ol>
+
+        <h3>Rejecting a user</h3>
+        <ol>
+            <li>Admin clicks "Reject" next to a pending (or previously approved) user.</li>
+            <li>A browser prompt asks the admin to enter a rejection reason (required text field; pressing Cancel aborts the action).</li>
+            <li>The browser sends a <code>PATCH /api/admin/users</code> request with <code>{ userId, approval_status: "rejected", rejected_reason: "..." }</code>.</li>
+            <li>The database record is updated: <code>approval_status = "rejected"</code>, <code>rejected_reason</code> saved, <code>approved_by</code> set to the rejecting admin's ID (for audit trail).</li>
+            <li>No email is sent on rejection in the current implementation.</li>
+            <li>The admin console refreshes the user list.</li>
+        </ol>
+
+        <div class="warning-box">
+            <strong>No rejection email currently:</strong> Users are not automatically notified when their account is rejected. If your workflow requires notifying rejected applicants, this would need to be added to <code>src/lib/email.ts</code> and called from the PATCH handler — a similar pattern to <code>sendApprovalEmail()</code>.
+        </div>
+    </section>
+
+    <!-- ROLE MANAGEMENT -->
+    <section id="role-management">
+        <h2><span class="num">5</span> Role Management</h2>
+        <p>User roles control access levels and quota limits across the platform. An admin can change any user's role directly from the user management table using the inline role dropdown.</p>
+
+        <table>
+            <tr><th>Role</th><th>Platform access</th><th>Usage quotas</th><th>Can manage users?</th></tr>
+            <tr>
+                <td><code>user</code></td>
+                <td>All core features (dashboard, portfolio, watchlist, stock search)</td>
+                <td>Standard limits enforced (watchlist size, portfolio size, daily lookups)</td>
+                <td>No</td>
+            </tr>
+            <tr>
+                <td><code>superuser</code></td>
+                <td>All core features, higher quota allowances</td>
+                <td>Elevated thresholds (defined in the <code>role_limits</code> table)</td>
+                <td>No</td>
+            </tr>
+            <tr>
+                <td><code>admin</code></td>
+                <td>All features plus <code>/admin/users</code> and cache diagnostics</td>
+                <td>Unlimited</td>
+                <td>Yes</td>
+            </tr>
+        </table>
+
+        <h3>Last-admin safeguard</h3>
+        <p>The system prevents an admin from demoting themselves or another admin if there is only one admin account remaining. This prevents the platform from being left in an unmanageable state where no one can reach the admin console.</p>
+
+        <div class="flow-diagram">Admin attempts to change role to "superuser" for user X
+    ↓
+Server counts: SELECT COUNT(*) FROM users WHERE role = "admin"
+    [count > 1] → proceed with role change
+    [count = 1] → check: is user X the only admin?
+        [yes] → HTTP 400 "Cannot demote the only admin"
+        [no]  → proceed (the other admin is someone else)</div>
+
+        <div class="warning-box">
+            <strong>Role changes take effect at next login:</strong> The user's role is embedded in their JWT session token at login time. If an admin promotes a user from <code>user</code> to <code>superuser</code>, the change is recorded immediately in the database, but the affected user will not see the new quota limits until they log out and back in.
+        </div>
+    </section>
+
+    <!-- EMAIL OVERVIEW -->
+    <section id="email-overview">
+        <h2><span class="num">6</span> Email Notification System</h2>
+        <p>All outbound email is sent through <strong>Resend</strong>, a developer email service. The implementation is centralised in a single file: <code>src/lib/email.ts</code>. This file exports three functions, each responsible for one type of notification.</p>
+
+        <p>Using separate Resend API keys for different email types allows the team to:</p>
+        <ul>
+            <li>Rotate keys independently without disrupting other email flows</li>
+            <li>Monitor and throttle each email type separately in the Resend dashboard</li>
+            <li>Assign different sending domains or identities per notification type if needed in the future</li>
+        </ul>
+
+        <table>
+            <tr>
+                <th>Email type</th>
+                <th>Function</th>
+                <th>When sent</th>
+                <th>API key env var</th>
+            </tr>
+            <tr>
+                <td>Registration confirmation</td>
+                <td><code>sendRegistrationEmail()</code></td>
+                <td>Immediately after a new account is created</td>
+                <td><code>resend_reg_api_key</code></td>
+            </tr>
+            <tr>
+                <td>Account approved <span class="badge-new">NEW</span></td>
+                <td><code>sendApprovalEmail()</code></td>
+                <td>Immediately after an admin approves an account</td>
+                <td><code>resend_reg_final_api_key</code></td>
+            </tr>
+            <tr>
+                <td>Password reset link</td>
+                <td><code>sendPasswordResetEmail()</code></td>
+                <td>When a user submits the forgot-password form</td>
+                <td><code>RESEND_API_KEY</code></td>
+            </tr>
+        </table>
+
+        <table>
+            <tr><th>Shared env variable</th><th>Purpose</th></tr>
+            <tr><td><code>RESEND_FROM_EMAIL</code></td><td>The "From" address on all emails. Default: <code>noreply@growmystock.com</code></td></tr>
+        </table>
+    </section>
+
+    <!-- REGISTRATION EMAIL -->
+    <section id="registration-email">
+        <h2><span class="num">7</span> Registration Confirmation Email</h2>
+        <p>Sent automatically when a new user successfully registers. Its purpose is to confirm receipt and set expectations about the manual approval process.</p>
+
+        <div class="email-preview">
+            <h3>Welcome to GrowMyStock — Account Pending Approval</h3>
+            <div class="email-from">From: noreply@growmystock.com</div>
+            <div class="email-body">
+                <p><strong>Registration Complete!</strong></p>
+                <p>Hi <em>[username]</em>,</p>
+                <p>Thank you for registering with GrowMyStock. Your account has been created and is currently <strong>pending admin approval</strong>.</p>
+                <p>Here's what happens next:</p>
+                <ol>
+                    <li>An admin will review your account.</li>
+                    <li>Once approved, you'll be able to log in and access all features.</li>
+                </ol>
+                <p>You do not need to do anything at this time. We'll be in touch once your account is approved.</p>
+            </div>
+        </div>
+
+        <table>
+            <tr><th>Detail</th><th>Value</th></tr>
+            <tr><td>Subject</td><td>"Welcome to GrowMyStock — Account Pending Approval"</td></tr>
+            <tr><td>Recipients</td><td>The email address provided during registration</td></tr>
+            <tr><td>Contains login link?</td><td>No — users cannot log in until approved</td></tr>
+            <tr><td>If email send fails</td><td>Warning logged; user account is still created successfully</td></tr>
+        </table>
+    </section>
+
+    <!-- APPROVAL EMAIL -->
+    <section id="approval-email">
+        <h2><span class="num">8</span> Account Approval Email <span class="badge-new">NEW</span></h2>
+        <p>Added May 2026. Sent automatically when an admin approves a user account. This is the user's signal that they can now log in and use the platform.</p>
+
+        <div class="email-preview">
+            <h3>Your GrowMyStock Account Has Been Approved!</h3>
+            <div class="email-from">From: noreply@growmystock.com</div>
+            <div class="email-body">
+                <p><strong>You're Approved!</strong></p>
+                <p>Hi <em>[username]</em>,</p>
+                <p>Great news — your GrowMyStock account has been <strong>approved</strong>. You can now log in and start using all of our features.</p>
+                <a class="email-btn" href="#">Log In Now</a>
+                <p style="font-size: 0.85rem; color: #666;">If the button doesn't work, paste this link into your browser:<br>
+                    <span style="word-break:break-all;">https://growmystock.com/login</span>
+                </p>
+            </div>
+        </div>
+
+        <table>
+            <tr><th>Detail</th><th>Value</th></tr>
+            <tr><td>Subject</td><td>"Your GrowMyStock Account Has Been Approved!"</td></tr>
+            <tr><td>Recipients</td><td>The email address on file for the approved user</td></tr>
+            <tr><td>Login link destination</td><td><code>https://growmystock.com/login</code></td></tr>
+            <tr><td>Personalisation</td><td>Username included in greeting</td></tr>
+            <tr><td>If user has no email on file</td><td>Email is silently skipped (no error)</td></tr>
+            <tr><td>If email send fails</td><td>Error logged; admin action still succeeds (200 OK returned)</td></tr>
+        </table>
+
+        <h3>Technical implementation</h3>
+        <p>After the database update succeeds, the PATCH handler runs the following logic:</p>
+        <div class="flow-diagram">approval_status === "approved"?
+    [yes] ↓
+SELECT email, username FROM users WHERE id = userId
+user.email exists?
+    [no]  → skip (no email sent, no error)
+    [yes] ↓
+try {
+    await sendApprovalEmail(user.email, user.username)
+} catch (emailErr) {
+    logger.error("Failed to send approval email", { emailErr, targetUserId })
+    // response is NOT affected — continues to HTTP 200
+}</div>
+    </section>
+
+    <!-- PASSWORD RESET EMAIL -->
+    <section id="reset-email">
+        <h2><span class="num">9</span> Password Reset Email</h2>
+        <p>Sent when a user submits the forgot-password form at <code>/forgot-password</code>. Contains a time-limited, single-use link. For full details of the reset flow, see the <a href="authentication_flow.html#password-reset-flow">Authentication Flow document</a>.</p>
+
+        <table>
+            <tr><th>Detail</th><th>Value</th></tr>
+            <tr><td>Subject</td><td>"Reset your GrowMyStock password"</td></tr>
+            <tr><td>Link expiry</td><td>1 hour from time of request</td></tr>
+            <tr><td>Link reuse</td><td>Single use only — consumed upon successful password change</td></tr>
+            <tr><td>Eligible accounts</td><td>Only accounts with <code>approval_status = "approved"</code> can receive reset emails (pending/rejected accounts are silently excluded to prevent email enumeration)</td></tr>
+        </table>
+    </section>
+
+    <!-- EMAIL RESILIENCE -->
+    <section id="email-resilience">
+        <h2><span class="num">10</span> Email Failure Resilience</h2>
+        <p>A key design decision across all three email types is that email failures never block the primary user action. The table below summarises the failure handling for each email.</p>
+
+        <table>
+            <tr>
+                <th>Email</th>
+                <th>Failure handling</th>
+                <th>User impact</th>
+                <th>Admin impact</th>
+            </tr>
+            <tr>
+                <td>Registration confirmation</td>
+                <td>Caught, logged as <code>warning</code></td>
+                <td>Account still created; user does not receive confirmation email</td>
+                <td>None — no admin action involved</td>
+            </tr>
+            <tr>
+                <td>Approval notification <span class="badge-new">NEW</span></td>
+                <td>Caught, logged as <code>error</code></td>
+                <td>User's account is approved in the database; they can log in; they just don't receive the notification email</td>
+                <td>Admin receives HTTP 200 OK — their approve action succeeds</td>
+            </tr>
+            <tr>
+                <td>Password reset link</td>
+                <td>Propagates to outer handler; logged; endpoint returns HTTP 200 (silent)</td>
+                <td>User does not receive the reset link — they see the generic success message regardless</td>
+                <td>None</td>
+            </tr>
+        </table>
+
+        <div class="highlight">
+            <strong>Why this matters operationally:</strong> If the Resend API is down or an API key is misconfigured, user registrations and admin approvals still complete. The system logs the email failure, which can be monitored by checking server logs or a logging service. In the case of a missed approval email, an admin can inform the user manually or re-trigger by some other means.
+        </div>
+
+        <div class="danger-box">
+            <strong>Monitoring recommendation:</strong> Because email failures are non-fatal and the user sees no indication that the email was not sent, it is important to monitor server logs for <code>Failed to send approval email</code> entries. A high rate of these errors may indicate a misconfigured or expired Resend API key.
+        </div>
+    </section>
+
+    <!-- API — GET -->
+    <section id="api-get">
+        <h2><span class="num">11</span> API Route — GET /api/admin/users</h2>
+        <p>Returns a list of users for display in the admin console. Only accessible to admins.</p>
+
+        <div class="step-card">
+            <span class="tag">GET /api/admin/users</span>
+            <span class="tag" style="background: #fef9c3; color: #854d0e;">Admin only</span>
+
+            <h4>Authentication</h4>
+            <p>Requires a valid session token belonging to a user with <code>role = "admin"</code>. Returns 401 if no session exists; 403 if the session belongs to a non-admin.</p>
+
+            <h4>Query parameters (all optional)</h4>
+            <table>
+                <tr><th>Parameter</th><th>Values</th><th>Effect</th></tr>
+                <tr><td><code>status</code></td><td><code>pending</code>, <code>approved</code>, <code>rejected</code></td><td>Filter results to only users with that approval status. Omit to include all statuses.</td></tr>
+                <tr><td><code>role</code></td><td><code>user</code>, <code>superuser</code>, <code>admin</code></td><td>Filter results to only users with that role.</td></tr>
+                <tr><td><code>search</code></td><td>Any text</td><td>Returns users whose username contains this string (partial match, case-insensitive).</td></tr>
+            </table>
+
+            <h4>Response fields per user</h4>
+            <table>
+                <tr><th>Field</th><th>Description</th></tr>
+                <tr><td><code>id</code></td><td>Database row ID</td></tr>
+                <tr><td><code>username</code></td><td>Unique display name</td></tr>
+                <tr><td><code>role</code></td><td>Current role (<code>user</code>, <code>superuser</code>, <code>admin</code>)</td></tr>
+                <tr><td><code>approval_status</code></td><td>Current state (<code>pending</code>, <code>approved</code>, <code>rejected</code>)</td></tr>
+                <tr><td><code>created_at</code></td><td>Registration timestamp</td></tr>
+                <tr><td><code>last_login</code></td><td>Most recent login timestamp, or null</td></tr>
+                <tr><td><code>rejected_reason</code></td><td>Reason text if account was rejected, or null</td></tr>
+            </table>
+
+            <div class="warning-box">
+                <strong>Email address not exposed:</strong> The GET endpoint does not return the user's email address. The email is only fetched server-side for the purpose of sending the approval notification — it is never included in the list response sent to the admin browser.
+            </div>
+        </div>
+    </section>
+
+    <!-- API — PATCH -->
+    <section id="api-patch">
+        <h2><span class="num">12</span> API Route — PATCH /api/admin/users</h2>
+        <p>Updates a user's approval status, role, or both. Only accessible to admins. This is the route that triggers the approval email.</p>
+
+        <div class="step-card">
+            <span class="tag">PATCH /api/admin/users</span>
+            <span class="tag" style="background: #fef9c3; color: #854d0e;">Admin only</span>
+
+            <h4>Request body</h4>
+            <table>
+                <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+                <tr><td><code>userId</code></td><td>number</td><td>Yes</td><td>ID of the user to update</td></tr>
+                <tr><td><code>approval_status</code></td><td>string</td><td>No</td><td><code>"approved"</code> or <code>"rejected"</code></td></tr>
+                <tr><td><code>rejected_reason</code></td><td>string</td><td>No</td><td>Required when <code>approval_status = "rejected"</code>; defaults to "No reason provided"</td></tr>
+                <tr><td><code>role</code></td><td>string</td><td>No</td><td><code>"user"</code>, <code>"superuser"</code>, or <code>"admin"</code></td></tr>
+            </table>
+
+            <h4>Database fields written on approval</h4>
+            <table>
+                <tr><th>Field</th><th>Value set</th></tr>
+                <tr><td><code>approval_status</code></td><td><code>"approved"</code></td></tr>
+                <tr><td><code>approved_by</code></td><td>ID of the admin making the request</td></tr>
+                <tr><td><code>approved_at</code></td><td>Current server timestamp</td></tr>
+                <tr><td><code>rejected_reason</code></td><td><code>NULL</code> (cleared)</td></tr>
+            </table>
+
+            <h4>Responses</h4>
+            <table>
+                <tr><th>Status</th><th>Situation</th></tr>
+                <tr><td>200 OK</td><td>Update succeeded (including if approval email failed to send)</td></tr>
+                <tr><td>400 Bad Request</td><td>Missing <code>userId</code>, no fields to update, or last-admin demotion attempt</td></tr>
+                <tr><td>401 Unauthorized</td><td>No valid session</td></tr>
+                <tr><td>403 Forbidden</td><td>Session exists but the user is not an admin</td></tr>
+                <tr><td>500 Internal Server Error</td><td>Unexpected database error</td></tr>
+            </table>
+        </div>
+    </section>
+
+    <!-- DATABASE SCHEMA -->
+    <section id="db-schema">
+        <h2><span class="num">13</span> Database Schema</h2>
+        <p>Two database tables are central to user management: <code>users</code> and <code>password_reset_tokens</code>.</p>
+
+        <h3>users table</h3>
+        <p>Stores one row per registered account. Key columns for the approval workflow:</p>
+
+        <table>
+            <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+            <tr><td><code>id</code></td><td>INT (auto-increment)</td><td>Primary key</td></tr>
+            <tr><td><code>username</code></td><td>VARCHAR(255)</td><td>Unique display name chosen at registration</td></tr>
+            <tr><td><code>email</code></td><td>VARCHAR(255)</td><td>Unique email address; nullable (some legacy accounts may have no email)</td></tr>
+            <tr><td><code>password_hash</code></td><td>VARCHAR(255)</td><td>bcrypt hash of the user's password (cost factor 10)</td></tr>
+            <tr><td><code>role</code></td><td>ENUM('user','superuser','admin')</td><td>Access level. Default: <code>user</code></td></tr>
+            <tr><td><code>approval_status</code></td><td>ENUM('pending','approved','rejected')</td><td>Controls whether the account can log in. Default: <code>pending</code></td></tr>
+            <tr><td><code>approved_by</code></td><td>INT (FK → users.id)</td><td>ID of the admin who last changed approval status. NULL if not yet actioned.</td></tr>
+            <tr><td><code>approved_at</code></td><td>DATETIME</td><td>Timestamp of the most recent approval action</td></tr>
+            <tr><td><code>rejected_reason</code></td><td>VARCHAR(255)</td><td>Free-text reason entered by the admin when rejecting. NULL otherwise.</td></tr>
+            <tr><td><code>last_login</code></td><td>DATETIME</td><td>Automatically updated on each successful login</td></tr>
+            <tr><td><code>created_at</code></td><td>TIMESTAMP</td><td>Account creation time</td></tr>
+            <tr><td><code>modified_at</code></td><td>TIMESTAMP</td><td>Last record modification time (updated on password reset)</td></tr>
+        </table>
+
+        <div class="highlight">
+            <strong>Indexes on approval_status and role:</strong> Both columns are indexed separately in MySQL (<code>idx_users_approval_status</code>, <code>idx_users_role</code>). This makes the admin console's filtered queries fast even as the user table grows.
+        </div>
+
+        <h3>password_reset_tokens table</h3>
+        <p>Stores one-time password reset tokens. A separate table keeps token data isolated from the main user record.</p>
+
+        <table>
+            <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+            <tr><td><code>id</code></td><td>INT (auto-increment)</td><td>Primary key</td></tr>
+            <tr><td><code>user_id</code></td><td>INT (FK → users.id)</td><td>The account this token belongs to. Cascades on user deletion.</td></tr>
+            <tr><td><code>token_hash</code></td><td>VARCHAR(255)</td><td>SHA-256 hash of the raw token. The raw token is never stored.</td></tr>
+            <tr><td><code>expires_at</code></td><td>DATETIME</td><td>Token becomes invalid after this time (1 hour from creation)</td></tr>
+            <tr><td><code>used_at</code></td><td>DATETIME</td><td>Set when the token is consumed. NULL if still valid and unused.</td></tr>
+            <tr><td><code>created_at</code></td><td>TIMESTAMP</td><td>Row creation time</td></tr>
+        </table>
+    </section>
+
+    <!-- TEST COVERAGE -->
+    <section id="test-coverage">
+        <h2><span class="num">14</span> Test Coverage <span class="badge-updated">Updated May 2026</span></h2>
+        <p>The admin user management API is covered by a Jest test suite in <code>src/utils/test/api_admin_users.test.ts</code>. The test file mocks the database helper, session provider, and email module so that no real database connections or email sends occur during automated testing.</p>
+
+        <h3>Test cases — GET /api/admin/users</h3>
+        <table>
+            <tr><th>Test case</th><th>Expected outcome</th></tr>
+            <tr><td>No session present</td><td>HTTP 401</td></tr>
+            <tr><td>Session belongs to a non-admin user</td><td>HTTP 403</td></tr>
+            <tr><td>Admin session, no filters</td><td>HTTP 200 with user list</td></tr>
+            <tr><td>Admin session with <code>status</code>, <code>role</code>, and <code>search</code> filters</td><td>HTTP 200; SQL query verified to include correct WHERE clauses and parameters</td></tr>
+        </table>
+
+        <h3>Test cases — PATCH /api/admin/users</h3>
+        <table>
+            <tr><th>Test case</th><th>Expected outcome</th></tr>
+            <tr><td>Approve a user (status update)</td><td>HTTP 200; database update verified with correct fields including <code>approved_by</code></td></tr>
+            <tr><td>Approval email sent when user has an email address <span class="badge-new">NEW</span></td><td><code>sendApprovalEmail()</code> called with correct email and username</td></tr>
+            <tr><td>Approval email skipped when user has no email address <span class="badge-new">NEW</span></td><td><code>sendApprovalEmail()</code> not called; still returns HTTP 200</td></tr>
+            <tr><td>Approval email send fails <span class="badge-new">NEW</span></td><td><code>sendApprovalEmail()</code> throws; endpoint still returns HTTP 200 (email failure is non-fatal)</td></tr>
+            <tr><td>Demote the only remaining admin</td><td>HTTP 400 — "Cannot demote the only admin"</td></tr>
+            <tr><td>Change role when multiple admins exist</td><td>HTTP 200; database update verified</td></tr>
+        </table>
+
+        <div class="highlight">
+            <strong>Mocking strategy:</strong> <code>sendApprovalEmail</code> is mocked using <code>jest.mock('@/lib/email', () => ({ sendApprovalEmail: jest.fn() }))</code> at the top of the test file. This means tests run in complete isolation — no real Resend API calls are made, and tests can control whether the mock resolves or rejects to verify the failure-resilience behaviour.
+        </div>
+
+        <h3>Running the tests</h3>
+        <pre><code># Run all tests
+npm test
+
+# Run only the admin users test file
+npx jest api_admin_users
+
+# Run with verbose output
+npx jest api_admin_users --verbose</code></pre>
+    </section>
+
+    <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem;">
+        <strong>MoneyGoUp — Admin User Management Documentation</strong><br>
+        Created: May 17, 2026 &nbsp;|&nbsp; Last Updated: May 17, 2026<br>
+        Author: Technical Documentation Team<br>
+        Version: 1.0 — initial document covering approval flow, email system (incl. new <code>sendApprovalEmail()</code>), API routes, database schema, and test coverage<br>
+        Copyright &copy; 2026 MoneyGoUp. All rights reserved.
+    </footer>
+</main>
+</div>
+
+</body>
+</html>
