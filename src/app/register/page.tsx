@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -12,10 +11,13 @@ export default function RegisterPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (password.length < 8 || !/\d/.test(password)) {
+      setError('Password must be at least 8 characters and contain at least one number.');
+      return;
+    }
     setLoading(true);
     setError('');
     setSuccess('');
@@ -28,10 +30,7 @@ export default function RegisterPage() {
       });
 
       if (res.ok) {
-        setSuccess('Account created successfully! It is now awaiting admin approval. Redirecting to login...');
-        setTimeout(() => {
-          router.push('/login');
-        }, 5000);
+        setSuccess('Registration successful! Your account is pending admin approval. You will be able to log in once an admin has approved your account.');
       } else {
         const data = await res.json();
         setError(data.message || 'Registration failed');
@@ -44,8 +43,8 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-2">
+      <div className="max-w-xl w-full bg-white rounded-2xl shadow-xl p-8">
         <div className="flex flex-col items-center mb-8">
           <Link href="/" className="mb-4">
             <Image src="/growmystock_logo.svg" alt="GrowMyStock Logo" width={64} height={64} />
@@ -88,6 +87,7 @@ export default function RegisterPage() {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-green-600 focus:border-green-600 transition duration-200"
               required
             />
+            <p className="text-xs text-gray-500 mt-1">At least 8 characters and one number.</p>
           </div>
           {error && (
             <div className="bg-red-100 border-2 border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-4" role="alert">

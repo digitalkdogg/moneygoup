@@ -190,8 +190,30 @@ describe('POST /api/auth/reset-password', () => {
     const data = await res.json();
 
     expect(res.status).toBe(400);
-    expect(data.message).toBe('Password must be at least 6 characters');
+    expect(data.message).toBe('Password must be at least 8 characters');
     expect(executeRawQuery).not.toHaveBeenCalled();
+  });
+
+  test('returns 400 when password has no digit (Zod)', async () => {
+    const res = await POST(createPostRequest({ token: VALID_TOKEN, password: 'abcdefgh' }));
+    const data = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(data.message).toBe('Password must contain at least one number');
+    expect(executeRawQuery).not.toHaveBeenCalled();
+  });
+
+  test('accepts a password that is exactly 8 characters with one digit', async () => {
+    (executeRawQuery as jest.Mock)
+      .mockResolvedValueOnce([[VALID_TOKEN_ROW]])
+      .mockResolvedValueOnce([{}])
+      .mockResolvedValueOnce([{}]);
+
+    const res = await POST(createPostRequest({ token: VALID_TOKEN, password: 'abcdefg1' }));
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.message).toBe('Password updated successfully.');
   });
 
   // ── Guards ──────────────────────────────────────────────────────────

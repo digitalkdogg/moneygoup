@@ -1,5 +1,35 @@
 import { Resend } from 'resend';
 
+export async function sendRegistrationEmail(to: string, username: string): Promise<void> {
+  const resend = new Resend(process.env.resend_reg_api_key);
+  const from = process.env.RESEND_FROM_EMAIL || 'noreply@growmystock.com';
+
+  const { error } = await resend.emails.send({
+    from,
+    to,
+    subject: 'Welcome to GrowMyStock — Account Pending Approval',
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;">
+        <h2 style="color:#017e3b;margin-top:0;">Registration Complete!</h2>
+        <p>Hi <strong>${username}</strong>,</p>
+        <p>Thank you for registering with GrowMyStock. Your account has been created and is currently <strong>pending admin approval</strong>.</p>
+        <p>Here's what happens next:</p>
+        <ol style="line-height:1.8;">
+          <li>An admin will review your account.</li>
+          <li>Once approved, you'll be able to log in and access all features.</li>
+        </ol>
+        <p>You do not need to do anything at this time. We'll be in touch once your account is approved.</p>
+        <hr style="border:none;border-top:1px solid #eee;margin:24px 0;"/>
+        <p style="color:#999;font-size:12px;margin:0;">GrowMyStock &mdash; Your stock analysis platform</p>
+      </div>
+    `,
+  });
+
+  if (error) {
+    throw new Error(`Resend API error: ${JSON.stringify(error)}`);
+  }
+}
+
 export async function sendPasswordResetEmail(to: string, resetUrl: string): Promise<void> {
   const resend = new Resend(process.env.RESEND_API_KEY);
   const from = process.env.RESEND_FROM_EMAIL || 'noreply@growmystock.com';

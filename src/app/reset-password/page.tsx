@@ -43,6 +43,10 @@ function ResetPasswordForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (password.length < 8 || !/\d/.test(password)) {
+      setError('Password must be at least 8 characters and contain at least one number.');
+      return;
+    }
     if (password !== confirm) {
       setError('Passwords do not match.');
       return;
@@ -115,9 +119,9 @@ function ResetPasswordForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-green-600 focus:border-green-600 transition duration-200"
-                minLength={6}
                 required
               />
+              <p className="text-xs text-gray-500 mt-1">At least 8 characters and one number.</p>
             </div>
             <div className="mb-6">
               <label htmlFor="confirm" className="block text-sm font-medium text-gray-700 mb-1">

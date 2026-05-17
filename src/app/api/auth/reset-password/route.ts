@@ -13,7 +13,7 @@ const logger = createLogger('api/auth/reset-password');
 
 const schema = z.object({
   token: z.string().length(64, 'Invalid token format'),
-  password: z.string().min(6, 'Password must be at least 6 characters').max(100),
+  password: z.string().min(8, 'Password must be at least 8 characters').max(100).regex(/\d/, 'Password must contain at least one number'),
 });
 
 type TokenRow = { id: number; user_id: number; expires_at: Date; used_at: Date | null };

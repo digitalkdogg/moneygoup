@@ -8,6 +8,7 @@ import mysql from 'mysql2/promise'; // Import mysql types
 import { checkOrigin } from '@/utils/originCheck';
 import { checkRateLimit } from '@/utils/rateLimitMiddleware';
 import { registerLimiter } from '@/utils/rateLimiter';
+import { sendRegistrationEmail } from '@/lib/email';
 
 const logger = createLogger('api/auth/register');
 
@@ -15,7 +16,7 @@ const logger = createLogger('api/auth/register');
 const registerSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters long').max(50, 'Username cannot exceed 50 characters'),
   email: z.string().email('Invalid email address').max(255, 'Email cannot exceed 255 characters'),
-  password: z.string().min(6, 'Password must be at least 6 characters long').max(100, 'Password cannot exceed 100 characters'),
+  password: z.string().min(8, 'Password must be at least 8 characters long').max(100, 'Password cannot exceed 100 characters').regex(/\d/, 'Password must contain at least one number'),
 });
 
 export async function POST(request: NextRequest) {
@@ -43,11 +44,18 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { username, email, password } = registerSchema.parse(body);
 
-    // Check if username or email already exists
-    const [existingUsers] = await executeRawQuery('SELECT id FROM users WHERE username = ? OR email = ?', [username, email]);
-    if (Array.isArray(existingUsers) && existingUsers.length > 0) {
-      logger.warn('Registration attempt with existing username or email:', { username });
-      return createErrorResponse(null, 'Username or email already exists', { status: 409 });
+    // Check if email already exists
+    const [emailCheck] = await executeRawQuery('SELECT id FROM users WHERE email = ?', [email]);
+    if (Array.isArray(emailCheck) && emailCheck.length > 0) {
+      logger.warn('Registration attempt with existing email:', { email });
+      return createErrorResponse(null, 'An account with this email address is already registered.', { status: 409 });
+    }
+
+    // Check if username already exists
+    const [usernameCheck] = await executeRawQuery('SELECT id FROM users WHERE username = ?', [username]);
+    if (Array.isArray(usernameCheck) && usernameCheck.length > 0) {
+      logger.warn('Registration attempt with existing username:', { username });
+      return createErrorResponse(null, 'This username is already taken.', { status: 409 });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10); // Hash password with salt rounds = 10
@@ -64,8 +72,15 @@ export async function POST(request: NextRequest) {
     }
 
     logger.info('User registered successfully:', { userId: insertId, username, approvalStatus: 'pending' });
-    return NextResponse.json({ 
-      message: 'Account created and awaiting admin approval', 
+
+    try {
+      await sendRegistrationEmail(email, username);
+    } catch (emailError) {
+      logger.warn('Registration email failed to send:', { userId: insertId, error: emailError instanceof Error ? emailError.message : String(emailError) });
+    }
+
+    return NextResponse.json({
+      message: 'Account created and awaiting admin approval',
       userId: insertId,
       approvalStatus: 'pending'
     }, { status: 201 });

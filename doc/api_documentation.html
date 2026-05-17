@@ -210,6 +210,7 @@
     <nav class="top-nav">
         <a href="moneygoup_overview.html">Overview</a>
         <a href="api_documentation.html" class="active">API Docs</a>
+        <a href="authentication_flow.html">Auth Flow</a>
         <a href="recommendation_buckets.html">Rec Buckets</a>
         <a href="components_documentation.html">Components</a>
         <a href="database_documentation.html">Database</a>
@@ -273,6 +274,17 @@
 
         <section id="fundamentals">
             <h2><span>0</span> Fundamentals & Auth</h2>
+
+            <div class="highlight-box" style="border-left-color: #b45309; background: #fffbeb; margin-bottom: 1.5rem;">
+                <strong style="color:#92400e;">Recent Changes — May 17, 2026</strong>
+                <ul style="margin: 0.5rem 0 0 1.2rem; padding: 0;">
+                    <li><strong>Password policy hardened:</strong> Minimum length raised from 6 to <strong>8 characters</strong>; a <strong>digit (0–9) is now required</strong>. Enforced in both <code>POST /api/auth/register</code> and <code>POST /api/auth/reset-password</code> via Zod schema and mirrored by client-side validation on the respective pages.</li>
+                    <li><strong>Register &amp; Login page UI:</strong> Card container widened from <code>max-w-md / p-4</code> to <code>max-w-xl / p-2</code> for a more spacious layout. Login page now shares the same dimensions as Register.</li>
+                    <li><strong>Register endpoint response:</strong> Response body updated — field names are now <code>userId</code> and <code>approvalStatus</code> (was <code>user_id</code> / <code>is_approved</code>). Email is no longer echoed back.</li>
+                    <li><strong>Test coverage:</strong> New tests added for password-no-digit and boundary-8-char cases on both register and reset-password routes; <code>jest.mock('@/lib/email')</code> added to register tests.</li>
+                </ul>
+            </div>
+
             <div id="auth-overview" class="step-card">
                 <h3>Authentication & Security</h3>
                 <div class="component-tag">Security Layer</div>
@@ -290,21 +302,37 @@
             <div id="auth-register" class="step-card">
                 <h3><span class="method post">POST</span> /api/auth/register</h3>
                 <div class="component-tag">User Identity</div>
-                <p>Creates a new user account with hashed passwords using <code>bcryptjs</code>. All new users default to <code>role = 'user'</code> and <code>is_approved = 0</code>.</p>
+                <p>Creates a new user account with hashed passwords using <code>bcryptjs</code>. All new users default to <code>role = 'user'</code> and <code>approval_status = 'pending'</code>. A confirmation email is sent via Resend on success; email failure is non-fatal and logged as a warning.</p>
+                <strong>Rate Limit:</strong> Enforced per-IP + username via <code>registerLimiter</code>.
                 <strong>Request:</strong>
                 <pre><code>{
   "username": "john_doe",
   "email": "john@example.com",
   "password": "secure_password_123"
 }</code></pre>
-                <strong>Response (201):</strong>
+                <strong>Validation (Zod schema):</strong>
+                <table>
+                    <tr><th>Field</th><th>Rule</th></tr>
+                    <tr><td>username</td><td>3–50 characters</td></tr>
+                    <tr><td>email</td><td>Valid email format, max 255 characters</td></tr>
+                    <tr><td>password</td><td>Min 8 characters, max 100, must contain at least one digit (0–9)</td></tr>
+                </table>
+                <p>Client-side validation on the Register page mirrors these rules: a hint reading <em>"At least 8 characters and one number."</em> is displayed below the password field, and form submission is blocked before the API is called if the password does not meet these requirements.</p>
+                <strong>Response (201 Created):</strong>
                 <pre><code>{
-  "user_id": 42,
-  "username": "john_doe",
-  "email": "john@example.com",
-  "role": "user",
-  "is_approved": 0
+  "message": "Account created and awaiting admin approval",
+  "userId": 42,
+  "approvalStatus": "pending"
 }</code></pre>
+                <strong>Response (400 Bad Request — validation failure):</strong>
+                <pre><code>{
+  "message": "Validation error during registration",
+  "details": [...]
+}</code></pre>
+                <strong>Response (409 Conflict — duplicate):</strong>
+                <pre><code>{ "message": "An account with this email address is already registered." }
+{ "message": "This username is already taken." }</code></pre>
+                <strong>Required env vars:</strong> <code>resend_reg_api_key</code>, <code>RESEND_FROM_EMAIL</code>
             </div>
 
             <div id="auth-forgot-password" class="step-card">
@@ -357,7 +385,7 @@
   "token": "&lt;64-char hex token from URL&gt;",
   "password": "new_secure_password"
 }</code></pre>
-                <strong>Validation:</strong> <code>token</code> must be exactly 64 characters. <code>password</code> must be 6–100 characters.
+                <strong>Validation:</strong> <code>token</code> must be exactly 64 characters. <code>password</code> must be 8–100 characters and contain at least one digit (0–9). The Reset Password page shows a matching hint and enforces the same rules client-side before submitting.
                 <strong>Response (200 OK):</strong>
                 <pre><code>{ "message": "Password updated successfully." }</code></pre>
                 <strong>Response (400):</strong>
@@ -1130,9 +1158,9 @@ GET /api/dashboard/deepmoney-picks?limit=10&offset=20</code></pre>
 
         <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem;">
             <strong>MoneyGoUp API Documentation</strong><br>
-            Last Updated: May 16, 2026<br>
+            Last Updated: May 17, 2026<br>
             Author: Technical Documentation Team<br>
-            Version: 3.4 (Password reset endpoints + email field)<br>
+            Version: 3.5 (Password policy hardened — min 8 chars + digit requirement across register and reset-password; login/register UI layout updated to max-w-xl)<br>
             Copyright &copy; 2026 MoneyGoUp. All rights reserved.
         </footer>
     </main>

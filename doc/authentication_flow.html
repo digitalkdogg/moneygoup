@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoneyGoUp — Authentication Flow</title>
+    <meta name="description" content="Complete reference for MoneyGoUp authentication flows: registration, login, password reset, and security controls.">
+    <meta name="author" content="Technical Documentation Team">
+    <meta name="created" content="2026-05-17">
+    <meta name="updated" content="2026-05-17">
+    <style>
+        :root {
+            --primary: #15803d;
+            --primary-dark: #166534;
+            --warning: #b45309;
+            --danger: #991b1b;
+            --bg: #f8fafc;
+            --text: #1e293b;
+            --code-bg: #1e293b;
+            --code-text: #f8fafc;
+            --border: #e2e8f0;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background-color: var(--bg);
+            margin: 0;
+        }
+        .top-nav {
+            position: sticky;
+            top: 0;
+            width: 100%;
+            background: white;
+            border-bottom: 1px solid var(--border);
+            padding: 0.75rem 2rem;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            flex-wrap: wrap;
+        }
+        .top-nav a {
+            text-decoration: none;
+            color: #64748b;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            padding: 0.25rem 0;
+            border-bottom: 2px solid transparent;
+        }
+        .top-nav a:hover { color: var(--primary); }
+        .top-nav a.active {
+            color: var(--primary);
+            border-bottom: 2px solid var(--primary);
+        }
+        .page-container { display: flex; }
+        aside {
+            width: 290px;
+            height: calc(100vh - 60px);
+            background: white;
+            border-right: 1px solid var(--border);
+            position: fixed;
+            top: 60px;
+            padding: 1.75rem;
+            overflow-y: auto;
+            z-index: 10;
+        }
+        main {
+            margin-left: 290px;
+            padding: 3rem;
+            max-width: 1100px;
+            width: 100%;
+        }
+        h1 { color: var(--primary-dark); border-bottom: 2px solid var(--primary); padding-bottom: 0.5rem; margin-bottom: 0.5rem; }
+        h2 { color: var(--primary); margin-top: 3.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; display: flex; align-items: center; gap: 0.75rem; }
+        h2 .num { background: var(--primary); color: white; border-radius: 50%; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.95rem; flex-shrink: 0; }
+        h3 { color: #334155; margin-top: 2rem; background: #f1f5f9; padding: 0.5rem 1rem; border-radius: 6px; }
+        h4 { color: var(--primary-dark); margin-top: 1.5rem; }
+        p { margin-bottom: 1rem; }
+        ul, ol { margin-left: 1.5rem; padding-left: 0; }
+        li { margin-bottom: 0.4rem; }
+
+        .nav-link {
+            display: block;
+            padding: 0.5rem 0;
+            color: #64748b;
+            text-decoration: none;
+            font-size: 0.9rem;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .nav-link:hover { color: var(--primary); }
+        .nav-header {
+            font-weight: bold;
+            color: var(--text);
+            margin-top: 1.5rem;
+            display: block;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+        }
+
+        .step-card {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .method {
+            display: inline-block;
+            padding: 0.15rem 0.55rem;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.8rem;
+            margin-right: 0.4rem;
+            text-transform: uppercase;
+            vertical-align: middle;
+        }
+        .get  { background: #dcfce7; color: #166534; }
+        .post { background: #dbeafe; color: #1e40af; }
+
+        .tag {
+            display: inline-block;
+            font-size: 0.72rem;
+            font-weight: bold;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            background: #f1f5f9;
+            color: #64748b;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+        }
+
+        code {
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+            font-family: ui-monospace, SFMono-Regular, monospace;
+            font-size: 0.88rem;
+            background: #f1f5f9;
+        }
+        pre {
+            background: var(--code-bg);
+            color: var(--code-text);
+            padding: 1.1rem 1.3rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 0.8rem 0;
+            font-size: 0.84rem;
+            line-height: 1.45;
+        }
+        pre code { background: transparent; padding: 0; color: inherit; }
+
+        .highlight {
+            background: #f0fdf4;
+            border-left: 4px solid var(--primary);
+            padding: 1rem 1.2rem;
+            margin: 1rem 0;
+            border-radius: 0 6px 6px 0;
+        }
+        .warning-box {
+            background: #fffbeb;
+            border-left: 4px solid #f59e0b;
+            padding: 1rem 1.2rem;
+            margin: 1rem 0;
+            border-radius: 0 6px 6px 0;
+        }
+        .change-box {
+            background: #eff6ff;
+            border-left: 4px solid #3b82f6;
+            padding: 1rem 1.2rem;
+            margin: 1.5rem 0;
+            border-radius: 0 6px 6px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0.8rem 0 1.2rem;
+        }
+        table th, table td {
+            text-align: left;
+            padding: 0.65rem 0.85rem;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.93rem;
+        }
+        table th {
+            background: #f1f5f9;
+            font-weight: 600;
+            color: var(--primary-dark);
+        }
+        table tr:hover { background: #f8fafc; }
+
+        /* Flow diagram styles */
+        .flow-diagram {
+            font-family: ui-monospace, SFMono-Regular, monospace;
+            font-size: 0.85rem;
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1.2rem 0;
+            line-height: 1.8;
+            white-space: pre;
+            overflow-x: auto;
+        }
+
+        .badge-new {
+            display: inline-block;
+            background: #3b82f6;
+            color: white;
+            font-size: 0.7rem;
+            font-weight: bold;
+            padding: 0.1rem 0.45rem;
+            border-radius: 3px;
+            vertical-align: middle;
+            margin-left: 0.4rem;
+            text-transform: uppercase;
+        }
+        .badge-updated {
+            display: inline-block;
+            background: #f59e0b;
+            color: white;
+            font-size: 0.7rem;
+            font-weight: bold;
+            padding: 0.1rem 0.45rem;
+            border-radius: 3px;
+            vertical-align: middle;
+            margin-left: 0.4rem;
+            text-transform: uppercase;
+        }
+
+        ul.flow { list-style: none; padding-left: 0; }
+        .flow li { position: relative; padding-left: 1.6rem; margin-bottom: 0.5rem; }
+        .flow li::before { content: "→"; position: absolute; left: 0; color: var(--primary); font-weight: bold; }
+
+        @media (max-width: 768px) {
+            aside { display: none; }
+            main { margin-left: 0; padding: 1.5rem; }
+        }
+    </style>
+</head>
+<body>
+
+<nav class="top-nav">
+    <a href="moneygoup_overview.html">Overview</a>
+    <a href="api_documentation.html">API Docs</a>
+    <a href="authentication_flow.html" class="active">Auth Flow</a>
+    <a href="recommendation_buckets.html">Rec Buckets</a>
+    <a href="components_documentation.html">Components</a>
+    <a href="database_documentation.html">Database</a>
+    <a href="prediction_workflow.html">Prediction Flow</a>
+    <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
+    <a href="technical_indicators_guide.html">Technical Guide</a>
+    <a href="style_guide.html">Style Guide</a>
+</nav>
+
+<div class="page-container">
+<aside>
+    <h2 style="font-size: 1.1rem; margin-top: 0; border: none; color: var(--primary-dark);">Auth Flow</h2>
+    <nav>
+        <span class="nav-header">Overview</span>
+        <a href="#summary" class="nav-link">Summary</a>
+        <a href="#recent-changes" class="nav-link">Recent Changes (May 2026)</a>
+        <a href="#security-layers" class="nav-link">Security Layers</a>
+        <a href="#password-policy" class="nav-link">Password Policy</a>
+
+        <span class="nav-header">Flows</span>
+        <a href="#registration-flow" class="nav-link">1. Registration</a>
+        <a href="#login-flow" class="nav-link">2. Login</a>
+        <a href="#password-reset-flow" class="nav-link">3. Password Reset</a>
+
+        <span class="nav-header">Pages & Routes</span>
+        <a href="#pages" class="nav-link">UI Pages</a>
+        <a href="#api-routes" class="nav-link">API Routes</a>
+        <a href="#middleware" class="nav-link">Middleware Guard</a>
+
+        <span class="nav-header">Roles & Approvals</span>
+        <a href="#roles" class="nav-link">User Roles</a>
+        <a href="#approval-states" class="nav-link">Approval States</a>
+
+        <span class="nav-header">Testing</span>
+        <a href="#test-coverage" class="nav-link">Test Coverage</a>
+    </nav>
+</aside>
+
+<main>
+    <h1>MoneyGoUp — Authentication Flow</h1>
+    <p>This document is the single reference for how user authentication works in MoneyGoUp: how accounts are created, how users log in, how passwords are reset, and how the platform enforces security at every step. It reflects the current state of the codebase as of <strong>May 17, 2026</strong>.</p>
+
+    <!-- RECENT CHANGES CALLOUT -->
+    <div id="recent-changes" class="change-box">
+        <strong style="color: #1d4ed8;">Recent Changes — May 17, 2026</strong>
+        <ul style="margin: 0.75rem 0 0 1.2rem; padding: 0;">
+            <li><strong>Password policy hardened</strong> — minimum raised from 6 to <strong>8 characters</strong>; at least <strong>one digit (0–9) is now required</strong>. Applied to both registration and password reset on the server (Zod schema) and mirrored by client-side checks on the UI pages.</li>
+            <li><strong>Register page UI widened</strong> — card changed from <code>max-w-md / p-4</code> to <code>max-w-xl / p-2</code>. Login page now uses the same wider layout.</li>
+            <li><strong>Password hint text added</strong> — both the Register page and the Reset Password page display <em>"At least 8 characters and one number."</em> below the password field.</li>
+            <li><strong>Register API response updated</strong> — field names changed to <code>userId</code> and <code>approvalStatus</code>; email is no longer echoed back.</li>
+            <li><strong>Test suite extended</strong> — no-digit and boundary (exactly 8 chars) cases added to register and reset-password test files; <code>jest.mock('@/lib/email')</code> added to register tests to prevent real email sends during test runs.</li>
+        </ul>
+    </div>
+
+    <!-- SUMMARY -->
+    <section id="summary">
+        <h2><span class="num">0</span> System Summary</h2>
+        <p>MoneyGoUp uses <strong>NextAuth.js v4</strong> with a Credentials provider backed by a MySQL user table. Sessions are JWT-based. The platform enforces a manual admin approval gate — users can register but cannot access any protected resource until an administrator approves their account.</p>
+
+        <table>
+            <tr><th>Aspect</th><th>Implementation</th></tr>
+            <tr><td>Authentication library</td><td>NextAuth.js v4 (<code>next-auth ^4.24</code>)</td></tr>
+            <tr><td>Session strategy</td><td>JWT — stored in an HttpOnly cookie</td></tr>
+            <tr><td>Password hashing</td><td>bcryptjs, cost factor 10</td></tr>
+            <tr><td>Input validation</td><td>Zod schemas on all API routes</td></tr>
+            <tr><td>Email service</td><td>Resend (registration confirmation + password reset)</td></tr>
+            <tr><td>Route protection</td><td><code>src/middleware.ts</code> — wraps all non-auth routes</td></tr>
+            <tr><td>Rate limiting</td><td>Per-IP token bucket (<code>src/utils/rateLimiter.ts</code>)</td></tr>
+            <tr><td>Internal API bypass</td><td><code>x-api-key: DEEPMONEY_INTERNAL_SECRET</code> header</td></tr>
+        </table>
+    </section>
+
+    <!-- SECURITY LAYERS -->
+    <section id="security-layers">
+        <h2><span class="num">1</span> Security Layers</h2>
+        <p>Every authentication-related API route passes through multiple independent security controls before reaching business logic:</p>
+
+        <div class="flow-diagram">Origin Check (checkOrigin)      — Blocks requests from untrusted origins
+    ↓
+Rate Limit (checkRateLimit)     — Per-IP token bucket; 429 if exhausted
+    ↓
+Zod Schema Validation           — Rejects malformed or policy-violating input (400)
+    ↓
+Business Logic                  — DB lookup, bcrypt compare, token validation
+    ↓
+Response</div>
+
+        <h3>Origin Check</h3>
+        <p>The <code>checkOrigin()</code> utility (<code>src/utils/originCheck.ts</code>) validates that the <code>Origin</code> or <code>Referer</code> header matches the expected application domain. Applied to all state-changing auth routes (register, reset-password POST, forgot-password).</p>
+
+        <h3>Rate Limits</h3>
+        <table>
+            <tr><th>Route</th><th>Limiter</th><th>Window &amp; Cap</th></tr>
+            <tr><td>POST /api/auth/register</td><td><code>registerLimiter</code></td><td>Per-IP + username</td></tr>
+            <tr><td>POST /api/auth/forgot-password</td><td><code>forgotPasswordLimiter</code></td><td>3 requests / 15 min per IP</td></tr>
+            <tr><td>POST /api/auth/reset-password</td><td><code>resetPasswordLimiter</code></td><td>5 requests / 15 min per IP</td></tr>
+            <tr><td>Login (NextAuth authorize)</td><td><code>loginLimiter</code></td><td>Per-IP inside NextAuth callback</td></tr>
+        </table>
+    </section>
+
+    <!-- PASSWORD POLICY -->
+    <section id="password-policy">
+        <h2><span class="num">2</span> Password Policy <span class="badge-updated">Updated May 2026</span></h2>
+
+        <div class="highlight">
+            <strong>Current requirements (enforced at API level and client-side):</strong>
+            <ul style="margin: 0.5rem 0 0 1.2rem;">
+                <li>Minimum <strong>8 characters</strong></li>
+                <li>Maximum <strong>100 characters</strong></li>
+                <li>Must contain <strong>at least one digit</strong> (0–9)</li>
+            </ul>
+        </div>
+
+        <p>These rules are defined in Zod schemas in two server-side routes and are independently enforced client-side before the API call is made. Both layers must agree — a request that bypasses the UI still cannot create a non-compliant password.</p>
+
+        <table>
+            <tr><th>Location</th><th>Enforcement mechanism</th><th>Behavior on failure</th></tr>
+            <tr>
+                <td>Register page (<code>src/app/register/page.tsx</code>)</td>
+                <td>JavaScript check in <code>handleSubmit</code> before <code>fetch()</code></td>
+                <td>Sets inline error; API call never made</td>
+            </tr>
+            <tr>
+                <td>Reset Password page (<code>src/app/reset-password/page.tsx</code>)</td>
+                <td>JavaScript check in <code>handleSubmit</code> before <code>fetch()</code></td>
+                <td>Sets inline error; API call never made</td>
+            </tr>
+            <tr>
+                <td>POST /api/auth/register</td>
+                <td>Zod <code>z.string().min(8).max(100).regex(/\d/)</code></td>
+                <td>HTTP 400 with validation message</td>
+            </tr>
+            <tr>
+                <td>POST /api/auth/reset-password</td>
+                <td>Zod <code>z.string().min(8).max(100).regex(/\d/)</code></td>
+                <td>HTTP 400 with first failing Zod message</td>
+            </tr>
+        </table>
+
+        <div class="warning-box">
+            <strong>Password hint text:</strong> Both the Register page and Reset Password page display <em>"At least 8 characters and one number."</em> directly below the password input field to set user expectations before submission.
+        </div>
+    </section>
+
+    <!-- REGISTRATION FLOW -->
+    <section id="registration-flow">
+        <h2><span class="num">3</span> Registration Flow</h2>
+        <p>New users self-register at <code>/register</code>. Accounts are not immediately active — they are placed in a <code>pending</code> state and require admin approval.</p>
+
+        <div class="flow-diagram">User fills Register form (/register)
+    ↓
+Client-side check: password ≥ 8 chars AND contains digit
+    [fails] → inline error displayed, form blocked
+    [passes] ↓
+POST /api/auth/register { username, email, password }
+    ↓
+Origin check → Rate limit → Zod validation
+    ↓
+SELECT: email already exists?  → 409 "An account with this email address is already registered."
+SELECT: username already taken? → 409 "This username is already taken."
+    ↓
+bcrypt.hash(password, 10)
+INSERT users (username, email, password_hash, approval_status='pending')
+    ↓
+sendRegistrationEmail() via Resend  [failure is non-fatal; logged as warning]
+    ↓
+HTTP 201 → { message, userId, approvalStatus: "pending" }
+    ↓
+User sees success banner: "Registration successful! Your account is pending admin approval..."
+    ↓
+Admin reviews account in /admin/users → approves or rejects</div>
+
+        <h3>Registration API — Key Details</h3>
+        <div class="step-card">
+            <span class="tag">POST /api/auth/register</span>
+            <table>
+                <tr><th>Check</th><th>Result on failure</th></tr>
+                <tr><td>Origin header mismatch</td><td>Blocked before rate limit</td></tr>
+                <tr><td>Rate limit exceeded</td><td>HTTP 429</td></tr>
+                <tr><td>Username &lt; 3 or &gt; 50 chars</td><td>HTTP 400 — Zod error</td></tr>
+                <tr><td>Invalid email format</td><td>HTTP 400 — Zod error</td></tr>
+                <tr><td>Password &lt; 8 chars</td><td>HTTP 400 — "Password must be at least 8 characters long"</td></tr>
+                <tr><td>Password has no digit</td><td>HTTP 400 — "Password must contain at least one number"</td></tr>
+                <tr><td>Email already registered</td><td>HTTP 409 — email conflict message</td></tr>
+                <tr><td>Username already taken</td><td>HTTP 409 — username conflict message</td></tr>
+                <tr><td>All checks pass</td><td>HTTP 201 — account created, pending approval</td></tr>
+            </table>
+
+            <p><strong>Success response:</strong></p>
+            <pre><code>{
+  "message": "Account created and awaiting admin approval",
+  "userId": 42,
+  "approvalStatus": "pending"
+}</code></pre>
+
+            <p><strong>Registration confirmation email</strong> is sent via Resend using the <code>resend_reg_api_key</code> environment variable. The email informs the user that their account is pending admin review. If the Resend API call fails, the error is logged as a warning and the registration still succeeds — the user account is created regardless.</p>
+        </div>
+    </section>
+
+    <!-- LOGIN FLOW -->
+    <section id="login-flow">
+        <h2><span class="num">4</span> Login Flow</h2>
+        <p>Authentication is handled entirely by NextAuth.js. The login page at <code>/login</code> calls <code>signIn('credentials', ...)</code> from the NextAuth client SDK, which invokes the authorize callback in <code>src/lib/auth.ts</code>.</p>
+
+        <div class="flow-diagram">User fills Login form (/login)
+    ↓
+signIn('credentials', { username, password, redirect: false })
+    ↓
+NextAuth authorize callback (src/lib/auth.ts)
+    ↓
+Rate limit check by IP (loginLimiter)
+    ↓
+SELECT users WHERE username = ?
+    [not found] → return null → "Invalid username or password"
+    [found] ↓
+bcrypt.compare(password, password_hash)
+    [mismatch] → return null → "Invalid username or password"
+    [match] ↓
+evaluateApprovalStatus(approval_status, rejected_reason)
+    [pending]  → throw ACCOUNT_PENDING_APPROVAL  → "Your account is awaiting admin approval."
+    [rejected] → throw ACCOUNT_REJECTED           → "Your account request was rejected."
+    [approved] ↓
+UPDATE users SET last_login = NOW() (async, non-blocking)
+JWT issued → HttpOnly session cookie set
+    ↓
+window.location.href = '/dashboard'  (hard redirect to pick up fresh session)</div>
+
+        <h3>Login Error Messages</h3>
+        <table>
+            <tr><th>Situation</th><th>Message shown on login page</th></tr>
+            <tr><td>Wrong username or password</td><td>"Invalid username or password"</td></tr>
+            <tr><td>Account pending admin approval</td><td>"Your account is awaiting admin approval."</td></tr>
+            <tr><td>Account rejected by admin</td><td>"Your account request was rejected. Contact support/admin."</td></tr>
+            <tr><td>Session previously expired</td><td>Amber banner: "Your session expired. Please sign in again." (triggered by <code>?reason=expired</code> URL param)</td></tr>
+        </table>
+
+        <h3>Session Configuration</h3>
+        <table>
+            <tr><th>Setting</th><th>Value</th></tr>
+            <tr><td>Strategy</td><td>JWT</td></tr>
+            <tr><td>Default max age</td><td>30 days (overridable via <code>SESSION_MAX_AGE</code> env var)</td></tr>
+            <tr><td>Cookie flags</td><td>HttpOnly, SameSite=Lax, Secure on HTTPS origins</td></tr>
+            <tr><td>Token contents</td><td><code>id</code>, <code>name</code> (username), <code>role</code>, <code>approvalStatus</code></td></tr>
+        </table>
+    </section>
+
+    <!-- PASSWORD RESET FLOW -->
+    <section id="password-reset-flow">
+        <h2><span class="num">5</span> Password Reset Flow <span class="badge-updated">Updated May 2026</span></h2>
+        <p>The password reset flow spans two pages and three API calls. It is designed so that an attacker cannot discover whether a given email address is registered (all responses to the forgot-password step are identical).</p>
+
+        <h3>Step 1 — Request a Reset Link</h3>
+        <div class="flow-diagram">User visits /forgot-password
+    ↓
+POST /api/auth/forgot-password { email }
+    ↓
+Origin check → Rate limit (3 req/15 min per IP)
+    ↓
+Zod: valid email format?
+    [no] → HTTP 200 success (identical to success — no enumeration)
+    [yes] ↓
+SELECT users WHERE email = ? AND approval_status = 'approved'
+    [not found or not approved] → HTTP 200 success (silent)
+    [found] ↓
+DELETE existing unused tokens for this user
+INSERT password_reset_tokens (user_id, token_hash=SHA-256(rawToken), expires_at=+1hr)
+sendPasswordResetEmail(email, resetUrl) via Resend
+    ↓
+HTTP 200: "If that email address is registered, you will receive a password reset link shortly."</div>
+
+        <h3>Step 2 — Validate the Token (page load)</h3>
+        <div class="flow-diagram">User clicks email link → /reset-password?token=&lt;64-char hex&gt;
+    ↓
+Page mounts → GET /api/auth/reset-password?token=...
+    ↓
+token.length === 64?
+    [no] → { valid: false, message: "Invalid or missing reset token." }
+    [yes] ↓
+SHA-256(rawToken) → lookup in password_reset_tokens
+    [not found] → { valid: false, message: "Invalid or expired reset link." }
+    [found] ↓
+token.used_at IS NOT NULL?  → { valid: false, message: "This reset link has already been used." }
+new Date() > expires_at?    → { valid: false, message: "This reset link has expired." }
+    [all pass] → { valid: true }
+    ↓
+Page renders password form (if valid) or error + "Request New Reset Link" button (if invalid)</div>
+
+        <h3>Step 3 — Submit New Password</h3>
+        <div class="flow-diagram">User enters new password + confirmation
+    ↓
+Client-side check: password ≥ 8 chars AND contains digit AND passwords match
+    [fails] → inline error, API call blocked
+    [passes] ↓
+POST /api/auth/reset-password { token, password }
+    ↓
+Origin check → Rate limit (5 req/15 min per IP)
+Zod: token length === 64, password min 8 + digit
+    [fails] → HTTP 400 with first Zod error message
+    [passes] ↓
+SHA-256(token) → lookup in password_reset_tokens
+    [not found] → HTTP 400 "Invalid or expired reset link."
+    [used]      → HTTP 400 "This reset link has already been used."
+    [expired]   → HTTP 400 "This reset link has expired."
+    [valid] ↓
+bcrypt.hash(newPassword, 10)
+UPDATE users SET password_hash = ?, modified_at = NOW() WHERE id = ?
+UPDATE password_reset_tokens SET used_at = NOW() WHERE id = ?
+    ↓
+HTTP 200 { "message": "Password updated successfully." }
+    ↓
+Page shows success banner → redirects to /login after 3 seconds</div>
+
+        <div class="highlight">
+            <strong>Token mechanics:</strong> A 32-byte cryptographically random value is generated (<code>randomBytes(32).toString('hex')</code>), producing a 64-character hex string. Only the SHA-256 hash of this string is stored in the database. The raw token travels only in the email link URL and in the user's request — it never appears in the database.
+        </div>
+    </section>
+
+    <!-- UI PAGES -->
+    <section id="pages">
+        <h2><span class="num">6</span> Authentication UI Pages</h2>
+
+        <div class="step-card">
+            <h3 style="background:none; padding: 0; margin-top: 0;">/login <span class="badge-updated">UI updated</span></h3>
+            <span class="tag">src/app/login/page.tsx</span>
+            <p>Client component (React). Wraps the form in <code>&lt;Suspense&gt;</code> to support reading URL search params safely under the Next.js App Router. Card dimensions: <code>max-w-xl / p-2</code>.</p>
+            <ul>
+                <li>Calls NextAuth <code>signIn('credentials', { redirect: false })</code></li>
+                <li>Reads <code>?reason=expired</code> URL param to show the session-expired amber banner</li>
+                <li>On success, uses a hard <code>window.location.href</code> redirect to <code>/dashboard</code> to ensure the session cookie is picked up before React hydrates</li>
+                <li>Maps NextAuth error codes (<code>ACCOUNT_PENDING_APPROVAL</code>, <code>ACCOUNT_REJECTED</code>) to user-friendly error messages</li>
+            </ul>
+        </div>
+
+        <div class="step-card">
+            <h3 style="background:none; padding: 0; margin-top: 0;">/register <span class="badge-updated">UI updated</span></h3>
+            <span class="tag">src/app/register/page.tsx</span>
+            <p>Client component. Card dimensions: <code>max-w-xl / p-2</code> (widened from previous <code>max-w-md / p-4</code>).</p>
+            <ul>
+                <li>Client-side password validation runs before the API call: blocks submission if password &lt; 8 chars or contains no digit</li>
+                <li>Hint text <em>"At least 8 characters and one number."</em> displayed below the password field at all times</li>
+                <li>On success, displays a green banner explaining the pending-approval state — does not redirect automatically</li>
+            </ul>
+        </div>
+
+        <div class="step-card">
+            <h3 style="background:none; padding: 0; margin-top: 0;">/forgot-password</h3>
+            <span class="tag">src/app/forgot-password/page.tsx</span>
+            <p>Accepts an email address and triggers the reset email. The page always shows a neutral success message after submission regardless of whether the email matched an account.</p>
+        </div>
+
+        <div class="step-card">
+            <h3 style="background:none; padding: 0; margin-top: 0;">/reset-password <span class="badge-updated">Validation updated</span></h3>
+            <span class="tag">src/app/reset-password/page.tsx</span>
+            <p>Client component wrapped in <code>&lt;Suspense&gt;</code>. On mount, validates the token via <code>GET /api/auth/reset-password</code> and renders either the password form or an error with a link to request a new reset link.</p>
+            <ul>
+                <li>Client-side validation: password ≥ 8 chars, contains digit, and matches the confirmation field — all checked before the API is called</li>
+                <li>Hint text <em>"At least 8 characters and one number."</em> shown below the New Password field</li>
+                <li>On success: shows a green confirmation banner and automatically redirects to <code>/login</code> after 3 seconds</li>
+                <li>Old <code>minLength={6}</code> HTML attribute removed — password length is now enforced in JavaScript only, consistent with the 8-character requirement</li>
+            </ul>
+        </div>
+    </section>
+
+    <!-- API ROUTES -->
+    <section id="api-routes">
+        <h2><span class="num">7</span> Authentication API Routes</h2>
+        <table>
+            <tr>
+                <th>Route</th>
+                <th>Method(s)</th>
+                <th>Purpose</th>
+                <th>Auth required?</th>
+            </tr>
+            <tr>
+                <td><code>/api/auth/register</code></td>
+                <td><span class="method post">POST</span></td>
+                <td>Create a new user account (pending approval)</td>
+                <td>No</td>
+            </tr>
+            <tr>
+                <td><code>/api/auth/forgot-password</code></td>
+                <td><span class="method post">POST</span></td>
+                <td>Request a password reset email</td>
+                <td>No</td>
+            </tr>
+            <tr>
+                <td><code>/api/auth/reset-password</code></td>
+                <td><span class="method get">GET</span></td>
+                <td>Validate a reset token (non-destructive)</td>
+                <td>No</td>
+            </tr>
+            <tr>
+                <td><code>/api/auth/reset-password</code></td>
+                <td><span class="method post">POST</span></td>
+                <td>Consume token and set new password</td>
+                <td>No</td>
+            </tr>
+            <tr>
+                <td><code>/api/auth/[...nextauth]</code></td>
+                <td><span class="method get">GET</span> <span class="method post">POST</span></td>
+                <td>NextAuth.js session and token handling</td>
+                <td>No (public handler)</td>
+            </tr>
+            <tr>
+                <td><code>/api/auth/cache-stats</code></td>
+                <td><span class="method get">GET</span></td>
+                <td>Cache diagnostics (admin only)</td>
+                <td>Yes — admin role</td>
+            </tr>
+        </table>
+        <p>All auth routes are excluded from the middleware session guard — they are listed in the <code>matcher</code> negative lookahead so unauthenticated users can reach them freely.</p>
+    </section>
+
+    <!-- MIDDLEWARE -->
+    <section id="middleware">
+        <h2><span class="num">8</span> Middleware Route Guard</h2>
+        <span class="tag">src/middleware.ts</span>
+        <p>All application routes (pages and API routes) that are not explicitly excluded are protected by the NextAuth.js middleware wrapper. A valid JWT session token must be present, or the request must carry the <code>x-api-key</code> internal secret header.</p>
+
+        <h3>Public paths (no session required)</h3>
+        <ul>
+            <li><code>/api/auth/**</code> — all NextAuth and custom auth routes</li>
+            <li><code>/login</code></li>
+            <li><code>/register</code></li>
+            <li><code>/forgot-password</code></li>
+            <li><code>/reset-password</code></li>
+            <li><code>/_next/static/**</code>, <code>/_next/image/**</code> — build assets</li>
+            <li><code>/growmystock_logo.svg</code>, <code>/favicon.ico</code></li>
+        </ul>
+
+        <h3>Internal API bypass</h3>
+        <p>Requests carrying the header <code>x-api-key: &lt;DEEPMONEY_INTERNAL_SECRET&gt;</code> skip session validation entirely. This is used by the Python DeepMoney sync scripts to call protected API endpoints from the server without a user session.</p>
+    </section>
+
+    <!-- ROLES -->
+    <section id="roles">
+        <h2><span class="num">9</span> User Roles</h2>
+        <p>The <code>role</code> column on the <code>users</code> table controls what each account can access.</p>
+
+        <table>
+            <tr><th>Role</th><th>Access level</th><th>Quota limits</th></tr>
+            <tr>
+                <td><code>user</code></td>
+                <td>Standard — access to all core features within quota</td>
+                <td>Enforced — watchlist, portfolio, and daily lookup caps apply</td>
+            </tr>
+            <tr>
+                <td><code>superuser</code></td>
+                <td>Elevated — higher quota limits than standard users</td>
+                <td>Enforced — same structure, higher thresholds</td>
+            </tr>
+            <tr>
+                <td><code>admin</code></td>
+                <td>Full — access to admin console, cache stats, user management</td>
+                <td>None — unlimited access to all resources</td>
+            </tr>
+        </table>
+
+        <p>Role is embedded in the JWT at login and available throughout the session via <code>session.user.role</code>. Because the role is cached in the token, an admin role change takes effect at the user's next login.</p>
+    </section>
+
+    <!-- APPROVAL STATES -->
+    <section id="approval-states">
+        <h2><span class="num">10</span> Account Approval States</h2>
+        <p>The <code>approval_status</code> column controls whether a registered account can log in.</p>
+
+        <table>
+            <tr><th>Status</th><th>Meaning</th><th>Login outcome</th></tr>
+            <tr>
+                <td><code>pending</code></td>
+                <td>Newly registered; awaiting admin review</td>
+                <td>Blocked — error: "Your account is awaiting admin approval."</td>
+            </tr>
+            <tr>
+                <td><code>approved</code></td>
+                <td>Admin has reviewed and granted access</td>
+                <td>Allowed — session issued</td>
+            </tr>
+            <tr>
+                <td><code>rejected</code></td>
+                <td>Admin has denied the account</td>
+                <td>Blocked — error: "Your account request was rejected."</td>
+            </tr>
+        </table>
+
+        <div class="warning-box">
+            <strong>Password reset restriction:</strong> The forgot-password route only sends a reset email if the target account has <code>approval_status = 'approved'</code>. Pending and rejected accounts cannot reset their passwords via email — the endpoint silently returns success to prevent enumeration.
+        </div>
+    </section>
+
+    <!-- TEST COVERAGE -->
+    <section id="test-coverage">
+        <h2><span class="num">11</span> Test Coverage <span class="badge-updated">Updated May 2026</span></h2>
+        <p>Authentication routes are covered by Jest unit tests that mock the database, bcrypt, origin check, rate limiter, and email service. The test files are located in <code>src/utils/test/</code>.</p>
+
+        <table>
+            <tr><th>Test file</th><th>Routes covered</th><th>Key scenarios</th></tr>
+            <tr>
+                <td><code>api_auth_register.test.ts</code></td>
+                <td>POST /api/auth/register</td>
+                <td>
+                    Happy path (201), boundary password (exactly 8 chars + digit),
+                    email conflict (409), username conflict (409),
+                    password too short (400), password no digit (400),
+                    general Zod failure (400), rate limit (429).
+                    Email module is mocked (<code>jest.mock('@/lib/email')</code>).
+                </td>
+            </tr>
+            <tr>
+                <td><code>api_auth_reset_password.test.ts</code></td>
+                <td>GET and POST /api/auth/reset-password</td>
+                <td>
+                    GET: valid token (200), wrong length (400), not found (400), used (400), expired (400).<br>
+                    POST: happy path (200), DB writes verified (UPDATE users, mark used),
+                    token wrong length (400), not found (400), used (400), expired (400),
+                    password too short (400), password no digit (400),
+                    boundary 8 chars (200), rate limit (429), origin block (403).
+                </td>
+            </tr>
+            <tr>
+                <td><code>api_auth_forgot_password.test.ts</code></td>
+                <td>POST /api/auth/forgot-password</td>
+                <td>Email enumeration protection, token creation, Resend call.</td>
+            </tr>
+        </table>
+    </section>
+
+    <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem;">
+        <strong>MoneyGoUp — Authentication Flow Documentation</strong><br>
+        Created: May 17, 2026 &nbsp;|&nbsp; Last Updated: May 17, 2026<br>
+        Author: Technical Documentation Team<br>
+        Version: 1.0 — covers password policy hardening (min 8 chars + digit), register/reset-password flow, and UI layout updates<br>
+        Copyright &copy; 2026 MoneyGoUp. All rights reserved.
+    </footer>
+</main>
+</div>
+
+</body>
+</html>

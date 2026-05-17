@@ -154,6 +154,7 @@
     <nav class="top-nav">
         <a href="moneygoup_overview.html" class="active">Overview</a>
         <a href="api_documentation.html">API Docs</a>
+        <a href="authentication_flow.html">Auth Flow</a>
         <a href="recommendation_buckets.html">Rec Buckets</a>
         <a href="components_documentation.html">Components</a>
         <a href="database_documentation.html">Database</a>
@@ -275,7 +276,8 @@
             <h3>2.8 Administrative Controls & Governance</h3>
             <p>Comprehensive management of the platform's user base and system guardrails.</p>
             <ul>
-                <li><strong>Registration Approval Flow</strong>: A multi-stage workflow ensuring all new accounts are vetted and approved by an administrator before gaining system access.</li>
+                <li><strong>Registration Approval Flow</strong>: A multi-stage workflow ensuring all new accounts are vetted and approved by an administrator before gaining system access. After registering, new users receive an automated confirmation email (via Resend) and cannot log in until an admin approves their account.</li>
+                <li><strong>Password Policy</strong>: All account creation and password reset flows require a minimum of 8 characters with at least one digit. This is enforced in the Zod validation schemas on the server (<code>POST /api/auth/register</code>, <code>POST /api/auth/reset-password</code>) and mirrored by client-side pre-submit checks on both the Register and Reset Password pages.</li>
                 <li><strong>Role-Based Quotas</strong>: Enforces strict limits on watchlist size, portfolio positions, and daily lookups based on the user's tier (User, Superuser, Admin).</li>
                 <li><strong>Admin Console</strong>: A centralized dashboard for user management, role promotion, and approval auditing.</li>
             </ul>
@@ -321,7 +323,7 @@
         </section>
         
         <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem; text-align: center;">
-            MoneyGoUp Web Application Overview &copy; 2026 &mdash; Last updated: May 16, 2026
+            MoneyGoUp Web Application Overview &copy; 2026 &mdash; Last updated: May 17, 2026
         </footer>
     </main>
     </div>
