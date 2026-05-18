@@ -1,8 +1,8 @@
 import { Resend } from 'resend';
 
 export async function sendRegistrationEmail(to: string, username: string): Promise<void> {
-  const resend = new Resend(process.env.resend_reg_api_key);
-  const from = process.env.RESEND_FROM_EMAIL || 'noreply@growmystock.com';
+  const resend = new Resend(process.env.RESEND_REG_API_KEY || process.env.resend_reg_api_key);
+  const from = process.env.RESEND_FROM_EMAIL || process.env.resend_from_email || 'noreply@growmystock.com';
 
   const { error } = await resend.emails.send({
     from,
@@ -31,8 +31,8 @@ export async function sendRegistrationEmail(to: string, username: string): Promi
 }
 
 export async function sendApprovalEmail(to: string, username: string): Promise<void> {
-  const resend = new Resend(process.env.resend_reg_final_api_key);
-  const from = process.env.RESEND_FROM_EMAIL || 'noreply@growmystock.com';
+  const resend = new Resend(process.env.RESEND_REG_FINAL_API_KEY || process.env.resend_reg_final_api_key);
+  const from = process.env.RESEND_FROM_EMAIL || process.env.resend_from_email || 'noreply@growmystock.com';
 
   const { error } = await resend.emails.send({
     from,
@@ -62,8 +62,8 @@ export async function sendApprovalEmail(to: string, username: string): Promise<v
 }
 
 export async function sendPasswordResetEmail(to: string, resetUrl: string): Promise<void> {
-  const resend = new Resend(process.env.RESEND_API_KEY);
-  const from = process.env.RESEND_FROM_EMAIL || 'noreply@growmystock.com';
+  const resend = new Resend(process.env.RESEND_API_KEY || process.env.resend_api_key);
+  const from = process.env.RESEND_FROM_EMAIL || process.env.resend_from_email || 'noreply@growmystock.com';
 
   const { data, error } = await resend.emails.send({
     from,
