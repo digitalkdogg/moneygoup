@@ -329,15 +329,20 @@ async function enrichTickers(tickers: string[]) {
         const batch = tickers.slice(i, i + BATCH_SIZE);
         const batchResults = await Promise.all(batch.map(async (ticker) => {
             try {
-                const [summary, historicalResult] = await Promise.all([
+                const [summary, historicalResult, fundamentals] = await Promise.all([
                     yahooFinance.quoteSummary(ticker, {
-                        modules: ['summaryDetail', 'financialData', 'defaultKeyStatistics', 'price', 'incomeStatementHistory', 'assetProfile']
-                    }).catch(() => null),
+                        modules: ['summaryDetail', 'financialData', 'defaultKeyStatistics', 'price', 'assetProfile']
+                    }, { validateResult: false }).catch(() => null),
                     yahooFinance.chart(ticker, {
                         period1: oneYearAgo,
                         period2: yesterday,
                         interval: '1d'
-                    }).catch(() => null)
+                    }, { validateResult: false }).catch(() => null),
+                    yahooFinance.fundamentalsTimeSeries(ticker, {
+                        module: 'financials',
+                        type: 'annual',
+                        period1: new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000)
+                    }, { validateResult: false }).catch(() => null)
                 ]);
 
                 if (!summary) return { ticker, name: ticker, error: 'No summary data' };
@@ -347,8 +352,10 @@ async function enrichTickers(tickers: string[]) {
                 const financial = (summary as any).financialData || {};
                 const stats = (summary as any).defaultKeyStatistics || {};
                 const price = (summary as any).price || {};
-                const income = (summary as any).incomeStatementHistory?.incomeStatementHistory?.[0] || {};
                 const profile = (summary as any).assetProfile || {};
+
+                const rdSeries = (fundamentals as any) || [];
+                const researchDevelopment = rdSeries[rdSeries.length - 1]?.researchAndDevelopment ?? 0;
 
                 const marketCap = price.marketCap || detail.marketCap || 0;
                 const currentPrice = price.regularMarketPrice || 0;
@@ -388,8 +395,8 @@ async function enrichTickers(tickers: string[]) {
                     revenueGrowth: revenueGrowth,
                     earningsGrowth: earningsGrowth,
                     grossMargins: financial.grossMargins || 0,
-                    researchDevelopment: income.researchDevelopment || 0,
-                    totalRevenue: financial.totalRevenue || 1,
+                    researchDevelopment: researchDevelopment,
+                    totalRevenue: financial.totalRevenue || 0,
                     fiftyTwoWeekChange: fiftyTwoWeekChange,
                     analystUpside: analystUpside,
                     sma20: tech?.sma20 || null,

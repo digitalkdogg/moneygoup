@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createErrorResponse } from '@/utils/errorResponse'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { createErrorResponse, unauthorizedResponse } from '@/utils/errorResponse'
 import { createLogger } from '@/utils/logger'
 import { getTrendingStocks } from '@/utils/yahooFinanceHelper'
 import { checkOrigin } from '@/utils/originCheck'
@@ -14,9 +16,17 @@ const CACHE_TTL = 15 * 60 * 1000 // 15 minutes
 
 export async function GET(request: NextRequest) {
   const originCheckResponse = checkOrigin(request);
-  if (originCheckResponse) {
-    return originCheckResponse;
+  if (originCheckResponse) return originCheckResponse;
+
+  const apiKey = request.headers.get('x-api-key');
+  const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
+  const isInternal = internalSecret && apiKey === internalSecret;
+
+  if (!isInternal) {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) return unauthorizedResponse();
   }
+
   try {
     const searchParams = request.nextUrl.searchParams
     const window = searchParams.get('window') || '48h'

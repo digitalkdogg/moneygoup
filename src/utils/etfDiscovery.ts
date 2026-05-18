@@ -186,7 +186,7 @@ export async function performETFDiscovery(
       const summary = await Promise.race([
         yahooFinance.quoteSummary(candidate.ticker, {
           modules: ["price", "summaryDetail", "defaultKeyStatistics", "topHoldings", "fundProfile", "fundPerformance"]
-        }),
+        }, { validateResult: false }),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000))
       ]).catch(err => {
         if (err.name === 'FailedYahooValidationError' && err.result) {

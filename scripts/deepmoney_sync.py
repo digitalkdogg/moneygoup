@@ -226,9 +226,9 @@ def sync_deepmoney():
             rev_growth = (s.get('revenueGrowth') or 0) * 100
             margin = (s.get('grossMargins') or 0) * 100
             
-            total_rev = s.get('totalRevenue') or 1
+            total_rev = s.get('totalRevenue') or 0
             rd_spend = s.get('researchDevelopment') or 0
-            rd_pct = (rd_spend / total_rev) * 100
+            rd_pct = min((rd_spend / total_rev) * 100, 999999.99) if total_rev > 0 else 0
             
             market_cap_m = (s.get('marketCap') or 0) / 1e6
             

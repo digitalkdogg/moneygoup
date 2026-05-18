@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
     // Dynamically import yahoo-finance2
     const yahooFinanceModule = await import('yahoo-finance2');
     const YahooFinance = yahooFinanceModule.default;
-    const yahooFinanceInstance = new YahooFinance();
+    const yahooFinanceInstance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
 
     const watchlistWithData = await Promise.all(watchlistItems.map(async (item: any) => {
       // Fetch 6M MA data from DB

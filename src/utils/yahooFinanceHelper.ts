@@ -52,7 +52,7 @@ export async function fetchYahooQuotesForSymbols(
 
 export async function fetchYahooStockSummary(ticker: string) {
   const summary = await yahooFinance.quoteSummary(ticker, {
-    modules: ["assetProfile", "price", "summaryDetail", "quoteType", "financialData", "defaultKeyStatistics", "incomeStatementHistory", "earningsTrend", "recommendationTrend"],
+    modules: ["assetProfile", "price", "summaryDetail", "quoteType", "financialData", "defaultKeyStatistics", "earningsTrend", "recommendationTrend"],
   });
   return summary;
 }

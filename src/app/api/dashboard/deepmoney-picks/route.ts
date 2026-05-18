@@ -7,7 +7,7 @@ import { checkOrigin } from '@/utils/originCheck';
 import YahooFinance from 'yahoo-finance2';
 
 const ETF_GPS_THRESHOLD = 75;
-const yahooFinance = new YahooFinance();
+const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
 
 export async function GET(request: NextRequest) {
   const originCheckResponse = checkOrigin(request);

@@ -14,7 +14,7 @@ import { z } from 'zod';
 import { newsDataCache } from '@/utils/cache';
 
 const logger = createLogger('api/stock/[ticker]/news');
-const yahooFinance = new YahooFinance();
+const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
 
 export async function GET(
   request: NextRequest,

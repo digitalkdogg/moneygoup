@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { fetchYahooQuotesForSymbols } from '@/utils/yahooFinanceHelper'
-import { createErrorResponse } from '@/utils/errorResponse'
+import { createErrorResponse, unauthorizedResponse } from '@/utils/errorResponse'
 import { createLogger } from '@/utils/logger'
 import { checkOrigin } from '@/utils/originCheck'
 import { marketIndicesCache } from '@/utils/cache'
@@ -11,9 +13,17 @@ const logger = createLogger('api/market/indices')
 
 export async function GET(request: NextRequest) {
   const originCheckResponse = checkOrigin(request);
-  if (originCheckResponse) {
-    return originCheckResponse;
+  if (originCheckResponse) return originCheckResponse;
+
+  const apiKey = request.headers.get('x-api-key');
+  const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
+  const isInternal = internalSecret && apiKey === internalSecret;
+
+  if (!isInternal) {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) return unauthorizedResponse();
   }
+
   try {
     // Check cache
     const cached = marketIndicesCache.get('major_indices')

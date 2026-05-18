@@ -1,8 +1,10 @@
 import { createLogger } from '@/utils/logger';
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { executeRawQuery } from '@/utils/databaseHelper';
 import { checkOrigin } from '@/utils/originCheck';
-import { createErrorResponse } from '@/utils/errorResponse';
+import { createErrorResponse, unauthorizedResponse } from '@/utils/errorResponse';
 import { worldBankCache } from '@/utils/cache';
 
 const logger = createLogger('api/worldbank');
@@ -15,6 +17,15 @@ const logger = createLogger('api/worldbank');
 export async function GET(request: NextRequest) {
   const originCheckResponse = checkOrigin(request);
   if (originCheckResponse) return originCheckResponse;
+
+  const apiKey = request.headers.get('x-api-key');
+  const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
+  const isInternal = internalSecret && apiKey === internalSecret;
+
+  if (!isInternal) {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) return unauthorizedResponse();
+  }
 
   // Check cache
   const { searchParams } = new URL(request.url);

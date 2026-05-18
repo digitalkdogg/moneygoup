@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
     // Dynamically import yahoo-finance2
     const yahooFinanceModule = await import('yahoo-finance2');
     const YahooFinance = yahooFinanceModule.default;
-    const yahooFinanceInstance = new YahooFinance();
+    const yahooFinanceInstance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
 
     // Fetch current prices and analyst data for each stock
     const portfolioWithData = await Promise.all(
