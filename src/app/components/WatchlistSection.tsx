@@ -124,18 +124,26 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
     const { regularMarketPrice, prev_close, ma6_month } = item;
     const pctChange = prev_close ? ((regularMarketPrice - prev_close) / prev_close) * 100 : null;
 
+    const rawPredicted = item.predicted_price_1m;
+    const predictedPrice1m = typeof rawPredicted === 'number'
+      ? rawPredicted
+      : typeof rawPredicted === 'string'
+      ? parseFloat(rawPredicted) || null
+      : null;
+
     return {
       variant: 'watchlist',
       symbol: item.symbol,
       companyName: item.company_name,
       price: regularMarketPrice,
       changePercent: pctChange,
+      changeAmount: prev_close ? regularMarketPrice - prev_close : null,
       analystFeedback: normalizeRecommendation(item.recommendationKey),
       analysts: item.numberOfAnalystOpinions,
       ma6m: ma6_month,
       gpsScore: item.gpsScore,
       gpsBreakdown: item.gpsBreakdown,
-      isCompact: true
+      predictedPrice1m,
     };
   };
 
@@ -160,7 +168,7 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
         title="My Watchlist"
         icon="👀"
         data={watchlist}
-        columns={4}
+        columns={3}
         renderCard={(item) => (
           <StockCard
             card={mapWatchlistToCardModel(item)}

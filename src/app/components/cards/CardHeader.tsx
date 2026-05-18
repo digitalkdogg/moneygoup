@@ -18,29 +18,27 @@ export const CardHeader: React.FC<CardHeaderProps> = ({ symbol, companyName, cha
 
   if (variant === 'watchlist') {
     return (
-      <div className="flex items-start justify-between px-5 py-3 border-b border-gray-200">
+      <div className="flex items-start justify-between px-4 py-2 border-b border-gray-100">
         <div>
-          <div className="text-2xl font-medium text-gray-900 leading-tight">
+          <div className="text-xl font-bold text-gray-900 leading-tight">
             {symbol}
           </div>
-          <div className="text-xs text-gray-500 font-medium mt-1 truncate max-w-[140px]">
+          <div className="text-xs text-gray-500 font-medium mt-1 truncate max-w-[200px]">
             {companyName}
           </div>
         </div>
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex flex-col items-end gap-0.5">
+          {price !== null && price !== undefined && (
+            <div className="text-lg font-bold text-gray-900">{formatPrice(price)}</div>
+          )}
           {changePercent !== null && (
             <div
-              style={getChangeBgStyle(changePercent)}
-              className={`px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${getChangeColor(changePercent)} ${getChangeBg(changePercent)} bg-opacity-10`}
+              className={`text-xs font-semibold text-right ${getChangeColor(changePercent)}`}
               aria-label={`Price ${isPositive ? 'up' : 'down'} by ${formatPercent(changePercent)}`}
             >
-              <span aria-hidden="true">{isPositive ? '↑' : '↓'}</span>
-              {formatPercent(changePercent)}
-            </div>
-          )}
-          {price !== null && price !== undefined && (
-            <div className="text-lg font-bold text-gray-900">
-              {formatPrice(price)}
+              {changeAmount !== null && changeAmount !== undefined
+                ? `${formatPriceChange(changeAmount)} (${formatPercent(changePercent)})`
+                : formatPercent(changePercent)}
             </div>
           )}
         </div>
