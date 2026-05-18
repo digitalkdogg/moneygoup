@@ -5,6 +5,7 @@ import { executeRawQuery, update } from '@/utils/databaseHelper';
 import { unauthorizedResponse, forbiddenResponse, createErrorResponse } from '@/utils/errorResponse';
 import { createLogger } from '@/utils/logger';
 import { sendApprovalEmail } from '@/lib/email';
+import { checkOrigin } from '@/utils/originCheck';
 
 const logger = createLogger('api/admin/users');
 
@@ -12,6 +13,9 @@ const logger = createLogger('api/admin/users');
  * GET: List all users for admin console.
  */
 export async function GET(request: NextRequest) {
+  const originCheckResponse = checkOrigin(request);
+  if (originCheckResponse) return originCheckResponse;
+
   const session = await getServerSession(authOptions);
 
   if (!session || !session.user) {
@@ -29,7 +33,7 @@ export async function GET(request: NextRequest) {
   const search = searchParams.get('search');
 
   try {
-    let query = 'SELECT id, username, role, approval_status, created_at, last_login, rejected_reason FROM users WHERE 1=1';
+    let query = 'SELECT id, username, email, role, approval_status, created_at, last_login, rejected_reason FROM users WHERE 1=1';
     const params: any[] = [];
 
     if (status) {
@@ -62,6 +66,9 @@ export async function GET(request: NextRequest) {
  * PATCH: Update user status (approve/reject) or role.
  */
 export async function PATCH(request: NextRequest) {
+  const originCheckResponse = checkOrigin(request);
+  if (originCheckResponse) return originCheckResponse;
+
   const session = await getServerSession(authOptions);
 
   if (!session || !session.user) {
