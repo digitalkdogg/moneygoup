@@ -1,10 +1,13 @@
 import { NextRequest } from 'next/server';
 import { GET } from '@/app/api/worldbank/route';
+import { getServerSession } from 'next-auth';
 import { executeRawQuery } from '@/utils/databaseHelper';
 import { checkOrigin } from '@/utils/originCheck';
 import { worldBankCache } from '@/utils/cache';
 
 // Mock dependencies
+jest.mock('next-auth', () => ({ getServerSession: jest.fn() }));
+jest.mock('@/lib/auth', () => ({ authOptions: {} }));
 jest.mock('@/utils/originCheck');
 jest.mock('@/utils/databaseHelper');
 jest.mock('@/utils/logger', () => ({
@@ -22,6 +25,7 @@ describe('GET /api/worldbank', () => {
     jest.clearAllMocks();
     worldBankCache.clear();
     (checkOrigin as jest.Mock).mockReturnValue(null);
+    (getServerSession as jest.Mock).mockResolvedValue({ user: { id: 1 } });
 
     mockRequest = {
       headers: new Headers(),

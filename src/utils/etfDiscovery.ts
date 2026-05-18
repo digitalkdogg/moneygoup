@@ -183,7 +183,7 @@ export async function performETFDiscovery(
   // Process all candidates in parallel with individual timeouts and error handling
   const results = await Promise.all(candidates.map(async (candidate) => {
     try {
-      const summary = await Promise.race([
+      const summary: any = await Promise.race([
         yahooFinance.quoteSummary(candidate.ticker, {
           modules: ["price", "summaryDetail", "defaultKeyStatistics", "topHoldings", "fundProfile", "fundPerformance"]
         }, { validateResult: false }),

@@ -11,7 +11,7 @@ interface StockCardSectionProps<T> {
   loading?: boolean;
   error?: string | null;
   emptyMessage?: string;
-  columns?: 3 | 4;
+  columns?: 2 | 3 | 4;
 }
 
 export default function StockCardSection<T>({
@@ -26,6 +26,8 @@ export default function StockCardSection<T>({
 }: StockCardSectionProps<T>) {
   const gridClass = columns === 4
     ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4'
+    : columns === 2
+    ? 'grid grid-cols-1 md:grid-cols-2'
     : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
   return (
     <section className="mb-8">

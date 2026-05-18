@@ -1,10 +1,13 @@
 import { NextRequest } from 'next/server';
 import { GET } from '@/app/api/market/indices/route';
+import { getServerSession } from 'next-auth';
 import { fetchYahooQuotesForSymbols } from '@/utils/yahooFinanceHelper';
 import { checkOrigin } from '@/utils/originCheck';
 import { marketIndicesCache } from '@/utils/cache';
 
 // Mock dependencies
+jest.mock('next-auth', () => ({ getServerSession: jest.fn() }));
+jest.mock('@/lib/auth', () => ({ authOptions: {} }));
 jest.mock('@/utils/originCheck');
 jest.mock('@/utils/yahooFinanceHelper');
 jest.mock('@/utils/logger', () => ({
@@ -22,6 +25,7 @@ describe('GET /api/market/indices', () => {
     jest.clearAllMocks();
     marketIndicesCache.clear();
     (checkOrigin as jest.Mock).mockReturnValue(null);
+    (getServerSession as jest.Mock).mockResolvedValue({ user: { id: 1 } });
 
     mockRequest = {
       headers: new Headers(),

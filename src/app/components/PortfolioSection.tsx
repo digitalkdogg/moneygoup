@@ -43,6 +43,13 @@ export default function PortfolioSection({ portfolio, onRefresh }: PortfolioSect
     const pctChange = prev_close ? ((regularMarketPrice - prev_close) / prev_close) * 100 : null;
     const dollarChange = prev_close ? (regularMarketPrice - prev_close) * shares : null;
 
+    const rawPredicted = item.predicted_price_1m;
+    const predictedPrice1m = typeof rawPredicted === 'number'
+      ? rawPredicted
+      : typeof rawPredicted === 'string'
+      ? parseFloat(rawPredicted) || null
+      : null;
+
     return {
       variant: 'portfolio',
       symbol: item.symbol,
@@ -55,7 +62,8 @@ export default function PortfolioSection({ portfolio, onRefresh }: PortfolioSect
       analysts: item.numberOfAnalystOpinions,
       gpsScore: item.gpsScore,
       gpsBreakdown: item.gpsBreakdown,
-      topAccentColor: item.brand_color || '#017e3b'
+      topAccentColor: item.brand_color || '#017e3b',
+      predictedPrice1m,
     };
   };
 
@@ -64,6 +72,7 @@ export default function PortfolioSection({ portfolio, onRefresh }: PortfolioSect
         <StockCardSection<PortfolioItem>
             title=""
             data={portfolio}
+            columns={3}
             renderCard={(item) => (
             <StockCard
                 card={mapPortfolioToCardModel(item)}

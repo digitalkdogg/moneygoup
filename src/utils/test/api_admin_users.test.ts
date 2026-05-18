@@ -3,9 +3,12 @@ import { GET, PATCH } from '@/app/api/admin/users/route';
 import { getServerSession } from 'next-auth';
 import { executeRawQuery, update } from '@/utils/databaseHelper';
 import { sendApprovalEmail } from '@/lib/email';
+import { checkOrigin } from '@/utils/originCheck';
 
 // Mock dependencies
 jest.mock('next-auth');
+jest.mock('@/lib/auth', () => ({ authOptions: {} }));
+jest.mock('@/utils/originCheck');
 jest.mock('@/utils/databaseHelper');
 jest.mock('@/lib/email', () => ({ sendApprovalEmail: jest.fn() }));
 jest.mock('@/utils/logger', () => ({
@@ -21,6 +24,7 @@ describe('Admin Users API', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (checkOrigin as jest.Mock).mockReturnValue(null);
   });
 
   describe('GET /api/admin/users', () => {

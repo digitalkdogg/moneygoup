@@ -347,7 +347,7 @@ async function enrichTickers(tickers: string[]) {
 
                 if (!summary) return { ticker, name: ticker, error: 'No summary data' };
 
-                const historical = historicalResult?.quotes || [];
+                const historical = (historicalResult as any)?.quotes || [];
                 const detail = (summary as any).summaryDetail || {};
                 const financial = (summary as any).financialData || {};
                 const stats = (summary as any).defaultKeyStatistics || {};
@@ -366,7 +366,7 @@ async function enrichTickers(tickers: string[]) {
                 const analystUpside = analystTarget > 0 ? (analystTarget - currentPrice) / currentPrice : 0;
                 const fiftyTwoWeekChange = stats.fiftyTwoWeekChange || 0;
 
-                const histData = (historical || []).map(r => ({
+                const histData = (historical || []).map((r: any) => ({
                     date: new Date(r.date).toISOString().slice(0, 10),
                     open: (r.open as number) || 0,
                     high: (r.high as number) || 0,

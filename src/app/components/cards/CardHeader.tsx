@@ -1,7 +1,7 @@
 // src/app/components/cards/CardHeader.tsx
 
 import React from 'react'
-import { formatPercent, getChangeColor, getChangeBg, getChangeBgStyle, formatPrice } from './formatters'
+import { formatPercent, formatPriceChange, getChangeColor, getChangeBg, getChangeBgStyle, formatPrice } from './formatters'
 
 interface CardHeaderProps {
   symbol: string
@@ -49,25 +49,27 @@ export const CardHeader: React.FC<CardHeaderProps> = ({ symbol, companyName, cha
   }
 
   return (
-    <div className="flex items-start justify-between px-5 py-5">
+    <div className="flex items-start justify-between px-5 py-3">
       <div>
-        <div className="text-2xl font-medium text-gray-900 leading-none">
+        <div className="text-2xl font-bold text-gray-900 leading-none">
           {symbol}
         </div>
-        <div className="text-xs text-gray-400 font-medium mt-1 truncate max-w-[140px]">
+        <div className="text-xs text-gray-500 font-medium mt-1 truncate max-w-[160px]">
           {companyName}
         </div>
       </div>
-      <div className="flex flex-col items-end">
+      <div className="flex flex-col items-end gap-0.5">
+        {price !== null && price !== undefined && (
+          <div className="text-xl font-bold text-gray-900">{formatPrice(price)}</div>
+        )}
         {changePercent !== null && (
-          <div 
-            style={{ 
-              backgroundColor: brandColor ? `${brandColor}1a` : undefined 
-            }}
-            className={`px-2.5 py-1 rounded-full text-base font-bold ${getChangeColor(changePercent)} ${!brandColor ? getChangeBg(changePercent) : ''} ${!brandColor ? 'bg-opacity-10' : ''}`}
+          <div
+            className={`text-xs font-semibold ${getChangeColor(changePercent)}`}
             aria-label={`Price ${isPositive ? 'up' : 'down'} by ${formatPercent(changePercent)}`}
           >
-            {formatPercent(changePercent)}
+            {changeAmount !== null && changeAmount !== undefined
+              ? `${formatPriceChange(changeAmount)} (${formatPercent(changePercent)})`
+              : formatPercent(changePercent)}
           </div>
         )}
       </div>
