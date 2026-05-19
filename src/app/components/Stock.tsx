@@ -128,6 +128,16 @@ export default function Stock({
   const isSingleTicker = tickerArray.length === 1
   const primaryTicker = tickerArray[0]
 
+  const refreshGps = useCallback(() => {
+    if (!isSingleTicker) return
+    setGpsLoading(true)
+    fetch(`/api/stock_data/${primaryTicker}/gps`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setGpsData(d))
+      .catch(() => {})
+      .finally(() => setGpsLoading(false))
+  }, [primaryTicker, isSingleTicker])
+
       const formatDate = (dateString: string) => {
         if (!dateString) return 'N/A';
   
@@ -626,13 +636,6 @@ export default function Stock({
           </div>
           )}
 
-          {/* Price History Chart */}
-        {historical && historical.length > 0 && (
-          <div className="mb-8">
-            <StockChart ticker={primaryTicker} historicalData={historical} titleLevel="h2" />
-          </div>
-        )}
-
         <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
           <StockSignalPanel
             ticker={primaryTicker}
@@ -659,6 +662,7 @@ export default function Stock({
             titleLevel="h2"
             triggerRef={predictionTriggerRef}
             onLoadingChange={onPredictionLoadingChange}
+            onPredictionComplete={refreshGps}
             embedded
           />
         </div>
@@ -745,6 +749,13 @@ export default function Stock({
                 )}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Price History Chart */}
+        {historical && historical.length > 0 && (
+          <div className="mb-8">
+            <StockChart ticker={primaryTicker} historicalData={historical} titleLevel="h2" />
           </div>
         )}
 

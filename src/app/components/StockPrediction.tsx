@@ -36,6 +36,7 @@ interface StockPredictionProps {
   titleLevel?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
   triggerRef?: React.MutableRefObject<() => void>
   onLoadingChange?: (loading: boolean) => void
+  onPredictionComplete?: () => void
   embedded?: boolean
 }
 
@@ -312,6 +313,7 @@ export default function StockPrediction({
   titleLevel = 'h2',
   triggerRef,
   onLoadingChange,
+  onPredictionComplete,
   embedded = false,
 }: StockPredictionProps) {
   const [step, setStep]               = useState<'idle' | 'fetching' | 'predicting' | 'done'>('idle')
@@ -391,6 +393,7 @@ export default function StockPrediction({
       if (result.error) throw new Error(result.error)
       setPrediction(result)
       setStep('done')
+      onPredictionComplete?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unknown error occurred')
       setStep('idle')
