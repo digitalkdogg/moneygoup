@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GrowMyStocks — Architecture Documentation</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; color: #1e293b; display: flex; flex-direction: column; min-height: 100vh; }
+
+    .top-bar { background: #017e3b; color: #fff; padding: 0 2rem; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+    .top-bar-header { display: flex; align-items: center; justify-content: space-between; height: 56px; }
+    .top-bar .brand { font-size: 1.2rem; font-weight: 700; letter-spacing: .02em; }
+    .top-bar .brand span { color: #bbf7d0; }
+    .top-bar .subtitle { font-size: .8rem; opacity: .8; }
+    .top-bar-nav { display: flex; gap: 1.75rem; overflow-x: auto; scrollbar-width: none; padding: 6px 0 8px; border-top: 1px solid rgba(255,255,255,0.15); }
+    .top-bar-nav::-webkit-scrollbar { display: none; }
+    .top-bar-nav a { white-space: nowrap; color: rgba(255,255,255,0.72); text-decoration: none; font-size: .8rem; font-weight: 600; padding-bottom: 3px; border-bottom: 2px solid transparent; transition: color .15s, border-color .15s; flex-shrink: 0; }
+    .top-bar-nav a:hover { color: #fff; }
+    .top-bar-nav a.active { color: #fff; border-bottom-color: #86efac; }
+
+    .layout { display: flex; flex: 1; }
+    .sidebar { width: 260px; min-width: 260px; background: #fff; border-right: 1px solid #e2e8f0; padding: 1.5rem 0; position: sticky; top: 92px; height: calc(100vh - 92px); overflow-y: auto; }
+    .sidebar h3 { font-size: .65rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #94a3b8; padding: .25rem 1.25rem .5rem; margin-top: .5rem; }
+    .sidebar a { display: block; padding: .45rem 1.25rem; font-size: .85rem; color: #475569; text-decoration: none; border-left: 3px solid transparent; transition: all .15s; line-height: 1.4; }
+    .sidebar a:hover { background: #f0fdf4; color: #017e3b; border-left-color: #86efac; }
+    .sidebar a.active { background: #f0fdf4; color: #017e3b; font-weight: 600; border-left-color: #017e3b; }
+    .sidebar .section-divider { border-top: 1px solid #f1f5f9; margin: .5rem 0; }
+
+    main { flex: 1; padding: 2rem 2.5rem; max-width: 1100px; }
+    .page-title { font-size: 2rem; font-weight: 800; color: #0f172a; margin-bottom: .25rem; }
+    .page-meta { font-size: .8rem; color: #64748b; margin-bottom: 2rem; display: flex; gap: 1rem; flex-wrap: wrap; }
+    .page-meta span { background: #f1f5f9; border-radius: 4px; padding: 2px 8px; }
+
+    .section { margin-bottom: 3rem; }
+    .section-title { font-size: 1.35rem; font-weight: 700; color: #017e3b; border-bottom: 2px solid #bbf7d0; padding-bottom: .4rem; margin-bottom: 1.5rem; scroll-margin-top: 72px; }
+    .subsection-title { font-size: 1.05rem; font-weight: 700; color: #0f172a; margin: 1.5rem 0 .5rem; scroll-margin-top: 72px; }
+
+    .arch-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.5rem; margin-bottom: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+    .arch-card h4 { font-size: 1rem; font-weight: 700; color: #0f172a; margin-bottom: .6rem; }
+    .arch-card p, .arch-card li { color: #374151; font-size: .9rem; line-height: 1.65; }
+    .arch-card ul, .arch-card ol { padding-left: 1.4rem; margin: .4rem 0; }
+    .arch-card li { margin-bottom: .25rem; }
+
+    pre { background: #0f172a; color: #e2e8f0; padding: 1rem 1.25rem; border-radius: 8px; overflow-x: auto; font-size: .8rem; font-family: 'Menlo','Courier New',monospace; line-height: 1.6; margin: .75rem 0; }
+    code { background: #f1f5f9; padding: 1px 5px; border-radius: 3px; font-size: .82rem; font-family: 'Menlo','Courier New',monospace; color: #0f172a; }
+
+    .badge { display: inline-block; font-size: .68rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; letter-spacing: .04em; text-transform: uppercase; margin-right: 4px; }
+    .badge-green  { background: #dcfce7; color: #166534; }
+    .badge-blue   { background: #dbeafe; color: #1e40af; }
+    .badge-yellow { background: #fef3c7; color: #92400e; }
+    .badge-purple { background: #ede9fe; color: #5b21b6; }
+    .badge-red    { background: #fee2e2; color: #991b1b; }
+    .badge-gray   { background: #f3f4f6; color: #374151; }
+
+    .note { background: #fffbeb; border-left: 4px solid #fbbf24; padding: .75rem 1rem; border-radius: 0 6px 6px 0; font-size: .85rem; color: #78350f; margin: .5rem 0; line-height: 1.6; }
+    .info { background: #eff6ff; border-left: 4px solid #3b82f6; padding: .75rem 1rem; border-radius: 0 6px 6px 0; font-size: .85rem; color: #1e3a8a; margin: .5rem 0; line-height: 1.6; }
+
+    .dep-list { display: flex; flex-wrap: wrap; gap: .4rem; margin: .6rem 0; }
+    .dep-tag { font-size: .78rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 3px 10px; color: #475569; font-family: 'Menlo','Courier New',monospace; }
+
+    /* Two-column layout for flow diagrams */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.25rem; }
+    @media (max-width: 800px) { .two-col { grid-template-columns: 1fr; } }
+
+    /* Summary stats */
+    .summary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+    .stat-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem 1.25rem; text-align: center; }
+    .stat-card .value { font-size: 1.6rem; font-weight: 800; color: #017e3b; }
+    .stat-card .label { font-size: .72rem; color: #64748b; text-transform: uppercase; letter-spacing: .05em; }
+
+    /* Flow step list */
+    .flow-steps { counter-reset: step; list-style: none; padding: 0; }
+    .flow-steps li { counter-increment: step; display: flex; gap: .75rem; margin-bottom: .6rem; font-size: .88rem; color: #374151; line-height: 1.55; }
+    .flow-steps li::before { content: counter(step); display: flex; align-items: center; justify-content: center; min-width: 26px; height: 26px; border-radius: 50%; background: #017e3b; color: #fff; font-size: .72rem; font-weight: 800; flex-shrink: 0; margin-top: 1px; }
+
+    /* Table */
+    .props-table { width: 100%; border-collapse: collapse; font-size: .82rem; margin: .5rem 0 .75rem; }
+    .props-table th { background: #f8fafc; text-align: left; padding: .5rem .75rem; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #64748b; border-bottom: 2px solid #e2e8f0; }
+    .props-table td { padding: .45rem .75rem; border-bottom: 1px solid #f1f5f9; vertical-align: top; color: #374151; }
+    .props-table tr:last-child td { border-bottom: none; }
+    .props-table code { background: #f1f5f9; padding: 1px 5px; border-radius: 3px; font-size: .78rem; font-family: 'Menlo','Courier New',monospace; color: #0f172a; }
+  
+    </style>
+</head>
+<body>
+<div class="top-bar">
+  <div class="top-bar-header">
+    <div>
+      <div class="brand">Grow<span>MY</span>Stocks</div>
+      <div class="subtitle">Architecture Documentation</div>
+    </div>
+    <div style="font-size:.78rem;opacity:.75;">Generated 2026-05-20</div>
+  </div>
+  <nav class="top-bar-nav">
+    <a href="moneygoup_overview.html">Overview</a>
+    <a href="api_documentation.html">API Docs</a>
+    <a href="architecture_documentation.html" class="active">Architecture</a>
+    <a href="authentication_flow.html">Auth Flow</a>
+    <a href="admin_user_management.html">Admin User Mgmt</a>
+    <a href="recommendation_buckets.html">Rec Buckets</a>
+    <a href="components_documentation.html">Components</a>
+    <a href="database_documentation.html">Database</a>
+    <a href="prediction_workflow.html">Prediction Flow</a>
+    <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
+    <a href="technical_indicators_guide.html">Technical Guide</a>
+    <a href="style_guide.html">Style Guide</a>
+  </nav>
+</div>
+
+<div class="layout">
+
+  <nav class="sidebar" aria-label="Architecture sections">
+    <h3>GrowMyStocks Docs</h3>
+    <a href="moneygoup_overview.html">App Overview</a>
+    <a href="architecture_documentation.html" class="active">Architecture</a>
+    <a href="components_documentation.html">Components</a>
+    <a href="api_documentation.html">API Routes</a>
+    <div class="section-divider"></div>
+    <h3>On this page</h3>
+    <a href="#stack">Tech Stack</a>
+    <a href="#directory">Directory Structure</a>
+    <a href="#pages">Pages</a>
+    <a href="#auth-flow">Auth &amp; Approval Flow</a>
+    <a href="#data-flow">Data Flow</a>
+    <a href="#prediction-pipeline">Prediction Pipeline</a>
+    <a href="#card-system">Card System</a>
+    <a href="#database">Database Patterns</a>
+    <a href="#external-services">External Services</a>
+    <a href="#key-utilities">Key Utilities</a>
+    <a href="#env-vars">Environment Variables</a>
+    <div class="section-divider"></div>
+    <a href="authentication_flow.html">Auth Flow (detail)</a>
+    <a href="database_documentation.html">Database</a>
+    <a href="prediction_workflow.html">Prediction Workflow</a>
+    <a href="recommendation_buckets.html">Recommendation Buckets</a>
+    <a href="technical_indicators_guide.html">Technical Indicators</a>
+    <a href="admin_user_management.html">Admin User Mgmt</a>
+    <a href="style_guide.html">Style Guide</a>
+  </nav>
+
+  <main>
+    <div class="page-title">Architecture</div>
+    <div class="page-meta">
+      <span>GrowMyStocks</span>
+      <span>Next.js 14 App Router</span>
+      <span>TypeScript</span>
+      <span>Tailwind CSS</span>
+      <span>Generated 2026-05-20</span>
+    </div>
+
+    <div class="summary-grid">
+      <div class="stat-card"><div class="value">Next.js 14</div><div class="label">Framework</div></div>
+      <div class="stat-card"><div class="value">MySQL</div><div class="label">Database</div></div>
+      <div class="stat-card"><div class="value">JWT</div><div class="label">Session Strategy</div></div>
+      <div class="stat-card"><div class="value">Python</div><div class="label">ML Backend</div></div>
+      <div class="stat-card"><div class="value">Resend</div><div class="label">Email Provider</div></div>
+      <div class="stat-card"><div class="value">Yahoo Finance</div><div class="label">Market Data</div></div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ -->
+    <div class="section">
+      <div class="section-title" id="stack">Tech Stack</div>
+      <div class="arch-card">
+        <table class="props-table">
+          <thead><tr><th>Layer</th><th>Technology</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td>Framework</td><td>Next.js 14 (App Router)</td><td>Server Components + Client Components; RSC streaming supported</td></tr>
+            <tr><td>Language</td><td>TypeScript</td><td>Strict mode; Zod for runtime validation</td></tr>
+            <tr><td>Styling</td><td>Tailwind CSS</td><td>Brand color via CSS custom properties (<code>--brand-green-700</code>)</td></tr>
+            <tr><td>Font</td><td>Rubik (Google Fonts)</td><td>Weights 400/500/600/700, latin subset</td></tr>
+            <tr><td>Authentication</td><td>NextAuth.js</td><td>CredentialsProvider, JWT session strategy, bcrypt password hashing</td></tr>
+            <tr><td>Database</td><td>MySQL</td><td>Custom helper wrappers in <code>@/utils/databaseHelper</code></td></tr>
+            <tr><td>Market Data</td><td>yahoo-finance2</td><td>Primary source for quotes, historical prices, analyst summaries, earnings</td></tr>
+            <tr><td>ML Prediction</td><td>Python subprocess</td><td><code>scripts/predict_weighted_analysis.py</code> spawned via Node child_process</td></tr>
+            <tr><td>Charts</td><td>Recharts</td><td>Used for stock price history and portfolio value charts</td></tr>
+            <tr><td>Email</td><td>Resend</td><td>Registration, approval, password reset, contact form</td></tr>
+            <tr><td>Macro Data</td><td>World Bank API</td><td>GDP, inflation, unemployment; 6-hour cache</td></tr>
+            <tr><td>Validation</td><td>Zod</td><td>All API route inputs validated with Zod schemas</td></tr>
+            <tr><td>Rate Limiting</td><td>Custom (src/utils/rateLimiter.ts)</td><td>5 distinct limiters; role-based lookup quotas via LimitService</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ -->
+    <div class="section">
+      <div class="section-title" id="directory">Directory Structure</div>
+      <div class="arch-card">
+        <pre>src/
+├── app/
+│   ├── layout.tsx                  Root layout (font, Navigation, Footer, Providers)
+│   ├── page.tsx                    Home page — renders Dashboard component
+│   ├── globals.css
+│   ├── providers.tsx               SessionProvider wrapper
+│   │
+│   ├── components/                 All React components
+│   │   ├── Navigation.tsx
+│   │   ├── Footer.tsx
+│   │   ├── Dashboard.tsx
+│   │   ├── cards/                  Card system (types, StockCard, BaseCardShell, …)
+│   │   │   └── variants/           PortfolioCardView, WatchlistCardView, …
+│   │   ├── modals/                 GpsBreakdownModal, BuyMoreModal, SellModal, …
+│   │   └── …                       Other components
+│   │
+│   └── api/                        Next.js API Route Handlers
+│       ├── auth/
+│       │   ├── [...nextauth]/      NextAuth.js handler
+│       │   ├── register/
+│       │   ├── forgot-password/
+│       │   └── reset-password/
+│       ├── user/
+│       │   ├── portfolio/
+│       │   │   └── historical-value/
+│       │   ├── watchlist/
+│       │   ├── stocks/
+│       │   │   └── [stock_id]/
+│       │   └── profile/
+│       ├── dashboard/
+│       │   ├── route.ts
+│       │   ├── recommendations/
+│       │   ├── deepmoney-picks/
+│       │   ├── analyst-ratings/
+│       │   └── on/
+│       ├── prediction/
+│       │   ├── [ticker]/
+│       │   └── save/
+│       ├── stock_data/
+│       │   └── [ticker]/
+│       │       ├── route.ts
+│       │       ├── gps/
+│       │       ├── data/
+│       │       └── industry/
+│       ├── market/
+│       │   ├── indices/
+│       │   └── trending/
+│       ├── admin/
+│       │   └── users/
+│       ├── contact/
+│       └── worldbank/
+│
+├── lib/
+│   └── auth.ts                     NextAuth authOptions
+│
+├── middleware.ts                   Route protection (withAuth)
+│
+└── utils/
+    ├── databaseHelper.ts           executeRawQuery, insert, upsert, update, remove
+    ├── rateLimiter.ts              loginLimiter, registerLimiter, etc.
+    ├── limitService.ts             Role-based resource quotas
+    ├── originCheck.ts              checkOrigin() middleware
+    ├── cache.ts                    predictionCache, stockDataCache
+    ├── logger.ts                   createLogger(namespace)
+    └── formatters.ts               Global number/date formatters
+
+scripts/
+└── predict_weighted_analysis.py   Python ML prediction model
+
+public/
+├── growmystock_logo.svg
+├── growmystock_logo_dark.svg
+└── company_tickers.json           SEC full ticker list (used by Search component)
+
+doc/                               All HTML documentation files</pre>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ -->
+    <div class="section">
+      <div class="section-title" id="pages">Pages</div>
+      <div class="arch-card">
+        <table class="props-table">
+          <thead><tr><th>Route</th><th>Component / Page</th><th>Auth</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><code>/</code></td><td>Dashboard</td><td>Required</td><td>Portfolio, watchlist, recommendations, indices strip</td></tr>
+            <tr><td><code>/portfolio</code></td><td>Portfolio page</td><td>Required</td><td>Full portfolio view with history chart, gains breakdown, compare chart</td></tr>
+            <tr><td><code>/search</code></td><td>Search page</td><td>Required</td><td>Search component + TrendingStocksGrid + SectorExplorer</td></tr>
+            <tr><td><code>/search/[ticker]</code></td><td>Stock detail page</td><td>Required</td><td>Renders Stock component for a single ticker</td></tr>
+            <tr><td><code>/search/industry/[sector]</code></td><td>Industry page</td><td>Required</td><td>Renders IndustryStocks component</td></tr>
+            <tr><td><code>/profile</code></td><td>Profile page</td><td>Required</td><td>Profile component — stats, account type</td></tr>
+            <tr><td><code>/admin/users</code></td><td>Admin Users page</td><td>Required + admin role</td><td>User management table with approve/reject/role controls</td></tr>
+            <tr><td><code>/login</code></td><td>Login page</td><td>Public</td><td>NextAuth sign-in form</td></tr>
+            <tr><td><code>/register</code></td><td>Registration page</td><td>Public</td><td>Submits to POST /api/auth/register</td></tr>
+            <tr><td><code>/forgot-password</code></td><td>Forgot password page</td><td>Public</td><td>Submits to POST /api/auth/forgot-password</td></tr>
+            <tr><td><code>/reset-password</code></td><td>Reset password page</td><td>Public</td><td>Reads ?token= from URL</td></tr>
+            <tr><td><code>/contact</code></td><td>Contact page</td><td>Public</td><td>Submits to POST /api/contact</td></tr>
+            <tr><td><code>/legal/privacy</code></td><td>Privacy Policy</td><td>Public</td><td>Static content</td></tr>
+            <tr><td><code>/legal/terms</code></td><td>Terms of Service</td><td>Public</td><td>Static content</td></tr>
+            <tr><td><code>/legal/disclaimer</code></td><td>Disclaimer</td><td>Public</td><td>Static content</td></tr>
+            <tr><td><code>/preview</code></td><td>Preview page</td><td>Public</td><td>Navigation hidden on this route</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ -->
+    <div class="section">
+      <div class="section-title" id="auth-flow">Auth &amp; Approval Flow</div>
+
+      <div class="two-col">
+        <div class="arch-card">
+          <h4>Registration Flow</h4>
+          <ol class="flow-steps">
+            <li>User submits registration form (username, email, password)</li>
+            <li>POST /api/auth/register validates input via Zod. Checks email + username uniqueness.</li>
+            <li>Password hashed with bcrypt (10 rounds). User inserted with <code>approval_status: 'pending'</code>.</li>
+            <li>Resend sends confirmation email to user and notification to admin.</li>
+            <li>User cannot log in until an admin approves the account.</li>
+          </ol>
+        </div>
+        <div class="arch-card">
+          <h4>Admin Approval Flow</h4>
+          <ol class="flow-steps">
+            <li>Admin views pending users at <code>/admin/users</code>.</li>
+            <li>Admin clicks Approve. PATCH /api/admin/users sets <code>approval_status = 'approved'</code>.</li>
+            <li>Resend sends an approval notification email to the user.</li>
+            <li>User can now log in. <code>evaluateApprovalStatus()</code> in auth.ts passes the check.</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="arch-card">
+          <h4>Login Flow</h4>
+          <ol class="flow-steps">
+            <li>User submits credentials (email + password).</li>
+            <li>NextAuth CredentialsProvider calls <code>loginLimiter</code> rate check.</li>
+            <li>Looks up user by email. Runs <code>bcrypt.compare(password, hash)</code>.</li>
+            <li>Calls <code>evaluateApprovalStatus()</code> — throws a descriptive error if pending or rejected.</li>
+            <li>JWT created with <code>id</code>, <code>role</code>, <code>approvalStatus</code>. Redirects to home.</li>
+          </ol>
+        </div>
+        <div class="arch-card">
+          <h4>Password Reset Flow</h4>
+          <ol class="flow-steps">
+            <li>User submits email on /forgot-password. Always shows success message (anti-enumeration).</li>
+            <li>If email found: SHA256 token generated, stored in <code>password_reset_tokens</code> (1-hour expiry). Resend emails reset link.</li>
+            <li>User clicks link → /reset-password?token=…</li>
+            <li>GET /api/auth/reset-password validates token.</li>
+            <li>User submits new password. POST validates + consumes token, bcrypt hashes, updates user.</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="arch-card">
+        <h4>Session &amp; Middleware</h4>
+        <p>All routes except public ones are protected by NextAuth <code>withAuth</code> middleware defined in <code>src/middleware.ts</code>. The middleware reads the JWT session token from the cookie and redirects unauthenticated requests to <code>/login</code>. Server-to-server internal calls bypass authentication using an <code>x-api-key</code> header matching <code>INTERNAL_API_KEY</code>.</p>
+        <div class="note" style="margin-top:.75rem;">The JWT session token carries <code>id</code>, <code>role</code>, and <code>approvalStatus</code>. This avoids a database round-trip on every authenticated request.</div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ -->
+    <div class="section">
+      <div class="section-title" id="data-flow">Data Flow</div>
+
+      <div class="arch-card">
+        <h4>Portfolio Data Flow</h4>
+        <ol class="flow-steps">
+          <li><code>Dashboard</code> component mounts; calls <code>GET /api/user/portfolio</code>.</li>
+          <li>API queries <code>user_stocks JOIN stocks JOIN user_stock_predictions JOIN stock_brand</code>.</li>
+          <li>For each holding, fetches live price + analyst summary from Yahoo Finance.</li>
+          <li>Returns enriched portfolio array with totals (costBasis, marketValue, unrealizedGain/Loss).</li>
+          <li><code>Dashboard</code> passes data to <code>PortfolioSummary</code> (KPI cards), <code>PortfolioSection</code> (card grid), and triggers refreshes when the user buys/sells.</li>
+        </ol>
+      </div>
+
+      <div class="arch-card">
+        <h4>Stock Detail Data Flow</h4>
+        <ol class="flow-steps">
+          <li>User navigates to <code>/search/[ticker]</code>. Page renders <code>Stock</code> component with ticker prop.</li>
+          <li><code>Stock</code> fires parallel requests: <code>GET /api/stock_data/{ticker}</code> (price, history, news, earnings, technicals) + <code>GET /api/stock_data/{ticker}/gps</code> + <code>GET /api/dashboard/on?ticker=</code>.</li>
+          <li>Stock detail page assembles: price header, portfolio/watchlist action buttons (if applicable), <code>StockSignalPanel</code>, <code>StockChart</code>, <code>TechnicalIndicatorsDisplay</code>, analyst table, earnings table, <code>StockNews</code>.</li>
+          <li>User can trigger prediction via <code>StockPrediction</code> (two-step: <code>/api/stock_data/{ticker}/data</code> → <code>POST /api/prediction/{ticker}</code>).</li>
+        </ol>
+      </div>
+
+      <div class="arch-card">
+        <h4>Watchlist Data Flow</h4>
+        <ol class="flow-steps">
+          <li><code>WatchlistSection</code> calls <code>GET /api/user/watchlist</code> on mount.</li>
+          <li>API fetches watchlist items, enriches each with Yahoo Finance live price and 6-month moving average from <code>stocksdailyprice</code> table.</li>
+          <li>User can: (a) remove — <code>DELETE /api/user/watchlist?stockId=</code>, or (b) move to portfolio — opens <code>PurchaseFromWatchlistModal</code> which POSTs to <code>/api/user/stocks</code>.</li>
+        </ol>
+      </div>
+
+      <div class="arch-card">
+        <h4>Recommendations Data Flow</h4>
+        <ol class="flow-steps">
+          <li><code>RecommendationsSection</code> calls <code>GET /api/dashboard/recommendations</code>.</li>
+          <li>API fetches user's saved predictions from <code>user_stock_predictions</code> for all three scopes (portfolio, watchlist, discovery).</li>
+          <li>Fetches current prices from Yahoo Finance to compare against predicted prices.</li>
+          <li>Calls <code>GET /api/worldbank</code> (6-hour cached) to get macro dampeners: if unemployment is bearish, BUY threshold rises by 2%; <code>globalHealthScore</code> adjusts delta multiplier.</li>
+          <li>Returns recommendations sorted by |deltaPct|. Tagged with scope.</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ -->
+    <div class="section">
+      <div class="section-title" id="prediction-pipeline">AI Prediction Pipeline</div>
+
+      <div class="arch-card">
+        <h4>Two-Step Architecture</h4>
+        <p>The prediction system uses a two-step client/server architecture to separate data collection from model execution.</p>
+        <div style="margin-top:1rem;">
+          <ol class="flow-steps">
+            <li><strong>Step 1 — Data fetch:</strong> <code>StockPrediction</code> component calls <code>GET /api/stock_data/{ticker}/data</code>, which assembles an enriched payload (historical prices, fundamentals, technicals, analyst data, macro context) formatted for the Python model. Result cached in <code>stockDataCache</code>.</li>
+            <li><strong>Step 2 — Model run:</strong> Component POSTs the payload to <code>POST /api/prediction/{ticker}</code>. Route checks <code>predictionCache</code> first. If no cache hit, validates ≥365 days history, then acquires a semaphore slot to cap concurrent Python spawns.</li>
+            <li><strong>Python execution:</strong> <code>child_process.spawn</code> runs <code>scripts/predict_weighted_analysis.py</code>, passing the JSON payload via stdin. The script outputs prediction JSON to stdout.</li>
+            <li><strong>Result handling:</strong> Route caches the result in <code>predictionCache</code> and fires an async POST to <code>/api/prediction/save</code> to persist the result in <code>user_stock_predictions</code>.</li>
+            <li><strong>Display:</strong> <code>StockPrediction</code> renders 4 horizon cards (1W/1M/3M/6M), an SVG trajectory chart with confidence bands, and a metric analysis accordion.</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="arch-card">
+        <h4>Prediction Guards</h4>
+        <table class="props-table">
+          <thead><tr><th>Guard</th><th>Behavior</th></tr></thead>
+          <tbody>
+            <tr><td>LimitService lookup quota</td><td>429 if user's daily lookups exhausted</td></tr>
+            <tr><td>30-second per-user-per-ticker cooldown</td><td>Returns cached result immediately within window</td></tr>
+            <tr><td>predictionCache</td><td>In-memory cache; returns stale prediction if fresh enough</td></tr>
+            <tr><td>Minimum history validation</td><td>422 if fewer than 365 days of historical prices available</td></tr>
+            <tr><td>predictionSemaphore</td><td>Caps concurrent Python subprocesses to prevent server overload</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="arch-card">
+        <h4>GPS Score (Global Performance Score)</h4>
+        <p>A composite 0–100 score computed by the Python model. Combines 6 sub-scores:</p>
+        <table class="props-table" style="margin-top:.75rem;">
+          <thead><tr><th>Sub-score</th><th>Source</th></tr></thead>
+          <tbody>
+            <tr><td>Analyst Upside</td><td>Analyst 12-month target price vs. current price</td></tr>
+            <tr><td>Revenue Growth</td><td>YoY revenue growth from earnings data</td></tr>
+            <tr><td>Earnings Growth</td><td>YoY EPS growth</td></tr>
+            <tr><td>52-Week Price Change</td><td>Current price vs. 52-week low/high midpoint</td></tr>
+            <tr><td>MLP Alpha</td><td>Multi-layer perceptron model alpha signal</td></tr>
+            <tr><td>AI Confidence</td><td>Model prediction confidence level</td></tr>
+          </tbody>
+        </table>
+        <p style="margin-top:.75rem;">GPS scores are stored in <code>user_stock_predictions.gps_score</code> (user-specific) and also in the <code>recommended_stocks</code> table (system-wide). The <code>GET /api/stock_data/{ticker}/gps</code> endpoint checks user predictions first, then falls back to system scores.</p>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ -->
+    <div class="section">
+      <div class="section-title" id="card-system">Card System Architecture</div>
+
+      <div class="arch-card">
+        <h4>Discriminated Union Pattern</h4>
+        <p>All stock display cards use a single discriminated union type <code>StockCardModel</code> with four variants. This allows a single <code>StockCard</code> entry point to route to the correct view without prop drilling.</p>
+        <pre>// src/app/components/cards/types.ts
+
+type StockCardModel =
+  | SearchTrendingCard  // variant: 'search-trending' — price + hot rating, no actions
+  | DeepmoneyCard       // variant: 'deepmoney'       — AI pick, price + prediction, no actions
+  | PortfolioCard       // variant: 'portfolio'        — shares, GPS, actions: Buy More / Sell
+  | WatchlistCard       // variant: 'watchlist'        — GPS, 6M MA, actions: Add to Portfolio / Remove</pre>
+      </div>
+
+      <div class="arch-card">
+        <h4>Card Rendering Chain</h4>
+        <pre>StockCard (React.memo)
+  └─ BaseCardShell (hover, keyboard a11y)
+       ├─ PortfolioCardView    (card.variant === 'portfolio')
+       ├─ WatchlistCardView    (card.variant === 'watchlist')
+       ├─ DeepmoneyCardView    (card.variant === 'deepmoney')
+       └─ SearchTrendingCardView (card.variant === 'search-trending')
+
+Each variant uses:
+  ├─ CardHeader (symbol, price, change — portfolio or watchlist layout)
+  ├─ CardMetricRow (label/value pairs)
+  ├─ CardActions → ActionButton (primary/secondary/danger/neutral × sm/md)
+  ├─ GpsTooltip → GpsBreakdownModal
+  └─ formatters.ts (pure formatting functions)</pre>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ -->
+    <div class="section">
+      <div class="section-title" id="database">Database Patterns</div>
+
+      <div class="arch-card">
+        <h4>Query Helper Wrappers (src/utils/databaseHelper.ts)</h4>
+        <p>All database access goes through typed helper functions rather than raw SQL strings. This provides a consistent interface and centralises connection management.</p>
+        <table class="props-table" style="margin-top:.75rem;">
+          <thead><tr><th>Helper</th><th>Usage</th></tr></thead>
+          <tbody>
+            <tr><td><code>executeRawQuery(sql, params)</code></td><td>Arbitrary SELECT queries with parameterized inputs</td></tr>
+            <tr><td><code>insert(table, data)</code></td><td>INSERT a single row; returns insertId</td></tr>
+            <tr><td><code>upsert(table, data, conflictKey)</code></td><td>INSERT … ON DUPLICATE KEY UPDATE</td></tr>
+            <tr><td><code>update(table, data, where)</code></td><td>UPDATE with WHERE clause</td></tr>
+            <tr><td><code>remove(table, where)</code></td><td>DELETE with WHERE clause</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="arch-card">
+        <h4>Key Tables</h4>
+        <table class="props-table">
+          <thead><tr><th>Table</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>users</code></td><td>User accounts: username, email, hashed password, role, approval_status</td></tr>
+            <tr><td><code>password_reset_tokens</code></td><td>One-time SHA256 tokens for password reset (1-hour expiry)</td></tr>
+            <tr><td><code>stocks</code></td><td>Stock master: ticker, company_name</td></tr>
+            <tr><td><code>user_stocks</code></td><td>Portfolio holdings: user_id, stock_id, shares, purchase_price, purchase_date</td></tr>
+            <tr><td><code>user_watchlist</code></td><td>Watchlist items: user_id, ticker, company_name, added_date</td></tr>
+            <tr><td><code>user_stock_predictions</code></td><td>Cached ML predictions per (user_id, ticker): gps_score, gps_breakdown, 1w/1m/3m/6m predictions</td></tr>
+            <tr><td><code>stock_brand</code></td><td>Brand primary colors per ticker (fetched asynchronously on first portfolio add)</td></tr>
+            <tr><td><code>stock_lookup_events</code></td><td>Audit log of stock data lookups per user (powers daily quota tracking)</td></tr>
+            <tr><td><code>stocksdailyprice</code></td><td>Historical daily closing prices (used for 6-month moving average on watchlist)</td></tr>
+            <tr><td><code>recommended_stocks</code></td><td>System-wide AI-curated hot stocks snapshot with GPS scores</td></tr>
+            <tr><td><code>hot_etfs</code></td><td>System-wide AI-curated hot ETFs snapshot</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="arch-card">
+        <h4>Weighted Average Price Calculation</h4>
+        <p>When a user buys additional shares of an already-owned stock, the purchase price is recalculated as a weighted average:</p>
+        <pre>newAvgPrice = (existingShares × existingAvgPrice + newShares × newPrice)
+              / (existingShares + newShares)</pre>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ -->
+    <div class="section">
+      <div class="section-title" id="external-services">External Services</div>
+
+      <div class="two-col">
+        <div class="arch-card">
+          <h4>Yahoo Finance (yahoo-finance2)</h4>
+          <ul>
+            <li>Real-time quotes and daily change</li>
+            <li>Historical OHLCV price data</li>
+            <li>Analyst consensus + price targets</li>
+            <li>Earnings data (EPS actual vs. estimate)</li>
+            <li>Major indices (DJI, GSPC, IXIC, VIX)</li>
+            <li>Trending stocks</li>
+            <li>Industry/sector peer lists</li>
+          </ul>
+        </div>
+        <div class="arch-card">
+          <h4>World Bank API</h4>
+          <ul>
+            <li>US: GDP growth, CPI inflation, unemployment rate</li>
+            <li>Global trade volume + FDI flows (ETF GPS factors)</li>
+            <li>Multi-country risk index</li>
+            <li>Outputs a composite <code>globalHealthScore</code></li>
+            <li>Hard-cached for 6 hours to avoid rate limits</li>
+            <li>Used by recommendations engine to dampen BUY thresholds when macro is bearish</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="arch-card">
+          <h4>Resend (Email)</h4>
+          <p>All transactional emails. Three API keys via environment variables:</p>
+          <ul>
+            <li><code>RESEND_API_KEY</code> — auth emails (registration, approval, password reset)</li>
+            <li><code>RESEND_CONTACT_API_KEY</code> — contact form emails</li>
+            <li><code>RESEND_FROM_EMAIL</code> — sender address</li>
+          </ul>
+          <p style="margin-top:.5rem;">Templates are inline HTML strings inside the route handlers.</p>
+        </div>
+        <div class="arch-card">
+          <h4>SEC Company Tickers</h4>
+          <p>The full SEC company ticker list is served as a static public asset at <code>/company_tickers.json</code>. The <code>Search</code> component fetches and filters this client-side (up to 200 results), so no backend search API is needed for ticker autocomplete.</p>
+        </div>
+      </div>
+
+      <div class="arch-card">
+        <h4>Brand Color Enrichment</h4>
+        <p>When a user adds a stock to their portfolio (<code>POST /api/user/stocks</code>), a background async call fires <code>getBrandColorFromScript(ticker)</code>. This fetches the company's primary brand color and stores it in the <code>stock_brand</code> table. The color is then used as the accent bar at the top of each <code>PortfolioCardView</code>. This is a best-effort operation — it does not block the portfolio add response.</p>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ -->
+    <div class="section">
+      <div class="section-title" id="key-utilities">Key Utilities</div>
+
+      <div class="arch-card">
+        <h4>In-Flight Request Deduplication</h4>
+        <p>The stock data route (<code>GET /api/stock_data/[ticker]</code>) maintains a module-level Map:</p>
+        <pre>const inflightRequests = new Map&lt;string, Promise&lt;Response&gt;&gt;()</pre>
+        <p>If a second request for the same ticker arrives while the first is still awaiting Yahoo Finance, the second request is attached to the existing Promise instead of spawning a duplicate fetch. The entry is deleted from the Map once the Promise resolves.</p>
+      </div>
+
+      <div class="arch-card">
+        <h4>Caching Strategy</h4>
+        <table class="props-table">
+          <thead><tr><th>Cache</th><th>Module</th><th>TTL / Invalidation</th></tr></thead>
+          <tbody>
+            <tr><td><code>predictionCache</code></td><td>@/utils/cache</td><td>Time-based; checked before spawning Python</td></tr>
+            <tr><td><code>stockDataCache</code></td><td>@/utils/cache</td><td>Time-based; caches enriched data payload for Python input</td></tr>
+            <tr><td>Indices cache</td><td>/api/market/indices</td><td>In-memory; refreshed by client every 2 minutes</td></tr>
+            <tr><td>Trending cache</td><td>/api/market/trending</td><td>15-minute in-memory cache</td></tr>
+            <tr><td>Analyst ratings cache</td><td>/api/dashboard/analyst-ratings</td><td>Time-based in-memory cache</td></tr>
+            <tr><td>World Bank cache</td><td>/api/worldbank</td><td>6-hour in-memory cache</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="arch-card">
+        <h4>Logger (src/utils/logger.ts)</h4>
+        <p>A namespaced logger created with <code>createLogger(namespace)</code>. Each API route creates its own named logger instance (e.g., <code>createLogger('api/contact')</code>). Exposes <code>logger.info()</code> and <code>logger.error()</code>.</p>
+      </div>
+
+      <div class="arch-card">
+        <h4>LimitService (src/utils/limitService.ts)</h4>
+        <p>Controls per-role resource quotas. Checked before any action that consumes a limited resource. Returns a boolean and the current count/limit for display purposes.</p>
+        <table class="props-table" style="margin-top:.75rem;">
+          <thead><tr><th>Limit type</th><th>user</th><th>superuser</th><th>admin</th></tr></thead>
+          <tbody>
+            <tr><td>Daily stock lookups</td><td>Limited</td><td>Higher limit</td><td>Unlimited</td></tr>
+            <tr><td>Portfolio positions</td><td>Limited</td><td>Higher limit</td><td>Higher limit</td></tr>
+            <tr><td>Watchlist items</td><td>Limited</td><td>Higher limit</td><td>Higher limit</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="arch-card">
+        <h4>Technical Indicators (computed in /api/stock_data/[ticker])</h4>
+        <table class="props-table">
+          <thead><tr><th>Indicator</th><th>Computation</th><th>Signal threshold</th></tr></thead>
+          <tbody>
+            <tr><td>SMA20</td><td>20-day simple moving average of close prices</td><td>Price above/below SMA scores +1/−1</td></tr>
+            <tr><td>SMA50</td><td>50-day simple moving average of close prices</td><td>Price above/below SMA scores +1/−1</td></tr>
+            <tr><td>RSI14</td><td>14-period RSI using Wilder's smoothing</td><td>&lt;30 oversold (+2), &gt;70 overbought (−2), else 0</td></tr>
+            <tr><td>Momentum</td><td>Current price vs. price 10 days ago</td><td>Positive momentum +1, negative −1</td></tr>
+            <tr><td>Total signal score</td><td>Sum of all indicator scores</td><td>≥+4 → BUY, ≤−4 → SELL, else HOLD</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ -->
+    <div class="section">
+      <div class="section-title" id="env-vars">Environment Variables</div>
+      <div class="arch-card">
+        <table class="props-table">
+          <thead><tr><th>Variable</th><th>Used by</th><th>Required</th></tr></thead>
+          <tbody>
+            <tr><td><code>NEXTAUTH_SECRET</code></td><td>NextAuth JWT signing</td><td>Yes</td></tr>
+            <tr><td><code>NEXTAUTH_URL</code></td><td>NextAuth callback URLs</td><td>Yes</td></tr>
+            <tr><td><code>NEXT_PUBLIC_NEXTAUTH_URL</code></td><td>checkOrigin(), client-side redirect</td><td>Yes</td></tr>
+            <tr><td><code>DATABASE_URL</code></td><td>MySQL connection</td><td>Yes</td></tr>
+            <tr><td><code>RESEND_API_KEY</code></td><td>Auth emails (register, approve, reset)</td><td>Yes</td></tr>
+            <tr><td><code>RESEND_CONTACT_API_KEY</code></td><td>Contact form emails</td><td>Yes</td></tr>
+            <tr><td><code>RESEND_FROM_EMAIL</code></td><td>Sender address for all Resend emails</td><td>Yes</td></tr>
+            <tr><td><code>CONTACT_RECIPIENT_EMAIL</code></td><td>Admin inbox for contact form</td><td>No (defaults to digitalkdogg@gmail.com)</td></tr>
+            <tr><td><code>INTERNAL_API_KEY</code></td><td>Server-to-server API bypasses</td><td>Yes</td></tr>
+            <tr><td><code>PYTHON_PATH</code></td><td>Path to Python executable for predictions</td><td>Yes (if not in PATH)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+</body>
+</html>

@@ -28,49 +28,8 @@
             background-color: var(--bg);
             margin: 0;
         }
-        .top-nav {
-            position: sticky;
-            top: 0;
-            width: 100%;
-            background: white;
-            border-bottom: 1px solid var(--border);
-            padding: 0.75rem 2rem;
-            z-index: 1000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 2rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            flex-wrap: wrap;
-        }
-        .top-nav a {
-            text-decoration: none;
-            color: #64748b;
-            font-weight: 600;
-            font-size: 0.9rem;
-            transition: all 0.2s;
-            padding: 0.25rem 0;
-            border-bottom: 2px solid transparent;
-        }
-        .top-nav a:hover { color: var(--primary); }
-        .top-nav a.active {
-            color: var(--primary);
-            border-bottom: 2px solid var(--primary);
-        }
-        .page-container { display: flex; }
-        aside {
-            width: 290px;
-            height: calc(100vh - 60px);
-            background: white;
-            border-right: 1px solid var(--border);
-            position: fixed;
-            top: 60px;
-            padding: 1.75rem;
-            overflow-y: auto;
-            z-index: 10;
-        }
         main {
-            margin-left: 290px;
+            
             padding: 3rem;
             max-width: 1100px;
             width: 100%;
@@ -83,25 +42,6 @@
         p { margin-bottom: 1rem; }
         ul, ol { margin-left: 1.5rem; padding-left: 0; }
         li { margin-bottom: 0.4rem; }
-
-        .nav-link {
-            display: block;
-            padding: 0.5rem 0;
-            color: #64748b;
-            text-decoration: none;
-            font-size: 0.9rem;
-            border-bottom: 1px solid #f1f5f9;
-        }
-        .nav-link:hover { color: var(--primary); }
-        .nav-header {
-            font-weight: bold;
-            color: var(--text);
-            margin-top: 1.5rem;
-            display: block;
-            text-transform: uppercase;
-            font-size: 0.75rem;
-            letter-spacing: 0.05em;
-        }
 
         .step-card {
             background: white;
@@ -239,17 +179,45 @@
         .flow li::before { content: "→"; position: absolute; left: 0; color: var(--primary); font-weight: bold; }
 
         @media (max-width: 768px) {
-            aside { display: none; }
             main { margin-left: 0; padding: 1.5rem; }
         }
+    
+    /* ── Top Bar ── */
+    .top-bar { background: #017e3b; color: #fff; padding: 0 2rem; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+    .top-bar-header { display: flex; align-items: center; justify-content: space-between; height: 56px; }
+    .top-bar .brand { font-size: 1.2rem; font-weight: 700; letter-spacing: .02em; }
+    .top-bar .brand span { color: #bbf7d0; }
+    .top-bar .subtitle { font-size: .8rem; opacity: .8; }
+    .top-bar-nav { display: flex; gap: 1.75rem; overflow-x: auto; scrollbar-width: none; padding: 6px 0 8px; border-top: 1px solid rgba(255,255,255,0.15); }
+    .top-bar-nav::-webkit-scrollbar { display: none; }
+    .top-bar-nav a { white-space: nowrap; color: rgba(255,255,255,0.72); text-decoration: none; font-size: .8rem; font-weight: 600; padding-bottom: 3px; border-bottom: 2px solid transparent; transition: color .15s, border-color .15s; flex-shrink: 0; }
+    .top-bar-nav a:hover { color: #fff; }
+    .top-bar-nav a.active { color: #fff; border-bottom-color: #86efac; }
+
+        .layout { display: flex; flex: 1; }
+    .sidebar { width: 260px; min-width: 260px; background: #fff; border-right: 1px solid #e2e8f0; padding: 1.5rem 0; position: sticky; top: 92px; height: calc(100vh - 92px); overflow-y: auto; }
+    .sidebar h3 { font-size: .65rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #94a3b8; padding: .25rem 1.25rem .5rem; margin-top: .5rem; }
+    .sidebar a { display: block; padding: .45rem 1.25rem; font-size: .85rem; color: #475569; text-decoration: none; border-left: 3px solid transparent; transition: all .15s; line-height: 1.4; }
+    .sidebar a:hover { background: #f0fdf4; color: #017e3b; border-left-color: #86efac; }
+    .sidebar a.active { background: #f0fdf4; color: #017e3b; font-weight: 600; border-left-color: #017e3b; }
+    .sidebar .section-divider { border-top: 1px solid #f1f5f9; margin: .5rem 0; }
     </style>
 </head>
 <body>
-
-<nav class="top-nav">
+<div class="top-bar">
+  <div class="top-bar-header">
+    <div>
+      <div class="brand">Grow<span>MY</span>Stocks</div>
+      <div class="subtitle">Authentication Flow</div>
+    </div>
+    <div style="font-size:.78rem;opacity:.75;">Generated 2026-05-20</div>
+  </div>
+  <nav class="top-bar-nav">
     <a href="moneygoup_overview.html">Overview</a>
     <a href="api_documentation.html">API Docs</a>
+    <a href="architecture_documentation.html">Architecture</a>
     <a href="authentication_flow.html" class="active">Auth Flow</a>
+    <a href="admin_user_management.html">Admin User Mgmt</a>
     <a href="recommendation_buckets.html">Rec Buckets</a>
     <a href="components_documentation.html">Components</a>
     <a href="database_documentation.html">Database</a>
@@ -257,37 +225,41 @@
     <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
     <a href="technical_indicators_guide.html">Technical Guide</a>
     <a href="style_guide.html">Style Guide</a>
-</nav>
+  </nav>
+</div>
 
-<div class="page-container">
-<aside>
-    <h2 style="font-size: 1.1rem; margin-top: 0; border: none; color: var(--primary-dark);">Auth Flow</h2>
-    <nav>
-        <span class="nav-header">Overview</span>
-        <a href="#summary" class="nav-link">Summary</a>
-        <a href="#recent-changes" class="nav-link">Recent Changes (May 2026)</a>
-        <a href="#security-layers" class="nav-link">Security Layers</a>
-        <a href="#password-policy" class="nav-link">Password Policy</a>
-
-        <span class="nav-header">Flows</span>
-        <a href="#registration-flow" class="nav-link">1. Registration</a>
-        <a href="#login-flow" class="nav-link">2. Login</a>
-        <a href="#password-reset-flow" class="nav-link">3. Password Reset</a>
-
-        <span class="nav-header">Pages & Routes</span>
-        <a href="#pages" class="nav-link">UI Pages</a>
-        <a href="#api-routes" class="nav-link">API Routes</a>
-        <a href="#middleware" class="nav-link">Middleware Guard</a>
-
-        <span class="nav-header">Roles & Approvals</span>
-        <a href="#roles" class="nav-link">User Roles</a>
-        <a href="#approval-states" class="nav-link">Approval States</a>
-        <a href="#email-system" class="nav-link">Email Notification System</a>
-
-        <span class="nav-header">Testing</span>
-        <a href="#test-coverage" class="nav-link">Test Coverage</a>
-    </nav>
-</aside>
+<div class="layout">
+  <nav class="sidebar" aria-label="Authentication Flow sections">
+    <h3>GrowMyStocks Docs</h3>
+    <a href="moneygoup_overview.html">App Overview</a>
+    <a href="architecture_documentation.html">Architecture</a>
+    <a href="components_documentation.html">Components</a>
+    <a href="api_documentation.html">API Routes</a>
+    <div class="section-divider"></div>
+    <h3>On this page</h3>
+    <a href="#summary">Summary</a>
+    <a href="#recent-changes">Recent Changes</a>
+    <a href="#security-layers">Security Layers</a>
+    <a href="#password-policy">Password Policy</a>
+    <a href="#registration-flow">1. Registration</a>
+    <a href="#login-flow">2. Login</a>
+    <a href="#password-reset-flow">3. Password Reset</a>
+    <a href="#pages">UI Pages</a>
+    <a href="#api-routes">API Routes</a>
+    <a href="#middleware">Middleware Guard</a>
+    <a href="#roles">User Roles</a>
+    <a href="#approval-states">Approval States</a>
+    <a href="#email-system">Email Notifications</a>
+    <a href="#test-coverage">Test Coverage</a>
+    <div class="section-divider"></div>
+    <a href="database_documentation.html">Database</a>
+    <a href="prediction_workflow.html">Prediction Workflow</a>
+    <a href="recommendation_buckets.html">Recommendation Buckets</a>
+    <a href="technical_indicators_guide.html">Technical Indicators</a>
+    <a href="admin_user_management.html">Admin User Mgmt</a>
+    <a href="style_guide.html">Style Guide</a>
+    <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
+  </nav>
 
 <main>
     <h1>MoneyGoUp — Authentication Flow</h1>
