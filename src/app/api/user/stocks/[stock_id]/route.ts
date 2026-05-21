@@ -7,6 +7,7 @@ import { authOptions } from '@/lib/auth';
 import { z } from 'zod';
 import { validate } from '@/utils/validation';
 import { checkOrigin } from '@/utils/originCheck'; // Add this import
+import { checkApprovalGuard } from '@/utils/approvalStatus';
 
 const logger = createLogger('api/user/stocks/[stock_id]');
 
@@ -43,6 +44,15 @@ export const PATCH = validate(tradeSchema)(
 
       const userId = session.user.id;
       const { action, shares: sharesToTrade, price } = data;
+
+      const approvalOutcome = await checkApprovalGuard(userId);
+      if (!approvalOutcome.allowed) {
+        logger.warn('Access denied due to approval status:', { userId, code: approvalOutcome.code });
+        return NextResponse.json(
+          { message: approvalOutcome.message, code: approvalOutcome.code, reason: (approvalOutcome as any).reason },
+          { status: 403 }
+        );
+      }
 
       // Verify user owns this stock
       const [existingPosition] = await executeRawQuery(
@@ -175,7 +185,16 @@ export async function PUT(
     }
 
     const userId = session.user.id;
-    
+
+    const approvalOutcome = await checkApprovalGuard(userId);
+    if (!approvalOutcome.allowed) {
+      logger.warn('Access denied due to approval status:', { userId, code: approvalOutcome.code });
+      return NextResponse.json(
+        { message: approvalOutcome.message, code: approvalOutcome.code, reason: (approvalOutcome as any).reason },
+        { status: 403 }
+      );
+    }
+
     // Update user_stocks to reflect "sold" state (i.e., move back to watchlist)
     const affectedRows = await update(
       'user_stocks',

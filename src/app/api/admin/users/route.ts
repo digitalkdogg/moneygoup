@@ -18,12 +18,15 @@ export async function GET(request: NextRequest) {
 
   const session = await getServerSession(authOptions);
 
-  if (!session || !session.user) {
+  if (!session?.user?.id) {
     return unauthorizedResponse();
   }
 
-  const userRole = (session.user as any).role;
-  if (userRole !== 'admin') {
+  // Live DB role check — never trust the session token alone for admin operations
+  const [actorRows] = await executeRawQuery('SELECT role FROM users WHERE id = ?', [session.user.id]);
+  const actorRole = (Array.isArray(actorRows) && actorRows.length > 0) ? (actorRows[0] as any).role : null;
+  if (actorRole !== 'admin') {
+    logger.warn('Admin GET attempted by non-admin', { userId: session.user.id, role: actorRole });
     return forbiddenResponse('Admin access required');
   }
 
@@ -71,12 +74,15 @@ export async function PATCH(request: NextRequest) {
 
   const session = await getServerSession(authOptions);
 
-  if (!session || !session.user) {
+  if (!session?.user?.id) {
     return unauthorizedResponse();
   }
 
-  const adminUser = session.user as any;
-  if (adminUser.role !== 'admin') {
+  // Live DB role check — never trust the session token alone for admin operations
+  const [actorRows] = await executeRawQuery('SELECT id, role FROM users WHERE id = ?', [session.user.id]);
+  const actor = (Array.isArray(actorRows) && actorRows.length > 0) ? (actorRows[0] as any) : null;
+  if (!actor || actor.role !== 'admin') {
+    logger.warn('Admin PATCH attempted by non-admin', { userId: session.user.id, role: actor?.role });
     return forbiddenResponse('Admin access required');
   }
 
@@ -92,12 +98,12 @@ export async function PATCH(request: NextRequest) {
     if (approval_status) {
       updates.approval_status = approval_status;
       if (approval_status === 'approved') {
-        updates.approved_by = adminUser.id;
+        updates.approved_by = actor.id;
         updates.approved_at = new Date();
         updates.rejected_reason = null;
       } else if (approval_status === 'rejected') {
         updates.rejected_reason = rejected_reason || 'No reason provided';
-        updates.approved_by = adminUser.id; // Still track who rejected
+        updates.approved_by = actor.id;
       }
     }
 
@@ -122,7 +128,7 @@ export async function PATCH(request: NextRequest) {
 
     await update('users', updates, { id: userId });
 
-    logger.info('Admin updated user', { adminId: adminUser.id, targetUserId: userId, updates });
+    logger.info('Admin updated user', { adminId: actor.id, targetUserId: userId, updates });
 
     if (approval_status === 'approved') {
       const [rows]: any = await executeRawQuery(

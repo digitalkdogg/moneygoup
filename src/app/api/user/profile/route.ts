@@ -5,6 +5,7 @@ import { executeRawQuery } from '@/utils/databaseHelper';
 import { createErrorResponse, unauthorizedResponse } from '@/utils/errorResponse';
 import { createLogger } from '@/utils/logger';
 import { checkOrigin } from '@/utils/originCheck';
+import { checkApprovalGuard } from '@/utils/approvalStatus';
 import type { ProfileResponse } from '@/types/api';
 
 const logger = createLogger('api/user/profile');
@@ -18,6 +19,15 @@ export async function GET(request: NextRequest) {
 
   const userId = session.user.id;
   const role = ((session.user as any).role as string) ?? 'user';
+
+  const approvalOutcome = await checkApprovalGuard(userId);
+  if (!approvalOutcome.allowed) {
+    logger.warn('Access denied due to approval status:', { userId, code: approvalOutcome.code });
+    return NextResponse.json(
+      { message: approvalOutcome.message, code: approvalOutcome.code, reason: (approvalOutcome as any).reason },
+      { status: 403 }
+    );
+  }
 
   try {
     // Fetch username from DB (not from session, which can be stale)

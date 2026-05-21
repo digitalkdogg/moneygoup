@@ -9,6 +9,7 @@ import { validate } from '@/utils/validation';
 import { checkOrigin } from '@/utils/originCheck';
 import { getBrandColorFromScript } from '@/utils/brandColor';
 import { LimitService } from '@/utils/limitService';
+import { checkApprovalGuard } from '@/utils/approvalStatus';
 
 const logger = createLogger('api/user/stocks');
 
@@ -81,6 +82,15 @@ export const POST = validate(purchaseStockSchema)(
       const userId = session.user.id;
       const userRole = (session.user as any).role || 'user';
       const isPurchased = 1;
+
+      const approvalOutcome = await checkApprovalGuard(userId);
+      if (!approvalOutcome.allowed) {
+        logger.warn('Access denied due to approval status:', { userId, code: approvalOutcome.code });
+        return NextResponse.json(
+          { message: approvalOutcome.message, code: approvalOutcome.code, reason: (approvalOutcome as any).reason },
+          { status: 403 }
+        );
+      }
 
       // 0. Check limits
       // First, check if user already has an active portfolio position for this stock

@@ -9,6 +9,7 @@ import { createLogger } from '@/utils/logger';
 import { checkOrigin } from '@/utils/originCheck';
 import { fetchYahooStockSummary } from '@/utils/yahooFinanceHelper';
 import { LimitService } from '@/utils/limitService';
+import { checkApprovalGuard } from '@/utils/approvalStatus';
 
 const logger = createLogger('api/user/watchlist');
 
@@ -25,6 +26,15 @@ export async function GET(request: NextRequest) {
   }
 
   const userId = session.user.id;
+
+  const approvalOutcome = await checkApprovalGuard(userId);
+  if (!approvalOutcome.allowed) {
+    logger.warn('Access denied due to approval status:', { userId, code: approvalOutcome.code });
+    return NextResponse.json(
+      { message: approvalOutcome.message, code: approvalOutcome.code, reason: (approvalOutcome as any).reason },
+      { status: 403 }
+    );
+  }
 
   try {
     const [watchlistItems]: any[] = await executeRawQuery(`
@@ -127,6 +137,15 @@ export const POST = validate(addStockSchema)(
     const userRole = (session.user as any).role || 'user';
     const { ticker, name } = data;
 
+    const approvalOutcome = await checkApprovalGuard(userId);
+    if (!approvalOutcome.allowed) {
+      logger.warn('Access denied due to approval status:', { userId, code: approvalOutcome.code });
+      return NextResponse.json(
+        { message: approvalOutcome.message, code: approvalOutcome.code, reason: (approvalOutcome as any).reason },
+        { status: 403 }
+      );
+    }
+
     try {
       // 0. Check limits
       const limitCheck = await LimitService.canAddWatchlistItem(userId, userRole);
@@ -195,6 +214,16 @@ export async function DELETE(request: NextRequest) {
   }
 
   const userId = session.user.id;
+
+  const approvalOutcome = await checkApprovalGuard(userId);
+  if (!approvalOutcome.allowed) {
+    logger.warn('Access denied due to approval status:', { userId, code: approvalOutcome.code });
+    return NextResponse.json(
+      { message: approvalOutcome.message, code: approvalOutcome.code, reason: (approvalOutcome as any).reason },
+      { status: 403 }
+    );
+  }
+
   const { searchParams } = new URL(request.url);
   const ticker = searchParams.get('stockId'); // Assuming stockId is passed as ticker symbol
 

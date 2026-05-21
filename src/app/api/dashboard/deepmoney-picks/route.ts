@@ -4,9 +4,12 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { executeRawQuery } from '@/utils/databaseHelper';
 import { checkOrigin } from '@/utils/originCheck';
+import { checkApprovalGuard } from '@/utils/approvalStatus';
+import { createLogger } from '@/utils/logger';
 import YahooFinance from 'yahoo-finance2';
 
 const ETF_GPS_THRESHOLD = 75;
+const logger = createLogger('api/dashboard/deepmoney-picks');
 const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
 
 export async function GET(request: NextRequest) {
@@ -14,7 +17,17 @@ export async function GET(request: NextRequest) {
   if (originCheckResponse) return originCheckResponse;
 
   const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+  if (!session?.user?.id) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+
+  const userId = session.user.id;
+  const approvalOutcome = await checkApprovalGuard(userId);
+  if (!approvalOutcome.allowed) {
+    logger.warn('Access denied due to approval status:', { userId, code: approvalOutcome.code });
+    return NextResponse.json(
+      { message: approvalOutcome.message, code: approvalOutcome.code, reason: (approvalOutcome as any).reason },
+      { status: 403 }
+    );
+  }
 
   try {
     // 1. Get latest dates for each category to handle sync timing offsets

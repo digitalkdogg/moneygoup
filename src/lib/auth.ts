@@ -130,16 +130,16 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.name = user.name;
-        token.role = (user as any).role;
-        token.approvalStatus = (user as any).approvalStatus;
+        token.role = user.role;
+        token.approvalStatus = user.approvalStatus;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.id = token.id as string;
-        (session.user as any).role = token.role as string;
-        (session.user as any).approvalStatus = token.approvalStatus as string;
+        session.user.id = token.id;
+        session.user.role = token.role;
+        session.user.approvalStatus = token.approvalStatus;
       }
       return session;
     },

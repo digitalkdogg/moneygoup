@@ -5,6 +5,8 @@
 
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 
+export type UserRole = 'user' | 'superuser' | 'admin';
+
 export const APPROVAL_ERROR_CODES = {
   PENDING: 'ACCOUNT_PENDING_APPROVAL',
   REJECTED: 'ACCOUNT_REJECTED',

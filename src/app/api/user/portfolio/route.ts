@@ -7,6 +7,7 @@ import { createLogger } from '@/utils/logger';
 import { checkOrigin } from '@/utils/originCheck';
 import { fetchYahooStockSummary } from '@/utils/yahooFinanceHelper';
 import { normalizeRecommendation } from '@/utils/formatters';
+import { checkApprovalGuard } from '@/utils/approvalStatus';
 
 const logger = createLogger('api/user/portfolio');
 
@@ -24,6 +25,15 @@ export async function GET(request: NextRequest) {
   }
 
   const userId = session.user.id;
+
+  const approvalOutcome = await checkApprovalGuard(userId);
+  if (!approvalOutcome.allowed) {
+    logger.warn('Access denied due to approval status:', { userId, code: approvalOutcome.code });
+    return NextResponse.json(
+      { message: approvalOutcome.message, code: approvalOutcome.code, reason: (approvalOutcome as any).reason },
+      { status: 403 }
+    );
+  }
 
   try {
     const [portfolioItems] = await executeRawQuery(`
