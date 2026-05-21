@@ -181,7 +181,7 @@ export default function Navigation() {
               <Link href="/" className="flex items-center md:gap-1 lg:gap-2 md:text-lg lg:text-2xl text-2xl font-bold text-white focus-visible:ring-2 focus-visible:ring-white rounded-md p-1">
                 <Image
                   src="/growmystock_logo.svg"
-                  alt="Grow My Stock"
+                  alt="Grow My Stocks"
                   width={35}
                   height={35}
                   priority
@@ -191,7 +191,7 @@ export default function Navigation() {
                   <span style={{ color: '#dcfce7', fontWeight: '600', fontSize: '1.1em', marginRight: '1px', marginLeft:'3px'}}>
                     MY
                   </span>
-                  <span style={{ fontWeight: 500 }}>Stock</span>
+                  <span style={{ fontWeight: 500 }}>Stocks</span>
                 </span>
               </Link>
             </div>
@@ -203,7 +203,7 @@ export default function Navigation() {
                 <div className="relative" ref={profileRef}>
                   <button
                     onClick={() => setIsProfileOpen(!isProfileOpen)}
-                    style={{ backgroundColor: '#95c779', color:'#09522b' }}
+                    style={{ backgroundColor: '#cfffdf', color: '#09522b' }}
                     className="flex items-center justify-center md:h-9 md:w-9 lg:h-11 lg:w-11 rounded-full cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600"
                     aria-expanded={isProfileOpen}
                     aria-haspopup="true"
@@ -296,7 +296,7 @@ export default function Navigation() {
         >
           <div className="flex flex-col h-full pt-5 pb-6">
             <div className="px-5 mb-8 flex justify-between items-center">
-              <span className="text-xl text-white"><span style={{ fontWeight: 500 }}>Grow</span><span style={{ color: '#baeb9e', fontWeight: '600' }}> My </span><span style={{ fontWeight: 500 }}>Stock</span></span>
+              <span className="text-xl text-white"><span style={{ fontWeight: 500 }}>Grow</span><span style={{ color: '#baeb9e', fontWeight: '600' }}> My </span><span style={{ fontWeight: 500 }}>Stocks</span></span>
               <button 
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="text-white p-2 w-[44px] h-[44px] flex items-center justify-center hover:bg-green-800 rounded-md focus-visible:ring-2 focus-visible:ring-white"
@@ -311,7 +311,7 @@ export default function Navigation() {
             {session?.user && (
               <div className="px-5 mb-6 flex items-center space-x-3">
                 <div 
-                  style={{ backgroundColor: '#95c779', color:'#09522b' }}
+                  style={{ backgroundColor: '#cfffdf', color: '#09522b' }}
                   className="h-12 w-12 rounded-full flex items-center justify-center font-bold border-2 border-white/20"
                 >
                   {initials}

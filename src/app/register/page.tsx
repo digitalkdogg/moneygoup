@@ -47,10 +47,10 @@ export default function RegisterPage() {
       <div className="max-w-xl w-full bg-white rounded-2xl shadow-xl p-8">
         <div className="flex flex-col items-center mb-8">
           <Link href="/" className="mb-4">
-            <Image src="/growmystock_logo.svg" alt="GrowMyStock Logo" width={64} height={64} />
+            <Image src="/growmystock_logo.svg" alt="GrowMyStocks Logo" width={64} height={64} />
           </Link>
           <h1 className="text-3xl font-bold text-gray-800">Create Account</h1>
-          <p className="text-gray-600">Join GrowMyStock today</p>
+          <p className="text-gray-600">Join GrowMyStocks today</p>
         </div>
 
         <form onSubmit={handleSubmit}>

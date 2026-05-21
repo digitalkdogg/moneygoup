@@ -60,10 +60,10 @@ function LoginForm() {
       <div className="max-w-xl w-full bg-white rounded-2xl shadow-xl p-8">
         <div className="flex flex-col items-center mb-8">
           <Link href="/" className="mb-4">
-            <Image src="/growmystock_logo.svg" alt="GrowMyStock Logo" width={64} height={64} />
+            <Image src="/growmystock_logo.svg" alt="GrowMyStocks Logo" width={64} height={64} />
           </Link>
           <h1 className="text-3xl font-bold text-gray-800">Login</h1>
-          <p className="text-gray-600">Welcome back to GrowMyStock</p>
+          <p className="text-gray-600">Welcome back to GrowMyStocks</p>
         </div>
 
         <form onSubmit={handleSubmit}>
