@@ -36,16 +36,19 @@ describe('Admin Users API', () => {
     });
 
     test('returns 403 if user is not an admin', async () => {
-      (getServerSession as jest.Mock).mockResolvedValue({ user: { role: 'user' } });
+      (getServerSession as jest.Mock).mockResolvedValue({ user: { id: '1', role: 'user' } });
+      (executeRawQuery as jest.Mock).mockResolvedValueOnce([[{ role: 'user' }]]);
       mockRequest = { nextUrl: new URL('http://localhost/api/admin/users') } as unknown as NextRequest;
       const response = await GET(mockRequest);
       expect(response.status).toBe(403);
     });
 
     test('returns user list for admin', async () => {
-      (getServerSession as jest.Mock).mockResolvedValue({ user: { role: 'admin' } });
+      (getServerSession as jest.Mock).mockResolvedValue({ user: { id: '1', role: 'admin' } });
       const mockUsers = [{ id: 1, username: 'testuser', role: 'user', approval_status: 'pending' }];
-      (executeRawQuery as jest.Mock).mockResolvedValue([mockUsers]);
+      (executeRawQuery as jest.Mock)
+        .mockResolvedValueOnce([[{ role: 'admin' }]])
+        .mockResolvedValueOnce([mockUsers]);
 
       const url = 'http://localhost/api/admin/users';
       mockRequest = { 
@@ -61,8 +64,10 @@ describe('Admin Users API', () => {
     });
 
     test('applies filters correctly', async () => {
-      (getServerSession as jest.Mock).mockResolvedValue({ user: { role: 'admin' } });
-      (executeRawQuery as jest.Mock).mockResolvedValue([[]]);
+      (getServerSession as jest.Mock).mockResolvedValue({ user: { id: '1', role: 'admin' } });
+      (executeRawQuery as jest.Mock)
+        .mockResolvedValueOnce([[{ role: 'admin' }]])
+        .mockResolvedValueOnce([[]]);
 
       const url = 'http://localhost/api/admin/users?status=pending&role=superuser&search=kevin';
       mockRequest = { 
@@ -84,7 +89,9 @@ describe('Admin Users API', () => {
       const adminSession = { user: { id: 99, role: 'admin' } };
       (getServerSession as jest.Mock).mockResolvedValue(adminSession);
       (update as jest.Mock).mockResolvedValue(1);
-      (executeRawQuery as jest.Mock).mockResolvedValueOnce([[{ email: 'user@example.com', username: 'testuser' }]]);
+      (executeRawQuery as jest.Mock)
+        .mockResolvedValueOnce([[{ id: 99, role: 'admin' }]])
+        .mockResolvedValueOnce([[{ email: 'user@example.com', username: 'testuser' }]]);
 
       mockRequest = {
         json: jest.fn().mockResolvedValue({
@@ -109,7 +116,9 @@ describe('Admin Users API', () => {
     test('sends approval email when user is approved', async () => {
       (getServerSession as jest.Mock).mockResolvedValue({ user: { id: 99, role: 'admin' } });
       (update as jest.Mock).mockResolvedValue(1);
-      (executeRawQuery as jest.Mock).mockResolvedValueOnce([[{ email: 'user@example.com', username: 'testuser' }]]);
+      (executeRawQuery as jest.Mock)
+        .mockResolvedValueOnce([[{ id: 99, role: 'admin' }]])
+        .mockResolvedValueOnce([[{ email: 'user@example.com', username: 'testuser' }]]);
       (sendApprovalEmail as jest.Mock).mockResolvedValue(undefined);
 
       mockRequest = {
@@ -124,7 +133,9 @@ describe('Admin Users API', () => {
     test('does not send approval email when user has no email', async () => {
       (getServerSession as jest.Mock).mockResolvedValue({ user: { id: 99, role: 'admin' } });
       (update as jest.Mock).mockResolvedValue(1);
-      (executeRawQuery as jest.Mock).mockResolvedValueOnce([[{ email: null, username: 'testuser' }]]);
+      (executeRawQuery as jest.Mock)
+        .mockResolvedValueOnce([[{ id: 99, role: 'admin' }]])
+        .mockResolvedValueOnce([[{ email: null, username: 'testuser' }]]);
 
       mockRequest = {
         json: jest.fn().mockResolvedValue({ userId: 1, approval_status: 'approved' })
@@ -138,7 +149,9 @@ describe('Admin Users API', () => {
     test('still returns 200 if approval email fails to send', async () => {
       (getServerSession as jest.Mock).mockResolvedValue({ user: { id: 99, role: 'admin' } });
       (update as jest.Mock).mockResolvedValue(1);
-      (executeRawQuery as jest.Mock).mockResolvedValueOnce([[{ email: 'user@example.com', username: 'testuser' }]]);
+      (executeRawQuery as jest.Mock)
+        .mockResolvedValueOnce([[{ id: 99, role: 'admin' }]])
+        .mockResolvedValueOnce([[{ email: 'user@example.com', username: 'testuser' }]]);
       (sendApprovalEmail as jest.Mock).mockRejectedValue(new Error('Resend API error'));
 
       mockRequest = {
@@ -151,9 +164,10 @@ describe('Admin Users API', () => {
 
     test('prevents demoting the last admin', async () => {
       (getServerSession as jest.Mock).mockResolvedValue({ user: { id: 99, role: 'admin' } });
-      
+
       // Mock count check
       (executeRawQuery as jest.Mock)
+        .mockResolvedValueOnce([[{ id: 99, role: 'admin' }]]) // actor role check
         .mockResolvedValueOnce([[{ count: 1 }]]) // count of admins
         .mockResolvedValueOnce([[{ role: 'admin' }]]); // target user role
 
@@ -173,9 +187,11 @@ describe('Admin Users API', () => {
     test('updates user role successfully', async () => {
       (getServerSession as jest.Mock).mockResolvedValue({ user: { id: 99, role: 'admin' } });
       (update as jest.Mock).mockResolvedValue(1);
-      
+
       // Mock count check (more than 1 admin exists)
-      (executeRawQuery as jest.Mock).mockResolvedValueOnce([[{ count: 2 }]]);
+      (executeRawQuery as jest.Mock)
+        .mockResolvedValueOnce([[{ id: 99, role: 'admin' }]]) // actor role check
+        .mockResolvedValueOnce([[{ count: 2 }]]); // admin count
 
       mockRequest = {
         json: jest.fn().mockResolvedValue({ 

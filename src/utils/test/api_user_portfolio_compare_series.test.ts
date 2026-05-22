@@ -68,7 +68,7 @@ describe('GET /api/user/portfolio/compare-series', () => {
     const data = await res.json();
 
     expect(res.status).toBe(400);
-    expect(data.error).toBe('ticker is required');
+    expect(data.error).toBe('Invalid ticker');
     expect(executeRawQuery).not.toHaveBeenCalled();
   });
 

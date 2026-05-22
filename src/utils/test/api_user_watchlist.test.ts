@@ -17,6 +17,9 @@ jest.mock('@/utils/logger', () => ({
     error: jest.fn(),
   }),
 }));
+jest.mock('@/utils/approvalStatus', () => ({
+  checkApprovalGuard: jest.fn().mockResolvedValue({ allowed: true }),
+}));
  
 // Mock yahoo-finance2 dynamic import.
 // mockQuote must be declared inside the factory to avoid the "cannot access

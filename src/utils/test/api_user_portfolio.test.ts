@@ -19,6 +19,9 @@ jest.mock('@/utils/logger', () => ({
     error: jest.fn(),
   }),
 }));
+jest.mock('@/utils/approvalStatus', () => ({
+  checkApprovalGuard: jest.fn().mockResolvedValue({ allowed: true }),
+}));
 
 // Mock yahoo-finance2
 const mockQuote = jest.fn();

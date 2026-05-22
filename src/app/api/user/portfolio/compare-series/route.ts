@@ -6,6 +6,7 @@ import { yahooFinance } from '@/utils/yahooFinanceHelper';
 import { createLogger } from '@/utils/logger';
 import { createErrorResponse } from '@/utils/errorResponse';
 import { checkOrigin } from '@/utils/originCheck';
+import { tickerSchema } from '@/utils/validationSchemas';
 
 const logger = createLogger('api/user/portfolio/compare-series');
 
@@ -35,10 +36,15 @@ export async function GET(req: NextRequest) {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const ticker = req.nextUrl.searchParams.get('ticker')?.toUpperCase();
-    const periodParam = (req.nextUrl.searchParams.get('period') as Period) || '1m';
+    const rawTicker = (req.nextUrl.searchParams.get('ticker') ?? '').toUpperCase();
+    let ticker: string;
+    try {
+        ticker = tickerSchema.parse(rawTicker);
+    } catch {
+        return NextResponse.json({ error: 'Invalid ticker' }, { status: 400 });
+    }
 
-    if (!ticker) return NextResponse.json({ error: 'ticker is required' }, { status: 400 });
+    const periodParam = (req.nextUrl.searchParams.get('period') as Period) || '1m';
 
     try {
         const [rows] = await executeRawQuery(

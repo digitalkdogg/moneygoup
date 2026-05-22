@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { z } from 'zod';
 import { executeRawQuery, update } from '@/utils/databaseHelper';
 import { unauthorizedResponse, forbiddenResponse, createErrorResponse } from '@/utils/errorResponse';
 import { createLogger } from '@/utils/logger';
@@ -8,6 +9,13 @@ import { sendApprovalEmail } from '@/lib/email';
 import { checkOrigin } from '@/utils/originCheck';
 
 const logger = createLogger('api/admin/users');
+
+const adminPatchSchema = z.object({
+  userId: z.number().int().positive(),
+  approval_status: z.enum(['pending', 'approved', 'rejected']).optional(),
+  rejected_reason: z.string().max(500).optional(),
+  role: z.enum(['user', 'superuser', 'admin']).optional(),
+});
 
 /**
  * GET: List all users for admin console.
@@ -88,11 +96,14 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { userId, approval_status, rejected_reason, role } = body;
-
-    if (!userId) {
-      return NextResponse.json({ message: 'User ID is required' }, { status: 400 });
+    const parsed = adminPatchSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { message: 'Invalid input', errors: parsed.error.flatten().fieldErrors },
+        { status: 400 }
+      );
     }
+    const { userId, approval_status, rejected_reason, role } = parsed.data;
 
     const updates: any = {};
     if (approval_status) {

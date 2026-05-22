@@ -1,8 +1,9 @@
 import { z } from 'zod';
+import { tickerSchema, companyNameSchema } from '@/utils/validationSchemas';
 
 export const addStockSchema = z.object({
-  ticker: z.string().min(1, 'Ticker is required').max(10, 'Ticker cannot exceed 10 characters'),
-  name: z.string().min(1, 'Company name is required'),
+  ticker: tickerSchema,
+  name: companyNameSchema,
 });
 
 export type AddStockInput = z.infer<typeof addStockSchema>;
