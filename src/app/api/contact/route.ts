@@ -41,9 +41,14 @@ export async function POST(request: NextRequest) {
   const safeSubject = sanitize(subject)
   const safeMessage = sanitize(message)
 
+  const adminEmail = process.env.CONTACT_RECIPIENT_EMAIL
+  if (!adminEmail) {
+    logger.error('CONTACT_RECIPIENT_EMAIL not configured')
+    return NextResponse.json({ error: 'Service temporarily unavailable' }, { status: 503 })
+  }
+
   const resend = new Resend(process.env.RESEND_CONTACT_API_KEY)
   const from = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev'
-  const adminEmail = process.env.CONTACT_RECIPIENT_EMAIL || 'digitalkdogg@gmail.com'
 
   try {
     await resend.emails.send({
