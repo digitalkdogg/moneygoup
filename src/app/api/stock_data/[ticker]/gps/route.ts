@@ -5,6 +5,7 @@ import { executeRawQuery } from '@/utils/databaseHelper'
 import { checkOrigin } from '@/utils/originCheck'
 import { createLogger } from '@/utils/logger'
 import { tickerSchema } from '@/utils/validationSchemas'
+import { unauthorizedResponse } from '@/utils/errorResponse'
 
 const logger = createLogger('api/stock_data/[ticker]/gps')
 
@@ -31,28 +32,28 @@ export async function GET(
 
   const ticker = parsed.data
   const session = await getServerSession(authOptions)
-  const userId = session?.user?.id
+  if (!session?.user?.id) return unauthorizedResponse()
+
+  const userId = session.user.id
 
   try {
-    if (userId) {
-      const [rows] = await executeRawQuery(
-        `SELECT usp.gps_score, usp.gps_breakdown, usp.last_requested_at
-         FROM user_stock_predictions usp
-         JOIN stocks s ON s.id = usp.stock_id
-         WHERE usp.user_id = ? AND s.symbol = ?
-         ORDER BY usp.last_requested_at DESC
-         LIMIT 1`,
-        [userId, ticker]
-      )
-      const row = (rows as any[])[0]
-      if (row?.gps_score != null) {
-        return NextResponse.json({
-          gpsScore: parseFloat(row.gps_score),
-          gpsBreakdown: parseBreakdown(row.gps_breakdown),
-          source: 'user_stock_predictions' as const,
-          asOf: row.last_requested_at ? new Date(row.last_requested_at).toISOString() : null,
-        })
-      }
+    const [rows] = await executeRawQuery(
+      `SELECT usp.gps_score, usp.gps_breakdown, usp.last_requested_at
+       FROM user_stock_predictions usp
+       JOIN stocks s ON s.id = usp.stock_id
+       WHERE usp.user_id = ? AND s.symbol = ?
+       ORDER BY usp.last_requested_at DESC
+       LIMIT 1`,
+      [userId, ticker]
+    )
+    const row = (rows as any[])[0]
+    if (row?.gps_score != null) {
+      return NextResponse.json({
+        gpsScore: parseFloat(row.gps_score),
+        gpsBreakdown: parseBreakdown(row.gps_breakdown),
+        source: 'user_stock_predictions' as const,
+        asOf: row.last_requested_at ? new Date(row.last_requested_at).toISOString() : null,
+      })
     }
 
     const [rsRows] = await executeRawQuery(

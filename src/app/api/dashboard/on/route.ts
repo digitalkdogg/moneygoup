@@ -3,12 +3,19 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { executeRawQuery } from '@/utils/databaseHelper';
 import { checkOrigin } from '@/utils/originCheck';
+import { createLogger } from '@/utils/logger';
+import { createErrorResponse } from '@/utils/errorResponse';
+import { stockDataLimiter } from '@/utils/rateLimiter';
+import { checkRateLimit } from '@/utils/rateLimitMiddleware';
+
+const logger = createLogger('api/dashboard/on');
 
 export async function GET(request: NextRequest) {
   const originCheckResponse = checkOrigin(request);
-  if (originCheckResponse) {
-    return originCheckResponse;
-  }
+  if (originCheckResponse) return originCheckResponse;
+
+  const rateLimitResponse = checkRateLimit(request, stockDataLimiter, 'dashboard-on');
+  if (rateLimitResponse) return rateLimitResponse;
 
   const session = await getServerSession(authOptions);
   if (!session || !session.user || !session.user.id) {
@@ -53,10 +60,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error checking watchlist status:', error);
-    return NextResponse.json(
-      { message: 'Internal Server Error', error: (error instanceof Error ? error.message : String(error)) },
-      { status: 500 }
-    );
+    logger.error('Error checking watchlist status', { error });
+    return createErrorResponse(error, 'Failed to check watchlist status');
   }
 }

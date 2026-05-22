@@ -6,6 +6,7 @@ import { executeRawQuery } from '@/utils/databaseHelper';
 import { checkOrigin } from '@/utils/originCheck';
 import { checkApprovalGuard } from '@/utils/approvalStatus';
 import { createLogger } from '@/utils/logger';
+import { createErrorResponse } from '@/utils/errorResponse';
 import YahooFinance from 'yahoo-finance2';
 
 const ETF_GPS_THRESHOLD = 75;
@@ -89,7 +90,7 @@ export async function GET(request: NextRequest) {
             changePercent,
           };
         } catch (e) {
-          console.error(`Error enriching stock ${stock.ticker}:`, e);
+          logger.error(`Error enriching stock ${stock.ticker}`, { error: e });
           return { ...stock, changeAmount: null, changePercent: null };
         }
       })
@@ -113,7 +114,7 @@ export async function GET(request: NextRequest) {
             changePercent,
           };
         } catch (e) {
-          console.error(`Error enriching ETF ${etf.ticker}:`, e);
+          logger.error(`Error enriching ETF ${etf.ticker}`, { error: e });
           return { ...etf, changeAmount: null, changePercent: null };
         }
       })
@@ -124,10 +125,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error fetching DeepMoney picks:', error);
-    return NextResponse.json(
-      { message: 'Internal Server Error', error: (error instanceof Error ? error.message : String(error)) },
-      { status: 500 }
-    );
+    logger.error('Error fetching DeepMoney picks', { error });
+    return createErrorResponse(error, 'Failed to fetch DeepMoney picks');
   }
 }

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { checkOrigin } from '@/utils/originCheck'
 import { createLogger } from '@/utils/logger'
+import { contactLimiter } from '@/utils/rateLimiter'
+import { checkRateLimit } from '@/utils/rateLimitMiddleware'
 
 const logger = createLogger('api/contact')
 
@@ -12,6 +14,9 @@ function sanitize(str: string): string {
 export async function POST(request: NextRequest) {
   const originCheckResponse = checkOrigin(request)
   if (originCheckResponse) return originCheckResponse
+
+  const rateLimitResponse = checkRateLimit(request, contactLimiter, 'contact')
+  if (rateLimitResponse) return rateLimitResponse
 
   let body: unknown
   try {

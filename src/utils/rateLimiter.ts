@@ -106,3 +106,6 @@ export const forgotPasswordLimiter = new RateLimiter({ limit: 3, windowMs: 15 * 
 
 /** 5 reset-password attempts per IP per 15 minutes */
 export const resetPasswordLimiter = new RateLimiter({ limit: 5, windowMs: 15 * 60 * 1000 });
+
+/** 3 contact form submissions per IP per hour */
+export const contactLimiter = new RateLimiter({ limit: 3, windowMs: 60 * 60 * 1000 });
