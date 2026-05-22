@@ -7,7 +7,7 @@ import { unauthorizedResponse, createErrorResponse, validationErrorResponse } fr
 import { createLogger } from '@/utils/logger';
 import { tickerSchema } from '@/utils/validationSchemas';
 import { z } from 'zod';
-import { select, upsert } from '@/utils/databaseHelper';
+import { select, upsert, executeRawQuery } from '@/utils/databaseHelper';
 
 const logger = createLogger('api/prediction/save');
 
@@ -122,6 +122,30 @@ export async function POST(request: NextRequest) {
     // 4. Upsert into user_stock_predictions table
     // Unique key is (user_id, stock_id)
     await upsert('user_stock_predictions', predictionData, ['user_id', 'stock_id']);
+
+    // 5. If a GPS score was provided, sync it to the most-recent recommended_stocks
+    //    snapshot row for this ticker (no-op if the ticker isn't in that table).
+    if (payload.gps_score != null && payload.gps_score !== undefined) {
+      const gpsBreakdownJson = payload.gps_breakdown ? JSON.stringify(payload.gps_breakdown) : null;
+      const [updateResult]: any = await executeRawQuery(
+        `UPDATE recommended_stocks r
+         INNER JOIN (
+           SELECT MAX(snapshot_date) AS max_date
+           FROM recommended_stocks
+           WHERE ticker = ?
+         ) latest ON r.snapshot_date = latest.max_date
+         SET r.gps_score = ?, r.gps_breakdown = ?
+         WHERE r.ticker = ?`,
+        [payload.ticker, payload.gps_score, gpsBreakdownJson, payload.ticker]
+      );
+      if (updateResult?.affectedRows > 0) {
+        logger.info('recommended_stocks GPS score synced', {
+          ticker: payload.ticker,
+          gps_score: payload.gps_score,
+          rows: updateResult.affectedRows,
+        });
+      }
+    }
 
     logger.info('Prediction saved successfully', {
       ticker: payload.ticker,
