@@ -1,26 +1,29 @@
 import { Resend } from 'resend';
 
+const UNSUBSCRIBE_FROM = process.env.RESEND_FROM_EMAIL || process.env.resend_from_email || 'accounts@growmystocks.com';
+const LIST_UNSUBSCRIBE = { 'List-Unsubscribe': `<mailto:unsubscribe@growmystocks.com?subject=unsubscribe>` };
+
 export async function sendRegistrationEmail(to: string, username: string): Promise<void> {
   const resend = new Resend(process.env.RESEND_REG_API_KEY || process.env.resend_reg_api_key);
-  const from = process.env.RESEND_FROM_EMAIL || process.env.resend_from_email || 'noreply@growmystocks.com';
+  const from = UNSUBSCRIBE_FROM;
 
   const { error } = await resend.emails.send({
     from,
     to,
-    subject: 'Welcome to GrowMyStocks — Account Pending Approval',
+    subject: 'Thanks for joining GrowMyStocks — your account is under review',
+    headers: LIST_UNSUBSCRIBE,
     html: `
-      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;">
-        <h2 style="color:#017e3b;margin-top:0;">Registration Complete!</h2>
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1e293b;">
+        <h2 style="color:#017e3b;margin-top:0;">Thanks for signing up!</h2>
         <p>Hi <strong>${username}</strong>,</p>
-        <p>Thank you for registering with GrowMyStocks. Your account has been created and is currently <strong>pending admin approval</strong>.</p>
-        <p>Here's what happens next:</p>
-        <ol style="line-height:1.8;">
-          <li>An admin will review your account.</li>
-          <li>Once approved, you'll be able to log in and access all features.</li>
-        </ol>
-        <p>You do not need to do anything at this time. We'll be in touch once your account is approved.</p>
+        <p>We received your registration for GrowMyStocks. Your account is currently being reviewed — this usually takes less than 24 hours.</p>
+        <p>Once your account is active you'll get access to AI-powered stock predictions, GPS scoring, and personalized portfolio tracking. We'll send you a separate email when you're good to go.</p>
+        <p>In the meantime, feel free to reply to this email if you have any questions.</p>
         <hr style="border:none;border-top:1px solid #eee;margin:24px 0;"/>
-        <p style="color:#999;font-size:12px;margin:0;">GrowMyStocks &mdash; Your stock analysis platform</p>
+        <p style="color:#94a3b8;font-size:12px;margin:0;">
+          GrowMyStocks &mdash; AI-powered stock analysis<br/>
+          You're receiving this because you created an account at growmystocks.com.
+        </p>
       </div>
     `,
   });
@@ -32,26 +35,32 @@ export async function sendRegistrationEmail(to: string, username: string): Promi
 
 export async function sendApprovalEmail(to: string, username: string): Promise<void> {
   const resend = new Resend(process.env.RESEND_REG_FINAL_API_KEY || process.env.resend_reg_final_api_key);
-  const from = process.env.RESEND_FROM_EMAIL || process.env.resend_from_email || 'noreply@growmystocks.com';
+  const from = UNSUBSCRIBE_FROM;
 
   const { error } = await resend.emails.send({
     from,
     to,
-    subject: 'Your GrowMyStocks Account Has Been Approved!',
+    subject: 'Your GrowMyStocks account is ready',
+    headers: LIST_UNSUBSCRIBE,
     html: `
-      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;">
-        <h2 style="color:#017e3b;margin-top:0;">You're Approved!</h2>
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1e293b;">
+        <h2 style="color:#017e3b;margin-top:0;">Your account is ready, ${username}!</h2>
         <p>Hi <strong>${username}</strong>,</p>
-        <p>Great news — your GrowMyStocks account has been <strong>approved</strong>. You can now log in and start using all of our features.</p>
-        <a href="https://growmystocks.com/login"
-           style="display:inline-block;background-color:#017e3b;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;font-weight:bold;margin:16px 0;">
-          Log In Now
-        </a>
-        <p>If the button doesn't work, paste this link into your browser:<br/>
-          <span style="word-break:break-all;">https://growmystocks.com/login</span>
+        <p>Your GrowMyStocks account has been reviewed and is now active. You can log in and start exploring stock predictions, GPS scores, and your personalized dashboard.</p>
+        <p style="margin:24px 0;">
+          <a href="https://growmystocks.com/login"
+             style="display:inline-block;background-color:#017e3b;color:white;padding:12px 28px;text-decoration:none;border-radius:8px;font-weight:bold;font-size:15px;">
+            Log in to GrowMyStocks
+          </a>
         </p>
+        <p style="color:#475569;">If the button above doesn't work, copy and paste this URL into your browser:</p>
+        <p style="color:#475569;word-break:break-all;font-size:13px;">https://growmystocks.com/login</p>
+        <p>If you have any questions getting started, just reply to this email.</p>
         <hr style="border:none;border-top:1px solid #eee;margin:24px 0;"/>
-        <p style="color:#999;font-size:12px;margin:0;">GrowMyStocks &mdash; Your stock analysis platform</p>
+        <p style="color:#94a3b8;font-size:12px;margin:0;">
+          GrowMyStocks &mdash; AI-powered stock analysis<br/>
+          You're receiving this because you created an account at growmystocks.com.
+        </p>
       </div>
     `,
   });
@@ -63,27 +72,32 @@ export async function sendApprovalEmail(to: string, username: string): Promise<v
 
 export async function sendPasswordResetEmail(to: string, resetUrl: string): Promise<void> {
   const resend = new Resend(process.env.RESEND_API_KEY || process.env.resend_api_key);
-  const from = process.env.RESEND_FROM_EMAIL || process.env.resend_from_email || 'noreply@growmystocks.com';
+  const from = UNSUBSCRIBE_FROM;
 
-  const { data, error } = await resend.emails.send({
+  const { error } = await resend.emails.send({
     from,
     to,
     subject: 'Reset your GrowMyStocks password',
+    headers: LIST_UNSUBSCRIBE,
     html: `
-      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;">
-        <h2 style="color:#017e3b;margin-top:0;">Reset Your Password</h2>
-        <p>You requested a password reset for your GrowMyStocks account.</p>
-        <p>Click the button below to set a new password. This link expires in <strong>1 hour</strong>.</p>
-        <a href="${resetUrl}"
-           style="display:inline-block;background-color:#017e3b;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;font-weight:bold;margin:16px 0;">
-          Reset Password
-        </a>
-        <p>If you didn't request this, you can safely ignore this email.</p>
-        <p style="color:#666;font-size:13px;">If the button doesn't work, paste this link into your browser:<br/>
-          <span style="word-break:break-all;">${resetUrl}</span>
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1e293b;">
+        <h2 style="color:#017e3b;margin-top:0;">Password reset request</h2>
+        <p>We received a request to reset the password for your GrowMyStocks account.</p>
+        <p>Click the button below to choose a new password. This link is valid for <strong>1 hour</strong>.</p>
+        <p style="margin:24px 0;">
+          <a href="${resetUrl}"
+             style="display:inline-block;background-color:#017e3b;color:white;padding:12px 28px;text-decoration:none;border-radius:8px;font-weight:bold;font-size:15px;">
+            Reset my password
+          </a>
         </p>
+        <p style="color:#475569;">If the button above doesn't work, copy and paste this URL into your browser:</p>
+        <p style="color:#475569;word-break:break-all;font-size:13px;">${resetUrl}</p>
+        <p style="color:#64748b;font-size:13px;">If you didn't request a password reset, you can safely ignore this email — your password won't change.</p>
         <hr style="border:none;border-top:1px solid #eee;margin:24px 0;"/>
-        <p style="color:#999;font-size:12px;margin:0;">GrowMyStocks &mdash; Your stock analysis platform</p>
+        <p style="color:#94a3b8;font-size:12px;margin:0;">
+          GrowMyStocks &mdash; AI-powered stock analysis<br/>
+          You're receiving this because a password reset was requested for your account.
+        </p>
       </div>
     `,
   });
