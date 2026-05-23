@@ -17,6 +17,19 @@ export default function Navigation() {
   const { data: session } = useSession();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  // Default true so the link is visible until we confirm the portfolio is empty
+  const [hasPortfolio, setHasPortfolio] = useState(true);
+
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    fetch('/api/user/portfolio')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        const items = data?.portfolio ?? data?.stocks ?? [];
+        setHasPortfolio(Array.isArray(items) && items.length > 0);
+      })
+      .catch(() => {});
+  }, [session?.user?.id]);
   const profileRef = useRef<HTMLDivElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const mobileTriggerRef = useRef<HTMLButtonElement>(null);
@@ -113,24 +126,26 @@ export default function Navigation() {
         </span>
         {mobile && <span className="text-xl" aria-hidden="true">›</span>}
       </Link>
-      <Link
-        href="/portfolio"
-        onClick={() => setIsMobileMenuOpen(false)}
-        aria-current={pathname === '/portfolio' ? 'page' : undefined}
-        className={`md:px-2 lg:px-4 px-4 py-3 md:py-2 rounded-lg font-medium transition duration-200 flex items-center justify-between border-2 ${
-          pathname === '/portfolio'
-            ? mobile
-              ? 'bg-green-800 text-white border-white/40'
-              : 'bg-white text-green-700 shadow-lg border-white'
-            : 'text-white border-transparent hover:bg-green-800 hover:border-white/20'
-        } ${mobile ? 'w-full text-lg h-[56px]' : 'md:text-sm lg:text-base focus-visible:ring-2 focus-visible:ring-white'}`}
-      >
-        <span className="flex items-center">
-          {pathname === '/portfolio' && !mobile && <span className="mr-2" aria-hidden="true">📈</span>}
-          <span>My Portfolio</span>
-        </span>
-        {mobile && <span className="text-xl" aria-hidden="true">›</span>}
-      </Link>
+      {hasPortfolio && (
+        <Link
+          href="/portfolio"
+          onClick={() => setIsMobileMenuOpen(false)}
+          aria-current={pathname === '/portfolio' ? 'page' : undefined}
+          className={`md:px-2 lg:px-4 px-4 py-3 md:py-2 rounded-lg font-medium transition duration-200 flex items-center justify-between border-2 ${
+            pathname === '/portfolio'
+              ? mobile
+                ? 'bg-green-800 text-white border-white/40'
+                : 'bg-white text-green-700 shadow-lg border-white'
+              : 'text-white border-transparent hover:bg-green-800 hover:border-white/20'
+          } ${mobile ? 'w-full text-lg h-[56px]' : 'md:text-sm lg:text-base focus-visible:ring-2 focus-visible:ring-white'}`}
+        >
+          <span className="flex items-center">
+            {pathname === '/portfolio' && !mobile && <span className="mr-2" aria-hidden="true">📈</span>}
+            <span>My Portfolio</span>
+          </span>
+          {mobile && <span className="text-xl" aria-hidden="true">›</span>}
+        </Link>
+      )}
       <Link
         href="/search"
         onClick={() => setIsMobileMenuOpen(false)}

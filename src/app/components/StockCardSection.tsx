@@ -10,7 +10,7 @@ interface StockCardSectionProps<T> {
   renderCard: (item: T, index: number) => ReactNode;
   loading?: boolean;
   error?: string | null;
-  emptyMessage?: string;
+  emptyMessage?: ReactNode;
   columns?: 2 | 3 | 4;
 }
 
@@ -21,7 +21,7 @@ export default function StockCardSection<T>({
   renderCard,
   loading = false,
   error = null,
-  emptyMessage = 'No data found.',
+  emptyMessage = <span>No data found.</span>,
   columns = 3,
 }: StockCardSectionProps<T>) {
   const gridClass = columns === 4

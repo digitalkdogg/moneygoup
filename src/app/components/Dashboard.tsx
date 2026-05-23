@@ -177,28 +177,30 @@ export default function Dashboard() {
             <MajorIndicesStrip />
           </div>
 
-          {/* Portfolio Section Header */}
-          <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-6 flex items-center">
-            <span className="mr-3">📈</span>My Portfolio
-          </h2>
+          {/* Portfolio Section — hidden until loaded and only shown when user has stocks */}
+          {!loadingPortfolio && portfolio.length > 0 && (
+            <>
+              <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                <span className="mr-3">📈</span>My Portfolio
+              </h2>
 
-          {/* Portfolio Summary Cards */}
-          <div className="mb-6">
-            <PortfolioSummary
-                portfolio={portfolio}
-                marketStatus={marketStatus}
-                showChart={true}
-                onToggleChart={() => {}}
-            />
-          </div>
+              <div className="mb-6">
+                <PortfolioSummary
+                    portfolio={portfolio}
+                    marketStatus={marketStatus}
+                    showChart={true}
+                    onToggleChart={() => {}}
+                />
+              </div>
 
-          {/* Portfolio Grid */}
-          <div className="mb-10">
-            <PortfolioSection
-                portfolio={portfolio}
-                onRefresh={fetchPortfolioData}
-            />
-          </div>
+              <div className="mb-10">
+                <PortfolioSection
+                    portfolio={portfolio}
+                    onRefresh={fetchPortfolioData}
+                />
+              </div>
+            </>
+          )}
 
           {/* Discovery & Watchlist */}
           <div className="border-t border-gray-200 pt-10 mt-10">

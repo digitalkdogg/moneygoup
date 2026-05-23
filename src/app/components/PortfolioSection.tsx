@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import BuyMoreModal from './modals/BuyMoreModal';
 import SellModal from './modals/SellModal';
 import StockCard from './cards/StockCard';
@@ -85,7 +86,15 @@ export default function PortfolioSection({ portfolio, onRefresh }: PortfolioSect
             )}
             loading={false}
             error={null}
-            emptyMessage="No stocks in your portfolio yet. Add stocks from your watchlist to get started!"
+            emptyMessage={
+              <span>
+                No stocks in your portfolio yet.{' '}
+                <Link href="/search" className="text-green-700 font-semibold underline hover:text-green-900">
+                  Search for stocks
+                </Link>
+                {' '}to get started!
+              </span>
+            }
         />
 
       {modalType === 'buy' && selectedStock && (

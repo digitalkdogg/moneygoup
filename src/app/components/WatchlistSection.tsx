@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import PurchaseFromWatchlistModal from './modals/PurchaseFromWatchlistModal';
 import StockCard from './cards/StockCard';
 import { WatchlistCard } from './cards/types';
@@ -181,7 +182,15 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
         )}
         loading={loading}
         error={error}
-        emptyMessage="Your watchlist is empty. Search for stocks to add them!"
+        emptyMessage={
+          <span>
+            Your watchlist is empty.{' '}
+            <Link href="/search" className="text-green-700 font-semibold underline hover:text-green-900">
+              Search for stocks
+            </Link>
+            {' '}to add them!
+          </span>
+        }
       />
 
       {showPurchaseModal && selectedStock && (
