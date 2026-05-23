@@ -11,7 +11,7 @@ interface User {
   username: string;
   email: string;
   role: 'user' | 'superuser' | 'admin';
-  approval_status: 'pending' | 'approved' | 'rejected';
+  approval_status: 'pending' | 'approved' | 'rejected' | 'unsubscribed';
   created_at: string;
   last_login: string | null;
   rejected_reason: string | null;
@@ -206,6 +206,7 @@ export default function AdminUsersPage() {
                         <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
                           user.approval_status === 'approved' ? 'bg-green-100 text-green-800' :
                           user.approval_status === 'pending' ? 'bg-amber-100 text-amber-800' :
+                          user.approval_status === 'unsubscribed' ? 'bg-slate-100 text-slate-600' :
                           'bg-red-100 text-red-800'
                         }`}>
                           {user.approval_status.toUpperCase()}

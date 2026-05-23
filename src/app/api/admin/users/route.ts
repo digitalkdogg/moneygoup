@@ -12,8 +12,8 @@ const logger = createLogger('api/admin/users');
 
 const adminPatchSchema = z.object({
   userId: z.number().int().positive(),
-  approval_status: z.enum(['pending', 'approved', 'rejected']).optional(),
-  rejected_reason: z.string().max(500).optional(),
+  approval_status: z.enum(['pending', 'approved', 'rejected', 'unsubscribed']).optional(),
+  rejected_reason: z.string().max(500).nullish(),
   role: z.enum(['user', 'superuser', 'admin']).optional(),
 });
 
