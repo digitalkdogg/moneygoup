@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { formatNumber, formatCurrency } from '@/utils/formatters'
+import type { GpsData } from './StockSignalPanel'
 
 // ---------------------------------------------------------------------------
 // Props — historicalData removed; data is fetched internally via /data route
@@ -36,7 +37,7 @@ interface StockPredictionProps {
   titleLevel?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
   triggerRef?: React.MutableRefObject<() => void>
   onLoadingChange?: (loading: boolean) => void
-  onPredictionComplete?: () => void
+  onPredictionComplete?: (gpsData?: GpsData | null) => void
   embedded?: boolean
 }
 
@@ -391,9 +392,17 @@ export default function StockPrediction({
 
       const result = await res.json()
       if (result.error) throw new Error(result.error)
+
+      const freshGps: GpsData | null = result.gps_score != null ? {
+        gpsScore: result.gps_score,
+        gpsBreakdown: result.gps_breakdown ?? null,
+        source: 'stock_gps_scores',
+        asOf: new Date().toISOString(),
+      } : null
+
       setPrediction(result)
       setStep('done')
-      onPredictionComplete?.()
+      onPredictionComplete?.(freshGps)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unknown error occurred')
       setStep('idle')

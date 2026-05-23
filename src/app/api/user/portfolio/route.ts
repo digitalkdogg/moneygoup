@@ -47,14 +47,15 @@ export async function GET(request: NextRequest) {
         us.initial_purchase_date,
         us.last_transaction_date,
         usp.predicted_price_1m,
-        usp.gps_score,
-        usp.gps_breakdown,
+        sgs.gps_score,
+        sgs.gps_breakdown,
         sb.primary_color
       FROM user_stocks us
       JOIN stocks s ON us.stock_id = s.id
       LEFT JOIN user_stock_predictions usp
         ON us.user_id = usp.user_id
        AND us.stock_id = usp.stock_id
+      LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id
       LEFT JOIN stock_brand sb
         ON LOWER(s.symbol) = LOWER(sb.ticker)
       WHERE us.user_id = ?

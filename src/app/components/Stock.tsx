@@ -128,7 +128,11 @@ export default function Stock({
   const isSingleTicker = tickerArray.length === 1
   const primaryTicker = tickerArray[0]
 
-  const refreshGps = useCallback(() => {
+  const refreshGps = useCallback((freshGps?: GpsData | null) => {
+    if (freshGps !== undefined) {
+      setGpsData(freshGps)
+      return
+    }
     if (!isSingleTicker) return
     setGpsLoading(true)
     fetch(`/api/stock_data/${primaryTicker}/gps`)

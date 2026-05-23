@@ -158,9 +158,9 @@ export async function POST(
     }
     predictionCache.set(`${validatedTicker}_${validatedOutlook}`, result);
 
+    let computedGps: ReturnType<typeof calculateGpsScore> | null = null
     if (!isInternal && result.predicted_price_1m) {
-      // Recalculate GPS score for manual predictions to keep dashboard updated
-      const gpsResult = calculateGpsScore(
+      computedGps = calculateGpsScore(
         {
           analystUpside: body.stockMetrics?.analystUpside,
           revenueGrowth: body.stockMetrics?.revenueGrowth,
@@ -174,15 +174,19 @@ export async function POST(
       );
 
       savePredictionAsync(
-        validatedTicker, 
-        result.predicted_price_1m, 
+        validatedTicker,
+        result.predicted_price_1m,
         userId,
-        gpsResult.score,
-        gpsResult.breakdown
+        computedGps.score,
+        computedGps.breakdown
       ).catch(() => {});
     }
 
-    return NextResponse.json({ ...result, source: 'livedata' });
+    return NextResponse.json({
+      ...result,
+      source: 'livedata',
+      ...(computedGps && { gps_score: computedGps.score, gps_breakdown: computedGps.breakdown }),
+    });
   } catch (error) {
     return createErrorResponse(error, 'Prediction failed', { status: 500 });
   } finally {

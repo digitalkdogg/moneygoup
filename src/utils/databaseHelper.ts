@@ -16,6 +16,8 @@ const ALLOWED_TABLES = new Set([
   'recommended_stocks',
   'recommended_markets',
   'user_stock_predictions',
+  'stock_gps_scores',
+  'stock_gps_score_history',
 ]);
 
 /**

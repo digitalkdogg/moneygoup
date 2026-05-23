@@ -47,12 +47,13 @@ export async function GET(request: NextRequest) {
         us.is_purchased,
         s.price AS db_price,
         usp.predicted_price_1m,
-        usp.gps_score,
-        usp.gps_breakdown
+        sgs.gps_score,
+        sgs.gps_breakdown
       FROM user_stocks us
       JOIN stocks s ON us.stock_id = s.id
       LEFT JOIN user_stock_predictions usp ON us.user_id = usp.user_id AND us.stock_id = usp.stock_id
-      WHERE us.user_id = ? 
+      LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id
+      WHERE us.user_id = ?
         AND us.is_active = 1
         AND us.is_purchased = 0
         AND us.user_confirmed = 1

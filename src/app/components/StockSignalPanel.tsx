@@ -6,7 +6,7 @@ import { GpsBreakdownModal } from './modals/GpsBreakdownModal'
 export interface GpsData {
   gpsScore: number | null
   gpsBreakdown: Record<string, number> | null
-  source: 'user_stock_predictions' | 'recommended_stocks' | 'none'
+  source: 'stock_gps_scores' | 'user_stock_predictions' | 'recommended_stocks' | 'none'
   asOf: string | null
 }
 

@@ -34,25 +34,21 @@ export async function GET(
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return unauthorizedResponse()
 
-  const userId = session.user.id
-
   try {
-    const [rows] = await executeRawQuery(
-      `SELECT usp.gps_score, usp.gps_breakdown, usp.last_requested_at
-       FROM user_stock_predictions usp
-       JOIN stocks s ON s.id = usp.stock_id
-       WHERE usp.user_id = ? AND s.symbol = ?
-       ORDER BY usp.last_requested_at DESC
-       LIMIT 1`,
-      [userId, ticker]
+    const [sgsRows] = await executeRawQuery(
+      `SELECT sgs.gps_score, sgs.gps_breakdown, sgs.as_of
+       FROM stock_gps_scores sgs
+       JOIN stocks s ON s.id = sgs.stock_id
+       WHERE s.symbol = ?`,
+      [ticker]
     )
-    const row = (rows as any[])[0]
-    if (row?.gps_score != null) {
+    const sgsRow = (sgsRows as any[])[0]
+    if (sgsRow?.gps_score != null) {
       return NextResponse.json({
-        gpsScore: parseFloat(row.gps_score),
-        gpsBreakdown: parseBreakdown(row.gps_breakdown),
-        source: 'user_stock_predictions' as const,
-        asOf: row.last_requested_at ? new Date(row.last_requested_at).toISOString() : null,
+        gpsScore: parseFloat(sgsRow.gps_score),
+        gpsBreakdown: parseBreakdown(sgsRow.gps_breakdown),
+        source: 'stock_gps_scores' as const,
+        asOf: sgsRow.as_of ? new Date(sgsRow.as_of).toISOString() : null,
       })
     }
 

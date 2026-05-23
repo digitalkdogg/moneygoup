@@ -287,19 +287,39 @@ def sync_deepmoney():
                     )
                     stock_id = cursor.lastrowid
 
+                # Only write canonical GPS score if it changed (DECIMAL(5,1) → compare at 1dp).
+                cursor.execute(
+                    "SELECT gps_score FROM stock_gps_scores WHERE stock_id = %s", (stock_id,)
+                )
+                existing_row = cursor.fetchone()
+                existing_gps = float(existing_row[0]) if existing_row and existing_row[0] is not None else None
+                gps_changed = existing_gps is None or round(existing_gps, 1) != round(float(gps), 1)
+
+                if gps_changed:
+                    cursor.execute("""
+                        INSERT INTO stock_gps_scores (stock_id, as_of, gps_score, gps_breakdown, source)
+                        VALUES (%s, NOW(), %s, %s, 'deepmoney_sync')
+                        ON DUPLICATE KEY UPDATE
+                            as_of         = VALUES(as_of),
+                            gps_score     = VALUES(gps_score),
+                            gps_breakdown = VALUES(gps_breakdown),
+                            source        = VALUES(source)
+                    """, (stock_id, gps, json.dumps(gps_breakdown)))
+                    print(f"    - GPS updated: {existing_gps} → {round(float(gps), 1)}")
+                else:
+                    print(f"    - GPS unchanged ({round(float(gps), 1)}), skipping write")
+
                 # b. Add prediction for all active users
                 for user_id in active_user_ids:
-                    # Update or insert prediction
+                    # GPS columns removed from user_stock_predictions — now in stock_gps_scores.
                     cursor.execute("""
-                        INSERT INTO user_stock_predictions 
-                        (user_id, stock_id, predicted_price_1m, gps_score, gps_breakdown, last_requested_at)
-                        VALUES (%s, %s, %s, %s, %s, NOW())
-                        ON DUPLICATE KEY UPDATE 
+                        INSERT INTO user_stock_predictions
+                        (user_id, stock_id, predicted_price_1m, last_requested_at)
+                        VALUES (%s, %s, %s, NOW())
+                        ON DUPLICATE KEY UPDATE
                         predicted_price_1m = VALUES(predicted_price_1m),
-                        gps_score = VALUES(gps_score),
-                        gps_breakdown = VALUES(gps_breakdown),
-                        last_requested_at = VALUES(last_requested_at)
-                    """, (user_id, stock_id, predicted_price_1m, gps, json.dumps(gps_breakdown)))
+                        last_requested_at  = VALUES(last_requested_at)
+                    """, (user_id, stock_id, predicted_price_1m))
 
                     # Add to user_stocks as unconfirmed if not already a purchased position
                     cursor.execute("""
