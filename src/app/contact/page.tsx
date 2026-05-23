@@ -83,7 +83,7 @@ export default function ContactPage() {
                     required
                     value={form.name}
                     onChange={handleChange}
-                    placeholder="Jane Smith"
+                    placeholder="Your name"
                     className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
                   />
                 </div>

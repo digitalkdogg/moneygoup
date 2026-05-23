@@ -80,7 +80,7 @@ function LoginForm() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-green-600 focus:border-green-600 transition duration-200"
-              placeholder="e.g. KevinBollman"
+              placeholder="Username"
               required
             />
           </div>
