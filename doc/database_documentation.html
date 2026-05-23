@@ -132,6 +132,7 @@
     <a href="prediction_workflow.html">Prediction Flow</a>
     <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
     <a href="technical_indicators_guide.html">Technical Guide</a>
+    <a href="gps_score.html">GPS Score</a>
     <a href="style_guide.html">Style Guide</a>
   </nav>
 </div>
@@ -159,6 +160,8 @@
     <a href="#etf_cycle_summary">etf_cycle_summary</a>
     <a href="#macro_context_snapshots">macro_context_snapshots</a>
     <a href="#user_stock_predictions">user_stock_predictions</a>
+    <a href="#stock_gps_scores">stock_gps_scores</a>
+    <a href="#stock_gps_score_history">stock_gps_score_history</a>
     <a href="#world-bank-macro-data">world_bank_macro_data</a>
     <a href="#world-bank-etf-gps-factors">world_bank_etf_gps_factors</a>
     <div class="section-divider"></div>
@@ -367,7 +370,7 @@
             <!-- RECOMMENDED_STOCKS -->
             <div id="recommended_stocks" class="table-card">
                 <div class="table-title">recommended_stocks</div>
-                <p>Stores the latest DeepMoney discovery results for individual stocks. This table is the second-tier fallback for <code>GET /api/stock_data/[ticker]/gps</code> — if a user has no personal prediction for a ticker, the GPS score is sourced from here.</p>
+                <p>Stores the latest DeepMoney discovery results for individual stocks. This table is the <strong>third-tier fallback</strong> for <code>GET /api/stock_data/[ticker]/gps</code>: the read path checks <code>stock_gps_scores</code> first, then falls back here. GPS data is kept in sync by <code>deepmoney_sync.py</code> and <code>/api/prediction/save</code>.</p>
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
@@ -401,16 +404,60 @@
             <!-- USER_STOCK_PREDICTIONS -->
             <div id="user_stock_predictions" class="table-card">
                 <div class="table-title">user_stock_predictions</div>
-                <p>Persists multi-horizon AI-generated price predictions and their associated GPS scores.</p>
+                <p>Persists multi-horizon AI-generated price predictions keyed by user and stock. GPS columns were removed in the May 2026 migration — scores now live in <code>stock_gps_scores</code>.</p>
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>FK to users.</td></tr>
-                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>FK to stocks.</td></tr>
-                        <tr><td><code>predicted_price_1m</code></td><td><code>DECIMAL(12,4)</code></td><td>AI 1-month target.</td></tr>
-                        <tr><td><code>gps_score</code></td><td><code>DECIMAL(8,2)</code></td><td>The 100-point performance score.</td></tr>
-                        <tr><td><code>gps_breakdown</code></td><td><code>JSON</code></td><td>Detailed sub-scores for all GPS factors.</td></tr>
-                        <tr><td><code>last_requested_at</code></td><td><code>DATETIME</code></td><td>Timestamp of last run.</td></tr>
+                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>FK to users. Part of unique key (user_id, stock_id).</td></tr>
+                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>FK to stocks. Part of unique key (user_id, stock_id).</td></tr>
+                        <tr><td><code>predicted_price_1m</code></td><td><code>DECIMAL(12,4)</code></td><td>AI 1-month price target.</td></tr>
+                        <tr><td><code>last_requested_at</code></td><td><code>DATETIME</code></td><td>Timestamp of last prediction run.</td></tr>
+                    </tbody>
+                </table>
+                <div class="highlight-box">
+                    <strong>Migration note:</strong> <code>gps_score</code> and <code>gps_breakdown</code> were dropped from this table (Phase 5, May 2026). GPS data is now stored once per stock in <code>stock_gps_scores</code> and read via a <code>LEFT JOIN</code> in all portfolio, watchlist, and recommendation queries.
+                </div>
+            </div>
+
+            <!-- STOCK_GPS_SCORES -->
+            <div id="stock_gps_scores" class="table-card">
+                <div class="table-title">stock_gps_scores</div>
+                <p>Canonical GPS score table — one row per stock, always reflecting the latest computed score. Replaces the per-user GPS columns that were previously on <code>user_stock_predictions</code>. This is the <strong>primary read source</strong> for all GPS lookups.</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>Primary Key. FK to stocks(id) ON DELETE CASCADE.</td></tr>
+                        <tr><td><code>as_of</code></td><td><code>DATETIME</code></td><td>Timestamp of the prediction run that produced this score. Indexed via <code>idx_stock_gps_as_of</code>.</td></tr>
+                        <tr><td><code>gps_score</code></td><td><code>DECIMAL(5,1)</code></td><td>0–100 GPS score, rounded to 1 decimal place.</td></tr>
+                        <tr><td><code>gps_breakdown</code></td><td><code>JSON</code></td><td>Component scores: analystUpside, revenueGrowth, earningsGrowth, fiftyTwoWeekChange, mlpUpside, mlpConfidence.</td></tr>
+                        <tr><td><code>model_version</code></td><td><code>VARCHAR(40)</code></td><td>Optional model identifier. Currently NULL.</td></tr>
+                        <tr><td><code>regime</code></td><td><code>VARCHAR(50)</code></td><td>Optional GMM market regime label. Currently NULL.</td></tr>
+                        <tr><td><code>source</code></td><td><code>VARCHAR(40)</code></td><td>Write origin: <code>prediction_engine</code>, <code>deepmoney_sync</code>, <code>user_backfill</code>, or <code>recommended_backfill</code>.</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>DATETIME</code></td><td>Row creation timestamp (auto).</td></tr>
+                        <tr><td><code>updated_at</code></td><td><code>DATETIME</code></td><td>Auto-updated on row change via <code>ON UPDATE CURRENT_TIMESTAMP</code>. Does not update if GPS score is unchanged.</td></tr>
+                    </tbody>
+                </table>
+                <div class="highlight-box">
+                    <strong>Write optimisation:</strong> All writers (<code>/api/prediction/save</code> and <code>deepmoney_sync.py</code>) perform a <code>SELECT gps_score</code> before each write. If the incoming score matches the stored value at 1 decimal-place precision, the upsert, history insert, and <code>recommended_stocks</code> sync are all skipped.
+                </div>
+            </div>
+
+            <!-- STOCK_GPS_SCORE_HISTORY -->
+            <div id="stock_gps_score_history" class="table-card">
+                <div class="table-title">stock_gps_score_history</div>
+                <p>Append-only audit log of GPS score changes. A new row is inserted only when <code>gps_score</code> changes from its previous value, keeping the table lean.</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>id</code></td><td><code>BIGINT</code></td><td>Auto-increment Primary Key.</td></tr>
+                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>FK to stocks(id) ON DELETE CASCADE.</td></tr>
+                        <tr><td><code>as_of</code></td><td><code>DATETIME</code></td><td>Timestamp of the prediction run. Part of unique key with <code>model_version</code>.</td></tr>
+                        <tr><td><code>gps_score</code></td><td><code>DECIMAL(5,1)</code></td><td>Score at this point in time.</td></tr>
+                        <tr><td><code>gps_breakdown</code></td><td><code>JSON</code></td><td>Component scores snapshot.</td></tr>
+                        <tr><td><code>model_version</code></td><td><code>VARCHAR(40)</code></td><td>Nullable. Note: MySQL treats NULL as distinct in UNIQUE keys, so two rows with NULL model_version and the same stock_id + as_of are both permitted.</td></tr>
+                        <tr><td><code>regime</code></td><td><code>VARCHAR(50)</code></td><td>Optional GMM regime at time of scoring.</td></tr>
+                        <tr><td><code>source</code></td><td><code>VARCHAR(40)</code></td><td>Write origin.</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>DATETIME</code></td><td>Row creation timestamp (auto).</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -474,7 +521,7 @@
         </section>
 
         <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem; text-align: center;">
-            MoneyGoUp Database Documentation &copy; 2026 &mdash; Last updated: May 16, 2026
+            MoneyGoUp Database Documentation &copy; 2026 &mdash; Last updated: May 22, 2026
         </footer>
     </main>
     </div>
