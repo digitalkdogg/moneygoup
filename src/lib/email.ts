@@ -1,7 +1,9 @@
 import { Resend } from 'resend';
 
-const UNSUBSCRIBE_FROM = process.env.RESEND_FROM_EMAIL || process.env.resend_from_email || 'accounts@growmystocks.com';
-const BASE_URL = process.env.NEXTAUTH_URL || 'https://growmystocks.com';
+// Use "Name <email>" format so Gmail shows a human sender name, not a bare address.
+// Set RESEND_FROM_EMAIL to e.g. "GrowMyStocks <accounts@growmystocks.com>"
+const FROM = process.env.RESEND_FROM_EMAIL || process.env.resend_from_email || 'GrowMyStocks <accounts@growmystocks.com>';
+const BASE_URL = (process.env.NEXTAUTH_URL || 'https://growmystocks.com').replace(/\/$/, '');
 
 // RFC 8058 one-click unsubscribe headers. The recipient email must be in the
 // URL because Gmail's POST body only contains "List-Unsubscribe=One-Click".
@@ -15,13 +17,25 @@ function unsubscribeHeaders(email: string) {
 
 export async function sendRegistrationEmail(to: string, username: string): Promise<void> {
   const resend = new Resend(process.env.RESEND_REG_API_KEY || process.env.resend_reg_api_key);
-  const from = UNSUBSCRIBE_FROM;
 
   const { error } = await resend.emails.send({
-    from,
+    from: FROM,
     to,
     subject: 'Thanks for joining GrowMyStocks — your account is under review',
     headers: unsubscribeHeaders(to),
+    text: [
+      `Hi ${username},`,
+      '',
+      'Thanks for signing up for GrowMyStocks. Your account is currently being reviewed — this usually takes less than 24 hours.',
+      '',
+      "Once active you'll get access to AI-powered stock predictions, GPS scoring, and personalized portfolio tracking. We'll email you when you're good to go.",
+      '',
+      'Questions? Just reply to this email.',
+      '',
+      '---',
+      'GrowMyStocks — AI-powered stock analysis',
+      "You're receiving this because you created an account at growmystocks.com.",
+    ].join('\n'),
     html: `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1e293b;">
         <h2 style="color:#017e3b;margin-top:0;">Thanks for signing up!</h2>
@@ -45,26 +59,41 @@ export async function sendRegistrationEmail(to: string, username: string): Promi
 
 export async function sendApprovalEmail(to: string, username: string): Promise<void> {
   const resend = new Resend(process.env.RESEND_REG_FINAL_API_KEY || process.env.resend_reg_final_api_key);
-  const from = UNSUBSCRIBE_FROM;
+  const loginUrl = `${BASE_URL}/login`;
 
   const { error } = await resend.emails.send({
-    from,
+    from: FROM,
     to,
     subject: 'Your GrowMyStocks account is ready',
     headers: unsubscribeHeaders(to),
+    text: [
+      `Hi ${username},`,
+      '',
+      'Your GrowMyStocks account has been reviewed and is now active.',
+      '',
+      `Log in here: ${loginUrl}`,
+      '',
+      'Once you log in you can explore stock predictions, GPS scores, and your personalized dashboard.',
+      '',
+      'Questions? Just reply to this email.',
+      '',
+      '---',
+      'GrowMyStocks — AI-powered stock analysis',
+      "You're receiving this because you created an account at growmystocks.com.",
+    ].join('\n'),
     html: `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1e293b;">
         <h2 style="color:#017e3b;margin-top:0;">Your account is ready, ${username}!</h2>
         <p>Hi <strong>${username}</strong>,</p>
         <p>Your GrowMyStocks account has been reviewed and is now active. You can log in and start exploring stock predictions, GPS scores, and your personalized dashboard.</p>
         <p style="margin:24px 0;">
-          <a href="https://growmystocks.com/login"
+          <a href="${loginUrl}"
              style="display:inline-block;background-color:#017e3b;color:white;padding:12px 28px;text-decoration:none;border-radius:8px;font-weight:bold;font-size:15px;">
             Log in to GrowMyStocks
           </a>
         </p>
         <p style="color:#475569;">If the button above doesn't work, copy and paste this URL into your browser:</p>
-        <p style="color:#475569;word-break:break-all;font-size:13px;">https://growmystocks.com/login</p>
+        <p style="color:#475569;word-break:break-all;font-size:13px;">${loginUrl}</p>
         <p>If you have any questions getting started, just reply to this email.</p>
         <hr style="border:none;border-top:1px solid #eee;margin:24px 0;"/>
         <p style="color:#94a3b8;font-size:12px;margin:0;">
@@ -82,13 +111,25 @@ export async function sendApprovalEmail(to: string, username: string): Promise<v
 
 export async function sendPasswordResetEmail(to: string, resetUrl: string): Promise<void> {
   const resend = new Resend(process.env.RESEND_API_KEY || process.env.resend_api_key);
-  const from = UNSUBSCRIBE_FROM;
 
   const { error } = await resend.emails.send({
-    from,
+    from: FROM,
     to,
     subject: 'Reset your GrowMyStocks password',
     headers: unsubscribeHeaders(to),
+    text: [
+      'You requested a password reset for your GrowMyStocks account.',
+      '',
+      'Use the link below to choose a new password. It expires in 1 hour.',
+      '',
+      resetUrl,
+      '',
+      "If you didn't request this, you can safely ignore this email — your password won't change.",
+      '',
+      '---',
+      'GrowMyStocks — AI-powered stock analysis',
+      "You're receiving this because a password reset was requested for your account.",
+    ].join('\n'),
     html: `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1e293b;">
         <h2 style="color:#017e3b;margin-top:0;">Password reset request</h2>
