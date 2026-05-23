@@ -4,12 +4,9 @@ import { checkOrigin } from '@/utils/originCheck'
 import { createLogger } from '@/utils/logger'
 import { contactLimiter } from '@/utils/rateLimiter'
 import { checkRateLimit } from '@/utils/rateLimitMiddleware'
+import { escapeHtml } from '@/utils/sanitize'
 
 const logger = createLogger('api/contact')
-
-function sanitize(str: string): string {
-  return str.replace(/[<>]/g, '').trim().slice(0, 2000)
-}
 
 export async function POST(request: NextRequest) {
   const originCheckResponse = checkOrigin(request)
@@ -36,10 +33,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid email address' }, { status: 400 })
   }
 
-  const safeName = sanitize(name)
-  const safeEmail = sanitize(email)
-  const safeSubject = sanitize(subject)
-  const safeMessage = sanitize(message)
+  const safeName    = escapeHtml(name.trim().slice(0, 200))
+  const safeEmail   = escapeHtml(email.trim().slice(0, 200))
+  const safeSubject = escapeHtml(subject.trim().slice(0, 200))
+  const safeMessage = escapeHtml(message.trim().slice(0, 2000))
 
   const adminEmail = process.env.CONTACT_RECIPIENT_EMAIL
   if (!adminEmail) {

@@ -61,6 +61,9 @@ export async function POST(request: NextRequest) {
     );
 
     const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3001';
+    if (process.env.NODE_ENV === 'production' && baseUrl.includes('localhost')) {
+      logger.error('NEXTAUTH_URL is not set to a production URL — password reset emails will be broken');
+    }
     const resetUrl = `${baseUrl}/reset-password?token=${rawToken}`;
 
     await sendPasswordResetEmail(email, resetUrl);
