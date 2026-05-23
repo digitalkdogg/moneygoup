@@ -607,8 +607,7 @@ export async function GET(
     return NextResponse.json({ ...payload, source: 'livedata' });
 
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to fetch stock data';
     logger.error('Data fetch failed', { ticker: validatedTicker, error: err });
-    return NextResponse.json({ message }, { status: 500 });
+    return NextResponse.json({ message: 'Failed to fetch stock data' }, { status: 500 });
   }
 }

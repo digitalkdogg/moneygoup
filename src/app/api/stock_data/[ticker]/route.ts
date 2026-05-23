@@ -335,10 +335,7 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
       const data = await inflightRequests.get(validatedTicker)!;
       return NextResponse.json({ ...data, source: 'livedata' });
     } catch (error) {
-      return NextResponse.json({ 
-        error: 'Failed to fetch consolidated stock data', 
-        details: error instanceof Error ? error.message : String(error) 
-      }, { status: 500 });
+      return createErrorResponse(error, 'Failed to fetch consolidated stock data');
     }
   }
 
@@ -447,7 +444,6 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
           earnings: null,
           analyst: null,
           error: `Failed to fetch data for ${ticker}`,
-          details: error instanceof Error ? error.message : String(error)
         };
       }
     });
@@ -498,10 +494,7 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
     const data = await dataPromise;
     return NextResponse.json({ ...data, source: 'livedata' });
   } catch (error) {
-    return NextResponse.json({ 
-      error: 'Failed to fetch consolidated stock data', 
-      details: error instanceof Error ? error.message : String(error) 
-    }, { status: 500 });
+    return createErrorResponse(error, 'Failed to fetch consolidated stock data');
   }
 }
 

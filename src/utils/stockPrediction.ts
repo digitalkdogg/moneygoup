@@ -1,5 +1,8 @@
 import * as tf from '@tensorflow/tfjs';
 import { calculateAnnualizedVolatility } from './volatility';
+import { createLogger } from './logger';
+
+const logger = createLogger('stockPrediction');
 interface StockMetrics {
   close?: number;
   regularMarketPrice?: number;
@@ -375,11 +378,9 @@ export async function predictStockPrice(
   // Analyze news sentiment
   const newsSentimentScore = newsArticles ? analyzeNewsSentiment(newsArticles) : 0;
 
-  // Debug logging
-  console.log('predictStockPrice called with:', {
+  logger.info('predictStockPrice called with:', {
     historicalDataLength: historicalData.length,
     currentPrice,
-    stockMetrics,
     newsArticlesLength: newsArticles?.length,
   });
 
@@ -456,18 +457,7 @@ export async function predictStockPrice(
     if (newsArticles && newsArticles.length > 0) 
       metricsUsed.push('News Sentiment');
 
-    console.log('Metrics being added:', {
-      metricsUsed,
-      checks: {
-        peRatio: stockMetrics?.peRatio !== undefined && stockMetrics.peRatio !== null && stockMetrics.peRatio > 0,
-        pbRatio: stockMetrics?.pbRatio !== undefined && stockMetrics.pbRatio !== null && stockMetrics.pbRatio > 0,
-        marketCap: stockMetrics?.marketCap !== undefined && stockMetrics.marketCap !== null && stockMetrics.marketCap > 0,
-        sma20: stockMetrics?.sma20 !== undefined && stockMetrics.sma20 !== null,
-        sma50: stockMetrics?.sma50 !== undefined && stockMetrics.sma50 !== null,
-        rsi: stockMetrics?.rsi !== undefined && stockMetrics.rsi !== null,
-        momentum: stockMetrics?.momentum !== undefined && stockMetrics.momentum !== null,
-      }
-    });
+    logger.info('Metrics being added:', { metricsUsed });
 
     // Average the two predictions
     const avgPrediction = (lstmPred + linearPred) / 2;
