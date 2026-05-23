@@ -21,11 +21,17 @@ export function evaluateApprovalStatus(status: string | null | undefined, reject
     case 'approved':
       return { allowed: true };
     case 'rejected':
-      return { 
-        allowed: false, 
-        code: APPROVAL_ERROR_CODES.REJECTED, 
+      return {
+        allowed: false,
+        code: APPROVAL_ERROR_CODES.REJECTED,
         message: 'Your account request was rejected. Contact support/admin.',
         reason: rejectedReason
+      };
+    case 'unsubscribed':
+      return {
+        allowed: false,
+        code: APPROVAL_ERROR_CODES.REJECTED,
+        message: 'Your account has been deactivated. Contact support to reactivate.',
       };
     case 'pending':
     default:

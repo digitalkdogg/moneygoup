@@ -1,7 +1,17 @@
 import { Resend } from 'resend';
 
 const UNSUBSCRIBE_FROM = process.env.RESEND_FROM_EMAIL || process.env.resend_from_email || 'accounts@growmystocks.com';
-const LIST_UNSUBSCRIBE = { 'List-Unsubscribe': `<mailto:unsubscribe@growmystocks.com?subject=unsubscribe>` };
+const BASE_URL = process.env.NEXTAUTH_URL || 'https://growmystocks.com';
+
+// RFC 8058 one-click unsubscribe headers. The recipient email must be in the
+// URL because Gmail's POST body only contains "List-Unsubscribe=One-Click".
+function unsubscribeHeaders(email: string) {
+  const url = `${BASE_URL}/api/unsubscribe?email=${encodeURIComponent(email)}`;
+  return {
+    'List-Unsubscribe': `<${url}>`,
+    'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+  };
+}
 
 export async function sendRegistrationEmail(to: string, username: string): Promise<void> {
   const resend = new Resend(process.env.RESEND_REG_API_KEY || process.env.resend_reg_api_key);
@@ -11,7 +21,7 @@ export async function sendRegistrationEmail(to: string, username: string): Promi
     from,
     to,
     subject: 'Thanks for joining GrowMyStocks — your account is under review',
-    headers: LIST_UNSUBSCRIBE,
+    headers: unsubscribeHeaders(to),
     html: `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1e293b;">
         <h2 style="color:#017e3b;margin-top:0;">Thanks for signing up!</h2>
@@ -41,7 +51,7 @@ export async function sendApprovalEmail(to: string, username: string): Promise<v
     from,
     to,
     subject: 'Your GrowMyStocks account is ready',
-    headers: LIST_UNSUBSCRIBE,
+    headers: unsubscribeHeaders(to),
     html: `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1e293b;">
         <h2 style="color:#017e3b;margin-top:0;">Your account is ready, ${username}!</h2>
@@ -78,7 +88,7 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string): Prom
     from,
     to,
     subject: 'Reset your GrowMyStocks password',
-    headers: LIST_UNSUBSCRIBE,
+    headers: unsubscribeHeaders(to),
     html: `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1e293b;">
         <h2 style="color:#017e3b;margin-top:0;">Password reset request</h2>
