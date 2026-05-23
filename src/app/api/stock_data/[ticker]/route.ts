@@ -460,7 +460,7 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
         indicators: result.indicators,
         earnings: result.earnings,
         analyst: result.analyst,
-        ...(result.error && { error: result.error, details: result.details })
+        ...(result.error && { error: result.error })
       };
     } else {
       const consolidatedData: Record<string, any> = {};
@@ -472,7 +472,7 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
           indicators: result.indicators,
           earnings: result.earnings,
           analyst: result.analyst,
-          ...(result.error && { error: result.error, details: result.details })
+          ...(result.error && { error: result.error })
         };
       });
       finalResponse = consolidatedData;

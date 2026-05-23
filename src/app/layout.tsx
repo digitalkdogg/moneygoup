@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Rubik } from 'next/font/google'
+import { headers } from 'next/headers'
 import './globals.css'
 import Navigation from './components/Navigation'
 import Footer from './components/Footer'
@@ -17,6 +18,7 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
+  const nonce = headers().get('x-nonce') ?? undefined;
   return (
     <html lang="en">
       <body className={`${rubik.className} flex flex-col min-h-screen`}>
