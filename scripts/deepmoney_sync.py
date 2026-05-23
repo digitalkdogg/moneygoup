@@ -173,11 +173,11 @@ def sync_deepmoney():
                 macro.get('gdpGrowth', {}).get('latest')
             ))
 
-        # 3.5 Fetch active users (login in past 7 days)
-        print("Fetching active users...")
-        cursor.execute("SELECT id FROM users WHERE last_login >= DATE_SUB(NOW(), INTERVAL 7 DAY)")
+        # 3.5 Fetch all approved users (so new users see recommendations on first login)
+        print("Fetching approved users...")
+        cursor.execute("SELECT id FROM users WHERE approval_status = 'approved'")
         active_user_ids = [row[0] for row in cursor.fetchall()]
-        print(f"Found {len(active_user_ids)} active users.")
+        print(f"Found {len(active_user_ids)} approved users.")
 
         # 4. Process Stocks from (stocks array)
         stocks = data.get('stocks', [])
