@@ -525,7 +525,7 @@ export default function Stock({
           )}
 
           {/* Stock Info Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
             <div className="p-4 bg-gray-50 rounded-lg border border-[#e9ede8]">
               <p className="text-sm text-gray-500">Last Price</p>
               <p className="text-2xl font-bold text-gray-800">{formatCurrency(currentPrice)}</p>

@@ -128,22 +128,6 @@ def sync_deepmoney():
     today = datetime.now().strftime('%Y-%m-%d')
 
     try:
-        # 2.1 Clear unconfirmed active stocks
-        print("Clearing unconfirmed active stocks...")
-        cursor.execute("""
-            SELECT DISTINCT stock_id FROM user_stocks
-            WHERE is_active = 1 AND user_confirmed = 0
-        """)
-        stock_ids_to_clear = [row[0] for row in cursor.fetchall()]
-
-        if stock_ids_to_clear:
-            print(f"  Removing {len(stock_ids_to_clear)} unconfirmed active stocks and their predictions...")
-            # Remove from user_stock_predictions first (foreign key constraint)
-            placeholders = ','.join(['%s'] * len(stock_ids_to_clear))
-            cursor.execute(f"DELETE FROM user_stock_predictions WHERE stock_id IN ({placeholders})", stock_ids_to_clear)
-            # Then remove from user_stocks
-            cursor.execute("DELETE FROM user_stocks WHERE is_active = 1 AND user_confirmed = 0")
-
         # 3. Clear existing recommendation data
         print("Clearing existing recommendation data...")
         cursor.execute("DELETE FROM recommended_stocks")
@@ -181,6 +165,7 @@ def sync_deepmoney():
 
         # 4. Process Stocks from (stocks array)
         stocks = data.get('stocks', [])
+        qualifying_stock_ids: set = set()
         print(f"Processing {len(stocks)} hot stocks...")
         
         # COLUMN ORDER MUST MATCH VALUES IN CURSOR.EXECUTE
@@ -287,6 +272,8 @@ def sync_deepmoney():
                     )
                     stock_id = cursor.lastrowid
 
+                qualifying_stock_ids.add(stock_id)
+
                 # Only write canonical GPS score if it changed (DECIMAL(5,1) → compare at 1dp).
                 cursor.execute(
                     "SELECT gps_score FROM stock_gps_scores WHERE stock_id = %s", (stock_id,)
@@ -330,6 +317,31 @@ def sync_deepmoney():
                         user_confirmed = IF(is_purchased = 0, 0, user_confirmed),
                         is_active = IF(is_purchased = 0, 1, is_active)
                     """, (user_id, stock_id))
+
+        # Post-sync cleanup: remove discovery entries for stocks that didn't qualify this run.
+        # This replaces the old pre-clear approach and is exact — only stocks not in
+        # today's qualifying set are removed, regardless of how they got into the DB.
+        print("Cleaning up stale discovery entries from previous runs...")
+        if qualifying_stock_ids:
+            stale_ph = ','.join(['%s'] * len(qualifying_stock_ids))
+            cursor.execute(f"""
+                SELECT DISTINCT stock_id FROM user_stocks
+                WHERE is_active = 1 AND user_confirmed = 0
+                AND stock_id NOT IN ({stale_ph})
+            """, list(qualifying_stock_ids))
+        else:
+            cursor.execute("""
+                SELECT DISTINCT stock_id FROM user_stocks
+                WHERE is_active = 1 AND user_confirmed = 0
+            """)
+        stale_ids = [row[0] for row in cursor.fetchall()]
+        if stale_ids:
+            stale_placeholders = ','.join(['%s'] * len(stale_ids))
+            cursor.execute(f"DELETE FROM user_stock_predictions WHERE stock_id IN ({stale_placeholders})", stale_ids)
+            cursor.execute(f"DELETE FROM user_stocks WHERE is_active = 1 AND user_confirmed = 0 AND stock_id IN ({stale_placeholders})", stale_ids)
+            print(f"  Removed {len(stale_ids)} stale discovery stock(s) not in today's qualifying set.")
+        else:
+            print("  No stale entries found.")
 
         conn.commit()
         print(f"[{datetime.now()}] Sync completed successfully.")
