@@ -11,7 +11,7 @@ interface User {
   username: string;
   email: string;
   role: 'user' | 'superuser' | 'admin';
-  approval_status: 'pending' | 'approved' | 'rejected' | 'unsubscribed';
+  approval_status: 'pending' | 'approved' | 'rejected' | 'unsubscribed' | 'archived';
   created_at: string;
   last_login: string | null;
   rejected_reason: string | null;
@@ -107,8 +107,8 @@ export default function AdminUsersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-8">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-gray-50 p-2 md:p-4">
+      <div className="max-w-screen-xl mx-auto">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center space-x-4">
             <Link href="/">
@@ -207,6 +207,7 @@ export default function AdminUsersPage() {
                           user.approval_status === 'approved' ? 'bg-green-100 text-green-800' :
                           user.approval_status === 'pending' ? 'bg-amber-100 text-amber-800' :
                           user.approval_status === 'unsubscribed' ? 'bg-slate-100 text-slate-600' :
+                          user.approval_status === 'archived' ? 'bg-gray-100 text-gray-400' :
                           'bg-red-100 text-red-800'
                         }`}>
                           {user.approval_status.toUpperCase()}

@@ -3,7 +3,7 @@
  * This file is safe to import in both client and server components.
  */
 
-export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'unsubscribed';
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'unsubscribed' | 'archived';
 
 export type UserRole = 'user' | 'superuser' | 'admin';
 

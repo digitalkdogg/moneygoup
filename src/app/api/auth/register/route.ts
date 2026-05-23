@@ -44,21 +44,47 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { username, email, password } = registerSchema.parse(body);
 
-    // Check if email already exists
-    const [emailCheck] = await executeRawQuery('SELECT id FROM users WHERE email = ?', [email]);
-    if (Array.isArray(emailCheck) && emailCheck.length > 0) {
+    // Check for conflicts — rejected accounts are allowed to re-register
+    const [emailRows] = await executeRawQuery('SELECT id, approval_status FROM users WHERE email = ?', [email]);
+    const emailConflict = Array.isArray(emailRows) && emailRows.length > 0 ? (emailRows[0] as any) : null;
+    if (emailConflict && emailConflict.approval_status !== 'rejected') {
       logger.warn('Registration attempt with existing email:', { email });
       return createErrorResponse(null, 'An account with this email address is already registered.', { status: 409 });
     }
 
-    // Check if username already exists
-    const [usernameCheck] = await executeRawQuery('SELECT id FROM users WHERE username = ?', [username]);
-    if (Array.isArray(usernameCheck) && usernameCheck.length > 0) {
+    const [usernameRows] = await executeRawQuery('SELECT id, approval_status FROM users WHERE username = ?', [username]);
+    const usernameConflict = Array.isArray(usernameRows) && usernameRows.length > 0 ? (usernameRows[0] as any) : null;
+    if (usernameConflict && usernameConflict.approval_status !== 'rejected') {
       logger.warn('Registration attempt with existing username:', { username });
       return createErrorResponse(null, 'This username is already taken.', { status: 409 });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10); // Hash password with salt rounds = 10
+    // Archive any rejected records that would block the INSERT (unique key on email/username).
+    // Append '_archived' to whichever field(s) conflict and set approval_status = 'archived'.
+    // Use a Map keyed by id so a record that conflicts on both fields is only updated once.
+    const toArchive = new Map<number, { archiveEmail: boolean; archiveUsername: boolean }>();
+    if (emailConflict) {
+      toArchive.set(emailConflict.id, { archiveEmail: true, archiveUsername: false });
+    }
+    if (usernameConflict) {
+      const existing = toArchive.get(usernameConflict.id);
+      if (existing) {
+        existing.archiveUsername = true;
+      } else {
+        toArchive.set(usernameConflict.id, { archiveEmail: false, archiveUsername: true });
+      }
+    }
+    for (const [id, { archiveEmail, archiveUsername }] of toArchive) {
+      const setParts = ['approval_status = ?'];
+      const params: any[] = ['archived'];
+      if (archiveEmail)    { setParts.push('email = CONCAT(email, ?)');    params.push('_archived'); }
+      if (archiveUsername) { setParts.push('username = CONCAT(username, ?)'); params.push('_archived'); }
+      params.push(id);
+      await executeRawQuery(`UPDATE users SET ${setParts.join(', ')} WHERE id = ?`, params);
+      logger.info('Archived rejected user record to allow re-registration', { id, archiveEmail, archiveUsername });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     const [result] = await executeRawQuery('INSERT INTO users (username, email, password_hash, approval_status) VALUES (?, ?, ?, ?)', [username, email, hashedPassword, 'pending']);
 

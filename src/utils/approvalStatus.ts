@@ -33,6 +33,12 @@ export function evaluateApprovalStatus(status: string | null | undefined, reject
         code: APPROVAL_ERROR_CODES.REJECTED,
         message: 'Your account has been deactivated. Contact support to reactivate.',
       };
+    case 'archived':
+      return {
+        allowed: false,
+        code: APPROVAL_ERROR_CODES.REJECTED,
+        message: 'This account no longer exists. Please register again.',
+      };
     case 'pending':
     default:
       return { 
