@@ -3,6 +3,7 @@ import { createLogger } from '@/utils/logger';
 import { checkOrigin } from '@/utils/originCheck';
 import YahooFinance from 'yahoo-finance2';
 import { createErrorResponse, validationErrorResponse } from '@/utils/errorResponse';
+import { checkApprovalGuard } from '@/utils/approvalStatus';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { tickerSchema } from '@/utils/validationSchemas';
@@ -61,6 +62,10 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
 
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    const approvalOutcome = await checkApprovalGuard((session as any).user?.id);
+    if (!approvalOutcome.allowed) {
+      return NextResponse.json({ message: approvalOutcome.message, code: approvalOutcome.code }, { status: 403 });
+    }
   }
 
   let validatedTicker: string;

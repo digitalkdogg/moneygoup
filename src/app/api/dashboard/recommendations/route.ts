@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { executeRawQuery } from '@/utils/databaseHelper';
 import { checkOrigin } from '@/utils/originCheck';
 import { createErrorResponse, unauthorizedResponse } from '@/utils/errorResponse';
+import { checkApprovalGuard } from '@/utils/approvalStatus';
 import { fetchYahooQuotesForSymbols } from '@/utils/yahooFinanceHelper';
 import { DashboardRecommendation, DashboardRecommendationsResponse } from '@/types/dashboard';
  
@@ -42,7 +43,11 @@ export async function GET(request: NextRequest) {
     if (!userId) {
       return unauthorizedResponse('Unauthorized: User ID missing from session.');
     }
- 
+    const approvalOutcome = await checkApprovalGuard(userId);
+    if (!approvalOutcome.allowed) {
+      return NextResponse.json({ message: approvalOutcome.message, code: approvalOutcome.code }, { status: 403 });
+    }
+
     // 1. Fetch predictions and user stock status with extended flags
     const [rows] = await executeRawQuery(`
       SELECT

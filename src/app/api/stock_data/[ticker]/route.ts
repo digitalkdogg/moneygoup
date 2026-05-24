@@ -13,6 +13,7 @@ import { stockDataLimiter } from '@/utils/rateLimiter';
 import { checkRateLimit } from '@/utils/rateLimitMiddleware';
 import { z } from 'zod';
 import { LimitService } from '@/utils/limitService';
+import { checkApprovalGuard } from '@/utils/approvalStatus';
 
 const logger = createLogger('api/stock/[ticker]');
 
@@ -289,6 +290,10 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
 
   // 0. Check role-based limits BEFORE cache (skip if internal)
   if (!isInternal) {
+    const approvalOutcome = await checkApprovalGuard(userId);
+    if (!approvalOutcome.allowed) {
+      return NextResponse.json({ message: approvalOutcome.message, code: approvalOutcome.code }, { status: 403 });
+    }
     const limitCheck = await LimitService.canPerformLookup(userId, userRole);
     if (!limitCheck.allowed) {
       logger.warn('Lookup limit exceeded', { userId, userRole, current: limitCheck.current });
@@ -505,6 +510,11 @@ export async function DELETE(request: NextRequest, { params }: { params: { ticke
   const session = await getServerSession(authOptions);
   if (!session || !session.user || !session.user.id) {
     return unauthorizedResponse();
+  }
+
+  const approvalOutcome = await checkApprovalGuard(session.user.id);
+  if (!approvalOutcome.allowed) {
+    return NextResponse.json({ message: approvalOutcome.message, code: approvalOutcome.code }, { status: 403 });
   }
 
   return forbiddenResponse('Forbidden: This action requires administrative privileges.');

@@ -5,6 +5,7 @@ import { checkOrigin } from '@/utils/originCheck';
 import { createErrorResponse, unauthorizedResponse } from '@/utils/errorResponse';
 import { yahooFinance } from '@/utils/yahooFinanceHelper';
 import { categorizeByTaxonomy, getCategoryStrategy, getCategoryKeywords } from '@/utils/industryTaxonomy';
+import { checkApprovalGuard } from '@/utils/approvalStatus';
 
 // Mock Next.js and utility functions
 jest.mock('next/server', () => ({
@@ -50,13 +51,17 @@ jest.mock('@/utils/industryTaxonomy', () => ({
   getCategoryStrategy: jest.fn(),
   getCategoryKeywords: jest.fn(),
 }));
+jest.mock('@/utils/approvalStatus', () => ({
+  checkApprovalGuard: jest.fn().mockResolvedValue({ allowed: true }),
+}));
 
 
 describe('Industry Search API', () => {
   // Before each test, reset mocks
   beforeEach(() => {
     jest.resetAllMocks();
-    
+    (checkApprovalGuard as jest.Mock).mockResolvedValue({ allowed: true });
+
     // Reset mock implementations for NextResponse.json and unauthorizedResponse
     (NextResponse.json as jest.Mock).mockImplementation((data, options) => ({
       json: () => Promise.resolve(data),

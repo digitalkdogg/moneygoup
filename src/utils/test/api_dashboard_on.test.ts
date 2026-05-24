@@ -15,6 +15,9 @@ jest.mock('@/utils/logger', () => ({
     error: jest.fn(),
   }),
 }));
+jest.mock('@/utils/approvalStatus', () => ({
+  checkApprovalGuard: jest.fn().mockResolvedValue({ allowed: true }),
+}));
 
 describe('GET /api/dashboard/on', () => {
   let mockRequest: any;

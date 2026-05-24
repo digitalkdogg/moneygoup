@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { executeRawQuery } from '@/utils/databaseHelper';
 import { fetchYahooStockSummary } from '@/utils/yahooFinanceHelper';
 import { createErrorResponse, unauthorizedResponse } from '@/utils/errorResponse';
+import { checkApprovalGuard } from '@/utils/approvalStatus';
 import { createLogger } from '@/utils/logger';
 import { checkOrigin } from '@/utils/originCheck';
 import { normalizeRecommendation } from '@/utils/formatters';
@@ -23,6 +24,10 @@ export async function GET(request: NextRequest) {
   }
 
   const userId = session.user.id;
+  const approvalOutcome = await checkApprovalGuard(userId);
+  if (!approvalOutcome.allowed) {
+    return NextResponse.json({ message: approvalOutcome.message, code: approvalOutcome.code }, { status: 403 });
+  }
 
   try {
     // Check cache

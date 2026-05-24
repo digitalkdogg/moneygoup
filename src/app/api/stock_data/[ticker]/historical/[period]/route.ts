@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { executeRawQuery } from '@/utils/databaseHelper'
 import { yahooFinance } from '@/utils/yahooFinanceHelper';
 import { createErrorResponse, validationErrorResponse } from '@/utils/errorResponse';
+import { checkApprovalGuard } from '@/utils/approvalStatus';
 import { checkOrigin } from '@/utils/originCheck';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -106,6 +107,11 @@ export async function GET(
 
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+
+  const approvalOutcome = await checkApprovalGuard((session as any).user?.id);
+  if (!approvalOutcome.allowed) {
+    return NextResponse.json({ message: approvalOutcome.message, code: approvalOutcome.code }, { status: 403 });
+  }
 
   const resolvedParams = await params;
   try {

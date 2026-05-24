@@ -18,6 +18,7 @@ import { getClientIP } from '@/utils/rateLimitMiddleware';
 import { predictionCache } from '@/utils/cache';
 import { calculateGpsScore } from '@/utils/gps';
 import { LimitService } from '@/utils/limitService';
+import { checkApprovalGuard } from '@/utils/approvalStatus';
 
 const logger = createLogger('api/prediction');
 
@@ -51,6 +52,10 @@ export async function POST(
     if (originCheck) return originCheck;
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return unauthorizedResponse('Authentication required');
+    const approvalOutcome = await checkApprovalGuard(session.user.id);
+    if (!approvalOutcome.allowed) {
+      return NextResponse.json({ message: approvalOutcome.message, code: approvalOutcome.code }, { status: 403 });
+    }
     var userId = session.user.id;
     var userRole = (session.user as any).role || 'user';
     var ip = getClientIP(request);

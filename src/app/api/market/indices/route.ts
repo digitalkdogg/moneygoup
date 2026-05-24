@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { fetchYahooQuotesForSymbols } from '@/utils/yahooFinanceHelper'
 import { createErrorResponse, unauthorizedResponse } from '@/utils/errorResponse'
+import { checkApprovalGuard } from '@/utils/approvalStatus'
 import { createLogger } from '@/utils/logger'
 import { checkOrigin } from '@/utils/originCheck'
 import { marketIndicesCache } from '@/utils/cache'
@@ -22,6 +23,10 @@ export async function GET(request: NextRequest) {
   if (!isInternal) {
     const session = await getServerSession(authOptions);
     if (!session?.user) return unauthorizedResponse();
+    const approvalOutcome = await checkApprovalGuard((session.user as any).id);
+    if (!approvalOutcome.allowed) {
+      return NextResponse.json({ message: approvalOutcome.message, code: approvalOutcome.code }, { status: 403 });
+    }
   }
 
   try {

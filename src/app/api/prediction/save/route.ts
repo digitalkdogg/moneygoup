@@ -8,6 +8,7 @@ import { createLogger } from '@/utils/logger';
 import { tickerSchema } from '@/utils/validationSchemas';
 import { z } from 'zod';
 import { select, upsert, executeRawQuery } from '@/utils/databaseHelper';
+import { checkApprovalGuard } from '@/utils/approvalStatus';
 
 const logger = createLogger('api/prediction/save');
 
@@ -68,6 +69,10 @@ export async function POST(request: NextRequest) {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return unauthorizedResponse('Authentication required');
+    }
+    const approvalOutcome = await checkApprovalGuard(session.user.id);
+    if (!approvalOutcome.allowed) {
+      return NextResponse.json({ message: approvalOutcome.message, code: approvalOutcome.code }, { status: 403 });
     }
     userId = session.user.id;
   } else {

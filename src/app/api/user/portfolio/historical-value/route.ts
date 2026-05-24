@@ -6,6 +6,7 @@ import { executeRawQuery } from '@/utils/databaseHelper';
 import { yahooFinance } from '@/utils/yahooFinanceHelper';
 import { createLogger } from '@/utils/logger';
 import { createErrorResponse } from '@/utils/errorResponse';
+import { checkApprovalGuard } from '@/utils/approvalStatus';
 import { checkOrigin } from '@/utils/originCheck';
 
 const logger = createLogger('api/user/portfolio/historical-value');
@@ -51,6 +52,11 @@ export async function GET(req: NextRequest) {
     }
 
     const userId = session.user.id;
+    const approvalOutcome = await checkApprovalGuard(userId);
+    if (!approvalOutcome.allowed) {
+        return NextResponse.json({ message: approvalOutcome.message, code: approvalOutcome.code }, { status: 403 });
+    }
+
     const periodParam = (req.nextUrl.searchParams.get('period') as Period) || '1w';
 
     try {

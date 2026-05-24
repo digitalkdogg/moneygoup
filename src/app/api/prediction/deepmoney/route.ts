@@ -12,6 +12,7 @@ import { calculateTechnicalIndicators } from '@/utils/technicalIndicators';
 import { XMLParser } from 'fast-xml-parser';
 import Sentiment from 'sentiment';
 import { analyzeStocks } from './analyzer';
+import { checkApprovalGuard } from '@/utils/approvalStatus';
 import { performETFDiscovery } from '@/utils/etfDiscovery';
 
 const logger = createLogger('api/prediction/deepmoney');
@@ -435,6 +436,10 @@ export async function GET(request: NextRequest) {
         if (!session) {
             logger.warn('Unauthenticated request to hot-tickers endpoint');
             return unauthorizedResponse();
+        }
+        const approvalOutcome = await checkApprovalGuard(session.user?.id);
+        if (!approvalOutcome.allowed) {
+            return NextResponse.json({ message: approvalOutcome.message, code: approvalOutcome.code }, { status: 403 });
         }
     }
 

@@ -6,6 +6,7 @@ import { checkOrigin } from '@/utils/originCheck'
 import { createLogger } from '@/utils/logger'
 import { tickerSchema } from '@/utils/validationSchemas'
 import { unauthorizedResponse } from '@/utils/errorResponse'
+import { checkApprovalGuard } from '@/utils/approvalStatus'
 
 const logger = createLogger('api/stock_data/[ticker]/gps')
 
@@ -33,6 +34,11 @@ export async function GET(
   const ticker = parsed.data
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return unauthorizedResponse()
+
+  const approvalOutcome = await checkApprovalGuard(session.user.id)
+  if (!approvalOutcome.allowed) {
+    return NextResponse.json({ message: approvalOutcome.message, code: approvalOutcome.code }, { status: 403 })
+  }
 
   try {
     const [sgsRows] = await executeRawQuery(

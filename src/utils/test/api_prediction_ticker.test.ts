@@ -22,6 +22,9 @@ jest.mock('@/utils/logger', () => ({
 
 // Mock fs
 jest.mock('fs');
+jest.mock('@/utils/approvalStatus', () => ({
+  checkApprovalGuard: jest.fn().mockResolvedValue({ allowed: true }),
+}));
 
 // Mock fetch for save endpoint calls
 global.fetch = jest.fn();

@@ -5,6 +5,7 @@ import { executeRawQuery } from '@/utils/databaseHelper';
 import { checkOrigin } from '@/utils/originCheck';
 import { createLogger } from '@/utils/logger';
 import { createErrorResponse } from '@/utils/errorResponse';
+import { checkApprovalGuard } from '@/utils/approvalStatus';
 import { stockDataLimiter } from '@/utils/rateLimiter';
 import { checkRateLimit } from '@/utils/rateLimitMiddleware';
 
@@ -20,6 +21,11 @@ export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session || !session.user || !session.user.id) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+  }
+
+  const approvalOutcome = await checkApprovalGuard(session.user.id);
+  if (!approvalOutcome.allowed) {
+    return NextResponse.json({ message: approvalOutcome.message, code: approvalOutcome.code }, { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);

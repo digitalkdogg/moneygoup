@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { checkOrigin } from '@/utils/originCheck';
 import { createErrorResponse, unauthorizedResponse } from '@/utils/errorResponse';
+import { checkApprovalGuard } from '@/utils/approvalStatus';
 import { yahooFinance } from '@/utils/yahooFinanceHelper';
 import { categorizeByTaxonomy, getCategoryStrategy, getCategoryKeywords } from '@/utils/industryTaxonomy';
 
@@ -19,6 +20,10 @@ export async function GET(
     const session = await getServerSession(authOptions);
     if (!session) {
       return unauthorizedResponse();
+    }
+    const approvalOutcome = await checkApprovalGuard(session.user?.id);
+    if (!approvalOutcome.allowed) {
+      return NextResponse.json({ message: approvalOutcome.message, code: approvalOutcome.code }, { status: 403 });
     }
 
     // 3. Get raw input

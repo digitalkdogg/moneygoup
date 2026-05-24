@@ -15,6 +15,9 @@ jest.mock('@/utils/logger', () => ({
 jest.mock('@/utils/yahooFinanceHelper', () => ({
   yahooFinance: { historical: jest.fn() },
 }));
+jest.mock('@/utils/approvalStatus', () => ({
+  checkApprovalGuard: jest.fn().mockResolvedValue({ allowed: true }),
+}));
 
 const SESSION = { user: { id: 42 } };
 

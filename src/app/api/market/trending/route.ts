@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { createErrorResponse, unauthorizedResponse } from '@/utils/errorResponse'
+import { checkApprovalGuard } from '@/utils/approvalStatus'
 import { createLogger } from '@/utils/logger'
 import { getTrendingStocks } from '@/utils/yahooFinanceHelper'
 import { checkOrigin } from '@/utils/originCheck'
@@ -25,6 +26,10 @@ export async function GET(request: NextRequest) {
   if (!isInternal) {
     const session = await getServerSession(authOptions);
     if (!session?.user) return unauthorizedResponse();
+    const approvalOutcome = await checkApprovalGuard(session.user.id);
+    if (!approvalOutcome.allowed) {
+      return NextResponse.json({ message: approvalOutcome.message, code: approvalOutcome.code }, { status: 403 });
+    }
   }
 
   try {

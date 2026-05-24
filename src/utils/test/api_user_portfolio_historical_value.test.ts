@@ -14,6 +14,9 @@ jest.mock('@/utils/yahooFinanceHelper', () => ({
     historical: jest.fn(),
   },
 }));
+jest.mock('@/utils/approvalStatus', () => ({
+  checkApprovalGuard: jest.fn().mockResolvedValue({ allowed: true }),
+}));
 
 describe('GET /api/user/portfolio/historical-value', () => {
   let mockRequest: any;

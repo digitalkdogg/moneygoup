@@ -5,6 +5,7 @@ import { executeRawQuery } from '@/utils/databaseHelper';
 import { yahooFinance } from '@/utils/yahooFinanceHelper';
 import { createLogger } from '@/utils/logger';
 import { createErrorResponse } from '@/utils/errorResponse';
+import { checkApprovalGuard } from '@/utils/approvalStatus';
 import { checkOrigin } from '@/utils/originCheck';
 import { tickerSchema } from '@/utils/validationSchemas';
 
@@ -35,6 +36,11 @@ export async function GET(req: NextRequest) {
 
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const approvalOutcome = await checkApprovalGuard(session.user.id);
+    if (!approvalOutcome.allowed) {
+        return NextResponse.json({ message: approvalOutcome.message, code: approvalOutcome.code }, { status: 403 });
+    }
 
     const rawTicker = (req.nextUrl.searchParams.get('ticker') ?? '').toUpperCase();
     let ticker: string;

@@ -8,6 +8,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { checkOrigin } from '@/utils/originCheck';
 import { unauthorizedResponse, validationErrorResponse } from '@/utils/errorResponse';
+import { checkApprovalGuard } from '@/utils/approvalStatus';
 import { createLogger } from '@/utils/logger';
 import { tickerSchema } from '@/utils/validationSchemas';
 import { z } from 'zod';
@@ -348,6 +349,10 @@ export async function GET(
 
     const session = await getServerSession(authOptions);
     if (!session?.user) return unauthorizedResponse('Authentication required');
+    const approvalOutcome = await checkApprovalGuard(session.user.id);
+    if (!approvalOutcome.allowed) {
+      return NextResponse.json({ message: approvalOutcome.message, code: approvalOutcome.code }, { status: 403 });
+    }
   }
 
   let validatedTicker: string;
