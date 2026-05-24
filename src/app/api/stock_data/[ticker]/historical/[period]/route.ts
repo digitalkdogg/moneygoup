@@ -72,7 +72,8 @@ async function fetchFromExternalAPIs(tickers: string | string[], startDate: stri
 
   const fetchPromises = tickerArray.map(async (ticker) => {
     try {
-      const data = await yahooFinance.historical(ticker, { period1: startDate, period2: currentDate });
+      const chartResult = await yahooFinance.chart(ticker, { period1: startDate, period2: currentDate, interval: '1d' });
+      const data = chartResult.quotes;
       if (data && Array.isArray(data) && data.length > 0) {
         results[ticker] = data.filter(item => item.date && item.close != null).map(item => {
           const adjClose = item.adjClose ?? item.adjclose ?? item.close;

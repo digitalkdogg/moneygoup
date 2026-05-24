@@ -90,7 +90,8 @@ export async function GET(req: NextRequest) {
         logger.info(`Fetching price history for tickers: ${uniqueTickers.join(', ')} from ${startDate.toISOString()} to ${endDate.toISOString()}`);
         
         const priceHistoryPromises = uniqueTickers.map(ticker =>
-            (yahooFinance as any).historical(ticker as string, { period1: startDate, period2: endDate })
+            (yahooFinance as any).chart(ticker as string, { period1: startDate, period2: endDate, interval: '1d' })
+                .then((result: any) => result.quotes as any[])
                 .then((quotes: any[]) =>
                     // Filter out quotes with null close prices and map to expected format
                     quotes

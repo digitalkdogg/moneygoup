@@ -278,7 +278,8 @@ async function fetchOhlcv(ticker: string) {
   const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const today = yesterday.toISOString().slice(0, 10);
 
-  const rows = await yahooFinance.historical(ticker, { period1: fiveYearsAgo, period2: today });
+  const chartResult = await yahooFinance.chart(ticker, { period1: fiveYearsAgo, period2: today, interval: '1d' });
+  const rows = chartResult.quotes;
   if (!rows || rows.length === 0) {
     throw new Error(`No historical data returned for ${ticker}`);
   }
@@ -297,7 +298,7 @@ async function fetchOhlcv(ticker: string) {
     open:   r.open   ?? 0,
     high:   r.high   ?? 0,
     low:    r.low    ?? 0,
-    close:  r.adjClose ?? r.close ?? 0,
+    close:  r.adjclose ?? r.close ?? 0,
     volume: r.volume ?? 0,
   }));
 
@@ -313,15 +314,16 @@ async function fetchMacroSeries(sym: string): Promise<{ date: string; close: num
     const now = new Date();
     const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const today = yesterday.toISOString().slice(0, 10);
-    const rows = await yahooFinance.historical(sym, { period1: fiveYearsAgo, period2: today });
-    
+    const chartResult = await yahooFinance.chart(sym, { period1: fiveYearsAgo, period2: today, interval: '1d' });
+    const rows = chartResult.quotes;
+
     if (!rows || rows.length === 0) return [];
-    
+
     const data = rows
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
       .map(r => ({
         date:  new Date(r.date).toISOString().slice(0, 10),
-        close: r.adjClose ?? r.close ?? 0,
+        close: r.adjclose ?? r.close ?? 0,
       }));
 
     macroCache.set(sym, data);

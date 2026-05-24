@@ -13,7 +13,7 @@ jest.mock('@/utils/logger', () => ({
   createLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
 }));
 jest.mock('@/utils/yahooFinanceHelper', () => ({
-  yahooFinance: { historical: jest.fn() },
+  yahooFinance: { chart: jest.fn() },
 }));
 jest.mock('@/utils/approvalStatus', () => ({
   checkApprovalGuard: jest.fn().mockResolvedValue({ allowed: true }),
@@ -23,11 +23,12 @@ const SESSION = { user: { id: 42 } };
 
 const HOLDING = { shares: '10.5', initial_purchase_date: '2024-01-15' };
 
+// chart() returns adjclose (lowercase) instead of adjClose
 const QUOTES = [
-  { date: new Date('2024-06-01'), close: 180.00, adjClose: 179.50 },
-  { date: new Date('2024-06-02'), close: 182.00, adjClose: 181.40 },
-  { date: new Date('2024-06-03'), close: null,   adjClose: null   }, // should be filtered
-  { date: new Date('2024-06-04'), close: 185.00, adjClose: 184.30 },
+  { date: new Date('2024-06-01'), close: 180.00, adjclose: 179.50 },
+  { date: new Date('2024-06-02'), close: 182.00, adjclose: 181.40 },
+  { date: new Date('2024-06-03'), close: null,   adjclose: null   }, // should be filtered
+  { date: new Date('2024-06-04'), close: 185.00, adjclose: 184.30 },
 ];
 
 const createRequest = (params: Record<string, string>) => {
@@ -42,7 +43,7 @@ describe('GET /api/user/portfolio/compare-series', () => {
     (checkOrigin as jest.Mock).mockReturnValue(null);
     (getServerSession as jest.Mock).mockResolvedValue(SESSION);
     (executeRawQuery as jest.Mock).mockResolvedValue([[HOLDING]]);
-    (yahooFinance.historical as jest.Mock).mockResolvedValue(QUOTES);
+    (yahooFinance.chart as jest.Mock).mockResolvedValue({ quotes: QUOTES });
   });
 
   // ── Guards ──────────────────────────────────────────────────────────────────
@@ -110,9 +111,9 @@ describe('GET /api/user/portfolio/compare-series', () => {
 
   test('falls back to close price when adjClose is absent', async () => {
     const quotesNoAdj = [
-      { date: new Date('2024-06-01'), close: 180.00 }, // no adjClose field
+      { date: new Date('2024-06-01'), close: 180.00 }, // no adjclose field
     ];
-    (yahooFinance.historical as jest.Mock).mockResolvedValue(quotesNoAdj);
+    (yahooFinance.chart as jest.Mock).mockResolvedValue({ quotes: quotesNoAdj });
 
     const res = await GET(createRequest({ ticker: 'AAPL', period: '1m' }));
     const data = await res.json();
@@ -141,7 +142,7 @@ describe('GET /api/user/portfolio/compare-series', () => {
     await GET(createRequest({ ticker: 'AAPL' }));
     const after = Date.now();
 
-    const { period1 } = (yahooFinance.historical as jest.Mock).mock.calls[0][1];
+    const { period1 } = (yahooFinance.chart as jest.Mock).mock.calls[0][1];
     // period1 should be ~1 month ago
     const oneMonthAgo = new Date(before);
     oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
@@ -160,7 +161,7 @@ describe('GET /api/user/portfolio/compare-series', () => {
   // ── Yahoo Finance failure ───────────────────────────────────────────────────
 
   test('returns empty array when Yahoo Finance throws', async () => {
-    (yahooFinance.historical as jest.Mock).mockRejectedValue(new Error('rate limited'));
+    (yahooFinance.chart as jest.Mock).mockRejectedValue(new Error('rate limited'));
 
     const res = await GET(createRequest({ ticker: 'AAPL', period: '1m' }));
     const data = await res.json();
@@ -170,7 +171,7 @@ describe('GET /api/user/portfolio/compare-series', () => {
   });
 
   test('returns empty array when Yahoo Finance returns no quotes', async () => {
-    (yahooFinance.historical as jest.Mock).mockResolvedValue([]);
+    (yahooFinance.chart as jest.Mock).mockResolvedValue({ quotes: [] });
 
     const res = await GET(createRequest({ ticker: 'AAPL', period: '1m' }));
     const data = await res.json();
@@ -190,7 +191,7 @@ describe('GET /api/user/portfolio/compare-series', () => {
 
     await GET(createRequest({ ticker: 'AAPL', period: '1m' }));
 
-    const [, { period1 }] = (yahooFinance.historical as jest.Mock).mock.calls[0];
+    const [, { period1 }] = (yahooFinance.chart as jest.Mock).mock.calls[0];
     // period1 should be close to the purchase date, not 1 month ago
     const diff = Math.abs(new Date(period1).getTime() - new Date(recentPurchase).getTime());
     expect(diff).toBeLessThan(2000);
@@ -204,7 +205,7 @@ describe('GET /api/user/portfolio/compare-series', () => {
 
     await GET(createRequest({ ticker: 'AAPL', period: 'all' }));
 
-    const [, { period1 }] = (yahooFinance.historical as jest.Mock).mock.calls[0];
+    const [, { period1 }] = (yahooFinance.chart as jest.Mock).mock.calls[0];
     expect(new Date(period1).toISOString().slice(0, 10)).toBe(purchaseDate);
   });
 
@@ -216,7 +217,7 @@ describe('GET /api/user/portfolio/compare-series', () => {
     const before = Date.now();
     await GET(createRequest({ ticker: 'AAPL', period: 'all' }));
 
-    const [, { period1 }] = (yahooFinance.historical as jest.Mock).mock.calls[0];
+    const [, { period1 }] = (yahooFinance.chart as jest.Mock).mock.calls[0];
     const fiveYearsAgo = new Date(before);
     fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
     expect(new Date(period1).getFullYear()).toBe(fiveYearsAgo.getFullYear());

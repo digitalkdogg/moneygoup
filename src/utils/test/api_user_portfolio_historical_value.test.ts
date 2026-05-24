@@ -11,7 +11,7 @@ jest.mock('@/utils/databaseHelper');
 jest.mock('@/utils/originCheck');
 jest.mock('@/utils/yahooFinanceHelper', () => ({
   yahooFinance: {
-    historical: jest.fn(),
+    chart: jest.fn(),
   },
 }));
 jest.mock('@/utils/approvalStatus', () => ({
@@ -52,12 +52,12 @@ describe('GET /api/user/portfolio/historical-value', () => {
 
   test('returns historical portfolio value correctly', async () => {
     (getServerSession as jest.Mock).mockResolvedValue({ user: { id: '1' } });
-    
+
     (executeRawQuery as jest.Mock).mockResolvedValue([
-      [{ 
-        ticker: 'AAPL', 
-        shares: '10', 
-        initial_purchase_date: new Date('2026-03-10T12:00:00.000Z') 
+      [{
+        ticker: 'AAPL',
+        shares: '10',
+        initial_purchase_date: new Date('2026-03-10T12:00:00.000Z')
       }]
     ]);
 
@@ -65,7 +65,7 @@ describe('GET /api/user/portfolio/historical-value', () => {
       { date: new Date('2026-03-10'), close: 150 },
       { date: new Date('2026-03-11'), close: 155 },
     ];
-    (yahooFinance.historical as jest.Mock).mockResolvedValue(mockHistoricalData);
+    (yahooFinance.chart as jest.Mock).mockResolvedValue({ quotes: mockHistoricalData });
 
     // Mock the date to be constant
     jest.useFakeTimers().setSystemTime(new Date('2026-03-12'));
@@ -73,7 +73,7 @@ describe('GET /api/user/portfolio/historical-value', () => {
     const response = await GET(mockRequest);
     expect(response.status).toBe(200);
     const data = await response.json();
-    
+
     // The new logic iterates day-by-day, so we expect more data points
     // It should start on the purchase date
     expect(data.length).toBeGreaterThanOrEqual(2);
@@ -85,7 +85,7 @@ describe('GET /api/user/portfolio/historical-value', () => {
 
   test('aggregates multiple stocks correctly', async () => {
     (getServerSession as jest.Mock).mockResolvedValue({ user: { id: '1' } });
-    
+
     (executeRawQuery as jest.Mock).mockResolvedValue([
       [
         { ticker: 'AAPL', shares: '10', initial_purchase_date: new Date('2026-03-10T12:00:00.000Z') },
@@ -93,27 +93,27 @@ describe('GET /api/user/portfolio/historical-value', () => {
       ]
     ]);
 
-    (yahooFinance.historical as jest.Mock).mockImplementation((ticker: string) => {
+    (yahooFinance.chart as jest.Mock).mockImplementation((ticker: string) => {
       if (ticker === 'AAPL') {
-        return Promise.resolve([
+        return Promise.resolve({ quotes: [
           { date: new Date('2026-03-10'), close: 100 },
           { date: new Date('2026-03-11'), close: 110 },
-        ]);
+        ]});
       }
       if (ticker === 'MSFT') {
-        return Promise.resolve([
+        return Promise.resolve({ quotes: [
           { date: new Date('2026-03-10'), close: 200 },
           { date: new Date('2026-03-11'), close: 210 },
-        ]);
+        ]});
       }
-      return Promise.resolve([]);
+      return Promise.resolve({ quotes: [] });
     });
 
     jest.useFakeTimers().setSystemTime(new Date('2026-03-12'));
     const response = await GET(mockRequest);
     expect(response.status).toBe(200);
     const data = await response.json();
-    
+
     expect(data.length).toBeGreaterThanOrEqual(2);
     // 2026-03-10: (10 * 100) + (5 * 200) = 1000 + 1000 = 2000
     // 2026-03-11: (10 * 110) + (5 * 210) = 1100 + 1050 = 2150
@@ -125,7 +125,7 @@ describe('GET /api/user/portfolio/historical-value', () => {
 
   test('handles Yahoo Finance errors for a single stock and continues', async () => {
     (getServerSession as jest.Mock).mockResolvedValue({ user: { id: '1' } });
-    
+
     (executeRawQuery as jest.Mock).mockResolvedValue([
       [
         { ticker: 'AAPL', shares: '10', initial_purchase_date: new Date('2026-03-10T12:00:00.000Z') },
@@ -133,16 +133,16 @@ describe('GET /api/user/portfolio/historical-value', () => {
       ]
     ]);
 
-    (yahooFinance.historical as jest.Mock).mockImplementation((ticker: string) => {
+    (yahooFinance.chart as jest.Mock).mockImplementation((ticker: string) => {
       if (ticker === 'AAPL') {
-        return Promise.resolve([
+        return Promise.resolve({ quotes: [
           { date: new Date('2026-03-10'), close: 100 },
-        ]);
+        ]});
       }
       if (ticker === 'INVALID') {
         return Promise.reject(new Error('Symbol not found'));
       }
-      return Promise.resolve([]);
+      return Promise.resolve({ quotes: [] });
     });
 
     jest.useFakeTimers().setSystemTime(new Date('2026-03-11'));

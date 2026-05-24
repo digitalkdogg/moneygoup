@@ -72,14 +72,15 @@ export async function GET(req: NextRequest) {
         const startDate = getStartDate(periodParam, purchaseDate);
 
         const quotes: any[] = await (yahooFinance as any)
-            .historical(ticker, { period1: startDate, period2: new Date() })
+            .chart(ticker, { period1: startDate, period2: new Date(), interval: '1d' })
+            .then((r: any) => r.quotes as any[])
             .catch(() => []);
 
         const data = quotes
             .filter((q: any) => q.close != null)
             .map((q: any) => ({
                 date: new Date(q.date).toISOString().split('T')[0],
-                value: parseFloat(shares) * (q.adjClose ?? q.close),
+                value: parseFloat(shares) * (q.adjclose ?? q.close),
             }));
 
         logger.info(`compare-series for ${ticker}`, { points: data.length, period: periodParam });

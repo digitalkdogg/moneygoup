@@ -93,10 +93,11 @@ export async function GET(request: NextRequest) {
           } else {
             // Fallback to historical data if not available in quote
             try {
-              const historicalResult = await yahooFinanceInstance.historical(item.symbol, {
+              const historicalResult = (await yahooFinanceInstance.chart(item.symbol, {
                 period1: new Date(Date.now() - 86400000 * 7).toISOString().split('T')[0], // 7 days ago
-                period2: new Date().toISOString().split('T')[0] // Today
-              });
+                period2: new Date().toISOString().split('T')[0], // Today
+                interval: '1d',
+              })).quotes;
 
               if (historicalResult && historicalResult.length > 0) {
                 // Find the most recent previous trading day closing price
