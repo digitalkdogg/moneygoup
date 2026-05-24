@@ -30,7 +30,7 @@ export function getClientIP(request: NextRequest): string {
   // only trust headers if specifically configured to do so (risk of spoofing).
   const isTrustedProxy = trustedProxies.has(directIP);
 
-  if (isTrustedProxy || trustedProxies.size === 0) {
+  if (isTrustedProxy && trustedProxies.size > 0) {
     // X-Forwarded-For (can be comma-separated list: client, proxy1, proxy2)
     const forwardedFor = request.headers.get('x-forwarded-for');
     if (forwardedFor) {

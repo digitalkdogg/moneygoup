@@ -1,4 +1,5 @@
 import { Resend } from 'resend';
+import { createHmac } from 'crypto';
 
 // Use "Name <email>" format so Gmail shows a human sender name, not a bare address.
 // Set RESEND_FROM_EMAIL to e.g. "GrowMyStocks <accounts@growmystocks.com>"
@@ -7,8 +8,16 @@ const BASE_URL = (process.env.NEXTAUTH_URL || 'https://growmystocks.com').replac
 
 // RFC 8058 one-click unsubscribe headers. The recipient email must be in the
 // URL because Gmail's POST body only contains "List-Unsubscribe=One-Click".
+// The token is HMAC-SHA256(email) so the endpoint can verify the URL wasn't
+// forged — without it anyone who knows an email address could deactivate accounts.
+function unsubscribeToken(email: string): string {
+  const secret = process.env.NEXTAUTH_SECRET || '';
+  return createHmac('sha256', secret).update(email).digest('hex');
+}
+
 function unsubscribeHeaders(email: string) {
-  const url = `${BASE_URL}/api/unsubscribe?email=${encodeURIComponent(email)}`;
+  const token = unsubscribeToken(email);
+  const url = `${BASE_URL}/api/unsubscribe?email=${encodeURIComponent(email)}&token=${token}`;
   return {
     'List-Unsubscribe': `<${url}>`,
     'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
