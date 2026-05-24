@@ -11,7 +11,7 @@ const logger = createLogger('utils/rateLimitMiddleware');
 
 /**
  * Extract client IP from request securely.
- * Trusts proxy headers (X-Forwarded-For, X-Real-IP) only if the direct 
+ * Trusts proxy headers (X-Forwarded-For, X-Real-IP) only if the direct
  * request source is in the TRUSTED_PROXIES list.
  * 
  * @param request - NextRequest object
@@ -26,7 +26,7 @@ export function getClientIP(request: NextRequest): string {
   const directIP = request.ip || (request as any).socket?.remoteAddress || '127.0.0.1';
 
   // If we have a list of trusted proxies, only use forwarding headers if directIP is trusted.
-  // If TRUSTED_PROXIES is empty, we assume we are not behind a proxy we control and 
+  // If TRUSTED_PROXIES is empty, we assume we are not behind a proxy we control and
   // only trust headers if specifically configured to do so (risk of spoofing).
   const isTrustedProxy = trustedProxies.has(directIP);
 
