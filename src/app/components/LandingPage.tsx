@@ -255,7 +255,7 @@ export default function LandingPage() {
                   <div className={s.step}>
                     <div className={s.stepNum}>{step.num}</div>
                     <div className={s.stepBody}>
-                      <h4>{step.title}</h4>
+                      <h3>{step.title}</h3>
                       <p>{step.body}</p>
                     </div>
                   </div>
@@ -346,7 +346,7 @@ export default function LandingPage() {
               ].map(({ badge, title, body }) => (
                 <div key={title} className={s.infraCard}>
                   <div className={s.infraBadge}>{badge}</div>
-                  <h4>{title}</h4>
+                  <h3>{title}</h3>
                   <p>{body}</p>
                 </div>
               ))}
@@ -394,7 +394,7 @@ export default function LandingPage() {
         <section className={s.cta} id="cta">
           <div className={s.ctaInner}>
             <h2>Ready to Invest with an Edge?</h2>
-            <p>Join GrowMyStockss and get access to AI-powered GPS scores, multi-horizon price predictions, and portfolio analytics — all in one dashboard.</p>
+            <p>Join GrowMyStocks and get access to AI-powered GPS scores, multi-horizon price predictions, and portfolio analytics — all in one dashboard.</p>
             <div className={s.ctaActions}>
               <Link href="/register" className={s.btnPrimaryWhite}>Register an Account</Link>
               <Link href="/login" className={s.btnGhostWhite}>Sign In</Link>
@@ -417,7 +417,7 @@ export default function LandingPage() {
             <Link href="/contact">Contact</Link>
             <Link href="/login">Log In</Link>
           </nav>
-          <p className={s.footerCopy}>&copy; {new Date().getFullYear()} GrowMyStockss. All rights reserved.</p>
+          <p className={s.footerCopy}>&copy; {new Date().getFullYear()} GrowMyStocks. All rights reserved.</p>
         </div>
       </footer>
     </div>

@@ -15,19 +15,38 @@ export const metadata: Metadata = {
     url: `${siteUrl}/register`,
     title: 'Register — GrowMyStocks',
     description: 'Create a free account and start analyzing stocks with AI-powered GPS scores and price predictions.',
-    images: [{ url: '/growmystock_logo.svg', width: 512, height: 512, alt: 'GrowMyStocks' }],
   },
   twitter: {
-    card: 'summary',
+    card: 'summary_large_image',
     title: 'Register — GrowMyStocks',
     description: 'Create a free account and start analyzing stocks with AI-powered GPS scores and price predictions.',
-    images: ['/growmystock_logo.svg'],
   },
   alternates: {
     canonical: `${siteUrl}/register`,
   },
 }
 
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebPage',
+  name: 'Register — GrowMyStocks',
+  url: `${siteUrl}/register`,
+  description: 'Create a free GrowMyStocks account and start analyzing stocks with AI. GPS scores, machine-learning price targets, and portfolio tracking.',
+  isPartOf: {
+    '@type': 'WebSite',
+    name: 'GrowMyStocks',
+    url: siteUrl,
+  },
+}
+
 export default function RegisterLayout({ children }: { children: React.ReactNode }) {
-  return <>{children}</>
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      {children}
+    </>
+  )
 }

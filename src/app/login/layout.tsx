@@ -15,19 +15,38 @@ export const metadata: Metadata = {
     url: `${siteUrl}/login`,
     title: 'Login — GrowMyStocks',
     description: 'Sign in to access AI-powered stock scores, price predictions, and portfolio tracking.',
-    images: [{ url: '/growmystock_logo.svg', width: 512, height: 512, alt: 'GrowMyStocks' }],
   },
   twitter: {
-    card: 'summary',
+    card: 'summary_large_image',
     title: 'Login — GrowMyStocks',
     description: 'Sign in to access AI-powered stock scores, price predictions, and portfolio tracking.',
-    images: ['/growmystock_logo.svg'],
   },
   alternates: {
     canonical: `${siteUrl}/login`,
   },
 }
 
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebPage',
+  name: 'Login — GrowMyStocks',
+  url: `${siteUrl}/login`,
+  description: 'Sign in to GrowMyStocks and access AI-powered GPS stock scores, machine-learning price predictions, and your personal portfolio analytics.',
+  isPartOf: {
+    '@type': 'WebSite',
+    name: 'GrowMyStocks',
+    url: siteUrl,
+  },
+}
+
 export default function LoginLayout({ children }: { children: React.ReactNode }) {
-  return <>{children}</>
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      {children}
+    </>
+  )
 }
