@@ -58,6 +58,6 @@ export const config = {
   // Exclude api/auth (NextAuth internals) and static assets; include all other routes
   // so every page — including login/register — gets the nonce-based CSP.
   matcher: [
-    "/((?!api/auth|_next/static|_next/image|growmystock_logo.svg|favicon.ico).*)",
+    "/((?!api/auth|_next/static|_next/image|growmystock_logo\\.svg|growmystock_logo_dark\\.svg|favicon\\.ico).*)",
   ],
 };
