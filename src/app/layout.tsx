@@ -2,9 +2,8 @@ import type { Metadata } from 'next'
 import { Rubik } from 'next/font/google'
 import { headers } from 'next/headers'
 import './globals.css'
-import Navigation from './components/Navigation'
-import Footer from './components/Footer'
-import Providers from './providers'; // Import the new Providers component
+import AppShell from './components/AppShell'
+import Providers from './providers';
 
 const rubik = Rubik({ subsets: ['latin'], weight: ['400', '500', '600', '700'] })
 
@@ -26,11 +25,9 @@ export default function RootLayout({
           Skip to main content
         </a>
         <Providers>
-          <Navigation />
-          <div className="flex-1 min-h-[calc(100vh-4rem)]">
+          <AppShell>
             {children}
-          </div>
-          <Footer />
+          </AppShell>
         </Providers>
       </body>
     </html>
