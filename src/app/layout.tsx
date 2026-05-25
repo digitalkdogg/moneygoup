@@ -7,9 +7,35 @@ import Providers from './providers';
 
 const rubik = Rubik({ subsets: ['latin'], weight: ['400', '500', '600', '700'] })
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://growmystocks.com'
+
 export const metadata: Metadata = {
-  title: 'GrowMyStocks',
-  description: 'AI-powered stock data visualization and forecasting app',
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: 'GrowMyStocks',
+    template: '%s | GrowMyStocks',
+  },
+  description: 'AI-powered stock analysis and portfolio tracking. GPS scores, machine-learning price predictions, and macro-aware discovery — built for individual investors.',
+  // Default: protected pages are not indexed but remain shareable via OG
+  robots: {
+    index: false,
+    follow: true,
+    googleBot: { index: false, follow: true },
+  },
+  openGraph: {
+    type: 'website',
+    siteName: 'GrowMyStocks',
+    title: 'GrowMyStocks — AI-Powered Stock Analysis',
+    description: 'GPS scores, AI price predictions, and macro-aware stock discovery. Built for individual investors who want data-driven insight without the noise.',
+    url: siteUrl,
+    images: [{ url: '/growmystock_logo.svg', width: 512, height: 512, alt: 'GrowMyStocks' }],
+  },
+  twitter: {
+    card: 'summary',
+    title: 'GrowMyStocks — AI-Powered Stock Analysis',
+    description: 'GPS scores, AI price predictions, and macro-aware stock discovery.',
+    images: ['/growmystock_logo.svg'],
+  },
 }
 
 export default function RootLayout({

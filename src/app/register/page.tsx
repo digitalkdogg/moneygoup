@@ -94,7 +94,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-green-50 flex flex-col items-center px-4 py-12">
+    <div className="min-h-screen bg-green-50 flex flex-col items-center px-4 py-16">
 
       {/* H1 page title */}
       <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 text-center mb-6 max-w-xl leading-tight">
@@ -176,7 +176,7 @@ export default function RegisterPage() {
       </div>
 
       {/* Benefits strip */}
-      <div className="w-full max-w-2xl mt-8 bg-white rounded-xl shadow-sm border border-green-100 px-6 py-5">
+      <div className="w-full max-w-2xl mt-16 bg-white rounded-xl shadow-sm border border-green-100 px-6 py-5">
         <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {BENEFITS.map((b) => (
             <li key={b.text} className="flex items-start gap-2.5">
@@ -190,7 +190,7 @@ export default function RegisterPage() {
       </div>
 
       {/* What you get section */}
-      <div className="w-full max-w-4xl mt-10 text-center mb-6">
+      <div className="w-full max-w-4xl mt-16 text-center mb-4">
         <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
           Everything you need to invest smarter
         </h2>
@@ -200,7 +200,7 @@ export default function RegisterPage() {
       </div>
 
       {/* Feature strip */}
-      <div className="w-full max-w-4xl grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="w-full max-w-4xl mt-10 grid grid-cols-2 sm:grid-cols-4 gap-4">
         {FEATURES.map((f) => (
           <div key={f.title} className="bg-white rounded-xl p-4 shadow-sm border border-green-100 flex flex-col items-start gap-2">
             <div className="p-1.5 rounded-lg" style={{ backgroundColor: '#f0fdf4' }}>{f.icon}</div>
@@ -211,7 +211,7 @@ export default function RegisterPage() {
       </div>
 
       {/* Login CTA */}
-      <div className="w-full max-w-4xl mt-6 rounded-2xl border border-green-200 bg-white px-8 py-7 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="w-full max-w-4xl mt-10 mb-8 rounded-2xl border border-green-200 bg-white px-8 py-7 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div>
           <h3 className="text-base font-semibold text-gray-800">Already a member?</h3>
           <p className="text-sm text-gray-500 mt-0.5">Sign in to access your dashboard, scores, and portfolio.</p>

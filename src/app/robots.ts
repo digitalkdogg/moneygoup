@@ -1,0 +1,33 @@
+import { MetadataRoute } from 'next'
+
+export default function robots(): MetadataRoute.Robots {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://growmystocks.com'
+
+  return {
+    rules: [
+      {
+        // Search bots: only index the public marketing/auth pages
+        userAgent: ['Googlebot', 'Bingbot', 'Slurp', 'DuckDuckBot', 'Baiduspider', 'YandexBot'],
+        allow: ['/', '/login', '/register', '/legal/'],
+        disallow: [
+          '/dashboard',
+          '/portfolio',
+          '/profile',
+          '/search',
+          '/admin',
+          '/api/',
+          '/contact',
+          '/forgot-password',
+          '/reset-password',
+        ],
+      },
+      {
+        // Social bots: allow all public pages so OG tags can be read for link previews
+        userAgent: ['facebookexternalhit', 'Twitterbot', 'LinkedInBot', 'WhatsApp', 'Slackbot', 'Discordbot'],
+        allow: '/',
+        disallow: '/api/',
+      },
+    ],
+    sitemap: `${siteUrl}/sitemap.xml`,
+  }
+}
