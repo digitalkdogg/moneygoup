@@ -69,22 +69,6 @@ export async function POST(request: NextRequest) {
       `,
     })
 
-    await resend.emails.send({
-      from,
-      to: safeEmail,
-      subject: 'We received your message — GrowMyStocks',
-      html: `
-        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;">
-          <h2 style="color:#015f2d;margin-top:0;">Thanks for reaching out, ${safeName}!</h2>
-          <p>We've received your message and will get back to you as soon as possible, typically within 1–2 business days.</p>
-          <p style="color:#666;font-size:13px;"><strong>Your message:</strong></p>
-          <blockquote style="border-left:3px solid #015f2d;margin:0;padding:8px 16px;color:#444;font-size:13px;white-space:pre-wrap;">${safeMessage}</blockquote>
-          <hr style="border:none;border-top:1px solid #eee;margin:24px 0;"/>
-          <p style="color:#999;font-size:12px;margin:0;">GrowMyStocks &mdash; This is an automated confirmation. Please do not reply to this email.</p>
-        </div>
-      `,
-    })
-
     logger.info(`Contact form submitted by ${safeEmail}`)
     return NextResponse.json({ success: true })
   } catch (err) {
