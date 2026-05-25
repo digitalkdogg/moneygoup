@@ -116,7 +116,7 @@ export default function StockSignalPanel({
                 className="hover:underline ml-1"
                 style={{ color: '#017e3b' }}
               >
-                View breakdown
+                View score
               </button>
             )}
           </div>
