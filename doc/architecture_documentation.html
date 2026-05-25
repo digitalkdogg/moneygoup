@@ -90,7 +90,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Architecture Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Generated 2026-05-20</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-05-24</div>
   </div>
   <nav class="top-bar-nav">
     <a href="moneygoup_overview.html">Overview</a>
@@ -147,7 +147,7 @@
       <span>Next.js 14 App Router</span>
       <span>TypeScript</span>
       <span>Tailwind CSS</span>
-      <span>Generated 2026-05-20</span>
+      <span>Updated 2026-05-24</span>
     </div>
 
     <div class="summary-grid">
@@ -172,13 +172,13 @@
             <tr><td>Font</td><td>Rubik (Google Fonts)</td><td>Weights 400/500/600/700, latin subset</td></tr>
             <tr><td>Authentication</td><td>NextAuth.js</td><td>CredentialsProvider, JWT session strategy, bcrypt password hashing</td></tr>
             <tr><td>Database</td><td>MySQL</td><td>Custom helper wrappers in <code>@/utils/databaseHelper</code></td></tr>
-            <tr><td>Market Data</td><td>yahoo-finance2</td><td>Primary source for quotes, historical prices, analyst summaries, earnings</td></tr>
+            <tr><td>Market Data</td><td>yahoo-finance2</td><td>Primary source for quotes, historical prices, analyst summaries, earnings. Historical data uses <code>yahooFinance.chart()</code> (migrated from deprecated <code>yahooFinance.historical()</code> in May 2026)</td></tr>
             <tr><td>ML Prediction</td><td>Python subprocess</td><td><code>scripts/predict_weighted_analysis.py</code> spawned via Node child_process</td></tr>
             <tr><td>Charts</td><td>Recharts</td><td>Used for stock price history and portfolio value charts</td></tr>
             <tr><td>Email</td><td>Resend</td><td>Registration, approval, password reset, contact form</td></tr>
             <tr><td>Macro Data</td><td>World Bank API</td><td>GDP, inflation, unemployment; 6-hour cache</td></tr>
             <tr><td>Validation</td><td>Zod</td><td>All API route inputs validated with Zod schemas</td></tr>
-            <tr><td>Rate Limiting</td><td>Custom (src/utils/rateLimiter.ts)</td><td>5 distinct limiters; role-based lookup quotas via LimitService</td></tr>
+            <tr><td>Rate Limiting</td><td>Custom (src/utils/rateLimiter.ts)</td><td>6 distinct limiters (including <code>unsubscribeLimiter</code> added May 2026); role-based lookup quotas via LimitService. IP extraction via <code>rateLimitMiddleware.ts</code> respects <code>TRUSTED_PROXIES</code> env var to prevent IP spoofing bypass.</td></tr>
           </tbody>
         </table>
       </div>
@@ -344,9 +344,10 @@ doc/                               All HTML documentation files</pre>
       </div>
 
       <div class="arch-card">
-        <h4>Session &amp; Middleware</h4>
-        <p>All routes except public ones are protected by NextAuth <code>withAuth</code> middleware defined in <code>src/middleware.ts</code>. The middleware reads the JWT session token from the cookie and redirects unauthenticated requests to <code>/login</code>. Server-to-server internal calls bypass authentication using an <code>x-api-key</code> header matching <code>INTERNAL_API_KEY</code>.</p>
-        <div class="note" style="margin-top:.75rem;">The JWT session token carries <code>id</code>, <code>role</code>, and <code>approvalStatus</code>. This avoids a database round-trip on every authenticated request.</div>
+        <h4>Session &amp; Middleware <span style="font-size:.75rem;font-weight:400;color:#64748b;">(updated May 2026)</span></h4>
+        <p>All routes except public ones are protected by NextAuth <code>withAuth</code> middleware defined in <code>src/middleware.ts</code>. The middleware reads the JWT session token from the cookie and redirects unauthenticated requests to <code>/login</code>. Server-to-server internal calls bypass authentication using an <code>x-api-key</code> header matching <code>DEEPMONEY_INTERNAL_SECRET</code>.</p>
+        <p style="margin-top:.5rem;">The middleware also generates a per-request cryptographic nonce and sets a <code>Content-Security-Policy</code> header on every response. The nonce is passed to page components via the <code>x-nonce</code> request header to enable inline script execution.</p>
+        <div class="note" style="margin-top:.75rem;"><strong>Two-layer session verification:</strong> The JWT session token carries <code>id</code>, <code>role</code>, and <code>approvalStatus</code> (set at login time). For every authenticated API request, all protected endpoints additionally call <code>checkApprovalGuard(userId)</code> which re-queries the database to verify the account is still approved. This prevents stale sessions from accessing data after an account is suspended. The guard fails closed: on DB error, access is denied.</div>
       </div>
     </div>
 

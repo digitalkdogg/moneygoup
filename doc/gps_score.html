@@ -266,7 +266,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">GPS Score</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-05-22</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-05-24</div>
   </div>
   <nav class="top-bar-nav">
     <a href="moneygoup_overview.html">Overview</a>
@@ -519,7 +519,7 @@ gps_score = round(min(m1+m2+m3+m4+m5a+m5b, 100), 1)</code></pre>
       <h2>Where the GPS Score Appears</h2>
 
       <h3>Stock detail page — Signal Panel</h3>
-      <p>The <code>StockSignalPanel</code> component reads <code>gpsData</code> state from <code>Stock.tsx</code> (fetched from <code>GET /api/stock_data/[ticker]/gps</code>) and renders the score, a coloured label, and a top-3 component breakdown as progress bars. A "View breakdown" button opens <code>GpsBreakdownModal</code> with all six components.</p>
+      <p>The <code>StockSignalPanel</code> component reads <code>gpsData</code> state from <code>Stock.tsx</code> (fetched from <code>GET /api/stock_data/[ticker]/gps</code>) and renders the score, a coloured label, and a top-3 component breakdown as progress bars. A <strong>"View score"</strong> button (renamed from "View breakdown" in May 2026) opens <code>GpsBreakdownModal</code> with all six components. In the card-level <code>GpsTooltip</code> component, the same action is triggered by a "View score" text button (previously a circled-i icon).</p>
       <p>When a prediction completes, the GPS score is included directly in the prediction response payload, so <code>Stock.tsx</code> updates the displayed score <strong>immediately</strong> — without a round-trip re-fetch — eliminating the race condition that existed when the write was async.</p>
 
       <h3>Watchlist &amp; Portfolio cards</h3>

@@ -210,7 +210,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Authentication Flow</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Generated 2026-05-20</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-05-24</div>
   </div>
   <nav class="top-bar-nav">
     <a href="moneygoup_overview.html">Overview</a>
@@ -268,7 +268,14 @@
 
     <!-- RECENT CHANGES CALLOUT -->
     <div id="recent-changes" class="change-box">
-        <strong style="color: #1d4ed8;">Recent Changes — May 17, 2026</strong>
+        <strong style="color: #1d4ed8;">Recent Changes — May 24, 2026</strong>
+        <ul style="margin: 0.75rem 0 0 1.2rem; padding: 0;">
+            <li><strong>AUTH-1 resolved</strong> — <code>checkApprovalGuard()</code> added to 20 additional API routes. Every authenticated data endpoint now re-verifies the user's approval status against the database on each request. Users whose accounts are suspended or rejected mid-session are immediately denied access across all endpoints.</li>
+            <li><strong>AUTH-2 resolved</strong> — <code>SESSION_MAX_AGE_SECS</code> constant introduced in <code>src/lib/auth.ts</code>. Both the JWT <code>session.maxAge</code> and the session cookie <code>options.maxAge</code> now use this single constant, ensuring they always stay in sync. The <code>SESSION_MAX_AGE</code> environment variable now correctly controls both.</li>
+            <li><strong>CSP moved to middleware (CFG-1 partial)</strong> — Nonce-based Content Security Policy moved from a static header in <code>next.config.js</code> to per-request generation in <code>src/middleware.ts</code>. Every HTTP response now receives a fresh cryptographic nonce, making inline script protections dynamic and per-request.</li>
+        </ul>
+        <hr style="border: none; border-top: 1px solid #bfdbfe; margin: 12px 0;">
+        <strong style="color: #1d4ed8;">Earlier Changes — May 17, 2026</strong>
         <ul style="margin: 0.75rem 0 0 1.2rem; padding: 0;">
             <li><strong>Password policy hardened</strong> — minimum raised from 6 to <strong>8 characters</strong>; at least <strong>one digit (0–9) is now required</strong>. Applied to both registration and password reset on the server (Zod schema) and mirrored by client-side checks on the UI pages.</li>
             <li><strong>Register page UI widened</strong> — card changed from <code>max-w-md / p-4</code> to <code>max-w-xl / p-2</code>. Login page now uses the same wider layout.</li>
@@ -461,14 +468,18 @@ window.location.href = '/dashboard'  (hard redirect to pick up fresh session)</d
             <tr><td>Session previously expired</td><td>Amber banner: "Your session expired. Please sign in again." (triggered by <code>?reason=expired</code> URL param)</td></tr>
         </table>
 
-        <h3>Session Configuration</h3>
+        <h3>Session Configuration <span class="badge-updated">Updated May 2026</span></h3>
         <table>
             <tr><th>Setting</th><th>Value</th></tr>
             <tr><td>Strategy</td><td>JWT</td></tr>
             <tr><td>Default max age</td><td>30 days (overridable via <code>SESSION_MAX_AGE</code> env var)</td></tr>
+            <tr><td>Cookie max age</td><td>Now synced with JWT max age via the shared <code>SESSION_MAX_AGE_SECS</code> constant in <code>src/lib/auth.ts</code>. Previously the cookie was hardcoded to 30 days.</td></tr>
             <tr><td>Cookie flags</td><td>HttpOnly, SameSite=Lax, Secure on HTTPS origins</td></tr>
             <tr><td>Token contents</td><td><code>id</code>, <code>name</code> (username), <code>role</code>, <code>approvalStatus</code></td></tr>
         </table>
+        <div class="highlight">
+            <strong>AUTH-2 fix:</strong> A <code>SESSION_MAX_AGE_SECS</code> constant was added at the top of <code>src/lib/auth.ts</code> and is used for both the JWT <code>session.maxAge</code> and the cookie <code>options.maxAge</code>. Setting the <code>SESSION_MAX_AGE</code> environment variable now correctly controls both the JWT lifetime and the browser cookie expiry simultaneously.
+        </div>
     </section>
 
     <!-- PASSWORD RESET FLOW -->
@@ -640,19 +651,24 @@ Page shows success banner → redirects to /login after 3 seconds</div>
 
     <!-- MIDDLEWARE -->
     <section id="middleware">
-        <h2><span class="num">8</span> Middleware Route Guard</h2>
+        <h2><span class="num">8</span> Middleware Route Guard <span class="badge-updated">Updated May 2026</span></h2>
         <span class="tag">src/middleware.ts</span>
         <p>All application routes (pages and API routes) that are not explicitly excluded are protected by the NextAuth.js middleware wrapper. A valid JWT session token must be present, or the request must carry the <code>x-api-key</code> internal secret header.</p>
 
-        <h3>Public paths (no session required)</h3>
+        <div class="highlight">
+            <strong>Per-request nonce-based CSP (updated May 2026):</strong> The middleware now generates a unique cryptographic nonce for every request using <code>crypto.getRandomValues()</code>. The nonce is injected into the <code>Content-Security-Policy</code> response header via <code>script-src 'nonce-{nonce}' 'strict-dynamic'</code>, replacing the previous static CSP that was set in <code>next.config.js</code>. The nonce is also passed to the request via the <code>x-nonce</code> header so server components can embed it into inline <code>&lt;script&gt;</code> tags. In development, <code>'unsafe-eval'</code> is added to support Next.js Fast Refresh; it is absent in production.
+        </div>
+
+        <h3>Public paths (no session required, but still receive nonce CSP)</h3>
         <ul>
             <li><code>/api/auth/**</code> — all NextAuth and custom auth routes</li>
             <li><code>/login</code></li>
             <li><code>/register</code></li>
             <li><code>/forgot-password</code></li>
             <li><code>/reset-password</code></li>
-            <li><code>/_next/static/**</code>, <code>/_next/image/**</code> — build assets</li>
-            <li><code>/growmystock_logo.svg</code>, <code>/favicon.ico</code></li>
+            <li><code>/api/unsubscribe</code> — public by design (RFC 8058), protected via HMAC-signed token</li>
+            <li><code>/_next/static/**</code>, <code>/_next/image/**</code> — build assets (excluded from matcher)</li>
+            <li><code>/growmystock_logo.svg</code>, <code>/favicon.ico</code> (excluded from matcher)</li>
         </ul>
 
         <h3>Internal API bypass</h3>
@@ -688,27 +704,46 @@ Page shows success banner → redirects to /login after 3 seconds</div>
 
     <!-- APPROVAL STATES -->
     <section id="approval-states">
-        <h2><span class="num">10</span> Account Approval States</h2>
-        <p>The <code>approval_status</code> column controls whether a registered account can log in.</p>
+        <h2><span class="num">10</span> Account Approval States <span class="badge-updated">Updated May 2026</span></h2>
+        <p>The <code>approval_status</code> column controls whether a registered account can log in and access data.</p>
 
         <table>
-            <tr><th>Status</th><th>Meaning</th><th>Login outcome</th></tr>
+            <tr><th>Status</th><th>Meaning</th><th>Login outcome</th><th>API access</th></tr>
             <tr>
                 <td><code>pending</code></td>
                 <td>Newly registered; awaiting admin review</td>
-                <td>Blocked — error: "Your account is awaiting admin approval."</td>
+                <td>Blocked — "Your account is awaiting admin approval."</td>
+                <td>Denied — 403 on all protected endpoints</td>
             </tr>
             <tr>
                 <td><code>approved</code></td>
                 <td>Admin has reviewed and granted access</td>
                 <td>Allowed — session issued</td>
+                <td>Allowed</td>
             </tr>
             <tr>
                 <td><code>rejected</code></td>
                 <td>Admin has denied the account</td>
-                <td>Blocked — error: "Your account request was rejected."</td>
+                <td>Blocked — "Your account request was rejected."</td>
+                <td>Denied — 403 on all protected endpoints</td>
+            </tr>
+            <tr>
+                <td><code>unsubscribed</code></td>
+                <td>User unsubscribed via email list-unsubscribe link</td>
+                <td>Blocked — "Your account has been deactivated."</td>
+                <td>Denied — 403 on all protected endpoints</td>
+            </tr>
+            <tr>
+                <td><code>archived</code></td>
+                <td>Account archived by admin</td>
+                <td>Blocked — "This account no longer exists."</td>
+                <td>Denied — 403 on all protected endpoints</td>
             </tr>
         </table>
+
+        <div class="highlight">
+            <strong>Runtime re-verification (AUTH-1 fix, May 2026):</strong> In addition to the login-time check, every authenticated API route now calls <code>checkApprovalGuard(userId)</code> (<code>src/utils/approvalStatus.ts</code>) which re-queries <code>approval_status</code> from the database on every request. This prevents users whose accounts were suspended after login from continuing to access data with a still-valid session token (up to 30 days). The guard fails closed — if the DB query errors, access is denied.
+        </div>
 
         <div class="warning-box">
             <strong>Password reset restriction:</strong> The forgot-password route only sends a reset email if the target account has <code>approval_status = 'approved'</code>. Pending and rejected accounts cannot reset their passwords via email — the endpoint silently returns success to prevent enumeration.

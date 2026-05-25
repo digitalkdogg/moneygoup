@@ -49,6 +49,7 @@
     .badge-admin    { background: #fce7f3; color: #9d174d; }
     .badge-noauth   { background: #d1fae5; color: #065f46; }
     .badge-internal { background: #ede9fe; color: #5b21b6; }
+    .badge-approval { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
 
     /* Tables */
     .props-table { width: 100%; border-collapse: collapse; font-size: .82rem; margin: .5rem 0 .75rem; }
@@ -94,7 +95,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">API Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Generated 2026-05-20</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-05-24</div>
   </div>
   <nav class="top-bar-nav">
     <a href="moneygoup_overview.html">Overview</a>
@@ -148,7 +149,7 @@
       <span>GrowMyStocks</span>
       <span>Next.js 14 App Router</span>
       <span>35+ routes documented</span>
-      <span>Generated 2026-05-20</span>
+      <span>Updated 2026-05-24</span>
     </div>
 
     <div class="summary-grid">
@@ -158,7 +159,7 @@
       <div class="stat-card"><div class="value">6h</div><div class="label">Max Cache TTL</div></div>
     </div>
 
-    <div class="info">All routes are Next.js 14 App Router Route Handlers (<code>route.ts</code> files). All authenticated routes validate the NextAuth JWT session. The <code>checkOrigin()</code> middleware is applied to most mutation endpoints. An internal bypass using the <code>x-api-key</code> header allows server-to-server calls.</div>
+    <div class="info">All routes are Next.js 14 App Router Route Handlers (<code>route.ts</code> files). All authenticated routes validate the NextAuth JWT session. The <code>checkOrigin()</code> middleware is applied to most mutation endpoints. An internal bypass using the <code>x-api-key</code> header allows server-to-server calls. As of May 2026, all authenticated data endpoints also call <code>checkApprovalGuard(userId)</code> to re-verify the user's approval status against the database on every request, protecting against stale sessions from suspended accounts.</div>
 
     <!-- ══════════════════════════════════════════ -->
     <div class="section">
@@ -167,8 +168,10 @@
       <div class="route-card">
         <div class="route-header">
           <span class="route-path">src/middleware.ts</span>
+          <span class="badge badge-cache">Updated May 2026</span>
         </div>
-        <div class="route-desc">NextAuth <code>withAuth</code> middleware. Protects all routes by default. The matcher excludes: <code>/api/auth/*</code>, <code>/login</code>, <code>/register</code>, <code>/forgot-password</code>, <code>/reset-password</code>, and all static assets (<code>/_next/*</code>, <code>/favicon.ico</code>, <code>*.svg/png/jpg</code>). Internal server-to-server requests bypass auth via an <code>x-api-key</code> header check.</div>
+        <div class="route-desc">NextAuth <code>withAuth</code> middleware. Protects all routes by default. The matcher excludes: <code>/api/auth/*</code>, <code>/login</code>, <code>/register</code>, <code>/forgot-password</code>, <code>/reset-password</code>, and all static assets (<code>/_next/*</code>, <code>/favicon.ico</code>, <code>*.svg</code>). Internal server-to-server requests bypass auth via an <code>x-api-key</code> header check. <code>/api/unsubscribe</code> is in the public paths list (RFC 8058 compliance) but is separately secured via HMAC-signed tokens.</div>
+        <div class="note"><strong>CSP moved here (May 2026):</strong> The Content Security Policy is now generated per-request inside this middleware rather than as a static header in <code>next.config.js</code>. A cryptographically unique nonce is created via <code>crypto.getRandomValues()</code> for each request. The nonce is injected into the <code>Content-Security-Policy</code> header and passed to page components via the <code>x-nonce</code> request header. In production, the CSP uses <code>script-src 'self' 'nonce-{nonce}' 'strict-dynamic'</code> with no <code>unsafe-eval</code>. This means every inline script must carry the matching nonce attribute to execute.</div>
 
         <div class="sub-heading">checkOrigin() — src/utils/originCheck.ts</div>
         <div class="route-desc">Validates the <code>Origin</code> header against <code>NEXT_PUBLIC_NEXTAUTH_URL</code>. Returns a 403 response if the origin does not match. Applied to nearly all POST/PATCH/PUT/DELETE endpoints.</div>
@@ -182,8 +185,10 @@
             <tr><td><code>forgotPasswordLimiter</code></td><td>POST /api/auth/forgot-password</td><td>Configurable</td></tr>
             <tr><td><code>resetPasswordLimiter</code></td><td>POST /api/auth/reset-password</td><td>Configurable</td></tr>
             <tr><td><code>stockDataLimiter</code></td><td>GET /api/stock_data/[ticker]</td><td>Configurable</td></tr>
+            <tr><td><code>unsubscribeLimiter</code></td><td>POST /api/unsubscribe</td><td>Configurable — prevents bulk deactivation attempts</td></tr>
           </tbody>
         </table>
+        <div class="note"><strong>TRUSTED_PROXIES fix (May 2026):</strong> The <code>getClientIP()</code> helper in <code>src/utils/rateLimitMiddleware.ts</code> now only trusts <code>X-Forwarded-For</code>, <code>X-Real-IP</code>, and <code>CF-Connecting-IP</code> headers when <code>TRUSTED_PROXIES</code> is configured and the direct request IP is in that list. Previously, an empty <code>TRUSTED_PROXIES</code> allowed any client to spoof their IP via forwarded headers, bypassing all rate limits. Set <code>TRUSTED_PROXIES</code> to your nginx/load balancer IP in production.</div>
 
         <div class="sub-heading">LimitService — src/utils/limitService.ts</div>
         <div class="route-desc">Role-based limits: watchlist item count, portfolio position count, and daily stock lookup count. Roles: <code>user</code>, <code>superuser</code>, <code>admin</code>. Admin has no cap on lookups.</div>
@@ -320,7 +325,7 @@
           <span class="badge badge-auth">Auth required</span>
           <span class="route-file">src/app/api/user/portfolio/historical-value/route.ts</span>
         </div>
-        <div class="route-desc">Reconstructs the portfolio's total value for each trading day over the requested period. Fetches Yahoo Finance historical price data for each holding, then sums (shares × close price) per day. Fills weekend/holiday gaps with the last known price.</div>
+        <div class="route-desc">Reconstructs the portfolio's total value for each trading day over the requested period. Fetches Yahoo Finance historical price data for each holding using <code>yahooFinance.chart()</code>, then sums (shares × close price) per day. Fills weekend/holiday gaps with the last known price.</div>
         <div class="sub-heading">Query Params</div>
         <table class="props-table">
           <thead><tr><th>Param</th><th>Values</th><th>Required</th></tr></thead>
@@ -596,7 +601,7 @@
           <span class="badge badge-rate">Rate limited</span>
           <span class="route-file">src/app/api/stock_data/[ticker]/route.ts</span>
         </div>
-        <div class="route-desc">Main stock data aggregation endpoint. Fetches from Yahoo Finance, records a lookup event in <code>stock_lookup_events</code>, and orchestrates parallel fetches of: historical prices, news, analyst data, and earnings. Computes technical indicators (SMA20/50, RSI14, Momentum, signal score). Uses an in-flight request deduplication Map to prevent concurrent duplicate calls for the same ticker. Supports comma-separated multi-ticker in the path param.</div>
+        <div class="route-desc">Main stock data aggregation endpoint. Fetches from Yahoo Finance, records a lookup event in <code>stock_lookup_events</code>, and orchestrates parallel fetches of: historical prices, news, analyst data, and earnings. Computes technical indicators (SMA20/50, RSI14, Momentum, signal score). Uses an in-flight request deduplication Map to prevent concurrent duplicate calls for the same ticker. Supports comma-separated multi-ticker in the path param. Historical price data is fetched using <code>yahooFinance.chart()</code> (migrated from the deprecated <code>yahooFinance.historical()</code> in May 2026).</div>
         <div class="sub-heading">In-flight deduplication</div>
         <div class="route-desc">A module-level <code>inflightRequests: Map&lt;string, Promise&gt;</code> stores in-progress requests. If a second request for the same ticker arrives while the first is still pending, it receives the same Promise.</div>
         <div class="sub-heading">Response (single ticker)</div>
@@ -749,6 +754,29 @@
     <!-- ══════════════════════════════════════════ -->
     <div class="section">
       <div class="section-title" id="misc-routes">Miscellaneous Routes</div>
+
+      <div class="route-card">
+        <div class="route-header">
+          <span class="method method-POST">POST</span>
+          <span class="route-path">/api/unsubscribe</span>
+          <span class="badge badge-noauth">No auth required</span>
+          <span class="badge badge-rate">Rate limited</span>
+          <span class="route-file">src/app/api/unsubscribe/route.ts</span>
+        </div>
+        <div class="route-desc">RFC 8058 one-click email list-unsubscribe endpoint. Sets a user's <code>approval_status</code> to <code>'unsubscribed'</code>, which deactivates their account. Publicly accessible (required by RFC 8058 for Gmail one-click unsubscribe) but protected by an HMAC-SHA256 signed token to prevent unauthorized deactivation.</div>
+        <div class="sub-heading">Security Model (updated May 2026)</div>
+        <div class="route-desc">Requires <code>?email=&lt;address&gt;&amp;token=&lt;hmac-hex&gt;</code> in the query string. The token is an HMAC-SHA256 signature of the email address using <code>NEXTAUTH_SECRET</code> as the key. Verified via <code>timingSafeEqual()</code>. If the token is missing or invalid, the endpoint returns HTTP 200 (RFC 8058 requires 2xx so email clients don't retry) but takes no action. Rate-limited via <code>unsubscribeLimiter</code> to prevent enumeration.</div>
+        <div class="sub-heading">Request (RFC 8058 compatible)</div>
+        <pre>POST /api/unsubscribe?email=user@example.com&amp;token=&lt;hmac-sha256-hex&gt;
+Content-Type: application/x-www-form-urlencoded
+Body: List-Unsubscribe=One-Click  (Gmail adds this; all identifying info is in the URL)</pre>
+        <div class="sub-heading">Responses</div>
+        <pre>200 "OK"   — success (also returned silently on invalid token per RFC 8058)
+400        — invalid email format
+429        — rate limit exceeded
+500        — internal error</pre>
+        <div class="dep-list"><span class="dep-tag">crypto (Node.js built-in)</span><span class="dep-tag">unsubscribeLimiter</span><span class="dep-tag">NEXTAUTH_SECRET</span></div>
+      </div>
 
       <div class="route-card">
         <div class="route-header">

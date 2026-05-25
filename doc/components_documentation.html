@@ -92,7 +92,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Components Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Generated 2026-05-20</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-05-24</div>
   </div>
   <nav class="top-bar-nav">
     <a href="moneygoup_overview.html">Overview</a>
@@ -149,7 +149,7 @@
       <span>Next.js 14 App Router</span>
       <span>TypeScript + Tailwind CSS</span>
       <span>45+ components documented</span>
-      <span>Generated 2026-05-20</span>
+      <span>Updated 2026-05-24</span>
     </div>
 
     <div class="summary-grid">
@@ -522,12 +522,13 @@ interface CardActionHandlers {
           <div><div class="comp-name">GpsTooltip</div><div class="comp-file">src/app/components/cards/GpsTooltip.tsx</div></div>
           <span class="badge badge-client">Client</span>
         </div>
-        <div class="comp-desc">Small circled-i button rendered next to GPS score displays. On click, opens <code>GpsBreakdownModal</code> passing the breakdown data.</div>
+        <div class="comp-desc">Small inline button rendered next to GPS score displays on stock cards. On click, opens <code>GpsBreakdownModal</code> passing the breakdown data. Updated May 2026: the trigger was changed from a circled-i icon (&#9432;) to a text button labeled <strong>"View score"</strong> for improved accessibility and clarity.</div>
         <table class="props-table">
           <thead><tr><th>Prop</th><th>Type</th><th>Required</th></tr></thead>
           <tbody>
-            <tr><td><code>gpsBreakdown</code></td><td>GpsBreakdown</td><td><span class="required">required</span></td></tr>
-            <tr><td><code>ticker</code></td><td>string</td><td><span class="required">required</span></td></tr>
+            <tr><td><code>score</code></td><td>number | null</td><td><span class="required">required</span></td></tr>
+            <tr><td><code>breakdown</code></td><td>any | null</td><td><span class="required">required</span></td></tr>
+            <tr><td><code>symbol</code></td><td>string</td><td><span class="required">required</span></td></tr>
           </tbody>
         </table>
         <div class="dep-list"><span class="dep-tag">GpsBreakdownModal</span></div>
@@ -771,15 +772,18 @@ interface CardActionHandlers {
           <div><div class="comp-name">StockSignalPanel</div><div class="comp-file">src/app/components/StockSignalPanel.tsx</div></div>
           <span class="badge badge-client">Client</span>
         </div>
-        <div class="comp-desc">Displays the GPS composite score in a color-coded chip, the top 3 GPS driver scores as progress bars, and a "Show prediction details" button that fires the <code>onGeneratePrediction</code> callback. Exports the <code>GpsData</code> interface used for GPS prop typing.</div>
+        <div class="comp-desc">Displays the GPS composite score in a color-coded chip (color-coded by score band: green ≥60, gray 40–59, amber 20–39, red &lt;20), the top 3 GPS driver scores as progress bars with labels, and action buttons. Exports the <code>GpsData</code> interface used for GPS prop typing across the app. Updated May 2026: the "View breakdown" link was renamed to <strong>"View score"</strong> for consistency with the <code>GpsTooltip</code> component. The primary action button remains "Show prediction details."</div>
         <table class="props-table">
           <thead><tr><th>Prop</th><th>Type</th><th>Required</th></tr></thead>
           <tbody>
-            <tr><td><code>gpsData</code></td><td>GpsData</td><td><span class="required">required</span></td></tr>
+            <tr><td><code>ticker</code></td><td>string</td><td><span class="required">required</span></td></tr>
+            <tr><td><code>gpsData</code></td><td>GpsData | null</td><td><span class="required">required</span></td></tr>
+            <tr><td><code>gpsLoading</code></td><td>boolean</td><td><span class="required">required</span></td></tr>
             <tr><td><code>onGeneratePrediction</code></td><td>() =&gt; void</td><td><span class="required">required</span></td></tr>
-            <tr><td><code>loading</code></td><td>boolean</td><td><span class="optional">optional</span></td></tr>
+            <tr><td><code>predictionLoading</code></td><td>boolean</td><td><span class="required">required</span></td></tr>
           </tbody>
         </table>
+        <div class="dep-list"><span class="dep-tag">GpsBreakdownModal</span></div>
       </div>
 
       <div class="comp-card">
