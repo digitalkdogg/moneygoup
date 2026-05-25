@@ -36,6 +36,9 @@ export const metadata: Metadata = {
     description: 'GPS scores, AI price predictions, and macro-aware stock discovery.',
     images: ['/growmystock_logo.svg'],
   },
+  verification: {
+    google: 'nWwOsUNC50hheppj_HZeqs0ITR39Byku8mt6npAKfgQ',
+  },
 }
 
 export default function RootLayout({
