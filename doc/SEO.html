@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GrowMyStocks — SEO Documentation</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; color: #1e293b; display: flex; flex-direction: column; min-height: 100vh; }
+
+    .top-bar { background: #017e3b; color: #fff; padding: 0 2rem; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+    .top-bar-header { display: flex; align-items: center; justify-content: space-between; height: 56px; }
+    .top-bar .brand { font-size: 1.2rem; font-weight: 700; letter-spacing: .02em; }
+    .top-bar .brand span { color: #bbf7d0; }
+    .top-bar .subtitle { font-size: .8rem; opacity: .8; }
+    .top-bar-nav { display: flex; gap: 1.75rem; overflow-x: auto; scrollbar-width: none; padding: 6px 0 8px; border-top: 1px solid rgba(255,255,255,0.15); }
+    .top-bar-nav::-webkit-scrollbar { display: none; }
+    .top-bar-nav a { white-space: nowrap; color: rgba(255,255,255,0.72); text-decoration: none; font-size: .8rem; font-weight: 600; padding-bottom: 3px; border-bottom: 2px solid transparent; transition: color .15s, border-color .15s; flex-shrink: 0; }
+    .top-bar-nav a:hover { color: #fff; }
+    .top-bar-nav a.active { color: #fff; border-bottom-color: #86efac; }
+
+    .layout { display: flex; flex: 1; }
+    .sidebar { width: 260px; min-width: 260px; background: #fff; border-right: 1px solid #e2e8f0; padding: 1.5rem 0; position: sticky; top: 92px; height: calc(100vh - 92px); overflow-y: auto; }
+    .sidebar h3 { font-size: .65rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #94a3b8; padding: .25rem 1.25rem .5rem; margin-top: .5rem; }
+    .sidebar a { display: block; padding: .45rem 1.25rem; font-size: .85rem; color: #475569; text-decoration: none; border-left: 3px solid transparent; transition: all .15s; line-height: 1.4; }
+    .sidebar a:hover { background: #f0fdf4; color: #017e3b; border-left-color: #86efac; }
+    .sidebar a.active { background: #f0fdf4; color: #017e3b; font-weight: 600; border-left-color: #017e3b; }
+    .sidebar .section-divider { border-top: 1px solid #f1f5f9; margin: .5rem 0; }
+
+    main { flex: 1; padding: 2rem 2.5rem; max-width: 1100px; }
+    .page-title { font-size: 2rem; font-weight: 800; color: #0f172a; margin-bottom: .25rem; }
+    .page-meta { font-size: .8rem; color: #64748b; margin-bottom: 2rem; display: flex; gap: 1rem; flex-wrap: wrap; }
+    .page-meta span { background: #f1f5f9; border-radius: 4px; padding: 2px 8px; }
+
+    .section { margin-bottom: 3rem; }
+    .section-title { font-size: 1.35rem; font-weight: 700; color: #017e3b; border-bottom: 2px solid #bbf7d0; padding-bottom: .4rem; margin-bottom: 1.5rem; scroll-margin-top: 100px; }
+    .subsection-title { font-size: 1.05rem; font-weight: 700; color: #0f172a; margin: 1.5rem 0 .5rem; scroll-margin-top: 100px; }
+
+    .arch-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.5rem; margin-bottom: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+    .arch-card h4 { font-size: 1rem; font-weight: 700; color: #0f172a; margin-bottom: .6rem; }
+    .arch-card p, .arch-card li { color: #374151; font-size: .9rem; line-height: 1.65; }
+    .arch-card ul, .arch-card ol { padding-left: 1.4rem; margin: .4rem 0; }
+    .arch-card li { margin-bottom: .25rem; }
+
+    pre { background: #0f172a; color: #e2e8f0; padding: 1rem 1.25rem; border-radius: 8px; overflow-x: auto; font-size: .8rem; font-family: 'Menlo','Courier New',monospace; line-height: 1.6; margin: .75rem 0; }
+    code { background: #f1f5f9; padding: 1px 5px; border-radius: 3px; font-size: .82rem; font-family: 'Menlo','Courier New',monospace; color: #0f172a; }
+
+    .badge { display: inline-block; font-size: .68rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; letter-spacing: .04em; text-transform: uppercase; margin-right: 4px; }
+    .badge-green  { background: #dcfce7; color: #166534; }
+    .badge-blue   { background: #dbeafe; color: #1e40af; }
+    .badge-yellow { background: #fef3c7; color: #92400e; }
+    .badge-purple { background: #ede9fe; color: #5b21b6; }
+    .badge-red    { background: #fee2e2; color: #991b1b; }
+    .badge-gray   { background: #f3f4f6; color: #374151; }
+    .badge-orange { background: #ffedd5; color: #9a3412; }
+
+    .note  { background: #fffbeb; border-left: 4px solid #fbbf24; padding: .75rem 1rem; border-radius: 0 6px 6px 0; font-size: .85rem; color: #78350f; margin: .75rem 0; line-height: 1.6; }
+    .info  { background: #eff6ff; border-left: 4px solid #3b82f6; padding: .75rem 1rem; border-radius: 0 6px 6px 0; font-size: .85rem; color: #1e3a8a; margin: .75rem 0; line-height: 1.6; }
+    .success { background: #f0fdf4; border-left: 4px solid #22c55e; padding: .75rem 1rem; border-radius: 0 6px 6px 0; font-size: .85rem; color: #14532d; margin: .75rem 0; line-height: 1.6; }
+    .danger  { background: #fef2f2; border-left: 4px solid #ef4444; padding: .75rem 1rem; border-radius: 0 6px 6px 0; font-size: .85rem; color: #7f1d1d; margin: .75rem 0; line-height: 1.6; }
+
+    /* Page access table */
+    .access-table { width: 100%; border-collapse: collapse; font-size: .875rem; margin: 1rem 0; }
+    .access-table th { background: #f8fafc; color: #64748b; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: .6rem 1rem; text-align: left; border-bottom: 2px solid #e2e8f0; }
+    .access-table td { padding: .65rem 1rem; border-bottom: 1px solid #f1f5f9; vertical-align: middle; color: #374151; }
+    .access-table tr:last-child td { border-bottom: none; }
+    .access-table tr:hover td { background: #f8fafc; }
+    .access-table code { font-size: .8rem; }
+
+    /* Checklist */
+    .checklist { list-style: none; padding: 0; margin: .75rem 0; }
+    .checklist li { display: flex; align-items: flex-start; gap: .6rem; padding: .4rem 0; font-size: .9rem; color: #374151; line-height: 1.5; border-bottom: 1px solid #f1f5f9; }
+    .checklist li:last-child { border-bottom: none; }
+    .checklist .check { flex-shrink: 0; width: 18px; height: 18px; background: #dcfce7; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .65rem; color: #166534; font-weight: 900; margin-top: 2px; }
+    .checklist .check.warn { background: #fef3c7; color: #92400e; }
+
+    /* File path cards */
+    .file-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0; }
+    .file-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem 1.25rem; }
+    .file-card .file-path { font-family: 'Menlo','Courier New',monospace; font-size: .78rem; color: #017e3b; font-weight: 600; margin-bottom: .4rem; }
+    .file-card .file-desc { font-size: .82rem; color: #64748b; line-height: 1.5; }
+
+    /* Step list */
+    .steps { counter-reset: step; list-style: none; padding: 0; margin: 1rem 0; }
+    .steps li { counter-increment: step; display: flex; gap: 1rem; margin-bottom: 1rem; align-items: flex-start; }
+    .steps li::before { content: counter(step); flex-shrink: 0; width: 28px; height: 28px; background: #017e3b; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .8rem; margin-top: 1px; }
+    .steps li .step-body { flex: 1; }
+    .steps li .step-body strong { display: block; font-size: .9rem; color: #0f172a; margin-bottom: .2rem; }
+    .steps li .step-body p, .steps li .step-body code { font-size: .85rem; color: #475569; line-height: 1.6; }
+
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin: 1rem 0; }
+    @media (max-width: 768px) { .two-col { grid-template-columns: 1fr; } .file-grid { grid-template-columns: 1fr; } .sidebar { display: none; } }
+  </style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div class="top-bar-header">
+    <div>
+      <div class="brand">Grow<span>MY</span>Stocks</div>
+      <div class="subtitle">SEO &amp; Public Access Reference</div>
+    </div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-05-25</div>
+  </div>
+  <nav class="top-bar-nav">
+    <a href="moneygoup_overview.html">Overview</a>
+    <a href="api_documentation.html">API Docs</a>
+    <a href="architecture_documentation.html">Architecture</a>
+    <a href="authentication_flow.html">Auth Flow</a>
+    <a href="admin_user_management.html">Admin User Mgmt</a>
+    <a href="recommendation_buckets.html">Rec Buckets</a>
+    <a href="components_documentation.html">Components</a>
+    <a href="database_documentation.html">Database</a>
+    <a href="prediction_workflow.html">Prediction Flow</a>
+    <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
+    <a href="technical_indicators_guide.html">Technical Guide</a>
+    <a href="gps_score.html">GPS Score</a>
+    <a href="style_guide.html">Style Guide</a>
+    <a href="SEO.html" class="active">SEO</a>
+  </nav>
+</div>
+
+<div class="layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <h3>On This Page</h3>
+    <a href="#overview">Overview</a>
+    <a href="#page-access">Page Access Map</a>
+    <a href="#sitemap">Sitemap</a>
+    <a href="#robots">robots.txt</a>
+    <a href="#metadata">Page Metadata</a>
+    <a href="#og-images">OG / Social Images</a>
+    <a href="#json-ld">JSON-LD Structured Data</a>
+    <a href="#middleware">Middleware &amp; Auth Gates</a>
+    <a href="#adding-public-page">Adding a Public Page</a>
+    <a href="#testing">Testing &amp; Validation</a>
+    <a href="#checklist">Production Checklist</a>
+  </aside>
+
+  <!-- Main content -->
+  <main>
+    <h1 class="page-title">SEO &amp; Public Access</h1>
+    <div class="page-meta">
+      <span>Last updated: 2026-05-25</span>
+      <span>Next.js 14 App Router</span>
+      <span>3 indexed pages</span>
+    </div>
+
+    <!-- OVERVIEW -->
+    <div class="section" id="overview">
+      <h2 class="section-title">Overview</h2>
+      <p style="font-size:.9rem;color:#374151;line-height:1.7;margin-bottom:1rem;">
+        GrowMyStocks is a gated application — almost every page requires a valid session. Only three pages are intentionally open to search engines: the landing page, login, and register. Everything else (dashboard, portfolio, watchlist, admin) is protected behind NextAuth session middleware.
+      </p>
+      <div class="two-col">
+        <div class="arch-card">
+          <h4>Indexed by search engines</h4>
+          <p>Three pages carry <code>robots: index: true</code> and appear in the sitemap. These are the only pages Google, Bing, and other crawlers are allowed to index.</p>
+          <ul style="margin-top:.5rem;">
+            <li><code>/</code> — Landing page</li>
+            <li><code>/login</code> — Login page</li>
+            <li><code>/register</code> — Register page</li>
+          </ul>
+        </div>
+        <div class="arch-card">
+          <h4>Public but NOT indexed</h4>
+          <p>These pages are accessible without login but are explicitly blocked from indexing. They serve users who follow a direct link but should not show up in search results.</p>
+          <ul style="margin-top:.5rem;">
+            <li><code>/legal/privacy</code></li>
+            <li><code>/legal/terms</code></li>
+            <li><code>/legal/disclaimer</code></li>
+            <li><code>/contact</code></li>
+            <li><code>/forgot-password</code></li>
+            <li><code>/reset-password</code></li>
+          </ul>
+        </div>
+      </div>
+      <div class="info">
+        The global default in <code>src/app/layout.tsx</code> sets <code>robots: index: false</code> for the whole app. Individual pages override this to <code>index: true</code> only where needed. This "deny by default" approach means new pages are safe until explicitly opted in.
+      </div>
+    </div>
+
+    <!-- PAGE ACCESS MAP -->
+    <div class="section" id="page-access">
+      <h2 class="section-title">Page Access Map</h2>
+      <table class="access-table">
+        <thead>
+          <tr>
+            <th>Path</th>
+            <th>Requires Login</th>
+            <th>Google Indexed</th>
+            <th>In Sitemap</th>
+            <th>Social Sharing</th>
+            <th>OG Image</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>/</code></td>
+            <td><span class="badge badge-green">No</span></td>
+            <td><span class="badge badge-green">Yes</span></td>
+            <td><span class="badge badge-green">Yes</span></td>
+            <td><span class="badge badge-green">Yes</span></td>
+            <td><span class="badge badge-green">Yes</span></td>
+          </tr>
+          <tr>
+            <td><code>/login</code></td>
+            <td><span class="badge badge-green">No</span></td>
+            <td><span class="badge badge-green">Yes</span></td>
+            <td><span class="badge badge-green">Yes</span></td>
+            <td><span class="badge badge-green">Yes</span></td>
+            <td><span class="badge badge-green">Yes</span></td>
+          </tr>
+          <tr>
+            <td><code>/register</code></td>
+            <td><span class="badge badge-green">No</span></td>
+            <td><span class="badge badge-green">Yes</span></td>
+            <td><span class="badge badge-green">Yes</span></td>
+            <td><span class="badge badge-green">Yes</span></td>
+            <td><span class="badge badge-green">Yes</span></td>
+          </tr>
+          <tr>
+            <td><code>/contact</code></td>
+            <td><span class="badge badge-green">No</span></td>
+            <td><span class="badge badge-red">No</span></td>
+            <td><span class="badge badge-red">No</span></td>
+            <td><span class="badge badge-yellow">OG fallback</span></td>
+            <td><span class="badge badge-gray">Site default</span></td>
+          </tr>
+          <tr>
+            <td><code>/legal/privacy</code></td>
+            <td><span class="badge badge-green">No</span></td>
+            <td><span class="badge badge-red">No</span></td>
+            <td><span class="badge badge-red">No</span></td>
+            <td><span class="badge badge-yellow">OG fallback</span></td>
+            <td><span class="badge badge-gray">Site default</span></td>
+          </tr>
+          <tr>
+            <td><code>/legal/terms</code></td>
+            <td><span class="badge badge-green">No</span></td>
+            <td><span class="badge badge-red">No</span></td>
+            <td><span class="badge badge-red">No</span></td>
+            <td><span class="badge badge-yellow">OG fallback</span></td>
+            <td><span class="badge badge-gray">Site default</span></td>
+          </tr>
+          <tr>
+            <td><code>/legal/disclaimer</code></td>
+            <td><span class="badge badge-green">No</span></td>
+            <td><span class="badge badge-red">No</span></td>
+            <td><span class="badge badge-red">No</span></td>
+            <td><span class="badge badge-yellow">OG fallback</span></td>
+            <td><span class="badge badge-gray">Site default</span></td>
+          </tr>
+          <tr>
+            <td><code>/forgot-password</code></td>
+            <td><span class="badge badge-green">No</span></td>
+            <td><span class="badge badge-red">No</span></td>
+            <td><span class="badge badge-red">No</span></td>
+            <td><span class="badge badge-red">No</span></td>
+            <td><span class="badge badge-gray">—</span></td>
+          </tr>
+          <tr>
+            <td><code>/dashboard</code></td>
+            <td><span class="badge badge-red">Yes</span></td>
+            <td><span class="badge badge-red">No</span></td>
+            <td><span class="badge badge-red">No</span></td>
+            <td><span class="badge badge-red">No</span></td>
+            <td><span class="badge badge-gray">—</span></td>
+          </tr>
+          <tr>
+            <td><code>/portfolio</code></td>
+            <td><span class="badge badge-red">Yes</span></td>
+            <td><span class="badge badge-red">No</span></td>
+            <td><span class="badge badge-red">No</span></td>
+            <td><span class="badge badge-red">No</span></td>
+            <td><span class="badge badge-gray">—</span></td>
+          </tr>
+          <tr>
+            <td><code>/admin</code></td>
+            <td><span class="badge badge-red">Yes</span></td>
+            <td><span class="badge badge-red">No</span></td>
+            <td><span class="badge badge-red">No</span></td>
+            <td><span class="badge badge-red">No</span></td>
+            <td><span class="badge badge-gray">—</span></td>
+          </tr>
+          <tr>
+            <td><code>/api/*</code></td>
+            <td><span class="badge badge-red">Yes</span></td>
+            <td><span class="badge badge-red">No</span></td>
+            <td><span class="badge badge-red">No</span></td>
+            <td><span class="badge badge-red">No</span></td>
+            <td><span class="badge badge-gray">—</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="font-size:.78rem;color:#64748b;margin-top:.5rem;">
+        "OG fallback" means the page can be shared on social media using the site-wide default OG image defined in <code>src/app/layout.tsx</code>, but there is no page-specific social card.
+      </p>
+    </div>
+
+    <!-- SITEMAP -->
+    <div class="section" id="sitemap">
+      <h2 class="section-title">Sitemap</h2>
+      <p style="font-size:.9rem;color:#374151;line-height:1.7;margin-bottom:1rem;">
+        The sitemap is auto-generated by Next.js from a TypeScript file. There is no static <code>sitemap.xml</code> to maintain — Next.js builds and serves it dynamically at <code>/sitemap.xml</code>.
+      </p>
+
+      <h3 class="subsection-title">File location</h3>
+      <pre>src/app/sitemap.ts</pre>
+
+      <h3 class="subsection-title">Current entries</h3>
+      <pre>https://growmystocks.com/           priority: 1.0   weekly
+https://growmystocks.com/login      priority: 0.8   monthly
+https://growmystocks.com/register   priority: 0.8   monthly</pre>
+
+      <h3 class="subsection-title">How to add a page to the sitemap</h3>
+      <p style="font-size:.9rem;color:#374151;line-height:1.7;margin:.5rem 0 .75rem;">
+        Open <code>src/app/sitemap.ts</code> and add a new entry to the returned array:
+      </p>
+      <pre>return [
+  // ... existing entries ...
+  {
+    url: `${siteUrl}/your-new-page`,
+    lastModified: new Date('2026-05-25'),  // use the actual publish date
+    changeFrequency: 'monthly',            // 'always'|'hourly'|'daily'|'weekly'|'monthly'|'yearly'|'never'
+    priority: 0.7,                         // 0.0 – 1.0
+  },
+]</pre>
+
+      <div class="note">
+        Always use a <strong>static date</strong> for <code>lastModified</code> — never <code>new Date()</code>. Using <code>new Date()</code> tells Google the page changes on every crawl, which wastes crawl budget and can suppress rankings.
+      </div>
+
+      <h3 class="subsection-title">Verify the sitemap</h3>
+      <p style="font-size:.9rem;color:#374151;line-height:1.7;margin:.5rem 0;">
+        Start the dev server and visit:
+      </p>
+      <pre>http://localhost:3001/sitemap.xml</pre>
+
+      <h3 class="subsection-title">Submit to search engines</h3>
+      <ul class="checklist">
+        <li><span class="check">✓</span><span><strong>Google Search Console</strong> — go to Sitemaps → enter <code>sitemap.xml</code> → Submit</span></li>
+        <li><span class="check">✓</span><span><strong>Bing Webmaster Tools</strong> — Sitemaps → Submit sitemap URL</span></li>
+        <li><span class="check">✓</span><span><strong>robots.txt already points to it</strong> — crawlers can auto-discover it without manual submission</span></li>
+      </ul>
+    </div>
+
+    <!-- ROBOTS.TXT -->
+    <div class="section" id="robots">
+      <h2 class="section-title">robots.txt</h2>
+      <p style="font-size:.9rem;color:#374151;line-height:1.7;margin-bottom:1rem;">
+        Like the sitemap, robots.txt is generated by Next.js from a TypeScript file — not a static file.
+      </p>
+
+      <h3 class="subsection-title">File location</h3>
+      <pre>src/app/robots.ts</pre>
+
+      <h3 class="subsection-title">What it does</h3>
+      <div class="arch-card">
+        <p>The file defines two rule sets:</p>
+        <ul style="margin-top:.5rem;">
+          <li><strong>Search bots</strong> (Googlebot, Bingbot, etc.) — allowed to crawl <code>/</code>, <code>/login</code>, <code>/register</code>, and <code>/legal/*</code>. Blocked from <code>/dashboard</code>, <code>/portfolio</code>, <code>/admin</code>, and <code>/api/*</code>.</li>
+          <li><strong>Social crawlers</strong> (Facebookbot, Twitterbot, etc.) — allowed to crawl <code>/</code> for OG tag reading. Blocked from <code>/api/*</code>.</li>
+        </ul>
+        <p style="margin-top:.5rem;">The sitemap URL is declared at the bottom so all crawlers can auto-discover it.</p>
+      </div>
+
+      <h3 class="subsection-title">Verify it</h3>
+      <pre>http://localhost:3001/robots.txt</pre>
+    </div>
+
+    <!-- METADATA -->
+    <div class="section" id="metadata">
+      <h2 class="section-title">Page Metadata</h2>
+      <p style="font-size:.9rem;color:#374151;line-height:1.7;margin-bottom:1rem;">
+        Each of the three indexed pages has its own metadata: title, description, canonical URL, Open Graph tags, and Twitter Card tags. Metadata is defined in server components using Next.js's <code>Metadata</code> API.
+      </p>
+
+      <h3 class="subsection-title">Where metadata lives</h3>
+      <div class="file-grid">
+        <div class="file-card">
+          <div class="file-path">src/app/page.tsx</div>
+          <div class="file-desc">Landing page (<code>/</code>) — exports <code>metadata</code> constant. This is a thin server wrapper around <code>LandingPage.tsx</code>.</div>
+        </div>
+        <div class="file-card">
+          <div class="file-path">src/app/login/layout.tsx</div>
+          <div class="file-desc">Login page metadata. Uses a layout instead of page because <code>login/page.tsx</code> is a client component (<code>'use client'</code>) and client components cannot export metadata.</div>
+        </div>
+        <div class="file-card">
+          <div class="file-path">src/app/register/layout.tsx</div>
+          <div class="file-desc">Register page metadata. Same pattern as login — layout exports metadata, page is a client component.</div>
+        </div>
+        <div class="file-card">
+          <div class="file-path">src/app/layout.tsx</div>
+          <div class="file-desc">Root layout — sets site-wide defaults including <code>robots: index: false</code> (deny-by-default), fallback OG/Twitter images, and <code>metadataBase</code>.</div>
+        </div>
+        <div class="file-card">
+          <div class="file-path">src/app/legal/layout.tsx</div>
+          <div class="file-desc">Legal pages layout — overrides to <code>robots: index: false, follow: true</code>. Applies to all three legal routes automatically.</div>
+        </div>
+      </div>
+
+      <h3 class="subsection-title">Title rules</h3>
+      <ul class="checklist">
+        <li><span class="check">✓</span><span>Keep page titles <strong>under 60 characters</strong> (Google truncates at ~60)</span></li>
+        <li><span class="check">✓</span><span>The root layout uses a title template: <code>'%s | GrowMyStocks'</code> so child pages only need to set their own part</span></li>
+        <li><span class="check">✓</span><span>Landing page overrides the full title directly (does not use the template) to avoid "GrowMyStocks | GrowMyStocks"</span></li>
+      </ul>
+
+      <h3 class="subsection-title">Description rules</h3>
+      <ul class="checklist">
+        <li><span class="check">✓</span><span>Keep meta descriptions <strong>under 160 characters</strong> (Google truncates beyond that)</span></li>
+        <li><span class="check">✓</span><span>Write for humans, not keywords — Google rewrites descriptions it doesn't like anyway</span></li>
+        <li><span class="check">✓</span><span>Each public page has a unique description</span></li>
+      </ul>
+
+      <h3 class="subsection-title">Canonical URLs</h3>
+      <p style="font-size:.9rem;color:#374151;line-height:1.7;margin:.5rem 0;">
+        Each indexed page sets <code>alternates.canonical</code> to its absolute URL. This tells Google the "official" URL and prevents duplicate content penalties if the page is ever accessible via multiple paths.
+      </p>
+      <pre>// Example from src/app/login/layout.tsx
+alternates: {
+  canonical: `${siteUrl}/login`,
+}</pre>
+      <div class="info">
+        <code>siteUrl</code> is read from the <code>NEXT_PUBLIC_SITE_URL</code> environment variable. Set this to <code>https://growmystocks.com</code> in your Bluehost production environment. Locally it defaults to <code>https://growmystocks.com</code>.
+      </div>
+    </div>
+
+    <!-- OG IMAGES -->
+    <div class="section" id="og-images">
+      <h2 class="section-title">Open Graph / Social Images</h2>
+      <p style="font-size:.9rem;color:#374151;line-height:1.7;margin-bottom:1rem;">
+        Each indexed page has a dynamically generated 1200×630 PNG social card using Next.js's <code>next/og</code> <code>ImageResponse</code> API. These cards appear when the page is shared on Facebook, X/Twitter, LinkedIn, Slack, iMessage, etc.
+      </p>
+
+      <h3 class="subsection-title">File locations</h3>
+      <div class="file-grid">
+        <div class="file-card">
+          <div class="file-path">src/app/opengraph-image.tsx</div>
+          <div class="file-desc">Landing page card. Served at <code>/opengraph-image</code>. Design: green gradient, brand name, tagline, feature pills.</div>
+        </div>
+        <div class="file-card">
+          <div class="file-path">src/app/login/opengraph-image.tsx</div>
+          <div class="file-desc">Login page card. Served at <code>/login/opengraph-image</code>. Subtitle: "Sign In to Your Account".</div>
+        </div>
+        <div class="file-card">
+          <div class="file-path">src/app/register/opengraph-image.tsx</div>
+          <div class="file-desc">Register page card. Served at <code>/register/opengraph-image</code>. Subtitle: "Create Your Free Account".</div>
+        </div>
+      </div>
+
+      <h3 class="subsection-title">How to preview them</h3>
+      <p style="font-size:.9rem;color:#374151;line-height:1.7;margin:.5rem 0 .75rem;">With your dev server running, open these URLs directly in your browser:</p>
+      <pre>http://localhost:3001/opengraph-image
+http://localhost:3001/login/opengraph-image
+http://localhost:3001/register/opengraph-image</pre>
+      <div class="note">
+        These paths must be in <code>PUBLIC_PATHS</code> in <code>src/middleware.ts</code>, otherwise the auth middleware will redirect them to login — breaking social sharing.
+      </div>
+
+      <h3 class="subsection-title">How they work</h3>
+      <div class="arch-card">
+        <p>Each <code>opengraph-image.tsx</code> file exports:</p>
+        <ul style="margin-top:.5rem;">
+          <li><code>runtime = 'edge'</code> — uses the Edge runtime for fast generation</li>
+          <li><code>size = &#123; width: 1200, height: 630 &#125;</code> — standard OG image dimensions</li>
+          <li><code>contentType = 'image/png'</code></li>
+          <li>A default export that returns a <code>new ImageResponse(...)</code> with JSX layout</li>
+        </ul>
+        <p style="margin-top:.5rem;">Next.js detects these files and automatically injects <code>&lt;meta property="og:image"&gt;</code> and <code>&lt;meta name="twitter:image"&gt;</code> into the page's <code>&lt;head&gt;</code>.</p>
+      </div>
+
+      <h3 class="subsection-title">How to update the design</h3>
+      <p style="font-size:.9rem;color:#374151;line-height:1.7;margin:.5rem 0;">
+        Edit the JSX inside <code>new ImageResponse(...)</code>. Only inline styles work — no CSS modules, no Tailwind classes. The JSX subset supported is limited (no <code>display: grid</code>, no complex CSS). Stick to <code>display: flex</code>, <code>flexDirection</code>, and <code>gap</code>.
+      </p>
+
+      <h3 class="subsection-title">Testing on social platforms</h3>
+      <p style="font-size:.9rem;color:#374151;line-height:1.7;margin:.5rem 0;">Once deployed to a public URL, use these tools to see exactly how your card will look:</p>
+      <ul class="checklist">
+        <li><span class="check">✓</span><span><strong>Facebook</strong> — <code>developers.facebook.com/tools/debug</code> — paste URL, hit Debug, then "Scrape Again" to refresh cache</span></li>
+        <li><span class="check">✓</span><span><strong>X / Twitter</strong> — <code>cards-dev.twitter.com/validator</code></span></li>
+        <li><span class="check">✓</span><span><strong>LinkedIn</strong> — <code>linkedin.com/post-inspector</code></span></li>
+        <li><span class="check">✓</span><span><strong>Any platform</strong> — <code>opengraph.xyz</code> — shows all OG tags and a visual preview</span></li>
+      </ul>
+    </div>
+
+    <!-- JSON-LD -->
+    <div class="section" id="json-ld">
+      <h2 class="section-title">JSON-LD Structured Data</h2>
+      <p style="font-size:.9rem;color:#374151;line-height:1.7;margin-bottom:1rem;">
+        JSON-LD is machine-readable markup that helps Google understand what your page is about. It can produce rich results (enhanced listings) in search. Each of the three indexed pages has JSON-LD injected via a <code>&lt;script type="application/ld+json"&gt;</code> tag.
+      </p>
+
+      <h3 class="subsection-title">Schemas in use</h3>
+      <div class="two-col">
+        <div class="arch-card">
+          <h4><code>/</code> — Landing page</h4>
+          <p>Two schemas in a <code>@graph</code>:</p>
+          <ul style="margin-top:.5rem;">
+            <li><strong>WebApplication</strong> — describes GrowMyStocks as a free-to-register finance app</li>
+            <li><strong>Organization</strong> — links brand name and logo</li>
+          </ul>
+        </div>
+        <div class="arch-card">
+          <h4><code>/login</code> &amp; <code>/register</code></h4>
+          <p>Single <strong>WebPage</strong> schema on each, with:</p>
+          <ul style="margin-top:.5rem;">
+            <li><code>name</code>, <code>url</code>, <code>description</code></li>
+            <li><code>isPartOf</code> pointing to the parent WebSite</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3 class="subsection-title">Where the code lives</h3>
+      <p style="font-size:.9rem;color:#374151;line-height:1.7;margin:.5rem 0 .75rem;">
+        JSON-LD is defined as a module-level <code>const jsonLd = {...}</code> in the server component and injected via:
+      </p>
+      <pre>&lt;script
+  type="application/ld+json"
+  dangerouslySetInnerHTML=&#123;&#123; __html: JSON.stringify(jsonLd) &#125;&#125;
+/&gt;</pre>
+      <div class="info">
+        This pattern works because <code>page.tsx</code>, <code>login/layout.tsx</code>, and <code>register/layout.tsx</code> are all <strong>server components</strong>. Client components (<code>'use client'</code>) cannot inject <code>&lt;script&gt;</code> tags this way.
+      </div>
+
+      <h3 class="subsection-title">Validate it</h3>
+      <p style="font-size:.9rem;color:#374151;line-height:1.7;margin:.5rem 0;">
+        Use Google's Rich Results Test once deployed: <code>search.google.com/test/rich-results</code>. It will show which schemas were detected and flag any errors.
+      </p>
+    </div>
+
+    <!-- MIDDLEWARE -->
+    <div class="section" id="middleware">
+      <h2 class="section-title">Middleware &amp; Auth Gates</h2>
+      <p style="font-size:.9rem;color:#374151;line-height:1.7;margin-bottom:1rem;">
+        The auth wall is enforced in a single file. Understanding it is critical for SEO — if a path isn't in <code>PUBLIC_PATHS</code>, crawlers get a redirect to <code>/login</code> instead of the page, and it will never be indexed.
+      </p>
+
+      <h3 class="subsection-title">File location</h3>
+      <pre>src/middleware.ts</pre>
+
+      <h3 class="subsection-title">How it works</h3>
+      <div class="arch-card">
+        <p>NextAuth's <code>withAuth</code> wrapper runs on every request matched by the <code>config.matcher</code> regex. The <code>authorized</code> callback decides whether to allow the request through:</p>
+        <ol style="margin-top:.5rem;padding-left:1.4rem;">
+          <li style="margin-bottom:.25rem;">If the path is in <code>PUBLIC_PATHS</code> → allow (no session required)</li>
+          <li style="margin-bottom:.25rem;">If a valid <code>x-api-key</code> header is present → allow (internal service bypass)</li>
+          <li>If a valid session token exists → allow</li>
+          <li>Otherwise → NextAuth redirects to <code>/login</code></li>
+        </ol>
+        <p style="margin-top:.75rem;">Every request that passes through also gets a CSP nonce header added by the inner middleware function.</p>
+      </div>
+
+      <h3 class="subsection-title">Current PUBLIC_PATHS</h3>
+      <pre>const PUBLIC_PATHS = [
+  '/',
+  '/login',
+  '/register',
+  '/forgot-password',
+  '/reset-password',
+  '/api/unsubscribe',
+  '/contact',
+  '/api/contact',
+  '/legal/privacy',
+  '/legal/terms',
+  '/legal/disclaimer',
+  '/opengraph-image',           // social card images
+  '/login/opengraph-image',
+  '/register/opengraph-image',
+  '/sitemap.xml',               // crawlers need these
+  '/robots.txt',
+]</pre>
+
+      <div class="danger">
+        If you add a new page that should be public (indexed or not), you <strong>must</strong> add its path to <code>PUBLIC_PATHS</code> or it will redirect to login for everyone — including Google's crawler.
+      </div>
+
+      <h3 class="subsection-title">Matcher regex</h3>
+      <p style="font-size:.9rem;color:#374151;line-height:1.7;margin:.5rem 0 .75rem;">
+        The matcher controls which paths the middleware even runs on. Static files and Next.js internals are excluded here so they don't need to be in <code>PUBLIC_PATHS</code>:
+      </p>
+      <pre>matcher: [
+  "/((?!api/auth|_next/static|_next/image|growmystock_logo\\.svg|growmystock_logo_dark\\.svg|favicon\\.ico).*)",
+]</pre>
+      <p style="font-size:.9rem;color:#374151;line-height:1.7;margin:.5rem 0;">
+        Anything excluded from the matcher bypasses the middleware entirely (no auth check, no CSP header). Anything inside the matcher but not in <code>PUBLIC_PATHS</code> requires a session.
+      </p>
+    </div>
+
+    <!-- ADDING A PUBLIC PAGE -->
+    <div class="section" id="adding-public-page">
+      <h2 class="section-title">Adding a New Public Page</h2>
+      <p style="font-size:.9rem;color:#374151;line-height:1.7;margin-bottom:1rem;">Follow all steps — skipping any one of them will either break access or result in the page not being indexed.</p>
+
+      <h3 class="subsection-title">If the page should be indexed by Google</h3>
+      <ol class="steps">
+        <li>
+          <div class="step-body">
+            <strong>Add to PUBLIC_PATHS</strong>
+            <p>In <code>src/middleware.ts</code>, add the path to the <code>PUBLIC_PATHS</code> array so unauthenticated visitors (and crawlers) can reach it.</p>
+          </div>
+        </li>
+        <li>
+          <div class="step-body">
+            <strong>Add metadata with robots: index: true</strong>
+            <p>In the page's <code>page.tsx</code> (server component) or a <code>layout.tsx</code>, export a <code>metadata</code> object with <code>robots: &#123; index: true, follow: true &#125;</code>, a unique <code>title</code>, <code>description</code>, and <code>alternates.canonical</code>.</p>
+          </div>
+        </li>
+        <li>
+          <div class="step-body">
+            <strong>Create an opengraph-image.tsx</strong>
+            <p>In the route's directory, add an <code>opengraph-image.tsx</code> file. Copy an existing one and update the subtitle text. This generates the social sharing card.</p>
+          </div>
+        </li>
+        <li>
+          <div class="step-body">
+            <strong>Add the OG image path to PUBLIC_PATHS</strong>
+            <p>The generated image (e.g. <code>/your-page/opengraph-image</code>) also needs to be in <code>PUBLIC_PATHS</code> or social crawlers will be blocked from fetching it.</p>
+          </div>
+        </li>
+        <li>
+          <div class="step-body">
+            <strong>Add to sitemap.ts</strong>
+            <p>In <code>src/app/sitemap.ts</code>, add a new entry with the URL, a static <code>lastModified</code> date, <code>changeFrequency</code>, and <code>priority</code>.</p>
+          </div>
+        </li>
+        <li>
+          <div class="step-body">
+            <strong>Add JSON-LD (optional but recommended)</strong>
+            <p>Add a <code>&lt;script type="application/ld+json"&gt;</code> with a <code>WebPage</code> schema in the server component.</p>
+          </div>
+        </li>
+      </ol>
+
+      <h3 class="subsection-title" style="margin-top:2rem;">If the page should be public but NOT indexed</h3>
+      <ol class="steps">
+        <li>
+          <div class="step-body">
+            <strong>Add to PUBLIC_PATHS</strong>
+            <p>Same as above — required for access.</p>
+          </div>
+        </li>
+        <li>
+          <div class="step-body">
+            <strong>Do NOT add metadata with index: true</strong>
+            <p>The global default (<code>robots: index: false</code> from the root layout) will apply automatically. No action needed — just don't override it.</p>
+          </div>
+        </li>
+      </ol>
+    </div>
+
+    <!-- TESTING -->
+    <div class="section" id="testing">
+      <h2 class="section-title">Testing &amp; Validation</h2>
+
+      <h3 class="subsection-title">Local checks (dev server)</h3>
+      <table class="access-table">
+        <thead>
+          <tr><th>What to check</th><th>URL</th><th>Expected result</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Sitemap</td>
+            <td><code>/sitemap.xml</code></td>
+            <td>XML with 3 URLs (/, /login, /register)</td>
+          </tr>
+          <tr>
+            <td>Robots</td>
+            <td><code>/robots.txt</code></td>
+            <td>Allow/Disallow rules + sitemap reference</td>
+          </tr>
+          <tr>
+            <td>Homepage OG image</td>
+            <td><code>/opengraph-image</code></td>
+            <td>1200×630 PNG — green card with brand name</td>
+          </tr>
+          <tr>
+            <td>Login OG image</td>
+            <td><code>/login/opengraph-image</code></td>
+            <td>1200×630 PNG — "Sign In to Your Account"</td>
+          </tr>
+          <tr>
+            <td>Register OG image</td>
+            <td><code>/register/opengraph-image</code></td>
+            <td>1200×630 PNG — "Create Your Free Account"</td>
+          </tr>
+          <tr>
+            <td>OG tags on homepage</td>
+            <td>View source of <code>/</code></td>
+            <td><code>og:title</code>, <code>og:description</code>, <code>og:image</code> present in &lt;head&gt;</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 class="subsection-title">Production checks</h3>
+      <ul class="checklist">
+        <li><span class="check">✓</span><span><strong>Google Search Console</strong> — Submit sitemap, check Coverage report for indexing errors</span></li>
+        <li><span class="check">✓</span><span><strong>Rich Results Test</strong> — <code>search.google.com/test/rich-results</code> — validates JSON-LD schemas</span></li>
+        <li><span class="check">✓</span><span><strong>Facebook Debugger</strong> — <code>developers.facebook.com/tools/debug</code> — confirms OG image loads</span></li>
+        <li><span class="check">✓</span><span><strong>Twitter Card Validator</strong> — <code>cards-dev.twitter.com/validator</code></span></li>
+        <li><span class="check">✓</span><span><strong>PageSpeed Insights</strong> — <code>pagespeed.web.dev</code> — Core Web Vitals and SEO score</span></li>
+        <li><span class="check">✓</span><span><strong>Screaming Frog</strong> or <strong>Ahrefs</strong> — crawl the 3 public pages to confirm no broken canonical tags or missing metadata</span></li>
+      </ul>
+    </div>
+
+    <!-- PRODUCTION CHECKLIST -->
+    <div class="section" id="checklist">
+      <h2 class="section-title">Production Checklist</h2>
+      <div class="arch-card">
+        <h4>Before going live</h4>
+        <ul class="checklist">
+          <li><span class="check">✓</span><span>Set <code>NEXT_PUBLIC_SITE_URL=https://growmystocks.com</code> in Bluehost environment variables</span></li>
+          <li><span class="check">✓</span><span>Verify <code>/sitemap.xml</code> and <code>/robots.txt</code> are publicly accessible (not redirecting to login)</span></li>
+          <li><span class="check">✓</span><span>Verify all three OG image URLs return PNG images (not redirects)</span></li>
+          <li><span class="check">✓</span><span>Submit sitemap to Google Search Console and Bing Webmaster Tools</span></li>
+          <li><span class="check warn">!</span><span>Page titles are ≤60 chars — all three are currently within limit</span></li>
+          <li><span class="check warn">!</span><span>Meta descriptions are ≤160 chars — all three are currently within limit</span></li>
+          <li><span class="check">✓</span><span>Canonical URLs use the production domain, not localhost</span></li>
+          <li><span class="check">✓</span><span>JSON-LD is present on all three indexed pages</span></li>
+          <li><span class="check">✓</span><span>Dashboard and API routes return 401/redirect (not 200) for unauthenticated requests</span></li>
+        </ul>
+      </div>
+
+      <div class="success" style="margin-top:1.5rem;">
+        <strong>Current status:</strong> All critical and high-priority SEO issues from the May 2026 audit have been resolved. The platform is ready for search engine submission once deployed to production with <code>NEXT_PUBLIC_SITE_URL</code> set correctly.
+      </div>
+    </div>
+
+  </main>
+</div>
+
+</body>
+</html>
