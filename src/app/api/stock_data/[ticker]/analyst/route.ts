@@ -16,7 +16,7 @@ const logger = createLogger('api/stock/[ticker]/analyst');
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { ticker: string } }
+  { params }: { params: Promise<{ ticker: string }> }
 ) {
   const apiKey = request.headers.get('x-api-key');
   const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
@@ -37,9 +37,10 @@ export async function GET(
   const rateLimitResponse = checkRateLimit(request, stockDataLimiter, 'analyst-data');
   if (rateLimitResponse) return rateLimitResponse;
 
+  const { ticker: rawTicker } = await params;
   let validatedTicker: string;
   try {
-    validatedTicker = multiTickerSchema.parse(params.ticker);
+    validatedTicker = multiTickerSchema.parse(rawTicker);
   } catch (error) {
     return validationErrorResponse('Invalid ticker');
   }

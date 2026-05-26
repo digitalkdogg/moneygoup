@@ -32,7 +32,7 @@ export const PATCH = validate(tradeSchema)(
     }
 
     try {
-      const params = ctx?.params;
+      const params = await ctx?.params;
       if (!params || !params.stock_id) {
         return createErrorResponse(null, 'Stock ID is required', { status: 400 });
       }
@@ -163,7 +163,7 @@ export const PATCH = validate(tradeSchema)(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { stock_id: string } }
+  { params }: { params: Promise<{ stock_id: string }> }
 ) {
   const originCheckResponse = checkOrigin(request as any);
   if (originCheckResponse) {
@@ -176,7 +176,8 @@ export async function PUT(
   }
 
   try {
-    const stockId = params.stock_id;
+    const resolvedParams = await params;
+    const stockId = resolvedParams.stock_id;
 
     // Validate stock_id is a positive integer
     const parsedId = parseInt(stockId, 10);

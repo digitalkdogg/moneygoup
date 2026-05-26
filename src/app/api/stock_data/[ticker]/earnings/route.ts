@@ -51,7 +51,7 @@ const formatEarningsDate = (dateValue: any): string | null => {
 
 let yahooFinanceInstance: InstanceType<typeof YahooFinance> | null = null;
 
-export async function GET(request: NextRequest, { params }: { params: { ticker: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ ticker: string }> }) {
   const apiKey = request.headers.get('x-api-key');
   const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
   const isInternal = apiKey && apiKey === internalSecret;
@@ -68,9 +68,10 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
     }
   }
 
+  const { ticker: rawTicker } = await params;
   let validatedTicker: string;
   try {
-    validatedTicker = tickerSchema.parse(params.ticker);
+    validatedTicker = tickerSchema.parse(rawTicker);
   } catch (error) {
     return validationErrorResponse('Invalid ticker');
   }

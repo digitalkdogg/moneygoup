@@ -41,12 +41,12 @@ export const metadata: Metadata = {
   },
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const nonce = headers().get('x-nonce') ?? undefined;
+  const nonce = (await headers()).get('x-nonce') ?? undefined;
   return (
     <html lang="en">
       <body className={`${rubik.className} flex flex-col min-h-screen`}>

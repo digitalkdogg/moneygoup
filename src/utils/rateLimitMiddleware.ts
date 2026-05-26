@@ -21,9 +21,8 @@ export function getClientIP(request: NextRequest): string {
   const trustedProxiesString = process.env.TRUSTED_PROXIES || '';
   const trustedProxies = new Set(trustedProxiesString.split(',').map(ip => ip.trim()).filter(Boolean));
 
-  // In Next.js/Vercel, request.ip is generally reliable as it's set by the platform.
-  // However, if we're behind a custom proxy, we need to be careful.
-  const directIP = request.ip || (request as any).socket?.remoteAddress || '127.0.0.1';
+  // For self-hosted Next.js, fall back to socket.remoteAddress as the direct IP.
+  const directIP = (request as any).socket?.remoteAddress || '127.0.0.1';
 
   // If we have a list of trusted proxies, only use forwarding headers if directIP is trusted.
   // If TRUSTED_PROXIES is empty, we assume we are not behind a proxy we control and

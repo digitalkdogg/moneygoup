@@ -23,12 +23,13 @@ function parseBreakdown(val: unknown): object | null {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { ticker: string } }
+  { params }: { params: Promise<{ ticker: string }> }
 ) {
   const originCheck = checkOrigin(request)
   if (originCheck) return originCheck
 
-  const parsed = tickerSchema.safeParse(params.ticker)
+  const { ticker: rawTicker } = await params
+  const parsed = tickerSchema.safeParse(rawTicker)
   if (!parsed.success) return NextResponse.json(EMPTY)
 
   const ticker = parsed.data

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -38,10 +38,13 @@ export default function LandingPage() {
   const [navOpen, setNavOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  if (status === 'authenticated') {
-    router.push('/dashboard');
-    return null;
-  }
+  useEffect(() => {
+    if (status === 'authenticated') {
+      router.push('/dashboard');
+    }
+  }, [status, router]);
+
+  if (status === 'authenticated') return null;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(CODE_SNIPPET).then(() => {

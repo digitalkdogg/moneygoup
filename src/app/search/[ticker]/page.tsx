@@ -1,10 +1,10 @@
 import Stock from "@/app/components/Stock";
 
-export default function StockPage({ params, searchParams }: { params: { ticker: string }; searchParams: { source?: string } }) {
-  const { ticker: lowerCaseTicker } = params;
+export default async function StockPage({ params, searchParams }: { params: Promise<{ ticker: string }>; searchParams: Promise<{ source?: string }> }) {
+  const { ticker: lowerCaseTicker } = await params;
   const ticker = lowerCaseTicker.toUpperCase();
-  const source = searchParams?.source;
-  
+  const { source } = await searchParams;
+
   return (
     <main id="main-content">
         <Stock ticker={ticker} source={source} />

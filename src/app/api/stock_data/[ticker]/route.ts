@@ -268,7 +268,7 @@ async function fetchFromExternalAPIs(tickers: string | string[]) {
 }
 
 
-export async function GET(request: NextRequest, { params }: { params: { ticker: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ ticker: string }> }) {
   const originCheckResponse = checkOrigin(request)
   if (originCheckResponse) return originCheckResponse
 
@@ -311,8 +311,9 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
   }
 
   // Validate ticker parameter
+  const { ticker: rawTicker } = await params;
   try {
-    var validatedTicker = multiTickerSchema.parse(params.ticker);
+    var validatedTicker = multiTickerSchema.parse(rawTicker);
   } catch (error) {
     if (error instanceof z.ZodError) {
       const message = error.issues && error.issues.length > 0 
@@ -503,7 +504,7 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { ticker: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ ticker: string }> }) {
   const originCheckResponse = checkOrigin(request);
   if (originCheckResponse) return originCheckResponse;
 

@@ -339,7 +339,7 @@ async function fetchMacroSeries(sym: string): Promise<{ date: string; close: num
 // ---------------------------------------------------------------------------
 export async function GET(
   request: NextRequest,
-  { params }: { params: { ticker: string } }
+  { params }: { params: Promise<{ ticker: string }> }
 ) {
   const apiKey = request.headers.get('x-api-key');
   const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
@@ -357,9 +357,10 @@ export async function GET(
     }
   }
 
+  const { ticker: rawTicker } = await params;
   let validatedTicker: string;
   try {
-    validatedTicker = tickerSchema.parse(params.ticker);
+    validatedTicker = tickerSchema.parse(rawTicker);
   } catch (err) {
     if (err instanceof z.ZodError) {
       const msg = err.issues[0]?.message ?? 'Invalid ticker';

@@ -19,7 +19,7 @@ const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { ticker: string } }
+  { params }: { params: Promise<{ ticker: string }> }
 ) {
   const apiKey = request.headers.get('x-api-key');
   const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
@@ -40,9 +40,10 @@ export async function GET(
   const rateLimitResponse = checkRateLimit(request, newsLimiter, 'news');
   if (rateLimitResponse) return rateLimitResponse;
 
+  const { ticker: rawTicker } = await params;
   let validatedTicker: string;
   try {
-    validatedTicker = tickerSchema.parse(params.ticker);
+    validatedTicker = tickerSchema.parse(rawTicker);
   } catch (error) {
     return validationErrorResponse('Invalid ticker format');
   }

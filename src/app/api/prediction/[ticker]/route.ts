@@ -41,7 +41,7 @@ function isOnCooldown(key: string): boolean {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { ticker: string } }
+  { params }: { params: Promise<{ ticker: string }> }
 ) {
   const apiKey = request.headers.get('x-api-key');
   const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
@@ -82,7 +82,8 @@ export async function POST(
 
   let validatedTicker: string;
   try {
-    validatedTicker = tickerSchema.parse(params.ticker);
+    const resolvedParams = await params;
+    validatedTicker = tickerSchema.parse(resolvedParams.ticker);
   } catch (error) {
     return validationErrorResponse('Invalid ticker');
   }

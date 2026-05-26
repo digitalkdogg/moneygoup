@@ -9,7 +9,7 @@ import { categorizeByTaxonomy, getCategoryStrategy, getCategoryKeywords } from '
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { ticker: string } }
+  { params }: { params: Promise<{ ticker: string }> }
 ) {
   try {
     // 1. Origin check
@@ -27,7 +27,7 @@ export async function GET(
     }
 
     // 3. Get raw input
-    const rawInput = params.ticker;
+    const { ticker: rawInput } = await params;
     const decodedInput = decodeURIComponent(rawInput).replace(/_/g, ' ');
 
     // 4. Resolve industry from user input via trigger matching
