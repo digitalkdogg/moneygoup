@@ -199,6 +199,63 @@ function extractShortInterestMetrics(keyStats: any, detail: any): {
 }
 
 // ---------------------------------------------------------------------------
+// Insider Transaction Metrics (SEC Form 4, 90-day window)
+// ---------------------------------------------------------------------------
+function extractInsiderMetrics(
+  insiderTxData: any,
+  sharesOutstanding: number | null
+): {
+  insiderNetSellRatio90d: number | null;
+  insiderTxCount90d: number | null;
+} {
+  const result = {
+    insiderNetSellRatio90d: null as number | null,
+    insiderTxCount90d: null as number | null,
+  };
+
+  try {
+    const transactions = insiderTxData?.transactions;
+    if (!Array.isArray(transactions) || transactions.length === 0) return result;
+
+    const cutoffMs = Date.now() - 90 * 24 * 60 * 60 * 1000;
+    let sellShares = 0;
+    let buyShares = 0;
+    let txCount = 0;
+
+    for (const tx of transactions) {
+      const txDate = tx.startDate instanceof Date ? tx.startDate : new Date(tx.startDate);
+      if (isNaN(txDate.getTime()) || txDate.getTime() < cutoffMs) continue;
+
+      const shares = Math.abs(safeNum(tx.shares) ?? 0);
+      const text = (tx.transactionText ?? '').toLowerCase();
+
+      if (text.includes('sale') || text.includes('sell')) {
+        sellShares += shares;
+      } else if (text.includes('purchase') || text.includes('buy')) {
+        buyShares += shares;
+      }
+      // Option exercises excluded — not a clean directional signal
+
+      txCount++;
+    }
+
+    result.insiderTxCount90d = txCount;
+
+    if (sharesOutstanding && sharesOutstanding > 0) {
+      const netSold = sellShares - buyShares;
+      // Clip to [-1, 1] to match Python-side clamp
+      result.insiderNetSellRatio90d = Math.max(-1, Math.min(1,
+        Math.round((netSold / sharesOutstanding) * 1e6) / 1e6
+      ));
+    }
+  } catch (err) {
+    logger.warn('Error extracting insider metrics', { error: err });
+  }
+
+  return result;
+}
+
+// ---------------------------------------------------------------------------
 // Data fetching helpers
 // ---------------------------------------------------------------------------
 async function fetchOptionsData(ticker: string): Promise<any> {
@@ -493,14 +550,29 @@ export async function GET(
       nextEarningsDate,
     };
 
+    // ---- 2c. Fetch insider transactions (Form 4, 90-day window) ----
+    let insiderTxModule: any = null;
+    try {
+      const insiderSummary = await yahooFinance.quoteSummary(validatedTicker, {
+        modules: ['insiderTransactions'] as any,
+      });
+      insiderTxModule = (insiderSummary as any).insiderTransactions ?? null;
+    } catch (err) {
+      logger.warn(`Failed to fetch insiderTransactions for ${validatedTicker}`, { error: err });
+    }
+
     const surprises = extractEarningsSurprises(earningsModule);
     const shortInterest = extractShortInterestMetrics(keyStats, detail);
+    const sharesOutstanding = safeNum(keyStats.sharesOutstanding);
+    const insiderMetrics = extractInsiderMetrics(insiderTxModule, sharesOutstanding);
 
     const featureMetrics = {
       epsSurpriseAvg4Q: surprises.epsSurpriseAvg4Q,
       revenueSurpriseAvg4Q: surprises.revenueSurpriseAvg4Q,
       shortFloatPct: shortInterest.shortFloatPct,
       daysToCover: shortInterest.daysToCover,
+      insiderNetSellRatio90d: insiderMetrics.insiderNetSellRatio90d,
+      insiderTxCount90d: insiderMetrics.insiderTxCount90d,
       asOf: new Date().toISOString().slice(0, 10),
     };
 
@@ -588,6 +660,8 @@ export async function GET(
     if (featureMetrics.revenueSurpriseAvg4Q === null) missingFeatures.push('revenueSurpriseAvg4Q');
     if (featureMetrics.shortFloatPct === null) missingFeatures.push('shortFloatPct');
     if (featureMetrics.daysToCover === null) missingFeatures.push('daysToCover');
+    if (featureMetrics.insiderNetSellRatio90d === null) missingFeatures.push('insiderNetSellRatio90d');
+    if (featureMetrics.insiderTxCount90d === null) missingFeatures.push('insiderTxCount90d');
 
     const dataQuality = {
       historyDays,

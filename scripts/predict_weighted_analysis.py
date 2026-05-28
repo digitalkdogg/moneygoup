@@ -275,6 +275,9 @@ FEATURE_COLUMNS = [
     # ── Earnings Surprises & Short Interest ──────────────────────────────────
     'EPS_Surprise_Avg_4Q', 'Revenue_Surprise_Avg_4Q',
     'ShortFloatPct', 'DaysToCover',
+    # ── Insider Activity (SEC Form 4) ─────────────────────────────────────────
+    'InsiderNetSellRatio_90d',  # net shares sold / outstanding (90d); positive = net selling
+    'InsiderTxCount_90d',       # number of insider transactions (90d)
     # ── Credit risk proxy (Phase 1) ──────────────────────────────────────────
     'HYG_Level', 'HYG_Mom_20d',
     'LQD_Level', 'LQD_Mom_20d',
@@ -486,6 +489,10 @@ def build_features(df, stock_metrics, macro_data, news_sentiment, earnings_beat_
         f['WorldBank_Inflation'] = safe(indicators.get('inflation'), 2.5)
         f['WorldBank_Consumption'] = safe(indicators.get('consumptionGrowth'), 2.0)
         f['WorldBank_Real_GDP'] = f['WorldBank_GDP'] - f['WorldBank_Inflation']
+
+        if feature_metrics:
+            f['InsiderNetSellRatio_90d'] = max(-1.0, min(1.0, safe(feature_metrics.get('insiderNetSellRatio90d'), 0.0)))
+            f['InsiderTxCount_90d'] = max(0.0, safe(feature_metrics.get('insiderTxCount90d'), 0.0))
     else:
         f = _calculate_features_internal(df, stock_metrics, macro_data, news_sentiment, earnings_beat_streak, current_price, options_data, feature_metrics)
 
@@ -641,6 +648,10 @@ def _calculate_features_internal(df, stock_metrics, macro_data, news_sentiment, 
 
     f['ShortFloatPct'] = safe(feature_metrics.get('shortFloatPct'), 0.0) * 100 if feature_metrics else np.nan
     f['DaysToCover'] = safe(feature_metrics.get('daysToCover'), 0.0) if feature_metrics else np.nan
+
+    # Insider activity — net sell ratio is clipped to [-1, 1]; count is non-negative
+    f['InsiderNetSellRatio_90d'] = max(-1.0, min(1.0, safe(feature_metrics.get('insiderNetSellRatio90d'), 0.0))) if feature_metrics else np.nan
+    f['InsiderTxCount_90d'] = max(0.0, safe(feature_metrics.get('insiderTxCount90d'), 0.0)) if feature_metrics else np.nan
 
     f['NewsSentiment']      = news_sentiment
     f['EarningsBeatStreak'] = earnings_beat_streak
