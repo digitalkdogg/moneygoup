@@ -118,18 +118,27 @@ export const POST = validate(purchaseStockSchema)(
       }
 
       const query = `
-        INSERT INTO user_stocks (user_id, stock_id, shares, purchase_price, is_purchased, initial_purchase_date, last_transaction_date, is_active)
-        VALUES (?, ?, ?, ?, ?, NOW(), NOW(), 1)
+        INSERT INTO user_stocks (user_id, stock_id, shares, purchase_price, is_purchased, initial_purchase_date, last_transaction_date, is_active, average_cost_basis, first_purchase_date)
+        VALUES (?, ?, ?, ?, ?, NOW(), NOW(), 1, ?, NOW())
         ON DUPLICATE KEY UPDATE
           purchase_price = ((purchase_price * shares) + (VALUES(purchase_price) * VALUES(shares))) / (shares + VALUES(shares)),
+          average_cost_basis = ((COALESCE(average_cost_basis, purchase_price) * shares) + (VALUES(purchase_price) * VALUES(shares))) / (shares + VALUES(shares)),
           shares = shares + VALUES(shares),
           is_purchased = VALUES(is_purchased),
           initial_purchase_date = IFNULL(initial_purchase_date, NOW()),
+          first_purchase_date = IFNULL(first_purchase_date, NOW()),
           last_transaction_date = NOW(),
           is_active = 1;
       `;
 
-      await executeRawQuery(query, [userId, stock_id, shares, purchase_price, isPurchased]);
+      await executeRawQuery(query, [userId, stock_id, shares, purchase_price, isPurchased, purchase_price]);
+
+      await executeRawQuery(
+        `INSERT INTO portfolio_transactions (user_id, stock_id, transaction_type, shares, price_per_share, total_amount, fees, transaction_date)
+         VALUES (?, ?, 'buy', ?, ?, ?, 0, NOW())`,
+        [userId, stock_id, shares, purchase_price, shares * purchase_price]
+      );
+
       const brandEnrichment = await enrichStockBrand(stock_id);
 
       return NextResponse.json(

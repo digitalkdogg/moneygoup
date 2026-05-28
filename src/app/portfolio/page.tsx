@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import PortfolioCompareChart, { type OverlaySeries } from '@/app/components/PortfolioCompareChart'
 import GainsBreakdownCard from '@/app/components/GainsBreakdownCard'
@@ -21,6 +21,29 @@ interface KPIs {
 
 const OVERLAY_COLORS = ['#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#f97316']
 const MAX_OVERLAYS = 4
+
+// Returns the earliest initial_purchase_date among the given tickers.
+// Used to align the x-axis origin for all overlays when period='all'.
+function earliestPurchaseDate(tickers: string[], portfolio: PortfolioItem[]): string | null {
+  const dates = tickers.flatMap(t => {
+    const item = portfolio.find(p => p.symbol === t)
+    const d = item?.initial_purchase_date ?? item?.last_transaction_date
+    return d ? [d] : []
+  })
+  if (dates.length === 0) return null
+  return dates.reduce((min, d) => (d < min ? d : min))
+}
+
+function getPeriodStartMs(period: Period): number {
+  const d = new Date()
+  switch (period) {
+    case '1m': d.setMonth(d.getMonth() - 1); break
+    case '6m': d.setMonth(d.getMonth() - 6); break
+    case '1y': d.setFullYear(d.getFullYear() - 1); break
+    case 'all': return 0  // epoch — let the ticker date win
+  }
+  return d.getTime()
+}
 
 // ── KPI calculations ─────────────────────────────────────────────────────────
 
@@ -222,10 +245,8 @@ export default function PortfolioPage() {
   useEffect(() => {
     if (activeOverlays.length === 0) return
     const tickers = [...activeOverlays]
-    // Clear cached data; re-fetch will happen via toggleOverlay pattern below
     setOverlayData(new Map())
     setActiveOverlays([])
-    // Re-fetch each
     setTimeout(() => {
       tickers.forEach(ticker => fetchOverlay(ticker, period))
     }, 0)
@@ -268,6 +289,18 @@ export default function PortfolioPage() {
     data: overlayData.get(ticker) ?? [],
     color: OVERLAY_COLORS[i % OVERLAY_COLORS.length],
   }))
+
+  // Trim baseHistory so the x-axis starts at max(period_start, earliest_overlay_purchase_date).
+  // This applies to every period: for fixed windows (1m/6m/1y) a ticker bought after
+  // the window start shifts the origin forward; for 'all' the ticker date always wins
+  // since getPeriodStartMs returns 0 (epoch).
+  const chartBaseData = useMemo(() => {
+    if (activeOverlays.length === 0) return baseHistory
+    const anchor = earliestPurchaseDate(activeOverlays, portfolio)
+    if (!anchor) return baseHistory
+    const trimMs = Math.max(new Date(anchor).getTime(), getPeriodStartMs(period))
+    return baseHistory.filter(p => new Date(p.date).getTime() >= trimMs)
+  }, [period, activeOverlays, portfolio, baseHistory])
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -336,7 +369,7 @@ export default function PortfolioPage() {
             <PortfolioCompareChart
               period={period}
               onPeriodChange={p => setPeriod(p)}
-              baseData={baseHistory}
+              baseData={chartBaseData}
               overlays={overlays}
               normalized={normalized}
               onNormalizedChange={setNormalized}

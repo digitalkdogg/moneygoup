@@ -23,6 +23,9 @@ export interface PortfolioTotals {
   unrealizedLoss: number;
   unrealizedNet: number;
   unrealizedPct: number;
+  dailyChangeAmount: number | null;
+  dailyChangePct: number | null;
+  realizedGainLoss: number | null;
 }
 
 export interface PortfolioWithTotalsResponse {

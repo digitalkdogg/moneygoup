@@ -22,11 +22,13 @@ export default function Navigation() {
 
   useEffect(() => {
     if (!session?.user?.id) return;
-    fetch('/api/user/portfolio')
+    fetch('/api/user/profile')
       .then(r => r.ok ? r.json() : null)
       .then(data => {
-        const items = data?.portfolio ?? data?.stocks ?? [];
-        setHasPortfolio(Array.isArray(items) && items.length > 0);
+        // stats is absent for admin accounts — leave the default true in that case
+        if (data?.stats) {
+          setHasPortfolio(data.stats.portfolioItemCount > 0);
+        }
       })
       .catch(() => {});
   }, [session?.user?.id]);

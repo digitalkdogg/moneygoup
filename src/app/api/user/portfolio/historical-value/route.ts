@@ -62,7 +62,36 @@ export async function GET(req: NextRequest) {
     try {
         logger.info(`Fetching portfolio history for user ${userId} for period ${periodParam}`);
 
-        // 1. Fetch current holdings and their initial purchase dates
+        // 1. Try portfolio_daily_snapshots for a fast, pre-computed response
+        const snapshotStartDate = getStartDate(periodParam, null);
+        const [snapshotRows] = await executeRawQuery(
+            `SELECT snapshot_date AS date,
+                    portfolio_value AS value,
+                    daily_change_amount AS dailyChangeAmount,
+                    daily_change_percent AS dailyChangePct
+             FROM portfolio_daily_snapshots
+             WHERE user_id = ? AND snapshot_date >= ?
+             ORDER BY snapshot_date ASC`,
+            [userId, snapshotStartDate.toISOString().split('T')[0]]
+        ) as any[];
+
+        if (Array.isArray(snapshotRows) && snapshotRows.length > 1 && 'value' in (snapshotRows[0] ?? {})) {
+            logger.info(`Returning ${snapshotRows.length} snapshot rows for user ${userId}`);
+            return NextResponse.json(
+                snapshotRows.map((r: any) => ({
+                    date: r.date instanceof Date
+                        ? r.date.toISOString().split('T')[0]
+                        : String(r.date),
+                    value: parseFloat(r.value),
+                    dailyChangeAmount: r.dailyChangeAmount != null ? parseFloat(r.dailyChangeAmount) : null,
+                    dailyChangePct: r.dailyChangePct != null ? parseFloat(r.dailyChangePct) : null,
+                }))
+            );
+        }
+
+        logger.info(`No snapshot data found — falling back to live reconstruction for user ${userId}`);
+
+        // 2. Fetch current holdings and their initial purchase dates
         const holdingsSql = `
             SELECT s.symbol as ticker, us.shares, us.initial_purchase_date
             FROM user_stocks us

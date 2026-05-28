@@ -44,6 +44,8 @@ export async function GET(request: NextRequest) {
         s.company_name,
         us.shares,
         us.purchase_price,
+        COALESCE(us.average_cost_basis, us.purchase_price) AS average_cost_basis,
+        us.first_purchase_date,
         us.initial_purchase_date,
         us.last_transaction_date,
         usp.predicted_price_1m,
@@ -149,20 +151,21 @@ export async function GET(request: NextRequest) {
       })
     );
 
-    // Calculate totals
+    // Calculate totals using average_cost_basis for accuracy
     let costBasis = 0;
     let marketValue = 0;
     let unrealizedGain = 0;
     let unrealizedLoss = 0;
 
     portfolioWithData.forEach(item => {
-      const itemCost = item.shares * item.purchase_price;
-      const itemValue = item.shares * (item.regularMarketPrice || item.purchase_price);
+      const costPerShare = item.average_cost_basis ?? item.purchase_price;
+      const itemCost = item.shares * costPerShare;
+      const itemValue = item.shares * (item.regularMarketPrice || costPerShare);
       const itemGain = itemValue - itemCost;
 
       costBasis += itemCost;
       marketValue += itemValue;
-      
+
       if (itemGain > 0) {
         unrealizedGain += itemGain;
       } else {
@@ -172,6 +175,29 @@ export async function GET(request: NextRequest) {
 
     const unrealizedNet = marketValue - costBasis;
     const unrealizedPct = costBasis !== 0 ? (unrealizedNet / costBasis) * 100 : 0;
+
+    // Pull daily change and realized gain from the latest snapshot if available
+    let dailyChangeAmount: number | null = null;
+    let dailyChangePct: number | null = null;
+    let realizedGainLoss: number | null = null;
+    try {
+      const [snapshotRows] = await executeRawQuery(
+        `SELECT daily_change_amount, daily_change_percent, realized_gain_loss
+         FROM portfolio_daily_snapshots
+         WHERE user_id = ?
+         ORDER BY snapshot_date DESC
+         LIMIT 1`,
+        [userId]
+      ) as any[];
+      if (Array.isArray(snapshotRows) && snapshotRows.length > 0) {
+        const snap = snapshotRows[0];
+        dailyChangeAmount = snap.daily_change_amount != null ? parseFloat(snap.daily_change_amount) : null;
+        dailyChangePct = snap.daily_change_percent != null ? parseFloat(snap.daily_change_percent) : null;
+        realizedGainLoss = snap.realized_gain_loss != null ? parseFloat(snap.realized_gain_loss) : null;
+      }
+    } catch {
+      // Snapshots are optional enrichment — continue without them
+    }
 
     // Build ratings summary for the response
     const ratings = portfolioWithData.map(item => ({
@@ -189,7 +215,10 @@ export async function GET(request: NextRequest) {
         unrealizedGain,
         unrealizedLoss,
         unrealizedNet,
-        unrealizedPct
+        unrealizedPct,
+        dailyChangeAmount,
+        dailyChangePct,
+        realizedGainLoss,
       },
       ratings,
       asOf: new Date().toISOString()

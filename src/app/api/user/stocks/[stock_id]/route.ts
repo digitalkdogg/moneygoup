@@ -56,7 +56,7 @@ export const PATCH = validate(tradeSchema)(
 
       // Verify user owns this stock
       const [existingPosition] = await executeRawQuery(
-        'SELECT shares, purchase_price FROM user_stocks WHERE user_id = ? AND stock_id = ? AND is_purchased = 1',
+        'SELECT shares, purchase_price, average_cost_basis FROM user_stocks WHERE user_id = ? AND stock_id = ? AND is_purchased = 1',
         [userId, stockId]
       );
 
@@ -67,23 +67,34 @@ export const PATCH = validate(tradeSchema)(
       const position = existingPosition[0];
       const currentShares = parseFloat(position.shares);
       const currentPrice = parseFloat(position.purchase_price);
+      const currentAvgCost = position.average_cost_basis != null
+        ? parseFloat(position.average_cost_basis)
+        : currentPrice;
 
       if (action === 'buy') {
         if (!sharesToTrade) {
           return createErrorResponse(null, 'Shares required for buy action', { status: 400 });
         }
 
-        // Calculate new weighted average price
         const newAvgPrice = (currentShares * currentPrice + sharesToTrade * price) / (currentShares + sharesToTrade);
+        const newAvgCost = (currentShares * currentAvgCost + sharesToTrade * price) / (currentShares + sharesToTrade);
 
         await executeRawQuery(
-          `UPDATE user_stocks 
-           SET shares = shares + ?, 
-               purchase_price = ?, 
+          `UPDATE user_stocks
+           SET shares = shares + ?,
+               purchase_price = ?,
+               average_cost_basis = ?,
+               first_purchase_date = IFNULL(first_purchase_date, NOW()),
                last_transaction_date = NOW(),
                is_active = 1
            WHERE user_id = ? AND stock_id = ? AND is_purchased = 1`,
-          [sharesToTrade, newAvgPrice, userId, stockId]
+          [sharesToTrade, newAvgPrice, newAvgCost, userId, stockId]
+        );
+
+        await executeRawQuery(
+          `INSERT INTO portfolio_transactions (user_id, stock_id, transaction_type, shares, price_per_share, total_amount, fees, transaction_date)
+           VALUES (?, ?, 'buy', ?, ?, ?, 0, NOW())`,
+          [userId, stockId, sharesToTrade, price, sharesToTrade * price]
         );
 
         return NextResponse.json(
@@ -91,6 +102,7 @@ export const PATCH = validate(tradeSchema)(
             status: 'success',
             shares: currentShares + sharesToTrade,
             purchase_price: newAvgPrice,
+            average_cost_basis: newAvgCost,
             last_transaction_date: new Date().toISOString(),
           },
           { status: 200 }
@@ -104,15 +116,21 @@ export const PATCH = validate(tradeSchema)(
           return createErrorResponse(null, 'Cannot sell more shares than you own', { status: 400 });
         }
 
-        const realizedGain = (price - currentPrice) * sharesToTrade;
-        const realizedGainPct = (realizedGain / (currentPrice * sharesToTrade)) * 100;
+        const realizedGain = (price - currentAvgCost) * sharesToTrade;
+        const realizedGainPct = (realizedGain / (currentAvgCost * sharesToTrade)) * 100;
 
         await executeRawQuery(
-          `UPDATE user_stocks 
-           SET shares = shares - ?, 
+          `UPDATE user_stocks
+           SET shares = shares - ?,
                last_transaction_date = NOW()
            WHERE user_id = ? AND stock_id = ? AND is_purchased = 1`,
           [sharesToTrade, userId, stockId]
+        );
+
+        await executeRawQuery(
+          `INSERT INTO portfolio_transactions (user_id, stock_id, transaction_type, shares, price_per_share, total_amount, fees, transaction_date)
+           VALUES (?, ?, 'sell', ?, ?, ?, 0, NOW())`,
+          [userId, stockId, sharesToTrade, price, sharesToTrade * price]
         );
 
         return NextResponse.json(
@@ -127,17 +145,23 @@ export const PATCH = validate(tradeSchema)(
           { status: 200 }
         );
       } else if (action === 'sell_all') {
-        const realizedGain = (price - currentPrice) * currentShares;
-        const realizedGainPct = (realizedGain / (currentPrice * currentShares)) * 100;
+        const realizedGain = (price - currentAvgCost) * currentShares;
+        const realizedGainPct = (realizedGain / (currentAvgCost * currentShares)) * 100;
 
         await executeRawQuery(
-          `UPDATE user_stocks 
-           SET shares = 0, 
+          `UPDATE user_stocks
+           SET shares = 0,
                is_active = 1,
-               is_purchased = 0, 
+               is_purchased = 0,
                last_transaction_date = NOW()
            WHERE user_id = ? AND stock_id = ? AND is_purchased = 1`,
           [userId, stockId]
+        );
+
+        await executeRawQuery(
+          `INSERT INTO portfolio_transactions (user_id, stock_id, transaction_type, shares, price_per_share, total_amount, fees, transaction_date)
+           VALUES (?, ?, 'sell', ?, ?, ?, 0, NOW())`,
+          [userId, stockId, currentShares, price, currentShares * price]
         );
 
         return NextResponse.json(
@@ -196,6 +220,13 @@ export async function PUT(
       );
     }
 
+    // Fetch current position before clearing it so we can log the transaction
+    const [currentRows] = await executeRawQuery(
+      'SELECT shares, COALESCE(average_cost_basis, purchase_price) as cost_basis FROM user_stocks WHERE user_id = ? AND stock_id = ? AND is_purchased = 1',
+      [userId, parsedId]
+    ) as any[];
+    const currentPosition = Array.isArray(currentRows) && currentRows.length > 0 ? currentRows[0] : null;
+
     // Update user_stocks to reflect "sold" state (i.e., move back to watchlist)
     const affectedRows = await update(
       'user_stocks',
@@ -204,8 +235,17 @@ export async function PUT(
     );
 
     if (affectedRows === 0) {
-      // If no rows were affected, it means the stock was not found or not owned by the user.
       return createErrorResponse(null, 'Stock not found or not owned by user', { status: 404 });
+    }
+
+    if (currentPosition && parseFloat(currentPosition.shares) > 0) {
+      const soldShares = parseFloat(currentPosition.shares);
+      const costBasis = parseFloat(currentPosition.cost_basis) || 0;
+      await executeRawQuery(
+        `INSERT INTO portfolio_transactions (user_id, stock_id, transaction_type, shares, price_per_share, total_amount, fees, transaction_date)
+         VALUES (?, ?, 'sell', ?, ?, ?, 0, NOW())`,
+        [userId, parsedId, soldShares, costBasis, soldShares * costBasis]
+      );
     }
 
     return NextResponse.json({ message: 'Stock sold successfully (moved to watchlist)' }, { status: 200 });

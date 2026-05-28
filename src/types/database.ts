@@ -28,9 +28,54 @@ export interface UserStockRow {
   stock_id: number;
   shares: number;
   purchase_price: number;
+  average_cost_basis: number | null;
+  first_purchase_date: string | null;
   purchase_date: string;
   is_purchased: number; // 1 = in portfolio, 0 = watchlist
   updated_at: string;
+}
+
+export interface PortfolioTransactionRow {
+  id: number;
+  user_id: number;
+  stock_id: number;
+  transaction_type: 'buy' | 'sell' | 'dividend' | 'split' | 'deposit' | 'withdrawal';
+  shares: number | null;
+  price_per_share: number | null;
+  total_amount: number;
+  fees: number;
+  transaction_date: string;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface PortfolioSnapshotRow {
+  user_id: number;
+  snapshot_date: string;
+  portfolio_value: number;
+  total_cost_basis: number;
+  unrealized_gain_loss: number;
+  realized_gain_loss: number;
+  daily_change_amount: number | null;
+  daily_change_percent: number | null;
+  created_at: string;
+}
+
+export interface PortfolioPositionHistoryRow {
+  user_id: number;
+  stock_id: number;
+  snapshot_date: string;
+  shares: number;
+  market_value: number;
+  cost_basis: number;
+}
+
+export interface PortfolioBenchmarkRow {
+  user_id: number;
+  snapshot_date: string;
+  portfolio_return_pct: number;
+  spy_return_pct: number;
+  alpha_pct: number;
 }
 
 export interface UserStockWithDetailsRow extends UserStockRow {
