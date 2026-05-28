@@ -135,7 +135,8 @@ export async function GET(request: NextRequest) {
             numberOfAnalystOpinions: summary?.financialData?.numberOfAnalystOpinions || null,
             brand_color: item.primary_color || null,
             gpsScore: item.gps_score !== null ? parseFloat(item.gps_score) : null,
-            gpsBreakdown: item.gps_breakdown ? (typeof item.gps_breakdown === 'string' ? JSON.parse(item.gps_breakdown) : item.gps_breakdown) : null
+            gpsBreakdown: item.gps_breakdown ? (typeof item.gps_breakdown === 'string' ? JSON.parse(item.gps_breakdown) : item.gps_breakdown) : null,
+            sector: (summary as any)?.assetProfile?.sector || null
           };
         } catch (dataError) {
           logger.error(`Error fetching data for ${item.symbol}:`, { error: dataError as Error });

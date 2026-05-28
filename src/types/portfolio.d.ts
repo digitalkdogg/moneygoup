@@ -19,5 +19,6 @@ export interface PortfolioItem {
   brand_color?: string | null;
   gpsScore?: number | null;
   gpsBreakdown?: any | null;
+  sector?: string | null;
   [key: string]: any; // For StockTableRow compatibility
 }

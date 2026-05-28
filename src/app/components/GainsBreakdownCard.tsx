@@ -12,14 +12,14 @@ interface GainsBreakdownCardProps {
 const GainsBreakdownCard: React.FC<GainsBreakdownCardProps> = ({ totals, loading }) => {
   if (loading && !totals) {
     return (
-      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm animate-pulse h-full">
-        <div className="h-6 w-40 bg-gray-200 rounded mb-4"></div>
-        <div className="flex gap-4 items-center h-full">
-          <div className="w-32 h-32 rounded-full border-8 border-gray-100 flex-shrink-0"></div>
-          <div className="flex-grow space-y-3">
-            <div className="h-4 bg-gray-100 rounded w-full"></div>
-            <div className="h-4 bg-gray-100 rounded w-full"></div>
-            <div className="h-4 bg-gray-100 rounded w-full"></div>
+      <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm animate-pulse h-full">
+        <div className="h-4 w-32 bg-gray-200 rounded mb-3"></div>
+        <div className="flex gap-4 items-center">
+          <div className="w-24 h-24 rounded-full border-8 border-gray-100 flex-shrink-0"></div>
+          <div className="flex-grow space-y-2.5">
+            <div className="h-3 bg-gray-100 rounded w-full"></div>
+            <div className="h-3 bg-gray-100 rounded w-full"></div>
+            <div className="h-3 bg-gray-100 rounded w-4/5"></div>
           </div>
         </div>
       </div>
@@ -30,7 +30,7 @@ const GainsBreakdownCard: React.FC<GainsBreakdownCardProps> = ({ totals, loading
     return (
       <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm h-full flex flex-col justify-center items-center text-center">
         <p className="text-gray-500 text-sm font-medium">No positions in portfolio yet.</p>
-        <p className="text-xs text-gray-400 mt-1">Gains breakdown will appear once you add stocks.</p>
+        <p className="text-xs text-gray-500 mt-1">Gains breakdown will appear once you add stocks.</p>
       </div>
     );
   }
@@ -54,52 +54,47 @@ const GainsBreakdownCard: React.FC<GainsBreakdownCardProps> = ({ totals, loading
   )`;
 
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-md h-full">
-      <div className="flex items-center gap-2 mb-6">
-        <div className="w-2.5 h-2.5 rounded-full bg-blue-500"></div>
-        <h3 className="font-bold text-gray-800">Gains Breakdown</h3>
+    <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-md h-full">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+        <h3 className="text-base font-bold text-gray-800">Gains Breakdown</h3>
       </div>
 
-      <div className="flex flex-col gap-8 items-center h-full justify-center">
+      <div className="flex items-center gap-4">
         {/* Donut Chart */}
-        <div className="relative w-40 h-40 flex-shrink-0">
-          <div 
-            className="w-full h-full rounded-full" 
-            style={{ background: donutGradient }}
-          ></div>
-          <div className="absolute inset-5 bg-white rounded-full flex items-center justify-center flex-col shadow-inner">
-            <span className={`text-2xl font-extrabold leading-none ${netGain >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+        <div className="relative w-24 h-24 flex-shrink-0">
+          <div className="w-full h-full rounded-full" style={{ background: donutGradient }}></div>
+          <div className="absolute inset-[14px] bg-white rounded-full flex items-center justify-center flex-col shadow-inner">
+            <span className={`text-sm font-extrabold leading-none ${netGain >= 0 ? 'text-green-700' : 'text-red-600'}`}>
               {netGain >= 0 ? '+' : ''}{formatNumber(totals.unrealizedPct, 1)}%
             </span>
-            <span className="text-[10px] text-gray-400 font-bold uppercase mt-1">NET P/L</span>
+            <span className="text-[8px] text-gray-600 font-bold uppercase mt-0.5">NET P/L</span>
           </div>
         </div>
 
         {/* Legend */}
-        <div className="w-full bg-gray-50 rounded-xl p-4 border border-gray-100">
-          <ul className="space-y-4">
-            <li className="flex justify-between items-center text-sm">
-              <div className="flex items-center gap-3">
-                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: '#a8d78d' }}></div>
-                <span className="text-gray-500 font-medium">Unrealized Gains</span>
-              </div>
-              <span className="text-green-600 font-bold">{formatCurrency(totals.unrealizedGain, 0)}</span>
-            </li>
-            <li className="flex justify-between items-center text-sm">
-              <div className="flex items-center gap-3">
-                <div className="w-2.5 h-2.5 rounded-full bg-red-600"></div>
-                <span className="text-gray-500 font-medium">Unrealized Losses</span>
-              </div>
-              <span className="text-red-600 font-bold">-{formatCurrency(totals.unrealizedLoss, 0)}</span>
-            </li>
-            <li className="flex justify-between items-center text-sm pt-4 border-t border-gray-200">
-              <div className="flex items-center gap-3">
-                <div className="w-2.5 h-2.5 rounded-full bg-gray-300"></div>
-                <span className="text-gray-600 font-bold">Cost Basis</span>
-              </div>
-              <span className="text-gray-900 font-extrabold">{formatCurrency(totals.costBasis, 0)}</span>
-            </li>
-          </ul>
+        <div className="flex-1 space-y-2">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: '#a8d78d' }}></div>
+              <span className="text-base text-gray-500">Unrealized Gains</span>
+            </div>
+            <span className="text-base text-green-700 font-bold">{formatCurrency(totals.unrealizedGain, 0)}</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0"></div>
+              <span className="text-base text-gray-500">Unrealized Losses</span>
+            </div>
+            <span className="text-base text-red-600 font-bold">-{formatCurrency(totals.unrealizedLoss, 0)}</span>
+          </div>
+          <div className="flex justify-between items-center pt-2 border-t border-gray-100">
+            <div className="flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-full bg-gray-300 flex-shrink-0"></div>
+              <span className="text-base text-gray-600 font-semibold">Cost Basis</span>
+            </div>
+            <span className="text-base text-gray-900 font-bold">{formatCurrency(totals.costBasis, 0)}</span>
+          </div>
         </div>
       </div>
     </div>

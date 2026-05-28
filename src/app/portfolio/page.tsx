@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import PortfolioCompareChart, { type OverlaySeries } from '@/app/components/PortfolioCompareChart'
-import GainsBreakdownCard from '@/app/components/GainsBreakdownCard'
 import RecommendationsSection from '@/app/components/RecommendationsSection'
+import PortfolioMetricsPanel from '@/app/components/PortfolioMetricsPanel'
 import type { PortfolioItem } from '@/types/portfolio'
 import type { PortfolioTotals } from '@/types/dashboard'
 
@@ -97,6 +97,19 @@ function fmtPct(v: number, decimals = 1) {
   return `${v >= 0 ? '+' : ''}${(v * 100).toFixed(decimals)}%`
 }
 
+// ── Section heading ───────────────────────────────────────────────────────────
+
+function SectionHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <h2
+      className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4 pl-3 border-l-2"
+      style={{ borderLeftColor: '#017e3b' }}
+    >
+      {children}
+    </h2>
+  )
+}
+
 // ── KPI card ─────────────────────────────────────────────────────────────────
 
 function StatCard({
@@ -111,9 +124,9 @@ function StatCard({
   const color = neutral ? 'text-gray-800' : positive ? 'text-green-700' : 'text-red-600'
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex flex-col gap-1">
-      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{label}</p>
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</p>
       <p className={`text-xl font-bold ${color}`}>{value}</p>
-      {sub && <p className="text-xs text-gray-400">{sub}</p>}
+      {sub && <p className="text-xs text-gray-500">{sub}</p>}
     </div>
   )
 }
@@ -152,13 +165,13 @@ function HoldingRow({
           style={{ backgroundColor: active && color ? color : '#d1d5db' }}
         />
         <div className="min-w-0">
-          <p className="font-bold text-gray-900 text-sm leading-tight">{item.symbol}</p>
-          <p className="text-xs text-gray-400 truncate">{item.company_name}</p>
-          <p className="text-xs text-gray-500">{item.shares} shares</p>
-          <p className="text-xs font-medium text-gray-800">
+          <p className="font-bold text-gray-900 text-base leading-tight">{item.symbol}</p>
+          <p className="text-sm text-gray-600 truncate">{item.company_name}</p>
+          <p className="text-base text-gray-500">{item.shares} shares</p>
+          <p className="text-base font-medium text-gray-800">
             {fmtCurrency(value)}
             {gain !== null && (
-              <span className={`ml-1 ${gain >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <span className={`ml-1 ${gain >= 0 ? 'text-green-700' : 'text-red-600'}`}>
                 ({fmtPct(gain)})
               </span>
             )}
@@ -310,161 +323,163 @@ export default function PortfolioPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
 
-        {/* Page title */}
-        <div className="mb-6">
-          <div className="flex items-center gap-2 text-sm text-gray-400 mb-1">
+        {/* ── Page header ───────────────────────────────────────────────── */}
+        <div>
+          <div className="flex items-center gap-2 text-base text-gray-600 mb-1">
             <Link href="/" className="hover:text-gray-600 transition-colors">Dashboard</Link>
             <span>/</span>
             <span className="text-gray-600">My Portfolio</span>
           </div>
           <h1 className="text-2xl font-bold text-gray-900">My Portfolio</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Performance overview · click a holding to overlay its value on the chart
+          <p className="text-base text-gray-500 mt-1">
+            Track performance, analyze holdings, and compare positions over time
           </p>
         </div>
 
-        {/* KPI row */}
-        {portfolioLoading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-3 mb-6">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 h-20 animate-pulse" />
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-3 mb-6">
-            <StatCard
-              label="Portfolio Value"
-              value={fmtCurrency(marketValue)}
-              neutral
-            />
-            <StatCard
-              label="Net Gain / Loss"
-              value={fmtCurrency(netGain)}
-              sub={netPct !== 0 ? fmtPct(netPct / 100) : undefined}
-              positive={netGain >= 0}
-            />
-            <StatCard
-              label={`CAGR (${period})`}
-              value={kpis ? fmtPct(kpis.cagr) : '—'}
-              sub="annualized"
-              positive={!kpis || kpis.cagr >= 0}
-              neutral={!kpis}
-            />
-            <StatCard
-              label="Volatility"
-              value={kpis ? `${(kpis.volatility * 100).toFixed(1)}%` : '—'}
-              sub="annualized"
-              neutral
-            />
-          </div>
-        )}
+        {/* ── At a Glance ───────────────────────────────────────────────── */}
+        <section>
+          <SectionHeading>At a Glance</SectionHeading>
+          {portfolioLoading ? (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 h-20 animate-pulse" />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <StatCard label="Portfolio Value" value={fmtCurrency(marketValue)} neutral />
+              <StatCard
+                label="Net Gain / Loss"
+                value={fmtCurrency(netGain)}
+                sub={netPct !== 0 ? fmtPct(netPct / 100) : undefined}
+                positive={netGain >= 0}
+              />
+              <StatCard
+                label={`CAGR (${period})`}
+                value={kpis ? fmtPct(kpis.cagr) : '—'}
+                sub="annualized"
+                positive={!kpis || kpis.cagr >= 0}
+                neutral={!kpis}
+              />
+              <StatCard
+                label="Volatility"
+                value={kpis ? `${(kpis.volatility * 100).toFixed(1)}%` : '—'}
+                sub="annualized"
+                neutral
+              />
+            </div>
+          )}
+        </section>
 
-        {/* Chart + Holdings sidebar */}
-        <div className="flex flex-col lg:flex-row gap-4">
+        {/* ── Portfolio Analytics ───────────────────────────────────────── */}
+        <section>
+          <SectionHeading>Portfolio Analytics</SectionHeading>
+          <PortfolioMetricsPanel
+            portfolio={portfolio}
+            loading={portfolioLoading}
+            totals={totals}
+            totalsLoading={portfolioLoading}
+          />
+        </section>
 
-          {/* Chart (grows to fill) */}
-          <div className="flex-1 min-w-0">
-            <PortfolioCompareChart
-              period={period}
-              onPeriodChange={p => setPeriod(p)}
-              baseData={chartBaseData}
-              overlays={overlays}
-              normalized={normalized}
-              onNormalizedChange={setNormalized}
-              loading={historyLoading}
-            />
-          </div>
+        {/* ── Performance ───────────────────────────────────────────────── */}
+        <section>
+          <SectionHeading>Performance</SectionHeading>
+          <div className="flex flex-col lg:flex-row gap-4">
 
-          {/* Right sidebar */}
-          <div className="lg:w-72 xl:w-80 flex flex-col gap-4">
-
-            {/* Holdings list */}
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-4 flex flex-col">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-bold text-gray-700">Holdings</h2>
-                {activeOverlays.length > 0 && (
-                  <span className="text-xs text-gray-400">
-                    {activeOverlays.length}/{MAX_OVERLAYS} overlaid
+            {/* Chart */}
+            <div className="flex-1 min-w-0">
+              <PortfolioCompareChart
+                period={period}
+                onPeriodChange={p => setPeriod(p)}
+                baseData={chartBaseData}
+                overlays={overlays}
+                normalized={normalized}
+                onNormalizedChange={setNormalized}
+                loading={historyLoading}
+              />
+              {kpis && !historyLoading && (
+                <p className="text-xs text-gray-500 mt-3 text-center">
+                  Period return ({period}):{' '}
+                  <span className={kpis.periodReturn >= 0 ? 'text-green-700 font-medium' : 'text-red-600 font-medium'}>
+                    {fmtPct(kpis.periodReturn)}
                   </span>
-                )}
-              </div>
-
-              {portfolioLoading ? (
-                <div className="space-y-2">
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="h-16 bg-gray-50 rounded-xl animate-pulse" />
-                  ))}
-                </div>
-              ) : portfolio.length === 0 ? (
-                <div className="flex-1 flex items-center justify-center">
-                  <p className="text-sm text-gray-400 text-center">
-                    No holdings yet.{' '}
-                    <Link href="/search" className="underline" style={{ color: '#017e3b' }}>
-                      Search stocks
-                    </Link>{' '}
-                    to add positions.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-2 overflow-y-auto flex-1 pr-0.5">
-                  {portfolio.map((item, i) => {
-                    const isActive = activeOverlays.includes(item.symbol)
-                    const colorIdx = activeOverlays.indexOf(item.symbol)
-                    return (
-                      <HoldingRow
-                        key={item.symbol}
-                        item={item}
-                        active={isActive}
-                        loading={overlayLoading.has(item.symbol)}
-                        color={isActive ? OVERLAY_COLORS[colorIdx % OVERLAY_COLORS.length] : undefined}
-                        onToggle={handleToggle}
-                        disabled={activeOverlays.length >= MAX_OVERLAYS}
-                      />
-                    )
-                  })}
-                </div>
-              )}
-
-              {activeOverlays.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-gray-100">
-                  <button
-                    onClick={() => {
-                      setActiveOverlays([])
-                      setOverlayData(new Map())
-                    }}
-                    className="w-full text-xs text-gray-400 hover:text-gray-600 transition-colors"
-                  >
-                    Clear all overlays
-                  </button>
-                </div>
+                  {' '}· KPIs computed from portfolio value history
+                </p>
               )}
             </div>
-          </div>
 
-        </div>
+            {/* Holdings sidebar */}
+            <div className="lg:w-72 xl:w-80">
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-4 flex flex-col">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-base font-bold text-gray-700">Holdings</h3>
+                  {activeOverlays.length > 0 && (
+                    <span className="text-xs text-gray-500">
+                      {activeOverlays.length}/{MAX_OVERLAYS} overlaid
+                    </span>
+                  )}
+                </div>
 
-        {/* Period return footnote */}
-        {kpis && !historyLoading && (
-          <p className="text-xs text-gray-400 mt-4 mb-8 text-center">
-            Period return ({period}):{' '}
-            <span className={kpis.periodReturn >= 0 ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
-              {fmtPct(kpis.periodReturn)}
-            </span>
-            {' '}· KPIs computed from portfolio value history
-          </p>
-        )}
+                {portfolioLoading ? (
+                  <div className="space-y-2">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <div key={i} className="h-16 bg-gray-50 rounded-xl animate-pulse" />
+                    ))}
+                  </div>
+                ) : portfolio.length === 0 ? (
+                  <div className="flex-1 flex items-center justify-center">
+                    <p className="text-base text-gray-600 text-center">
+                      No holdings yet.{' '}
+                      <Link href="/search" className="underline" style={{ color: '#017e3b' }}>
+                        Search stocks
+                      </Link>{' '}
+                      to add positions.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 overflow-y-auto flex-1 pr-0.5">
+                    {portfolio.map((item) => {
+                      const isActive = activeOverlays.includes(item.symbol)
+                      const colorIdx = activeOverlays.indexOf(item.symbol)
+                      return (
+                        <HoldingRow
+                          key={item.symbol}
+                          item={item}
+                          active={isActive}
+                          loading={overlayLoading.has(item.symbol)}
+                          color={isActive ? OVERLAY_COLORS[colorIdx % OVERLAY_COLORS.length] : undefined}
+                          onToggle={handleToggle}
+                          disabled={activeOverlays.length >= MAX_OVERLAYS}
+                        />
+                      )
+                    })}
+                  </div>
+                )}
 
-        {/* Recommendations + Gains Breakdown */}
-        <div className="flex flex-col lg:flex-row gap-4 items-start">
-          <div className="flex-[3] min-w-0">
-            <RecommendationsSection scopes={['portfolio', 'watchlist']} />
+                {activeOverlays.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-gray-100">
+                    <button
+                      onClick={() => { setActiveOverlays([]); setOverlayData(new Map()) }}
+                      className="w-full text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                    >
+                      Clear all overlays
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
           </div>
-          <div className="lg:w-[25%] shrink-0">
-            <GainsBreakdownCard totals={totals} loading={portfolioLoading} />
-          </div>
-        </div>
+        </section>
+
+        {/* ── Recommendations ───────────────────────────────────────────── */}
+        <section>
+          <SectionHeading>Recommendations</SectionHeading>
+          <RecommendationsSection scopes={['portfolio', 'watchlist']} />
+        </section>
 
       </div>
     </div>
