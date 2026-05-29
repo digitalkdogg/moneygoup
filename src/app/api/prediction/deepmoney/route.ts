@@ -96,8 +96,8 @@ async function fetchFeed(url: string): Promise<string | null> {
             return null;
         }
         return await res.text();
-    } catch (err) {
-        logger.error(`Failed to fetch feed: ${url}`, err instanceof Error ? { message: err.message, stack: err.stack } : { error: String(err) });
+    } catch {
+        // External feeds fail regularly (blocks, timeouts, rate limits) — not an error condition
         return null;
     }
 }
@@ -262,11 +262,12 @@ async function fetchPrimaryTickers(): Promise<Set<string>> {
 async function fetchSecondaryTickers(primaryTickers: Set<string>): Promise<Set<string>> {
     if (primaryTickers.size === 0) return primaryTickers;
 
-    const secondaryUrls = Array.from(primaryTickers).map(
+    // Cap secondary pass to avoid hammering Yahoo with hundreds of simultaneous requests
+    const MAX_SECONDARY = 30;
+    const secondaryUrls = Array.from(primaryTickers).slice(0, MAX_SECONDARY).map(
         (ticker) => `${YAHOO_TICKER_FEED_BASE}${encodeURIComponent(ticker)}`
     );
 
-    logger.info(`Running secondary pass for ${primaryTickers.size} tickers`);
     const results = await Promise.allSettled(secondaryUrls.map(fetchFeed));
     const allTickers = new Set<string>(primaryTickers);
 

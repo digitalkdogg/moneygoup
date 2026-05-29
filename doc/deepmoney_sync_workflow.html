@@ -1,84 +1,29 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DeepMoney Sync Workflow</title>
-    <style>
-        :root {
-            --primary: #15803d;
-            --primary-dark: #166534;
-            --success: #15803d;
-            --warning: #b45309;
-            --bg: #f8fafc;
-            --text: #1e293b;
-            --code-bg: #1e293b;
-            --code-text: #f8fafc;
-            --border: #e2e8f0;
-        }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            line-height: 1.6;
-            color: var(--text);
-            background-color: var(--bg);
-            margin: 0;
-        }
-        main {
-            
-            padding: 3rem;
-            max-width: 1100px;
-            width: 100%;
-        }
-        h1 { color: var(--primary-dark); border-bottom: 2px solid var(--primary); padding-bottom: 0.5rem; }
-        h2 { color: var(--primary); margin-top: 3rem; display: flex; align-items: center; }
-        h2 span { background: var(--primary); color: white; border-radius: 50%; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; margin-right: 1rem; font-size: 1.1rem; }
-        
-        .step-card {
-            background: white;
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin: 1.5rem 0;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-        .component-tag {
-            font-size: 0.75rem;
-            font-weight: bold;
-            text-transform: uppercase;
-            padding: 0.2rem 0.5rem;
-            border-radius: 4px;
-            background: #f1f5f9;
-            color: #64748b;
-            margin-bottom: 0.5rem;
-            display: inline-block;
-        }
-        .flow-arrow {
-            text-align: center;
-            font-size: 2rem;
-            color: var(--border);
-            margin: -0.5rem 0;
-        }
-        code {
-            padding: 0.2rem 0.4rem;
-            border-radius: 4px;
-            font-family: ui-monospace, SFMono-Regular, monospace;
-            font-size: 0.9rem;
-        }
-        pre {
-            background: var(--code-bg);
-            color: var(--code-text);
-            padding: 1.2rem;
-            border-radius: 8px;
-            overflow-x: auto;
-        }
-        .highlight-box {
-            background: #f0fdf4;
-            border-left: 4px solid var(--primary);
-            padding: 1rem;
-            margin: 1rem 0;
-        }
-    
-    /* ── Top Bar ── */
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DeepMoney Sync Workflow — GrowMyStocks Docs</title>
+  <style>
+    :root {
+      --primary: #15803d;
+      --primary-dark: #166534;
+      --bg: #f8fafc;
+      --text: #1e293b;
+      --code-bg: #1e293b;
+      --code-text: #f8fafc;
+      --border: #e2e8f0;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      line-height: 1.6;
+      color: var(--text);
+      background: var(--bg);
+      margin: 0; padding: 0;
+    }
+
+    /* Top Bar */
     .top-bar { background: #017e3b; color: #fff; padding: 0 2rem; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
     .top-bar-header { display: flex; align-items: center; justify-content: space-between; height: 56px; }
     .top-bar .brand { font-size: 1.2rem; font-weight: 700; letter-spacing: .02em; }
@@ -90,23 +35,62 @@
     .top-bar-nav a:hover { color: #fff; }
     .top-bar-nav a.active { color: #fff; border-bottom-color: #86efac; }
 
-        .layout { display: flex; flex: 1; }
+    /* Layout */
+    .layout { display: flex; flex: 1; }
+
+    /* Sidebar */
     .sidebar { width: 260px; min-width: 260px; background: #fff; border-right: 1px solid #e2e8f0; padding: 1.5rem 0; position: sticky; top: 92px; height: calc(100vh - 92px); overflow-y: auto; }
     .sidebar h3 { font-size: .65rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #94a3b8; padding: .25rem 1.25rem .5rem; margin-top: .5rem; }
     .sidebar a { display: block; padding: .45rem 1.25rem; font-size: .85rem; color: #475569; text-decoration: none; border-left: 3px solid transparent; transition: all .15s; line-height: 1.4; }
     .sidebar a:hover { background: #f0fdf4; color: #017e3b; border-left-color: #86efac; }
     .sidebar a.active { background: #f0fdf4; color: #017e3b; font-weight: 600; border-left-color: #017e3b; }
     .sidebar .section-divider { border-top: 1px solid #f1f5f9; margin: .5rem 0; }
-    </style>
+
+    /* Main */
+    main { padding: 3rem; max-width: 1100px; width: 100%; }
+    h1 { color: var(--primary-dark); border-bottom: 2px solid var(--primary); padding-bottom: .5rem; margin-bottom: 2rem; }
+    h2 { color: var(--primary); margin-top: 3rem; display: flex; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: .5rem; }
+    h2 span.step-num { background: var(--primary); color: white; border-radius: 50%; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; margin-right: 1rem; font-size: 1rem; flex-shrink: 0; }
+    h3 { color: #334155; margin-top: 2rem; background: #f1f5f9; padding: .5rem 1rem; border-radius: 6px; }
+    ul { list-style: disc; margin-left: 1.5rem; padding-left: 0; }
+    li { margin-bottom: .5rem; }
+    p { margin-bottom: 1rem; }
+    code { padding: .2rem .4rem; border-radius: 4px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: .9rem; background: #f1f5f9; }
+    pre { background: var(--code-bg); color: var(--code-text); padding: 1.2rem; border-radius: 8px; overflow-x: auto; margin: 1rem 0; }
+    pre code { background: transparent; padding: 0; color: inherit; }
+
+    .highlight-box { background: #f0fdf4; border-left: 4px solid var(--primary); padding: 1rem; margin: 1rem 0; border-radius: 0 6px 6px 0; }
+    .warning-box { background: #fffbeb; border-left: 4px solid #f59e0b; padding: 1rem; margin: 1rem 0; border-radius: 0 6px 6px 0; color: #78350f; }
+    .new-badge { display: inline-block; font-size: .65rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 999px; margin-left: .5rem; vertical-align: middle; }
+
+    .step-card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin: 1.5rem 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .component-tag { font-size: .75rem; font-weight: bold; text-transform: uppercase; padding: .2rem .5rem; border-radius: 4px; background: #f1f5f9; color: #64748b; margin-bottom: .75rem; display: inline-block; }
+    .flow-arrow { text-align: center; font-size: 2rem; color: var(--border); margin: -.5rem 0; }
+
+    table { width: 100%; border-collapse: collapse; font-size: .85rem; margin: .75rem 0; }
+    th { text-align: left; color: #64748b; font-weight: 600; padding: .4rem .6rem; border-bottom: 1px solid var(--border); background: #f8fafc; }
+    td { padding: .4rem .6rem; vertical-align: top; border-bottom: 1px solid #f1f5f9; }
+    tr:last-child td { border-bottom: none; }
+
+    .meta { font-size: .8rem; color: #64748b; margin-bottom: 2rem; display: flex; gap: 1rem; flex-wrap: wrap; }
+    .meta span { background: #f1f5f9; padding: .2rem .6rem; border-radius: 4px; }
+
+    .gate-flow { background: #f8fafc; border: 1px dashed var(--primary); border-radius: 8px; padding: 1.5rem; text-align: center; font-size: .9rem; line-height: 2; }
+
+    footer { margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: .85rem; text-align: center; }
+
+    @media (max-width: 768px) { .sidebar { display: none; } main { padding: 1.5rem; } }
+  </style>
 </head>
 <body>
+
 <div class="top-bar">
   <div class="top-bar-header">
     <div>
       <div class="brand">Grow<span>MY</span>Stocks</div>
-      <div class="subtitle">DeepMoney Sync Workflow</div>
+      <div class="subtitle">Developer Docs</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-05-24</div>
+    <div style="font-size:.78rem;opacity:.75;">Generated 2026-05-28</div>
   </div>
   <nav class="top-bar-nav">
     <a href="moneygoup_overview.html">Overview</a>
@@ -125,8 +109,10 @@
     <a href="SEO.html">SEO</a>
   </nav>
 </div>
-    <div class="layout">
-      <nav class="sidebar" aria-label="DeepMoney Sync sections">
+
+<div class="layout">
+
+  <nav class="sidebar" aria-label="DeepMoney Sync sections">
     <h3>GrowMyStocks Docs</h3>
     <a href="moneygoup_overview.html">App Overview</a>
     <a href="architecture_documentation.html">Architecture</a>
@@ -134,114 +120,246 @@
     <a href="api_documentation.html">API Routes</a>
     <div class="section-divider"></div>
     <h3>On this page</h3>
+    <a href="#overview">Overview</a>
     <a href="#step1">1. Macro Data Sync</a>
     <a href="#step2">2. DeepMoney Discovery</a>
     <a href="#step3">3. ML Validation Gate</a>
-    <a href="#step4">4. Persistence &amp; Snapshots</a>
-    <a href="#step5">5. API Structure</a>
+    <a href="#vol-gate">— Volatility-Adj. Confidence Gate (new)</a>
+    <a href="#ath-warn">— ATH Proximity Warning (new)</a>
+    <a href="#step4">4. Dashboard Qualification</a>
+    <a href="#step5">5. Persistence &amp; Cleanup</a>
+    <a href="#step6">6. API Structure</a>
+    <a href="#env-config">Environment Config</a>
+    <a href="#changelog">Recent Changes</a>
     <div class="section-divider"></div>
     <a href="authentication_flow.html">Auth Flow</a>
     <a href="database_documentation.html">Database</a>
     <a href="prediction_workflow.html">Prediction Workflow</a>
     <a href="recommendation_buckets.html">Recommendation Buckets</a>
     <a href="technical_indicators_guide.html">Technical Indicators</a>
-    <a href="admin_user_management.html">Admin User Mgmt</a>
-    <a href="style_guide.html">Style Guide</a>
   </nav>
 
-    <main>
-        <h1>DeepMoney Analysis Workflow (v2.3)</h1>
-        <p>This workflow describes the multi-stage background process that updates the AI recommendations, ETF scoring, and global risk indices displayed on the dashboard.</p>
+  <main>
+    <p style="font-size:.8rem;color:#94a3b8;margin-bottom:.25rem;">doc / deepmoney_sync_workflow.html</p>
+    <h1>DeepMoney Analysis Workflow (v2.4)</h1>
+    <div class="meta">
+      <span>scripts/deepmoney_sync.py</span>
+      <span>scripts/get_macro_data.py</span>
+      <span>src/app/api/prediction/deepmoney/</span>
+      <span>Updated 2026-05-28</span>
+    </div>
 
-        <section id="step1">
-            <h2><span>1</span> Macro Data Sync</h2>
-            <div class="step-card">
-                <div class="component-tag">File: scripts/get_macro_data.py</div>
-                <p>The foundation of the daily sync. Fetches high-fidelity macroeconomic indicators directly from the World Bank API.</p>
-                <ul>
-                    <li><strong>Indicators:</strong> GDP Growth, Inflation, FDI, Trade Volume, and Tech Adoption (Internet/ICT).</li>
-                    <li><strong>Countries:</strong> USA, GBR, CHN, IND, DEU.</li>
-                    <li><strong>Output:</strong> Populates <code>world_bank_macro_data</code> and triggers a <code>macro_context_snapshots</code> entry to freeze the day's "Global Health Score".</li>
-                </ul>
-            </div>
-        </section>
+    <section id="overview">
+      <p>The DeepMoney sync is a background batch process (typically run as a cron job) that discovers, validates, and persists AI-curated stock recommendations and ETF picks to the database. The results power the dashboard's "AI Picks" panel, the discovery recommendations feed, and the macro context snapshot visible to all approved users.</p>
+      <div class="highlight-box">
+        <strong>v2.4 changes (2026-05-28):</strong> Added volatility-adjusted confidence gate (blocks high-beta stocks with insufficient confidence score) and ATH proximity warning flag (<code>⚠️ATH</code> label applied when <code>hi_ratio &gt; 0.97</code> and <code>beta &gt; 2.0</code>).
+      </div>
+    </section>
 
-        <div class="flow-arrow">↓</div>
+    <section id="step1">
+      <h2><span class="step-num">1</span> Macro Data Sync</h2>
+      <div class="step-card">
+        <div class="component-tag">scripts/get_macro_data.py</div>
+        <p>The foundation of the daily sync. Fetches high-fidelity macroeconomic indicators directly from the World Bank API.</p>
+        <ul>
+          <li><strong>Indicators:</strong> GDP Growth, Inflation, FDI, Trade Volume, and Tech Adoption (Internet/ICT).</li>
+          <li><strong>Countries:</strong> USA, GBR, CHN, IND, DEU.</li>
+          <li><strong>Output:</strong> Populates <code>world_bank_macro_data</code> and triggers a <code>macro_context_snapshots</code> entry to freeze the day's "Global Health Score".</li>
+        </ul>
+        <p>The sync also calls <code>GET /api/worldbank</code> via the internal URL to warm the World Bank cache before the discovery run begins. The response is persisted to <code>macro_context_snapshots</code> with today's date as the key (upsert on duplicate).</p>
+      </div>
+    </section>
 
-        <section id="step2">
-            <h2><span>2</span> DeepMoney Discovery Trigger</h2>
-            <div class="step-card">
-                <div class="component-tag">File: scripts/deepmoney_sync.py</div>
-                <p>Initiates the core stock and ETF discovery cycle by calling the internal API.</p>
-                <ul>
-                    <li><strong>Authorization:</strong> Uses <code>DEEPMONEY_INTERNAL_SECRET</code> via <code>x-api-key</code>.</li>
-                    <li><strong>Internal URL:</strong> All calls use <code>INTERNAL_API_URL = 'http://localhost:3001'</code> (hardcoded, not read from <code>NEXTAUTH_URL</code>). This bypasses nginx and its 60-second proxy timeout, which the long-running DeepMoney discovery route would otherwise exceed (runtime can exceed 2 minutes). The <code>predict_weighted_analysis.py</code> script uses the same approach.</li>
-                    <li><strong>Parallel Discovery:</strong>
-                        <ul>
-                            <li><strong>Stocks:</strong> Recursive news discovery + co-mention analysis.</li>
-                            <li><strong>ETFs:</strong> Thematic mapping + Macro Tailwind scoring (FDI/Trade signals).</li>
-                        </ul>
-                    </li>
-                </ul>
-                <div class="highlight-box">
-                    <strong>Maintenance note:</strong> If the Next.js server port ever changes from 3001, <code>INTERNAL_API_URL</code> must be updated manually in each Python script — it is not controlled by environment variables.
-                </div>
-            </div>
-        </section>
+    <div class="flow-arrow">&#8595;</div>
 
-        <div class="flow-arrow">↓</div>
+    <section id="step2">
+      <h2><span class="step-num">2</span> DeepMoney Discovery Trigger</h2>
+      <div class="step-card">
+        <div class="component-tag">scripts/deepmoney_sync.py — sync_deepmoney()</div>
+        <p>Initiates the core stock discovery cycle by calling the internal API endpoint.</p>
+        <ul>
+          <li><strong>Authorization:</strong> Uses <code>DEEPMONEY_INTERNAL_SECRET</code> via the <code>x-api-key</code> header. The secret is stripped of surrounding quotes before use to handle environment variable formatting quirks.</li>
+          <li><strong>Internal URL:</strong> All calls use <code>INTERNAL_API_URL = 'http://localhost:3001'</code> (hardcoded). This bypasses nginx and its 60-second proxy timeout — the discovery route can take over 2 minutes.</li>
+          <li><strong>Endpoint called:</strong> <code>GET /api/prediction/deepmoney?refresh=true</code></li>
+          <li><strong>Discovery methods:</strong> Recursive news discovery + co-mention analysis for stocks; thematic mapping + macro tailwind scoring for ETFs.</li>
+        </ul>
+        <div class="warning-box">
+          <strong>Maintenance note:</strong> If the Next.js server port ever changes from 3001, <code>INTERNAL_API_URL</code> must be updated manually in each Python script — it is not controlled by environment variables.
+        </div>
+        <p>The response includes a <code>meta.debug</code> object logged during the sync showing pipeline stage counts: stocks rejected by enrichment, by signal score, by insufficient history, passed to the AI analyzer, rejected by the AI (&lt;1.5% prediction), and final filtered count.</p>
+      </div>
+    </section>
 
-        <section id="step3">
-            <h2><span>3</span> ML Validation Gate</h2>
-            <div class="step-card">
-                <div class="component-tag">File: src/app/api/prediction/deepmoney/analyzer.ts</div>
-                <p>Every stock candidate must pass a sequence-based ML validation.</p>
-                <ul>
-                    <li><strong>Gate:</strong> Sequential 1-month ML prediction (Threshold ≥ 1.5% expected growth).</li>
-                    <li><strong>Macro Filter:</strong> Candidates are adjusted by the current market regime and World Bank consumption multipliers.</li>
-                </ul>
-            </div>
-        </section>
-        
-        <div class="flow-arrow">↓</div>
+    <div class="flow-arrow">&#8595;</div>
 
-        <section id="step4">
-            <h2><span>4</span> Persistence Layer</h2>
-            <div class="step-card">
-                <div class="component-tag">File: scripts/deepmoney_sync.py</div>
-                <p>Commits validated findings to the database to update the dashboard.</p>
-                <ul>
-                    <li><strong>Recommended Stocks:</strong> Clears existing entries and writes new top-GPS candidates.</li>
-                    <li><strong>Hot ETFs:</strong> Upserts discoveries into <code>hot_etfs</code> with macro tailwind scores.</li>
-                    <li><strong>Global Predictions:</strong> Synchronizes unconfirmed <code>user_stocks</code> for active users to surface in Discovery recommendations.</li>
-                </ul>
-            </div>
-        </section>
+    <section id="step3">
+      <h2><span class="step-num">3</span> ML Validation Gate</h2>
+      <div class="step-card">
+        <div class="component-tag">deepmoney_sync.py — stock filtering loop</div>
+        <p>Every candidate stock from the discovery response must pass a multi-stage gate before being written to <code>recommended_stocks</code>:</p>
 
-        <hr style="margin-top: 4rem; margin-bottom: 2rem; border: none; border-top: 1px solid var(--border);">
+        <div class="gate-flow">
+          Candidate stock<br>
+          &darr;<br>
+          <strong>Gate 1: GPS Score</strong><br>
+          <code>gps &gt; DEEPMONEY_GPS_VALUE</code> (env, default 10.0)<br>
+          &darr;<br>
+          <strong>Gate 2: Volatility-Adjusted Confidence</strong> <span class="new-badge">new</span><br>
+          <code>conf_score &ge; 50</code> (or <code>&ge; 65</code> if <code>beta &gt; 2.5</code>)<br>
+          &darr;<br>
+          <strong>Written to <code>recommended_stocks</code></strong><br>
+          &darr;<br>
+          <strong>ATH Warning Flag check</strong> <span class="new-badge">new</span><br>
+          <code>hi_ratio &gt; 0.97</code> AND <code>beta &gt; 2.0</code> &rarr; append <code>⚠️ATH</code> to <code>metric_label</code>
+        </div>
+      </div>
 
-        <section id="step5">
-            <h2><span>5</span> API Structure</h2>
-            <div class="step-card">
-                <div class="component-tag">Endpoint: GET /api/prediction/deepmoney</div>
-                <p>Returns a JSON payload with <code>source: 'livedata'</code> or <code>source: 'cache'</code> indicator.</p>
-                <pre><code>{
+      <section id="vol-gate">
+        <h3>Volatility-Adjusted Confidence Gate <span class="new-badge">new</span></h3>
+        <div class="step-card">
+          <p>After passing the GPS gate, each stock is evaluated against a confidence threshold that scales with market volatility (beta):</p>
+          <pre><code>conf_score = pred_input.get('confidence_score') or pred_input.get('confidence_score_1m') or 0
+beta_val = s.get('beta') or 1.0
+
+volatility_gate = conf_score >= 50
+if beta_val > 2.5:
+    volatility_gate = conf_score >= 65
+
+if not volatility_gate:
+    print(f"  [vol-gate] SKIP {ticker}: CS {conf_score} insufficient for beta {beta_val:.2f}")
+    continue</code></pre>
+          <p>Rationale: high-beta stocks amplify both upside and downside. The model's confidence score already reflects data quality and historical accuracy, but a confidence of, say, 52 on a stock with beta 3.5 represents a riskier recommendation than the same score on a beta-1.0 stock. This gate enforces a higher evidentiary bar for volatile names before they appear in the dashboard's AI Picks.</p>
+          <table>
+            <thead><tr><th>Beta range</th><th>Minimum confidence score</th></tr></thead>
+            <tbody>
+              <tr><td>beta &le; 2.5</td><td>50</td></tr>
+              <tr><td>beta &gt; 2.5</td><td>65</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="ath-warn">
+        <h3>ATH Proximity Warning Flag <span class="new-badge">new</span></h3>
+        <div class="step-card">
+          <p>Stocks that pass all gates but are near their 52-week high with elevated beta receive a warning appended to the <code>metric_label</code> stored in <code>recommended_stocks</code>:</p>
+          <pre><code>hi_ratio = s.get('hiRatio52w') or 0
+if hi_ratio > 0.97 and beta_val > 2.0:
+    print(f"  [ath-warn] {ticker}: Near ATH ({hi_ratio:.2%}) with high beta ({beta_val:.2f})")
+    metric_lbl = f"{metric_lbl} ⚠️ATH" if metric_lbl else "⚠️ATH"</code></pre>
+          <p>The <code>⚠️ATH</code> label is visible in the admin dashboard view and any UI component that renders <code>metric_label</code>. It does not cause the stock to be filtered out — it is informational only, surfacing the same mean-reversion risk that the High-Beta Penalty in the prediction model already penalizes in the price target itself.</p>
+          <p>Conditions: <code>hiRatio52w &gt; 0.97</code> (price is within 3% of the 52-week high) AND <code>beta &gt; 2.0</code>.</p>
+        </div>
+      </section>
+    </section>
+
+    <div class="flow-arrow">&#8595;</div>
+
+    <section id="step4">
+      <h2><span class="step-num">4</span> Dashboard Qualification</h2>
+      <div class="step-card">
+        <div class="component-tag">deepmoney_sync.py — GPS &gt; DEEPMONEY_RECOMMENDATION_GPS_VALUE</div>
+        <p>Stocks that passed the ML gate are then evaluated against a second, stricter threshold for inclusion in individual user dashboards:</p>
+        <ul>
+          <li><strong>GPS threshold:</strong> <code>gps &gt; DEEPMONEY_RECOMMENDATION_GPS_VALUE</code> (env, default 25.0)</li>
+          <li><strong>Prediction gate:</strong> <code>predicted_change_pct &ge; 1.5%</code></li>
+        </ul>
+        <p>Stocks meeting both conditions are upserted into <code>stock_gps_scores</code> (only if the GPS score changed by at least 0.1 points), added to <code>user_stock_predictions</code> for all currently approved users, and added to <code>user_stocks</code> as unconfirmed discovery entries (overwriting only if not already a purchased position).</p>
+        <p>The list of approved user IDs is fetched once at the start of the sync via a single <code>SELECT id FROM users WHERE approval_status = 'approved'</code> query.</p>
+      </div>
+    </section>
+
+    <div class="flow-arrow">&#8595;</div>
+
+    <section id="step5">
+      <h2><span class="step-num">5</span> Persistence &amp; Stale Entry Cleanup</h2>
+      <div class="step-card">
+        <div class="component-tag">deepmoney_sync.py — post-sync cleanup</div>
+        <p>After all stocks are processed, stale discovery entries from previous runs are removed. The approach is exact: only stocks that did not qualify in today's run (i.e., not in <code>qualifying_stock_ids</code>) and are still marked as active unconfirmed discoveries are removed from <code>user_stocks</code> and <code>user_stock_predictions</code>.</p>
+        <p>This post-sync cleanup replaced an earlier pre-clear approach and is safe for concurrent runs because it only touches <code>is_active = 1 AND user_confirmed = 0</code> rows — confirmed (user-purchased) positions are never removed.</p>
+        <p>Macro context is persisted via an upsert to <code>macro_context_snapshots</code> at the start of the sync when World Bank data is available.</p>
+      </div>
+    </section>
+
+    <div class="flow-arrow">&#8595;</div>
+
+    <section id="step6">
+      <h2><span class="step-num">6</span> API Structure</h2>
+      <div class="step-card">
+        <div class="component-tag">GET /api/prediction/deepmoney</div>
+        <p>Returns a JSON payload with <code>source: 'livedata'</code> or <code>source: 'cache'</code> indicator. The <code>?refresh=true</code> query parameter bypasses the cache and triggers a full re-run of the discovery and AI analysis pipeline.</p>
+        <pre><code>{
   "success": true,
-  "timestamp": "2026-04-16T...",
+  "timestamp": "2026-05-28T...",
   "source": "cache",
-  "stocks": [ ... ],
+  "stocks": [
+    {
+      "ticker": "AAPL",
+      "name": "Apple Inc.",
+      "price": 192.50,
+      "gps_score": 34.2,
+      "gps_breakdown": { ... },
+      "beta": 1.2,
+      "hiRatio52w": 0.94,
+      "analystUpside": 0.08,
+      "revenueGrowth": 0.05,
+      "grossMargins": 0.43,
+      "tradingSignal": "BUY",
+      "tradingSignalScore": 7,
+      "prediction_input": {
+        "predicted_price_1m": 198.10,
+        "predicted_change_pct_1m": 2.91,
+        "confidence_score_1m": 72
+      }
+    }
+  ],
   "hot_etfs": [ ... ],
-  "macro_context": {
-    "global_health": 74.2,
-    "unemployment_signal": "bullish"
+  "meta": {
+    "debug": {
+      "rejectedEnrichment": 14,
+      "rejectedSignalScore": 22,
+      "rejectedHistory": 3,
+      "passedToAnalyzer": 18,
+      "rejectedByAI": 6,
+      "filteredCount": 12
+    }
   }
 }</code></pre>
-            </div>
-        </section>
-        <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem;">
-            MoneyGoUp DeepMoney Analytics &copy; 2026
-        </footer>
-    </main>
-    </div>
+      </div>
+    </section>
+
+    <section id="env-config">
+      <h2>Environment Configuration</h2>
+      <div class="step-card">
+        <table>
+          <thead><tr><th>Variable</th><th>Default</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>DEEPMONEY_INTERNAL_SECRET</code></td><td>—</td><td>Shared secret for internal API calls (<code>x-api-key</code>). Must not have surrounding quotes in the env file.</td></tr>
+            <tr><td><code>DEEPMONEY_GPS_VALUE</code></td><td>10.0</td><td>Minimum GPS score to write a stock to <code>recommended_stocks</code>.</td></tr>
+            <tr><td><code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code></td><td>25.0</td><td>Minimum GPS score to push a stock to user dashboards.</td></tr>
+            <tr><td><code>NEXTAUTH_URL</code></td><td>http://localhost:3001</td><td>Used for World Bank data fetch only. The deepmoney discovery URL is hardcoded to localhost:3001 regardless of this variable.</td></tr>
+            <tr><td><code>DB_HOST</code>, <code>DB_USER</code>, <code>DB_PASSWORD</code>, <code>DB_DATABASE</code></td><td>—</td><td>MySQL connection for the sync script.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="changelog">
+      <h2>Recent Changes (2026-05-28)</h2>
+      <div class="step-card">
+        <table>
+          <thead><tr><th>Change</th><th>Detail</th></tr></thead>
+          <tbody>
+            <tr><td>Volatility-adjusted confidence gate <span class="new-badge">new</span></td><td>Stocks with <code>beta &gt; 2.5</code> now require <code>confidence_score &ge; 65</code> instead of the standard 50. Applied after the GPS gate, before writing to <code>recommended_stocks</code>.</td></tr>
+            <tr><td>ATH proximity warning flag <span class="new-badge">new</span></td><td><code>⚠️ATH</code> appended to <code>metric_label</code> when <code>hiRatio52w &gt; 0.97</code> and <code>beta &gt; 2.0</code>. Informational; does not filter the stock out.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer>GrowMyStocks Developer Docs &copy; 2026</footer>
+  </main>
+</div>
+
 </body>
 </html>

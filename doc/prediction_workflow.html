@@ -1,93 +1,33 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MoneyGoUp Prediction Workflow & Algorithm Deep-Dive</title>
-    <style>
-        :root {
-            --primary: #15803d;
-            --primary-dark: #166534;
-            --success: #15803d;
-            --warning: #b45309;
-            --bg: #f1f5f9;
-            --text: #1e293b;
-            --code-bg: #1e293b;
-            --code-text: #f8fafc;
-            --border: #e2e8f0;
-            --purple: #7c3aed;
-            --teal: #0d9488;
-        }
-        * { box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            line-height: 1.6;
-            color: var(--text);
-            background-color: var(--bg);
-            margin: 0;
-        }
-        main {
-            
-            padding: 3rem;
-            max-width: 1100px;
-            width: 100%;
-        }
-        h1 { color: var(--primary-dark); border-bottom: 2px solid var(--primary); padding-bottom: 0.5rem; }
-        h2 { color: var(--primary); margin-top: 4rem; display: flex; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
-        h2 span { background: var(--primary); color: white; border-radius: 50%; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; margin-right: 1rem; font-size: 1.1rem; flex-shrink: 0; }
-        
-        .step-card {
-            background: white;
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin: 1.5rem 0;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-        .component-tag {
-            font-size: 0.75rem;
-            font-weight: bold;
-            text-transform: uppercase;
-            padding: 0.2rem 0.5rem;
-            border-radius: 4px;
-            background: #f1f5f9;
-            color: #64748b;
-            margin-bottom: 0.5rem;
-            display: inline-block;
-        }
-        .flow-arrow {
-            text-align: center;
-            font-size: 2rem;
-            color: var(--border);
-            margin: -0.5rem 0;
-        }
-        code {
-            padding: 0.2rem 0.4rem;
-            border-radius: 4px;
-            font-family: ui-monospace, SFMono-Regular, monospace;
-            font-size: 0.9rem;
-        }
-        pre {
-            background: var(--code-bg);
-            color: var(--code-text);
-            padding: 1.2rem;
-            border-radius: 8px;
-            overflow-x: auto;
-        }
-        .highlight-box {
-            background: #f0fdf4;
-            border-left: 4px solid var(--primary);
-            padding: 1rem;
-            margin: 1rem 0;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prediction Workflow — GrowMyStocks Docs</title>
+  <style>
+    :root {
+      --primary: #15803d;
+      --primary-dark: #166534;
+      --success: #15803d;
+      --warning: #b45309;
+      --bg: #f8fafc;
+      --text: #1e293b;
+      --code-bg: #1e293b;
+      --code-text: #f8fafc;
+      --border: #e2e8f0;
+      --purple: #7c3aed;
+      --teal: #0d9488;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      line-height: 1.6;
+      color: var(--text);
+      background: var(--bg);
+      margin: 0; padding: 0;
+    }
 
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
-        .mini-card { background: white; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
-        .mini-card h4 { margin: 0 0 0.5rem 0; font-size: 0.85rem; text-transform: uppercase; color: var(--primary); }
-        
-        .formula { background: #f8fafc; border-left: 3px solid var(--purple); padding: 0.8rem; font-family: monospace; font-size: 0.85rem; margin: 1rem 0; }
-    
-    /* ── Top Bar ── */
+    /* Top Bar */
     .top-bar { background: #017e3b; color: #fff; padding: 0 2rem; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
     .top-bar-header { display: flex; align-items: center; justify-content: space-between; height: 56px; }
     .top-bar .brand { font-size: 1.2rem; font-weight: 700; letter-spacing: .02em; }
@@ -99,23 +39,68 @@
     .top-bar-nav a:hover { color: #fff; }
     .top-bar-nav a.active { color: #fff; border-bottom-color: #86efac; }
 
-        .layout { display: flex; flex: 1; }
+    /* Layout */
+    .layout { display: flex; flex: 1; }
+
+    /* Sidebar */
     .sidebar { width: 260px; min-width: 260px; background: #fff; border-right: 1px solid #e2e8f0; padding: 1.5rem 0; position: sticky; top: 92px; height: calc(100vh - 92px); overflow-y: auto; }
     .sidebar h3 { font-size: .65rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #94a3b8; padding: .25rem 1.25rem .5rem; margin-top: .5rem; }
     .sidebar a { display: block; padding: .45rem 1.25rem; font-size: .85rem; color: #475569; text-decoration: none; border-left: 3px solid transparent; transition: all .15s; line-height: 1.4; }
     .sidebar a:hover { background: #f0fdf4; color: #017e3b; border-left-color: #86efac; }
     .sidebar a.active { background: #f0fdf4; color: #017e3b; font-weight: 600; border-left-color: #017e3b; }
     .sidebar .section-divider { border-top: 1px solid #f1f5f9; margin: .5rem 0; }
-    </style>
+
+    /* Main */
+    main { padding: 3rem; max-width: 1100px; width: 100%; }
+    h1 { color: var(--primary-dark); border-bottom: 2px solid var(--primary); padding-bottom: .5rem; margin-bottom: 2rem; }
+    h2 { color: var(--primary); margin-top: 3rem; display: flex; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: .5rem; }
+    h2 span.step-num { background: var(--primary); color: white; border-radius: 50%; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; margin-right: 1rem; font-size: 1rem; flex-shrink: 0; }
+    h3 { color: #334155; margin-top: 2rem; background: #f1f5f9; padding: .5rem 1rem; border-radius: 6px; }
+    h4 { color: var(--primary-dark); margin-top: 1.5rem; }
+    ul { list-style: disc; margin-left: 1.5rem; padding-left: 0; }
+    li { margin-bottom: .5rem; }
+    p { margin-bottom: 1rem; }
+    code { padding: .2rem .4rem; border-radius: 4px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: .9rem; background: #f1f5f9; }
+    pre { background: var(--code-bg); color: var(--code-text); padding: 1.2rem; border-radius: 8px; overflow-x: auto; margin: 1rem 0; }
+    pre code { background: transparent; padding: 0; color: inherit; }
+
+    .highlight-box { background: #f0fdf4; border-left: 4px solid var(--primary); padding: 1rem; margin: 1rem 0; border-radius: 0 6px 6px 0; }
+    .warning-box { background: #fffbeb; border-left: 4px solid #f59e0b; padding: 1rem; margin: 1rem 0; border-radius: 0 6px 6px 0; color: #78350f; }
+    .new-badge { display: inline-block; font-size: .65rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 999px; margin-left: .5rem; vertical-align: middle; }
+    .removed-badge { display: inline-block; font-size: .65rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 999px; margin-left: .5rem; vertical-align: middle; }
+
+    .step-card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin: 1.5rem 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .component-tag { font-size: .75rem; font-weight: bold; text-transform: uppercase; padding: .2rem .5rem; border-radius: 4px; background: #f1f5f9; color: #64748b; margin-bottom: .75rem; display: inline-block; }
+    .flow-arrow { text-align: center; font-size: 2rem; color: var(--border); margin: -.5rem 0; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+    .mini-card { background: white; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
+    .mini-card h4 { margin: 0 0 .5rem 0; font-size: .85rem; text-transform: uppercase; color: var(--primary); background: none; padding: 0; }
+
+    table { width: 100%; border-collapse: collapse; font-size: .85rem; margin: .75rem 0; }
+    th { text-align: left; color: #64748b; font-weight: 600; padding: .4rem .6rem; border-bottom: 1px solid var(--border); background: #f8fafc; }
+    td { padding: .4rem .6rem; vertical-align: top; border-bottom: 1px solid #f1f5f9; }
+    tr:last-child td { border-bottom: none; }
+
+    .formula { background: #f8fafc; border-left: 3px solid var(--purple); padding: .8rem; font-family: monospace; font-size: .85rem; margin: 1rem 0; border-radius: 0 6px 6px 0; }
+
+    .meta { font-size: .8rem; color: #64748b; margin-bottom: 2rem; display: flex; gap: 1rem; flex-wrap: wrap; }
+    .meta span { background: #f1f5f9; padding: .2rem .6rem; border-radius: 4px; }
+
+    footer { margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: .85rem; text-align: center; }
+
+    @media (max-width: 768px) { .sidebar { display: none; } main { padding: 1.5rem; } }
+  </style>
 </head>
 <body>
+
 <div class="top-bar">
   <div class="top-bar-header">
     <div>
       <div class="brand">Grow<span>MY</span>Stocks</div>
-      <div class="subtitle">Prediction Workflow</div>
+      <div class="subtitle">Developer Docs</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-05-24</div>
+    <div style="font-size:.78rem;opacity:.75;">Generated 2026-05-28</div>
   </div>
   <nav class="top-bar-nav">
     <a href="moneygoup_overview.html">Overview</a>
@@ -134,8 +119,10 @@
     <a href="SEO.html">SEO</a>
   </nav>
 </div>
-    <div class="layout">
-      <nav class="sidebar" aria-label="Prediction workflow sections">
+
+<div class="layout">
+
+  <nav class="sidebar" aria-label="Prediction workflow sections">
     <h3>GrowMyStocks Docs</h3>
     <a href="moneygoup_overview.html">App Overview</a>
     <a href="architecture_documentation.html">Architecture</a>
@@ -143,148 +130,344 @@
     <a href="api_documentation.html">API Routes</a>
     <div class="section-divider"></div>
     <h3>On this page</h3>
+    <a href="#overview">Overview</a>
     <a href="#step1">1. User Trigger (UI)</a>
     <a href="#step2">2. Data Assembly (Node)</a>
     <a href="#step3">3. API Gateway</a>
     <a href="#step4">4. Feature Engine (Python)</a>
+    <a href="#insider-features">— Insider Features (new)</a>
+    <a href="#high-beta-penalty">— High-Beta Penalty (new)</a>
     <a href="#algorithm-flow">— Algorithm Flowchart</a>
-    <a href="#feature-details">— Feature Set</a>
+    <a href="#feature-set">— Full Feature Set</a>
     <a href="#regime-analysis">— Regime Analysis</a>
     <a href="#step5">5. MLP &amp; MC Inference</a>
     <a href="#step6">6. Signal Weighting</a>
+    <a href="#earnings-dampening">— Earnings Dampening (new)</a>
+    <a href="#confidence-scoring">— Confidence Scoring</a>
     <a href="#step7">7. Persistence Layer</a>
+    <a href="#changelog">Recent Changes</a>
     <div class="section-divider"></div>
     <a href="authentication_flow.html">Auth Flow</a>
     <a href="database_documentation.html">Database</a>
     <a href="recommendation_buckets.html">Recommendation Buckets</a>
     <a href="technical_indicators_guide.html">Technical Indicators</a>
-    <a href="admin_user_management.html">Admin User Mgmt</a>
-    <a href="style_guide.html">Style Guide</a>
     <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
+    <a href="style_guide.html">Style Guide</a>
   </nav>
 
-    <main>
-        <h1>AI Prediction Workflow & Algorithm</h1>
-        <p>This master document details the end-to-end execution path and the mathematical logic behind the Stock Prediction System (v3.1).</p>
-
-        <section id="step1">
-            <h2><span>1</span> User Interaction</h2>
-            <div class="step-card">
-                <div class="component-tag">Frontend Components: StockSignalPanel.tsx + StockPrediction.tsx</div>
-                <p>In the single-ticker view (<code>/search/[ticker]</code>), the prediction workflow is initiated through one of two paths:</p>
-                <ul>
-                    <li><strong>CTA button</strong> — the user clicks "Show prediction details" in <code>StockSignalPanel</code>. This calls <code>onGeneratePrediction</code>, which invokes <code>predictionTriggerRef.current()</code> in <code>Stock</code>, which in turn calls <code>StockPrediction</code>'s internal <code>generate()</code> via the <code>triggerRef</code> prop.</li>
-                    <li><strong>Multi-ticker view</strong> — in the comparison layout, each <code>StockPrediction</code> is standalone and shows its own "Generate Prediction" button.</li>
-                </ul>
-                <p>Requires 45 trading days of sequence context. Supports 15m server-side caching.</p>
-            </div>
-        </section>
-
-        <div class="flow-arrow" style="text-align:center; font-size:2rem; color:#e2e8f0;">↓</div>
-
-        <section id="step2">
-            <h2><span>2</span> Enriched Data Assembly</h2>
-            <div class="step-card">
-                <div class="component-tag">Backend Utility: GET /api/stock_data/[ticker]/data</div>
-                <p>Aggregates a 5-year multi-dimensional dataset (~1,260 rows).</p>
-                <div class="grid">
-                    <div class="mini-card">
-                        <h4>Historical + Options</h4>
-                        <p style="font-size: 0.8rem;">Daily OHLCV + IV/PCR data.</p>
-                    </div>
-                    <div class="mini-card">
-                        <h4>World Bank Macro</h4>
-                        <p style="font-size: 0.8rem;">Real GDP, Consumption, and Inflation indicators integrated as annual features.</p>
-                    </div>
-                    <div class="mini-card">
-                        <h4>Market Regime Indicators</h4>
-                        <p style="font-size: 0.8rem;">VIX, Treasury yields, DXY, and Credit Spreads used for regime detection.</p>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <div class="flow-arrow" style="text-align:center; font-size:2rem; color:#e2e8f0;">↓</div>
-
-        <section id="step3">
-            <h2><span>3</span> API Gateway & Guards</h2>
-            <div class="step-card">
-                <div class="component-tag">Backend Handler: POST /api/prediction/[ticker]</div>
-                <p>Enforces strict reliability gates: 30s cooldown, 365-day history minimum, and concurrency semaphores.</p>
-            </div>
-        </section>
-
-        <div class="flow-arrow" style="text-align:center; font-size:2rem; color:#e2e8f0;">↓</div>
-
-        <section id="step4">
-            <h2><span>4</span> Feature Engine & Regime Detection</h2>
-            <div class="step-card">
-                <div class="component-tag">Python Engine: scripts/predict_weighted_analysis.py</div>
-                <p>Transforms raw JSON into a <strong>109+ column feature tensor</strong>, incorporating advanced features:</p>
-                <ul>
-                    <li><strong>Lag Features:</strong> Explicit past price and volume data (e.g., <code>Close_lag_5</code>).</li>
-                    <li><strong>Short-term Momentum:</strong> Rate of Change (ROC) and returns over short periods (e.g., <code>ROC_5d</code>, <code>Return_1d</code>).</li>
-                    <li><strong>Trend Context:</strong> Indicators like price relative to rolling high/low, EMA slopes (e.g., <code>PriceToHigh_20d</code>, <code>EMA_Slope_10</code>).</li>
-                    <li><strong>Rolling Statistics:</strong> Mean, Standard Deviation, Skewness, and Sharpe Ratio over rolling windows (e.g., <code>RollingMean_20d</code>).</li>
-                    <li><strong>Macroeconomic Data:</strong> Detailed indicators including World Bank GDP, Inflation, and Consumption growth.</li>
-                    <li><strong>Credit Risk & Dollar:</strong> Features derived from HYG/LQD spreads and DXY index.</li>
-                    <li><strong>Commodity & Volatility:</strong> Incorporates commodity returns, betas, and VIX-based volatility proxies.</li>
-                    <li><strong>Options Market Data:</strong> Implied Volatility (IV), IV Rank, and Put/Call Ratio.</li>
-                    <li><strong>Earnings & Fundamentals:</strong> Surprise data, short interest, and traditional valuation metrics.</li>
-                </ul>
-            </div>
-        </section>
-
-        <section id="regime-analysis">
-            <h2>Market Regime Analysis</h2>
-            <div class="step-card">
-                <p>Utilizes a Gaussian Mixture Model (GMM) or KMeans clustering on a vector of market indicators (e.g., VIX, credit spreads, relative strength, interest rates, World Bank macro data) to identify the current market state (e.g., Risk-On, Risk-Off, High Volatility).</p>
-                <p>Introduces regime-specific features, probabilities, and interaction terms (e.g., <code>Regime_x_PC_Ratio</code>, <code>Regime_x_HYG_LQD</code>) to contextualize predictions.</p>
-            </div>
-        </section>
-
-        <section id="algorithm-flow">
-            <h2>Algorithm Flowchart</h2>
-            <div class="step-card" style="background: #f8fafc; border: 1px dashed var(--primary); padding: 2rem; text-align: center;">
-                <p>JSON Input → <strong>109+ Feature Engineering</strong> (incl. Lag, ROC, Rolling Stats, Macro, Credit, Commodities, Regimes) → MLP Training (Adam Optimizer) → Dual Path Inference (Deterministic + Monte Carlo Dropout 12x with per-feature noise scaling) → <strong>Heuristic Weighting</strong> (incl. Consumer Multiplier, Analyst/Technical Signals, Regime Context) → JSON Output (1-day, 1-month, 6-month, 1-year predictions)</p>
-            </div>
-        </section>
-
-        <section id="step5">
-            <h2><span>5</span> MLP Training & MC Inference</h2>
-            <div class="step-card">
-                <div class="component-tag">Model Architecture: 256 → 128 → 64 → 32 (ReLU)</div>
-                <p>Trains a fresh MLP model on historical sequences (SEQ_LEN=45). 12x Monte Carlo Dropout passes generate statistical spreads for confidence scoring. MC noise is scaled per-feature based on recent volatility for more robust interval generation.</p>
-            </div>
-        </section>
-
-        <section id="step6">
-            <h2><span>6</span> Final Signal Weighting & Confidence</h2>
-            <div class="step-card">
-                <div class="component-tag">Logic: Heuristic Adjustments & Confidence Scoring</div>
-                <p>Neural network output is adjusted by real-world signals and confidence metrics:</p>
-                <ul>
-                    <li><strong>Consumption Multiplier:</strong> Applied to consumer sectors based on World Bank consumption growth trends (±3%).</li>
-                    <li><strong>Technical/Analyst Influence:</strong> Integrates external technical scores, analyst consensus (e.g., Buy/Hold/Sell), and numerical analyst target premiums.</li>
-                    <li><strong>Market Regime Context:</strong> Predictions are nudged based on the identified market regime and its interaction with other signals.</li>
-                    <li><strong>Global Health Score:</strong> Dampens predictions if broader global macro indicators fall below a threshold.</li>
-                    <li><strong>Confidence Scoring:</strong> Confidence in predictions (1-day, 1-month, 6-month, 1-year) is calculated based on historical accuracy (CV-MAPE), data completeness, history depth, and analyst coverage.</li>
-                </ul>
-            </div>
-        </section>
-
-        <section id="step7">
-            <h2><span>7</span> Persistence Layer</h2>
-            <div class="step-card">
-                <div class="component-tag">Backend Utility: POST /api/prediction/save</div>
-                <p>Saves 1-day, 1-month, 6-month, and 1-year price targets, along with trajectory data and confidence scores, to <code>user_stock_predictions</code>. Stored data includes <code>macro_features_used</code> and regime information for model observability.</p>
-            </div>
-        </section>
-
-        <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem;">
-            MoneyGoUp Intelligence System &copy; 2026
-        </footer>
-    </main>
+  <main>
+    <p style="font-size:.8rem;color:#94a3b8;margin-bottom:.25rem;">doc / prediction_workflow.html</p>
+    <h1>AI Prediction Workflow &amp; Algorithm</h1>
+    <div class="meta">
+      <span>scripts/predict_weighted_analysis.py</span>
+      <span>src/app/api/prediction/[ticker]/route.ts</span>
+      <span>src/app/api/stock_data/[ticker]/data/route.ts</span>
+      <span>Updated 2026-05-28</span>
     </div>
+
+    <section id="overview">
+      <p>This document details the end-to-end execution path and mathematical logic behind the Stock Prediction System (v3.2). The pipeline runs an MLPRegressor (sklearn) trained fresh per request on 5 years of enriched historical data, producing 1-day, 1-month, 6-month, and 1-year price targets with Monte Carlo uncertainty bands.</p>
+      <div class="highlight-box">
+        <strong>v3.2 changes (2026-05-28):</strong> Insider selling features added to feature set; High-Beta/Valuation Stretch Penalty added to <code>metric_analysis()</code>; 1-month earnings-window confidence dampening; per-user 30-second cooldown removed from the prediction API; client-side countdown UI removed from <code>StockPrediction.tsx</code>.
+      </div>
+    </section>
+
+    <section id="step1">
+      <h2><span class="step-num">1</span> User Interaction</h2>
+      <div class="step-card">
+        <div class="component-tag">Frontend: StockSignalPanel.tsx + StockPrediction.tsx</div>
+        <p>The prediction workflow is initiated from the single-ticker view (<code>/search/[ticker]</code>) via one of two paths:</p>
+        <ul>
+          <li><strong>CTA button</strong> — user clicks "Show prediction details" in <code>StockSignalPanel</code>, which calls <code>onGeneratePrediction</code>, which calls <code>predictionTriggerRef.current()</code>, which calls <code>StockPrediction</code>'s internal <code>generate()</code> via the <code>triggerRef</code> prop.</li>
+          <li><strong>Multi-ticker comparison</strong> — each <code>StockPrediction</code> renders its own "Generate Prediction" button.</li>
+        </ul>
+        <p>Requires 45 trading days of sequence context (SEQ_LEN = 45). Supports 15-minute server-side caching.</p>
+        <div class="highlight-box"><strong>Cooldown removed (2026-05-28):</strong> The previous 30-second per-user-per-ticker client cooldown countdown and the associated <code>tickerCooldown</code> Map on the server have been removed. Throttling is now handled solely by the role-based <code>LimitService</code> daily lookup quota and the <code>predictionSemaphore</code> concurrency cap.</div>
+      </div>
+    </section>
+
+    <div class="flow-arrow">&#8595;</div>
+
+    <section id="step2">
+      <h2><span class="step-num">2</span> Enriched Data Assembly</h2>
+      <div class="step-card">
+        <div class="component-tag">GET /api/stock_data/[ticker]/data — route.ts</div>
+        <p>Assembles a 5-year multi-dimensional dataset (~1,260 rows) that the Python script consumes as a single JSON payload. The script never makes outbound network calls itself.</p>
+        <div class="grid">
+          <div class="mini-card">
+            <h4>Historical OHLCV</h4>
+            <p style="font-size:.82rem;">5 years of daily Open/High/Low/Close/Volume from <code>yahooFinance.chart()</code> with adj-close preference. Minimum 365 days enforced.</p>
+          </div>
+          <div class="mini-card">
+            <h4>Fundamentals &amp; Analyst Targets</h4>
+            <p style="font-size:.82rem;">PE, PB, margins, debt/equity, ROE, analyst target mean/median/high/low, opinion count, recommendation mean. Missing values are imputed from per-sector medians.</p>
+          </div>
+          <div class="mini-card">
+            <h4>Options Market Data</h4>
+            <p style="font-size:.82rem;">IV, IV Rank, Put/Call Ratio fetched via <code>/api/stock_data/[ticker]/options</code> internal call.</p>
+          </div>
+          <div class="mini-card">
+            <h4>Earnings Surprises</h4>
+            <p style="font-size:.82rem;">EPS and revenue surprise % averaged over the last 4 quarters (<code>epsSurpriseAvg4Q</code>, <code>revenueSurpriseAvg4Q</code>).</p>
+          </div>
+          <div class="mini-card">
+            <h4>Short Interest</h4>
+            <p style="font-size:.82rem;"><code>shortFloatPct</code> and <code>daysToCover</code> from Yahoo Finance <code>defaultKeyStatistics</code>.</p>
+          </div>
+          <div class="mini-card">
+            <h4>Insider Transactions <span class="new-badge">new</span></h4>
+            <p style="font-size:.82rem;">90-day window computed by <code>extractInsiderMetrics()</code>. Yields <code>insiderNetSellRatio90d</code> (net shares sold / shares outstanding, clipped to [-1,1]) and <code>insiderTxCount90d</code>. Option exercises excluded as directionally ambiguous.</p>
+          </div>
+          <div class="mini-card">
+            <h4>Macro Series (11 symbols)</h4>
+            <p style="font-size:.82rem;">VIX, TNX, sector ETF, HYG, LQD, DXY, SPY, IRX, WTI crude, Copper, Wheat — all fetched in parallel and cached via <code>macroCache</code>.</p>
+          </div>
+          <div class="mini-card">
+            <h4>World Bank Macro</h4>
+            <p style="font-size:.82rem;">GDP growth, inflation, consumption growth — annual, broadcast across all rows as scalar features.</p>
+          </div>
+        </div>
+        <p>All data is returned as a single JSON payload with a <code>dataQuality</code> block tracking imputed fields, missing feature metrics, and history depth in years.</p>
+        <p>The endpoint has a 15-minute server-side cache (max 500 entries) and supports <code>?refresh=true</code> to bypass it.</p>
+      </div>
+    </section>
+
+    <div class="flow-arrow">&#8595;</div>
+
+    <section id="step3">
+      <h2><span class="step-num">3</span> API Gateway &amp; Guards</h2>
+      <div class="step-card">
+        <div class="component-tag">POST /api/prediction/[ticker] — route.ts</div>
+        <p>Enforces reliability gates before spawning the Python subprocess:</p>
+        <table>
+          <thead><tr><th>Guard</th><th>Behavior</th></tr></thead>
+          <tbody>
+            <tr><td>Origin check / session auth</td><td>Internal <code>x-api-key</code> bypasses session requirement</td></tr>
+            <tr><td>Approval guard</td><td><code>checkApprovalGuard(userId)</code> — rejects suspended accounts</td></tr>
+            <tr><td>LimitService lookup quota</td><td>Returns 403 LIMIT_EXCEEDED if user has exceeded daily lookup count</td></tr>
+            <tr><td><code>predictionCache</code> check</td><td>Returns cached result if available and <code>refresh</code> not requested</td></tr>
+            <tr><td>Historical data validation</td><td>Requires ≥ 365 rows of historical data; returns 422 otherwise</td></tr>
+            <tr><td><code>predictionSemaphore</code></td><td>Limits concurrent Python subprocesses; returns 503 if full</td></tr>
+          </tbody>
+        </table>
+        <div class="highlight-box"><strong>Cooldown removed (2026-05-28):</strong> The <code>tickerCooldown</code> Map, 30-second per-user lock, and 429 responses for rapid repeat requests have been removed. The semaphore and LimitService are the remaining rate controls.</div>
+        <p>The enriched payload is written to a temp JSON file in <code>os.tmpdir()</code>, passed to the Python script via <code>--input_file</code>, and cleaned up in the <code>finally</code> block regardless of outcome.</p>
+      </div>
+    </section>
+
+    <div class="flow-arrow">&#8595;</div>
+
+    <section id="step4">
+      <h2><span class="step-num">4</span> Feature Engine &amp; Regime Detection</h2>
+      <div class="step-card">
+        <div class="component-tag">scripts/predict_weighted_analysis.py — build_features() / _calculate_features_internal()</div>
+        <p>Transforms the raw JSON into a <strong>119+ column feature tensor</strong> (including 11 regime columns). Features fall into the following groups:</p>
+        <ul>
+          <li><strong>OHLCV core:</strong> Open, High, Low, Close, Volume</li>
+          <li><strong>Technical indicators:</strong> MACD, Bollinger Bands, RSI-14, Stochastic-14, ATR-14, SMA-20/200, EMA-50/200</li>
+          <li><strong>Long-horizon:</strong> HiRatio/LoRatio 52w, ROC 6m/12m, GoldenCross</li>
+          <li><strong>Lag features:</strong> Close_lag_5/10/20, Volume_lag_5</li>
+          <li><strong>Short-term momentum:</strong> ROC_5d, ROC_20d, Return_1d/5d/20d</li>
+          <li><strong>Trend context:</strong> PriceToHigh/Low_20d, PriceToHigh_5d, EMA_Slope_10/20, VolumePriceTrend</li>
+          <li><strong>Rolling statistics:</strong> RollingMean/Std/Skew/Sharpe_20d</li>
+          <li><strong>Fundamentals (scalar broadcast):</strong> PE, PB, TrailingEPS, ForwardEPS, RevenueGrowth, EarningsGrowth, ProfitMargins, D/E, ROE, Beta, DivYield, AnalystPremium, AnalystPremiumWeighted, RecommendationMean</li>
+          <li><strong>Macro series:</strong> VIX, VIX_20d_Avg, Treasury10Y/3M, SectorETF_60d_Corr</li>
+          <li><strong>Credit risk proxy:</strong> HYG/LQD level and 20d momentum, HYG_LQD_Ratio</li>
+          <li><strong>Dollar:</strong> DXY_Level, DXY_Return_20d</li>
+          <li><strong>Curve slope:</strong> CurveSlope_10M3M</li>
+          <li><strong>Relative strength:</strong> RS_vs_SPY_20d, RS_vs_SectorETF_20d</li>
+          <li><strong>Commodities:</strong> WTI/Copper/Wheat return 20d + 60d beta</li>
+          <li><strong>Volatility proxies:</strong> HistVol_30, VIX_RealVol_Ratio, PC_Skew_Proxy</li>
+          <li><strong>Options:</strong> IV, IV_Rank, Put_Call_Ratio</li>
+          <li><strong>Earnings &amp; short interest:</strong> EPS_Surprise_Avg_4Q, Revenue_Surprise_Avg_4Q, ShortFloatPct, DaysToCover</li>
+          <li><strong>Insider activity:</strong> InsiderNetSellRatio_90d, InsiderTxCount_90d <span class="new-badge">new</span></li>
+          <li><strong>Earnings-window flags:</strong> Earnings_In_Window, Days_Since_Last_Earnings, Days_To_Next_Earnings</li>
+          <li><strong>Calendar:</strong> Month_Sin, Month_Cos, EarningsSeason</li>
+          <li><strong>Derived sentiment:</strong> NewsSentiment, EarningsBeatStreak</li>
+          <li><strong>World Bank macro (Phase 4):</strong> WorldBank_GDP, WorldBank_Inflation, WorldBank_Consumption, WorldBank_Real_GDP</li>
+          <li><strong>Regime columns (Phase 2-3):</strong> Regime_0–3, Regime_Prob_0–3, Regime_x_PC_Ratio, Regime_x_HYG_LQD, Regime_x_RS_SPY</li>
+        </ul>
+      </div>
+
+      <section id="insider-features">
+        <h3>Insider Activity Features <span class="new-badge">new</span></h3>
+        <div class="step-card">
+          <p>Two new columns added to <code>FEATURE_COLUMNS</code> (inserted in the <em>Earnings Surprises &amp; Short Interest</em> block):</p>
+          <table>
+            <thead><tr><th>Feature</th><th>Source field</th><th>Range</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>InsiderNetSellRatio_90d</code></td><td><code>featureMetrics.insiderNetSellRatio90d</code></td><td>[-1, 1]</td><td>Net shares sold (sales minus purchases) divided by shares outstanding over the trailing 90 days. Positive = net insider selling; negative = net insider buying. Option exercises excluded.</td></tr>
+              <tr><td><code>InsiderTxCount_90d</code></td><td><code>featureMetrics.insiderTxCount90d</code></td><td>[0, ∞)</td><td>Raw count of SEC Form 4 transactions in the trailing 90 days. Provides volume context for the net sell ratio.</td></tr>
+            </tbody>
+          </table>
+          <p>Both values are applied only to the most recent 63 rows of the feature matrix (approximately 3 months of trading days). All earlier rows receive a neutral value of 0.0 to avoid contaminating historical training samples with look-ahead data.</p>
+          <p>The values are computed by <code>extractInsiderMetrics()</code> in <code>route.ts</code>, which fetches the Yahoo Finance <code>insiderTransactions</code> module and filters to transactions within the 90-day cutoff.</p>
+        </div>
+      </section>
+
+      <section id="high-beta-penalty">
+        <h3>High-Beta / Valuation Stretch Penalty <span class="new-badge">new</span></h3>
+        <div class="step-card">
+          <p>Added to <code>metric_analysis()</code> in the heuristic adjustment layer. Applied when a stock has both a high beta (indicating volatility) and is trading near its 52-week high (indicating potential mean-reversion risk):</p>
+          <div class="formula">
+if beta &gt; 2.5 AND HiRatio_52w &gt; 0.95:
+    stretch_penalty = 1.0 - ((beta - 2.5) * 0.015)
+    total_impact += stretch_penalty - 1.0
+          </div>
+          <p>At beta = 3.0 near a 52-week high, this applies a <strong>-0.75%</strong> impact to the final price target. At beta = 4.0, it applies <strong>-2.25%</strong>. The penalty is unbounded below but practically small for beta values seen in normal equities. It is entirely absent for beta &lt;= 2.5 or stocks not near their 52-week high.</p>
+        </div>
+      </section>
+
+      <section id="algorithm-flow">
+        <h3>Algorithm Flowchart</h3>
+        <div class="step-card" style="background:#f8fafc;border:1px dashed var(--primary);">
+          <p style="text-align:center;">JSON Input &rarr; <strong>119+ Feature Engineering</strong><br>(OHLCV + Lag + ROC + Rolling Stats + Fundamentals + Macro + Credit + Commodities + Options + Insider + Regime)<br>&darr;<br>GMM/KMeans Regime Detection (K=3 or 4) + One-hot + Prob columns + Interaction terms<br>&darr;<br>MinMaxScaler &rarr; SEQ_LEN=45 sliding windows &rarr; <strong>MLP Training</strong> (Adam, early-stop, 20% holdout)<br>&darr;<br>Deterministic inference (1 pass) + <strong>Monte Carlo Dropout</strong> (12 passes, per-feature noise)<br>&darr;<br><strong>Heuristic Weighting</strong> (metric_analysis + consumer multiplier + high-beta penalty)<br>&darr;<br>JSON Output: 1d / 1m / 6m / 1y prices, confidence scores, 18-month trajectory</p>
+        </div>
+      </section>
+
+      <section id="feature-set">
+        <h3>Feature Caching &amp; Incremental Updates</h3>
+        <div class="step-card">
+          <p>The script maintains two cache layers in <code>scripts/prediction_cache/</code>:</p>
+          <ul>
+            <li><strong>Result cache</strong> — keyed by MD5(ticker + last_date + data_len). Full prediction JSON stored as <code>{key}.json</code>. Subsequent requests for the same data snapshot skip the entire model pipeline.</li>
+            <li><strong>Feature cache</strong> — the full feature DataFrame stored as <code>{ticker}_features_df.pkl</code>. On the next run, if the new data is a forward extension of the cached data, only the new rows are computed using a 252-row lookback buffer. Broadcaster-scalar features (fundamentals, macro, insider) are updated in-place on the cached frame.</li>
+          </ul>
+          <p>CPU usage is throttled via environment variables (<code>OMP_NUM_THREADS=1</code>, <code>MKL_NUM_THREADS=1</code>, etc.) set before numpy/sklearn import, and the process priority is lowered via <code>os.nice(15)</code>.</p>
+        </div>
+      </section>
+
+      <section id="regime-analysis">
+        <h3>Market Regime Analysis (Phase 2-3)</h3>
+        <div class="step-card">
+          <p>A Gaussian Mixture Model (GMM) is fitted on a 10-dimension market vector at each run:</p>
+          <div class="formula">regime_vec_cols = ['VIX', 'HistVol_30', 'HYG_LQD_Ratio', 'RS_vs_SPY_20d',
+                       'DXY_Return_20d', 'CurveSlope_10M3M', 'RollingMean_20d',
+                       'RollingStd_20d', 'WorldBank_GDP', 'WorldBank_Inflation']</div>
+          <p>K is selected by <code>select_regime_k()</code> which evaluates K=3 and K=4 against two gates: minimum state population fraction ≥ 15% and temporal flip rate ≤ 30%. The first K that passes both gates is used. If neither passes, the evaluation falls through to KMeans as a fallback.</p>
+          <p>The resulting regime labels and GMM posterior probabilities are added as one-hot (<code>Regime_0</code>–<code>Regime_3</code>), soft probability (<code>Regime_Prob_0</code>–<code>Regime_Prob_3</code>), and three interaction columns (<code>Regime_x_PC_Ratio</code>, <code>Regime_x_HYG_LQD</code>, <code>Regime_x_RS_SPY</code>). The four named states are: <em>risk_on_trending</em>, <em>risk_off_stress</em>, <em>high_vol_choppy</em>, <em>low_vol_mean_reverting</em>.</p>
+        </div>
+      </section>
+    </section>
+
+    <div class="flow-arrow">&#8595;</div>
+
+    <section id="step5">
+      <h2><span class="step-num">5</span> MLP Training &amp; MC Inference</h2>
+      <div class="step-card">
+        <div class="component-tag">sklearn MLPRegressor — hidden_layer_sizes=(256, 128, 64, 32)</div>
+        <p>A fresh MLP is trained per request on all available sequences. Architecture:</p>
+        <table>
+          <thead><tr><th>Hyperparameter</th><th>Value</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td>Hidden layers</td><td>(256, 128, 64, 32)</td><td>Widened to handle 119+ features</td></tr>
+            <tr><td>Activation</td><td>ReLU</td><td></td></tr>
+            <tr><td>Optimizer</td><td>Adam</td><td>lr=0.001</td></tr>
+            <tr><td>Max iterations</td><td>50</td><td>Capped for speed</td></tr>
+            <tr><td>Early stopping</td><td>Yes</td><td>val_fraction=0.1, n_iter_no_change=8</td></tr>
+            <tr><td>Sequence length</td><td>45 trading days</td><td>SEQ_LEN; sliding window via stride tricks</td></tr>
+            <tr><td>Targets</td><td>scaled Close at t+126, t+252</td><td>Dual-head: 6m and 12m simultaneously</td></tr>
+          </tbody>
+        </table>
+        <p>Validation uses a single 80/20 holdout (last 20% of sequences) rather than walk-forward cross-validation for speed. CV-MAPE from holdout feeds into the confidence score.</p>
+        <p>Monte Carlo uncertainty is generated via 12 forward passes (<code>MC_RUNS=12</code>) with additive Gaussian noise scaled per-feature to the standard deviation of the last 20 rows of each feature column. The 10th–90th percentile spread of MC outputs gives the trajectory confidence band.</p>
+      </div>
+    </section>
+
+    <div class="flow-arrow">&#8595;</div>
+
+    <section id="step6">
+      <h2><span class="step-num">6</span> Signal Weighting &amp; Confidence</h2>
+      <div class="step-card">
+        <div class="component-tag">metric_analysis() + confidence_score()</div>
+        <p>The raw MLP price target is multiplied by an <code>impact_multiplier</code> built from additive heuristic signals:</p>
+        <table>
+          <thead><tr><th>Signal</th><th>Max impact</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td>RSI overbought/oversold</td><td>±1.5%</td><td>RSI &gt; 75 penalizes; &lt; 25 boosts</td></tr>
+            <tr><td>Trend (is_uptrend)</td><td>+2% / -1%</td><td>20-day price trend direction</td></tr>
+            <tr><td>20d growth rate</td><td>variable</td><td>Scaled × 0.03</td></tr>
+            <tr><td>News sentiment</td><td>±1.5%</td><td>Weighted tanh score × 0.015</td></tr>
+            <tr><td>External technical score</td><td>±7%</td><td>Score × 0.005 (max input ≈ ±14)</td></tr>
+            <tr><td>Analyst consensus (reliability-weighted)</td><td>±5%</td><td>consensus_value × 0.05 × min(aoc/40, 1)</td></tr>
+            <tr><td>Analyst numerical premium</td><td>±7.5%</td><td>analyst_weighted × 0.05 × min(aoc/40, 1.5)</td></tr>
+            <tr><td>Earnings beat streak</td><td>+4%</td><td>1% per consecutive beat, max 4</td></tr>
+            <tr><td>High-beta stretch penalty <span class="new-badge">new</span></td><td>variable</td><td>Only when beta &gt; 2.5 AND HiRatio_52w &gt; 0.95</td></tr>
+            <tr><td>Consumer sector multiplier</td><td>±3%</td><td>World Bank consumption growth × 0.005, clamped</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <section id="earnings-dampening">
+        <h3>1-Month Earnings-Window Confidence Dampening <span class="new-badge">new</span></h3>
+        <div class="step-card">
+          <p>The 1-month confidence score is now adjusted based on proximity to the next earnings date:</p>
+          <div class="formula">if days_to_earnings &lt;= 14:
+    cs1m = max(0, cs6m - 10)   # near earnings: binary event risk, lower confidence
+else:
+    cs1m = min(100, cs6m + 10)  # standard: tighter horizon = slight boost</div>
+          <p>Previously <code>cs1m</code> was always <code>cs6m + 10</code>. The new logic correctly reflects that a 1-month window that contains an earnings release carries more binary outcome risk than a 6-month window, and should therefore not receive an automatic confidence boost. The <code>nextEarningsDate</code> field from <code>stockMetrics</code> drives this calculation; if missing, <code>_days_to_earnings</code> defaults to 999 (far away), preserving the standard boost.</p>
+        </div>
+      </section>
+
+      <section id="confidence-scoring">
+        <h3>Confidence Score Formula</h3>
+        <div class="step-card">
+          <p>The base confidence score (<code>cs6m</code>) is built from four components, max 100 points:</p>
+          <table>
+            <thead><tr><th>Component</th><th>Max pts</th><th>Thresholds</th></tr></thead>
+            <tbody>
+              <tr><td>CV-MAPE (holdout accuracy)</td><td>40</td><td>&lt;5% → 40 pts; &lt;10% → 30 pts; &lt;20% → 15 pts; else 0</td></tr>
+              <tr><td>History depth</td><td>25</td><td>≥5y → 25; ≥4y → 20; ≥3y → 12; ≥2y → 5; else 0</td></tr>
+              <tr><td>Feature completeness</td><td>20</td><td>0 imputed → 20; ≤2 → 14; ≤5 → 8; else 0</td></tr>
+              <tr><td>Analyst coverage</td><td>15</td><td>≥10 analysts → 15; ≥5 → 10; ≥1 → 5; else 0</td></tr>
+            </tbody>
+          </table>
+          <p>Derived confidence scores:</p>
+          <ul>
+            <li><code>cs1y = max(0, cs6m - 15)</code> — longer horizon, wider uncertainty</li>
+            <li><code>cs1m</code> — see earnings-window logic above</li>
+            <li><code>cs1d = min(100, cs1m + 5)</code> — tightest horizon, highest confidence</li>
+          </ul>
+        </div>
+      </section>
+    </section>
+
+    <div class="flow-arrow">&#8595;</div>
+
+    <section id="step7">
+      <h2><span class="step-num">7</span> Persistence Layer</h2>
+      <div class="step-card">
+        <div class="component-tag">POST /api/prediction/save</div>
+        <p>After a successful prediction run, the API route fires an async (fire-and-forget) call to <code>/api/prediction/save</code> that persists the 1-month predicted price and GPS score to <code>user_stock_predictions</code> for the requesting user. The GPS score is computed from <code>calculateGpsScore()</code> using analyst upside, revenue growth, earnings growth, 52-week price change, ML alpha (predicted_change_pct_1m), and AI confidence (confidence_score_1m).</p>
+        <p>Internal (deepmoney sync) calls skip GPS computation and persistence.</p>
+      </div>
+    </section>
+
+    <section id="changelog">
+      <h2>Recent Changes (2026-05-28)</h2>
+      <div class="step-card">
+        <table>
+          <thead><tr><th>File</th><th>Change</th></tr></thead>
+          <tbody>
+            <tr><td><code>predict_weighted_analysis.py</code></td><td>Added <code>InsiderNetSellRatio_90d</code> and <code>InsiderTxCount_90d</code> to <code>FEATURE_COLUMNS</code></td></tr>
+            <tr><td><code>predict_weighted_analysis.py</code></td><td>Added High-Beta/Valuation Stretch Penalty in <code>metric_analysis()</code></td></tr>
+            <tr><td><code>predict_weighted_analysis.py</code></td><td>Added earnings-window confidence dampening for 1-month horizon (<code>cs1m = cs6m - 10</code> when earnings within 14 days)</td></tr>
+            <tr><td><code>predict_weighted_analysis.py</code></td><td>Fixed <code>analyst_count</code> NameError in <code>metric_analysis()</code> (was referencing undefined variable for analyst opinion count)</td></tr>
+            <tr><td><code>src/app/api/stock_data/[ticker]/data/route.ts</code></td><td>Added <code>extractInsiderMetrics()</code> — fetches Yahoo Finance <code>insiderTransactions</code> module and computes 90-day insider metrics</td></tr>
+            <tr><td><code>src/app/api/prediction/[ticker]/route.ts</code></td><td>Removed per-user 30-second cooldown (<code>tickerCooldown</code> Map, 429 responses)</td></tr>
+            <tr><td><code>src/app/components/StockPrediction.tsx</code></td><td>Removed client-side cooldown countdown UI</td></tr>
+            <tr><td><code>src/app/components/GainsBreakdownCard.tsx</code></td><td>WCAG AA contrast fixes</td></tr>
+            <tr><td><code>src/app/portfolio/page.tsx</code></td><td>WCAG AA contrast fixes</td></tr>
+            <tr><td><code>src/app/components/PortfolioMetricsPanel.tsx</code></td><td>WCAG AA contrast fixes</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer>GrowMyStocks Developer Docs &copy; 2026</footer>
+  </main>
+</div>
+
 </body>
 </html>

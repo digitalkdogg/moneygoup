@@ -906,7 +906,7 @@ def confidence_score(cv_mape, history_years, imputed_fields, analyst_count):
 # ============================================================================
 # LEGACY METRIC ANALYSIS (kept for backward compat)
 # ============================================================================
-def metric_analysis(df, stock_metrics, news_sentiment, growth_rate, is_uptrend, earnings_beat_streak, external_tech_score=0.0, consensus_value=0.0, analyst_weighted=0.0):
+def metric_analysis(df, stock_metrics, news_sentiment, growth_rate, is_uptrend, earnings_beat_streak, external_tech_score=0.0, consensus_value=0.0, analyst_weighted=0.0, analyst_count=0):
     current_price = df['Close'].iloc[-1]
     rsi       = df['RSI_14'].iloc[-1] if 'RSI_14' in df.columns else 50.0
     sma20_val = df['SMA_20'].iloc[-1]  if 'SMA_20'  in df.columns else current_price
@@ -937,18 +937,32 @@ def metric_analysis(df, stock_metrics, news_sentiment, growth_rate, is_uptrend, 
     total_impact += external_tech_score * 0.005
 
     # ── Analyst Consensus Influence (0.0 to 1.0) ──
-    # A strong buy (1.0) adds ~5% (was 2%) to the target.
-    total_impact += consensus_value * 0.05
+    # Reliability-weighted so low-coverage stocks (e.g. 4 analysts) don't get the
+    # same bullish lift as well-covered stocks (e.g. 40+ analysts). Without this,
+    # a "buy" rating on a stock where analysts' actual price target is -38% vs current
+    # price would still add the full +3.75% — drowning out the bearish target signal.
+    _reliability = min(analyst_count / 40.0, 1.0)
+    total_impact += consensus_value * 0.05 * _reliability
 
     # ── Analyst Numerical Target Premium (0.0 to 1.0) ──
     # Directly nudges prediction toward the analyst target mean.
-    _aoc = safe(stock_metrics.get('analystOpinionCount'), 0)
-    analyst_coverage_boost = min(_aoc / 40.0, 1.5)  # allow up to 1.5x boost for deep coverage
+    # analyst_weighted already incorporates reliability (analystOpinionCount / 40),
+    # so no further reliability scaling is needed here. Deep-coverage stocks get a
+    # modest boost (up to 1.5x) to reward strong analyst alignment.
+    analyst_coverage_boost = min(analyst_count / 40.0, 1.5)
     total_impact += analyst_weighted * 0.05 * analyst_coverage_boost
 
     # ── Earnings Beat Streak influence (0-4 quarters) ──
     # Adds ~1.0% per beat (was 0.5%). Max +4%.
     total_impact += earnings_beat_streak * 0.01
+
+    # ── High-Beta / Valuation Stretch Penalty ──
+    # High-beta stocks near 52w highs are prone to sharp mean-reversion.
+    _beta = safe(stock_metrics.get('beta'), 1.0)
+    _hi_ratio = float(df['HiRatio_52w'].iloc[-1]) if 'HiRatio_52w' in df.columns else 0.0
+    if _beta > 2.5 and _hi_ratio > 0.95:
+        stretch_penalty = 1.0 - ((_beta - 2.5) * 0.015)
+        total_impact += stretch_penalty - 1.0
 
     return {
         "rsi": {
@@ -1247,7 +1261,8 @@ def predict(ticker, input_data):
 
     # ---- Legacy metric analysis ----
     m_analysis = metric_analysis(feat_df, stock_metrics, news_sentiment,
-                                  growth_rate, is_uptrend, earnings_beat_streak, external_tech_score, consensus_value, analyst_weighted_val)
+                                  growth_rate, is_uptrend, earnings_beat_streak, external_tech_score, consensus_value, analyst_weighted_val,
+                                  analyst_count=int(safe(stock_metrics.get('analystOpinionCount'), 0)))
 
     impact_multiplier = 1.0 + m_analysis['total_metric_impact']
 

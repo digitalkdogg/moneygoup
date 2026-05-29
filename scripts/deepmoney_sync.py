@@ -198,6 +198,16 @@ def sync_deepmoney():
                 # print(f"  [gate] SKIP {ticker}: GPS {gps} <= Gate {ml_gate_threshold}")
                 continue
 
+            # 4.2 Volatility-adjusted confidence gate
+            conf_score = pred_input.get('confidence_score') or pred_input.get('confidence_score_1m') or 0
+            beta_val = s.get('beta') or 1.0
+            volatility_gate = conf_score >= 50
+            if beta_val > 2.5:
+                volatility_gate = conf_score >= 65
+            if not volatility_gate:
+                print(f"  [vol-gate] SKIP {ticker}: CS {conf_score} insufficient for beta {beta_val:.2f}")
+                continue
+
             print(f"  > {ticker} (GPS: {gps}, Pred: {predicted_change_pct}%)")
             
             # Map V2 fields to DB variables
@@ -223,7 +233,13 @@ def sync_deepmoney():
 
             metric_val = predicted_change_pct
             metric_lbl = f"CS: {pred_input.get('confidence_score')}" if pred_input.get('confidence_score') is not None else None
-            
+
+            # ATH proximity warning flag
+            hi_ratio = s.get('hiRatio52w') or 0
+            if hi_ratio > 0.97 and beta_val > 2.0:
+                print(f"  [ath-warn] {ticker}: Near ATH ({hi_ratio:.2%}) with high beta ({beta_val:.2f})")
+                metric_lbl = f"{metric_lbl} ⚠️ATH" if metric_lbl else "⚠️ATH"
+
             # Fundamentals
             trailing_pe = s.get('pe')
             pb_ratio = s.get('pb')

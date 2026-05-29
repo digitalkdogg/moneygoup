@@ -50,6 +50,8 @@
     .badge-noauth   { background: #d1fae5; color: #065f46; }
     .badge-internal { background: #ede9fe; color: #5b21b6; }
     .badge-approval { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+    .badge-new      { background: #dcfce7; color: #166534; }
+    .badge-removed  { background: #fee2e2; color: #991b1b; }
 
     /* Tables */
     .props-table { width: 100%; border-collapse: collapse; font-size: .82rem; margin: .5rem 0 .75rem; }
@@ -65,6 +67,7 @@
 
     .note { background: #fffbeb; border-left: 4px solid #fbbf24; padding: .75rem 1rem; border-radius: 0 6px 6px 0; font-size: .85rem; color: #78350f; margin: .5rem 0; line-height: 1.6; }
     .info { background: #eff6ff; border-left: 4px solid #3b82f6; padding: .75rem 1rem; border-radius: 0 6px 6px 0; font-size: .85rem; color: #1e3a8a; margin: .5rem 0; line-height: 1.6; }
+    .success-note { background: #f0fdf4; border-left: 4px solid #15803d; padding: .75rem 1rem; border-radius: 0 6px 6px 0; font-size: .85rem; color: #14532d; margin: .5rem 0; line-height: 1.6; }
 
     .sub-heading { font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #64748b; margin: .75rem 0 .3rem; }
 
@@ -73,8 +76,8 @@
     .stat-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem 1.25rem; text-align: center; }
     .stat-card .value { font-size: 2rem; font-weight: 800; color: #017e3b; }
     .stat-card .label { font-size: .75rem; color: #64748b; text-transform: uppercase; letter-spacing: .05em; }
-    
-    /* ── Top Bar ── */
+
+    /* Top Bar */
     .top-bar { background: #017e3b; color: #fff; padding: 0 2rem; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
     .top-bar-header { display: flex; align-items: center; justify-content: space-between; height: 56px; }
     .top-bar .brand { font-size: 1.2rem; font-weight: 700; letter-spacing: .02em; }
@@ -95,7 +98,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">API Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-05-24</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-05-28</div>
   </div>
   <nav class="top-bar-nav">
     <a href="moneygoup_overview.html">Overview</a>
@@ -148,9 +151,9 @@
     <div class="page-title">API Routes</div>
     <div class="page-meta">
       <span>GrowMyStocks</span>
-      <span>Next.js 14 App Router</span>
+      <span>Next.js 16 App Router</span>
       <span>35+ routes documented</span>
-      <span>Updated 2026-05-24</span>
+      <span>Updated 2026-05-28</span>
     </div>
 
     <div class="summary-grid">
@@ -160,7 +163,7 @@
       <div class="stat-card"><div class="value">6h</div><div class="label">Max Cache TTL</div></div>
     </div>
 
-    <div class="info">All routes are Next.js 14 App Router Route Handlers (<code>route.ts</code> files). All authenticated routes validate the NextAuth JWT session. The <code>checkOrigin()</code> middleware is applied to most mutation endpoints. An internal bypass using the <code>x-api-key</code> header allows server-to-server calls. As of May 2026, all authenticated data endpoints also call <code>checkApprovalGuard(userId)</code> to re-verify the user's approval status against the database on every request, protecting against stale sessions from suspended accounts.</div>
+    <div class="info">All routes are Next.js 16 App Router Route Handlers (<code>route.ts</code> files). All authenticated routes validate the NextAuth JWT session. The <code>checkOrigin()</code> middleware is applied to most mutation endpoints. An internal bypass using the <code>x-api-key</code> header allows server-to-server calls. As of May 2026, all authenticated data endpoints also call <code>checkApprovalGuard(userId)</code> to re-verify the user's approval status against the database on every request, protecting against stale sessions from suspended accounts.</div>
 
     <!-- ══════════════════════════════════════════ -->
     <div class="section">
@@ -540,35 +543,56 @@
           <span class="route-path">/api/prediction/[ticker]</span>
           <span class="badge badge-auth">Auth or internal API key</span>
           <span class="badge badge-rate">Rate limited (LimitService)</span>
+          <span class="badge badge-new">Updated 2026-05-28</span>
           <span class="route-file">src/app/api/prediction/[ticker]/route.ts</span>
         </div>
         <div class="route-desc">Runs the ML prediction pipeline for a single ticker. Spawns <code>scripts/predict_weighted_analysis.py</code> via Node <code>child_process.spawn</code> inside a semaphore to bound concurrent Python processes. Results are cached in <code>predictionCache</code> and persisted asynchronously via <code>/api/prediction/save</code>.</div>
         <div class="sub-heading">Request Body</div>
-        <div class="route-desc">The enriched data payload returned by <code>GET /api/stock_data/{ticker}/data</code>. Passed directly to the Python script as JSON via stdin.</div>
+        <div class="route-desc">The enriched data payload returned by <code>GET /api/stock_data/{ticker}/data</code>. Must include <code>historicalData</code> (≥ 365 rows), <code>stockMetrics</code>, and optionally <code>featureMetrics</code>, <code>macroData</code>, <code>optionsData</code>, <code>historicalEarnings</code>, and <code>dataQuality</code>.</div>
         <div class="sub-heading">Guards &amp; Caching</div>
         <table class="props-table">
           <thead><tr><th>Guard</th><th>Behavior</th></tr></thead>
           <tbody>
-            <tr><td>LimitService lookup check</td><td>Returns 429 if user has exceeded daily lookup quota</td></tr>
-            <tr><td>30-second per-user-per-ticker cooldown</td><td>Returns cached result within the cooldown window</td></tr>
-            <tr><td>predictionCache check</td><td>Returns cached prediction if available and fresh</td></tr>
-            <tr><td>Historical data validation</td><td>Requires ≥365 days of historical data; returns 422 otherwise</td></tr>
-            <tr><td>predictionSemaphore</td><td>Limits concurrent Python subprocess spawns</td></tr>
+            <tr><td>Origin check / session auth</td><td>Internal <code>x-api-key</code> bypasses session requirement</td></tr>
+            <tr><td>Approval guard</td><td><code>checkApprovalGuard(userId)</code> rejects suspended accounts even with valid session</td></tr>
+            <tr><td>LimitService lookup quota</td><td>Returns 403 LIMIT_EXCEEDED if user has exceeded daily lookup count for their role</td></tr>
+            <tr><td><code>predictionCache</code> check</td><td>Returns cached prediction if available and <code>?refresh=true</code> not set</td></tr>
+            <tr><td>Historical data validation</td><td>Requires ≥ 365 rows of <code>historicalData</code>; returns 422 otherwise</td></tr>
+            <tr><td><code>predictionSemaphore</code></td><td>Limits concurrent Python subprocess spawns; returns 503 Busy if full</td></tr>
           </tbody>
         </table>
+        <div class="success-note"><strong>Cooldown removed (2026-05-28):</strong> The previous 30-second per-user-per-ticker cooldown lock (<code>tickerCooldown</code> Map) and its associated 429 responses have been removed. Throttling is now handled exclusively by the LimitService daily quota and the semaphore concurrency cap. The <code>StockPrediction.tsx</code> client-side countdown UI was also removed.</div>
         <div class="sub-heading">Response</div>
         <pre>{
-  "predictions": {
-    "1w": { "price": number, "confidence": number, "lower": number, "upper": number },
-    "1m": { "price": number, "confidence": number, "lower": number, "upper": number },
-    "3m": { ... },
-    "6m": { ... }
-  },
-  "metrics": { ... },
-  "gpsScore": number,
-  "gpsBreakdown": { ... }
+  "ticker": string,
+  "regularMarketPrice": number,
+  "predicted_price_1d": number,
+  "predicted_price_1m": number,
+  "predicted_price_6m": number,
+  "predicted_price_1y": number,
+  "predicted_change_pct_1d": number,
+  "predicted_change_pct_1m": number,
+  "predicted_change_pct_6m": number,
+  "predicted_change_pct_1y": number,
+  "confidence_score_1d": number,
+  "confidence_score_1m": number,
+  "confidence_score_6m": number,
+  "confidence_score_1y": number,
+  "high_uncertainty": boolean,
+  "monthly_trajectory": [ { "month": string, "predicted_price": number, "lower_bound": number, "upper_bound": number }, ... ],
+  "regime_info": { "k": number, "current_regime": number, "current_regime_probs": number[], "regime_names": string[] },
+  "metric_analysis": { ... },
+  "gps_score": number,
+  "gps_breakdown": { ... },
+  "source": "livedata" | "cache"
 }</pre>
-        <div class="dep-list"><span class="dep-tag">scripts/predict_weighted_analysis.py</span><span class="dep-tag">POST /api/prediction/save</span><span class="dep-tag">@/utils/cache</span></div>
+        <div class="dep-list">
+          <span class="dep-tag">scripts/predict_weighted_analysis.py</span>
+          <span class="dep-tag">POST /api/prediction/save</span>
+          <span class="dep-tag">@/utils/cache (predictionCache)</span>
+          <span class="dep-tag">@/utils/predictionQueue (semaphore)</span>
+          <span class="dep-tag">@/utils/gps (calculateGpsScore)</span>
+        </div>
       </div>
 
       <div class="route-card">
@@ -579,13 +603,14 @@
           <span class="badge badge-origin">Origin check</span>
           <span class="route-file">src/app/api/prediction/save/route.ts</span>
         </div>
-        <div class="route-desc">Persists a prediction result to the <code>user_stock_predictions</code> table. Called asynchronously by <code>/api/prediction/[ticker]</code> after a successful model run. Accepts the same prediction shape as the prediction response and upserts based on <code>(user_id, ticker)</code>.</div>
-        <div class="sub-heading">Request Body (Zod validated)</div>
+        <div class="route-desc">Persists a prediction result to the <code>user_stock_predictions</code> table. Called asynchronously (fire-and-forget) by <code>/api/prediction/[ticker]</code> after a successful model run. Upserts based on <code>(user_id, stock_id)</code>. Internal calls skip GPS persistence.</div>
+        <div class="sub-heading">Request Body</div>
         <pre>{
   "ticker": string,
-  "predictions": { "1w": {...}, "1m": {...}, "3m": {...}, "6m": {...} },
-  "gpsScore": number,
-  "gpsBreakdown": object
+  "predicted_price_1m": number,
+  "user_id": string,
+  "gps_score": number,
+  "gps_breakdown": object
 }</pre>
       </div>
     </div>
@@ -658,9 +683,51 @@
           <span class="method method-GET">GET</span>
           <span class="route-path">/api/stock_data/[ticker]/data</span>
           <span class="badge badge-auth">Auth required</span>
+          <span class="badge badge-cache">15-min cache</span>
+          <span class="badge badge-new">Updated 2026-05-28</span>
           <span class="route-file">src/app/api/stock_data/[ticker]/data/route.ts</span>
         </div>
-        <div class="route-desc">Returns an enriched data payload specifically formatted as input for the Python prediction model. Used in step 1 of the two-step prediction flow initiated by <code>StockPrediction</code>. Cached via <code>stockDataCache</code>.</div>
+        <div class="route-desc">Returns an enriched data payload specifically formatted as input for the Python prediction model. Used in step 1 of the two-step prediction flow. Calls Yahoo Finance for 5 years of OHLCV data, fundamentals, earnings, options, and 11 macro symbols in parallel. Sector medians are used to impute missing fundamental values. Cached in memory for 15 minutes (max 500 entries).</div>
+        <div class="sub-heading">New in 2026-05-28: Insider Transaction Metrics</div>
+        <div class="route-desc">A new internal function <code>extractInsiderMetrics(insiderTxData, sharesOutstanding)</code> fetches the Yahoo Finance <code>insiderTransactions</code> quoteSummary module and computes two metrics from transactions within the trailing 90 days:</div>
+        <table class="props-table">
+          <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>insiderNetSellRatio90d</code></td><td>number | null</td><td>(net shares sold) / sharesOutstanding, clipped to [-1, 1]. Positive = net selling. Option exercises excluded.</td></tr>
+            <tr><td><code>insiderTxCount90d</code></td><td>number | null</td><td>Count of SEC Form 4 transactions (sales + purchases) in the 90-day window.</td></tr>
+          </tbody>
+        </table>
+        <div class="route-desc">These are included in the <code>featureMetrics</code> object of the response and forwarded to the Python model, which maps them to the new <code>InsiderNetSellRatio_90d</code> and <code>InsiderTxCount_90d</code> feature columns.</div>
+        <div class="sub-heading">Response shape (featureMetrics block)</div>
+        <pre>{
+  "featureMetrics": {
+    "epsSurpriseAvg4Q": number | null,
+    "revenueSurpriseAvg4Q": number | null,
+    "shortFloatPct": number | null,
+    "daysToCover": number | null,
+    "insiderNetSellRatio90d": number | null,
+    "insiderTxCount90d": number | null,
+    "asOf": "YYYY-MM-DD"
+  }
+}</pre>
+        <div class="sub-heading">Full payload structure</div>
+        <pre>{
+  "ticker": string,
+  "historicalData": [ { "date": string, "open": number, "high": number, "low": number, "close": number, "volume": number }, ... ],
+  "stockMetrics": { "regularMarketPrice": number, "peRatio": number, "beta": number, "nextEarningsDate": string | null, ... },
+  "macroData": { "vix": [...], "treasury10y": [...], "sectorEtf": {...}, "hyg": [...], "lqd": [...], "dxy": [...], "spy": [...], "treasury3m": [...], "wti": [...], "copper": [...], "wheat": [...], "worldBank": {...} },
+  "optionsData": { "iv": number | null, "ivRank": number | null, "putCallRatio": number | null, "available": boolean },
+  "featureMetrics": { ... },
+  "historicalEarnings": [ { "date": string, "epsActual": number | null, "epsEstimate": number | null } ],
+  "dataQuality": { "historyDays": number, "historyYears": number, "fundamentalsComplete": boolean, "imputedFields": string[], "missingFeatureMetrics": string[] | undefined },
+  "source": "livedata" | "cache"
+}</pre>
+        <div class="dep-list">
+          <span class="dep-tag">yahoo-finance2</span>
+          <span class="dep-tag">@/utils/cache (macroCache)</span>
+          <span class="dep-tag">GET /api/stock_data/[ticker]/options</span>
+          <span class="dep-tag">GET /api/worldbank</span>
+        </div>
       </div>
 
       <div class="route-card">
