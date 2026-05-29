@@ -929,19 +929,26 @@ def metric_analysis(df, stock_metrics, news_sentiment, growth_rate, is_uptrend, 
     if is_uptrend: total_impact += 0.02
     else:          total_impact -= 0.01  # less penalizing for stable/consolidating stocks
 
-    total_impact += (growth_rate / 100) * 0.03
+    capped_growth = max(-10.0, min(10.0, growth_rate))
+    total_impact += (capped_growth / 100) * 0.03
     total_impact += news_sentiment * 0.015
     
+    # ── Reliability scalar (used by both tech score and consensus below) ──
+    # Scales down signals for low-coverage stocks so a micro-cap with 4 analysts
+    # doesn't get the same uplift weighting as a large-cap with 40+ analysts.
+    _reliability = min(analyst_count / 40.0, 1.0)
+
     # ── External Technical Indicator Influence ──
-    # Scaled such that a max buy (+14) adds ~7.0% (was 3.5%)
-    total_impact += external_tech_score * 0.005
+    # Reliability-weighted and capped at 2% max so a momentum spike with 10+ buy
+    # signals on a low-coverage stock doesn't dominate the impact multiplier.
+    _ext_tech_contribution = external_tech_score * 0.005 * _reliability
+    total_impact += min(_ext_tech_contribution, 0.02)
 
     # ── Analyst Consensus Influence (0.0 to 1.0) ──
     # Reliability-weighted so low-coverage stocks (e.g. 4 analysts) don't get the
     # same bullish lift as well-covered stocks (e.g. 40+ analysts). Without this,
     # a "buy" rating on a stock where analysts' actual price target is -38% vs current
     # price would still add the full +3.75% — drowning out the bearish target signal.
-    _reliability = min(analyst_count / 40.0, 1.0)
     total_impact += consensus_value * 0.05 * _reliability
 
     # ── Analyst Numerical Target Premium (0.0 to 1.0) ──
