@@ -404,7 +404,8 @@ def _add_macro_features(f, date_strs, macro_data, close_s, hist_vol, stock_metri
     # Days_To_Next_Earnings: days until next earnings (NaN if unknown)
     f['Earnings_In_Window'] = 0.0
     f['Days_Since_Last_Earnings'] = 0.0
-    f['Days_To_Next_Earnings'] = np.nan
+    f['Days_To_Next_Earnings'] = np.nan  # Keep as NaN — but don't let fillna(0) corrupt it
+
 
     # ── World Bank Macro (Phase 4) ───────────────────────────────────────────
     wb = macro_data.get('worldBank', {}) or {}
@@ -491,8 +492,13 @@ def build_features(df, stock_metrics, macro_data, news_sentiment, earnings_beat_
         f['WorldBank_Real_GDP'] = f['WorldBank_GDP'] - f['WorldBank_Inflation']
 
         if feature_metrics:
-            f['InsiderNetSellRatio_90d'] = max(-1.0, min(1.0, safe(feature_metrics.get('insiderNetSellRatio90d'), 0.0)))
-            f['InsiderTxCount_90d'] = max(0.0, safe(feature_metrics.get('insiderTxCount90d'), 0.0))
+            f['InsiderNetSellRatio_90d'] = 0.0  # neutral for all historical rows
+            f.iloc[-63:, f.columns.get_loc('InsiderNetSellRatio_90d')] = \
+                max(-1.0, min(1.0, safe(feature_metrics.get('insiderNetSellRatio90d'), 0.0)))
+            # Same for InsiderTxCount:
+            f['InsiderTxCount_90d'] = 0.0
+            f.iloc[-63:, f.columns.get_loc('InsiderTxCount_90d')] = \
+                max(0.0, safe(feature_metrics.get('insiderTxCount90d'), 0.0))
     else:
         f = _calculate_features_internal(df, stock_metrics, macro_data, news_sentiment, earnings_beat_streak, current_price, options_data, feature_metrics)
 
@@ -650,8 +656,16 @@ def _calculate_features_internal(df, stock_metrics, macro_data, news_sentiment, 
     f['DaysToCover'] = safe(feature_metrics.get('daysToCover'), 0.0) if feature_metrics else np.nan
 
     # Insider activity — net sell ratio is clipped to [-1, 1]; count is non-negative
-    f['InsiderNetSellRatio_90d'] = max(-1.0, min(1.0, safe(feature_metrics.get('insiderNetSellRatio90d'), 0.0))) if feature_metrics else np.nan
-    f['InsiderTxCount_90d'] = max(0.0, safe(feature_metrics.get('insiderTxCount90d'), 0.0)) if feature_metrics else np.nan
+    _insider_sell = max(-1.0, min(1.0, safe(feature_metrics.get('insiderNetSellRatio90d'), 0.0))) if feature_metrics else 0.0
+    _insider_tx   = max(0.0, safe(feature_metrics.get('insiderTxCount90d'), 0.0)) if feature_metrics else 0.0
+    f['InsiderNetSellRatio_90d'] = 0.0
+    f['InsiderTxCount_90d'] = 0.0
+    if n >= 63:
+        f.iloc[-63:, f.columns.get_loc('InsiderNetSellRatio_90d')] = _insider_sell
+        f.iloc[-63:, f.columns.get_loc('InsiderTxCount_90d')]      = _insider_tx
+    else:
+        f.iloc[:, f.columns.get_loc('InsiderNetSellRatio_90d')] = _insider_sell
+        f.iloc[:, f.columns.get_loc('InsiderTxCount_90d')]      = _insider_tx
 
     f['NewsSentiment']      = news_sentiment
     f['EarningsBeatStreak'] = earnings_beat_streak
@@ -711,7 +725,9 @@ def _calculate_features_internal(df, stock_metrics, macro_data, news_sentiment, 
 
     # Reorder and fill
     f = f[FEATURE_COLUMNS]
-    f = f.ffill().bfill().fillna(0)
+    f['Days_To_Next_Earnings'] = f['Days_To_Next_Earnings'].fillna(999)  # 999 = "unknown/far away"
+    f['Days_Since_Last_Earnings'] = f['Days_Since_Last_Earnings'].fillna(45)  # 45 = typical quarter midpoint
+    f = f.ffill().bfill().fillna(0)  # Now safe to run the general fillna
     return f
 
 
@@ -926,7 +942,9 @@ def metric_analysis(df, stock_metrics, news_sentiment, growth_rate, is_uptrend, 
 
     # ── Analyst Numerical Target Premium (0.0 to 1.0) ──
     # Directly nudges prediction toward the analyst target mean.
-    total_impact += analyst_weighted * 0.05
+    _aoc = safe(stock_metrics.get('analystOpinionCount'), 0)
+    analyst_coverage_boost = min(_aoc / 40.0, 1.5)  # allow up to 1.5x boost for deep coverage
+    total_impact += analyst_weighted * 0.05 * analyst_coverage_boost
 
     # ── Earnings Beat Streak influence (0-4 quarters) ──
     # Adds ~1.0% per beat (was 0.5%). Max +4%.
@@ -1358,7 +1376,22 @@ def predict(ticker, input_data):
 
     predicted_price_1m = traj_1m['predicted_price']
     pct_1m = round((predicted_price_1m - current_price) / (current_price + 1e-9) * 100, 2)
-    cs1m = min(100, cs6m + 10)  # 1m is tighter horizon → slightly higher confidence
+
+    # Earnings-window dampening: within 14 days of earnings the 1m window is the
+    # most dangerous (binary event risk), so confidence should be LOWER than cs6m,
+    # not higher. Outside that window the standard tighter-horizon boost applies.
+    _next_earnings_str = stock_metrics.get('nextEarningsDate')
+    _days_to_earnings = 999
+    if _next_earnings_str:
+        try:
+            _days_to_earnings = (datetime.fromisoformat(str(_next_earnings_str)).date()
+                                 - datetime.today().date()).days
+        except Exception:
+            pass
+    if _days_to_earnings <= 14:
+        cs1m = max(0, cs6m - 10)   # near earnings: more uncertain, not less
+    else:
+        cs1m = min(100, cs6m + 10)  # standard: tighter horizon = slight confidence boost
 
     # ---- 1d metrics ----
     pct_1d = round((predicted_price_1d - current_price) / (current_price + 1e-9) * 100, 2)

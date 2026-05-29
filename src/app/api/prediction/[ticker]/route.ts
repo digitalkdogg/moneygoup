@@ -14,7 +14,6 @@ import { randomUUID } from 'crypto';
 import { tickerSchema } from '@/utils/validationSchemas';
 import { z } from 'zod';
 import { getPythonExecutable } from '@/utils/pythonPath';
-import { getClientIP } from '@/utils/rateLimitMiddleware';
 import { predictionCache } from '@/utils/cache';
 import { calculateGpsScore } from '@/utils/gps';
 import { LimitService } from '@/utils/limitService';
@@ -22,22 +21,6 @@ import { checkApprovalGuard } from '@/utils/approvalStatus';
 
 const logger = createLogger('api/prediction');
 
-const COOLDOWN_MS = 30_000;
-const tickerCooldown = new Map<string, number>();
-
-function setCooldown(key: string): void {
-  const now = Date.now();
-  tickerCooldown.set(key, now);
-  for (const [k, timestamp] of tickerCooldown.entries()) {
-    if (now - timestamp > COOLDOWN_MS) tickerCooldown.delete(k);
-  }
-}
-
-function isOnCooldown(key: string): boolean {
-  const last = tickerCooldown.get(key);
-  if (last === undefined) return false;
-  return Date.now() - last < COOLDOWN_MS;
-}
 
 export async function POST(
   request: NextRequest,
@@ -58,7 +41,6 @@ export async function POST(
     }
     var userId = session.user.id;
     var userRole = (session.user as any).role || 'user';
-    var ip = getClientIP(request);
 
     // Check role-based lookup limits
     const limitCheck = await LimitService.canPerformLookup(userId, userRole);
@@ -77,7 +59,6 @@ export async function POST(
     }
   } else {
     var userId = 'internal';
-    var ip = '127.0.0.1';
   }
 
   let validatedTicker: string;
@@ -86,12 +67,6 @@ export async function POST(
     validatedTicker = tickerSchema.parse(resolvedParams.ticker);
   } catch (error) {
     return validationErrorResponse('Invalid ticker');
-  }
-
-  const cooldownKey = `${userId}-${ip}-${validatedTicker}`;
-  if (!isInternal && isOnCooldown(cooldownKey)) {
-    const retryAfterMs = COOLDOWN_MS - (Date.now() - (tickerCooldown.get(cooldownKey) ?? 0));
-    return NextResponse.json({ message: `Cooldown: ${Math.ceil(retryAfterMs / 1000)}s` }, { status: 429 });
   }
 
   const { searchParams } = new URL(request.url);
@@ -128,8 +103,6 @@ export async function POST(
   if (predictionSemaphore.isFull()) {
     return NextResponse.json({ message: 'Busy' }, { status: 503 });
   }
-
-  if (!isInternal) setCooldown(cooldownKey);
 
   const tempFile = join(tmpdir(), `tf_prediction_input_${randomUUID()}.json`);
   await predictionSemaphore.acquire();

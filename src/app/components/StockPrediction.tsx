@@ -321,7 +321,6 @@ export default function StockPrediction({
   const [prediction, setPrediction]   = useState<PredictionResult | null>(null)
   const [dataQuality, setDataQuality] = useState<DataQuality | null>(null)
   const [error, setError]             = useState<string | null>(null)
-  const [cooldown, setCooldown]       = useState(0)
   const [showMetrics, setShowMetrics] = useState(false)
   const [bannerDismissed, setBannerDismissed] = useState(false)
 
@@ -333,7 +332,6 @@ export default function StockPrediction({
     setPrediction(null)
     setDataQuality(null)
     setBannerDismissed(false)
-    setCooldown(0)
 
     // ---- Step 1: fetch enriched data payload ----
     setStep('fetching')
@@ -375,18 +373,6 @@ export default function StockPrediction({
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
-        if (res.status === 429) {
-          // Parse wait time from message
-          const match = body.message?.match(/(\d+)\s*second/)
-          const waitMs = match ? parseInt(match[1]) * 1000 : 30_000
-          setCooldown(waitMs)
-          const interval = setInterval(() => {
-            setCooldown(prev => {
-              if (prev <= 1000) { clearInterval(interval); return 0 }
-              return prev - 1000
-            })
-          }, 1000)
-        }
         throw new Error(body.message || `Prediction failed (${res.status})`)
       }
 
@@ -421,7 +407,6 @@ export default function StockPrediction({
   const btnLabel =
     step === 'fetching'   ? 'Fetching 5-year data...' :
     step === 'predicting' ? 'Running MLP model...' :
-    cooldown > 0          ? `Retry in ${Math.ceil(cooldown / 1000)}s` :
                             'Generate Prediction'
 
   const dq = dataQuality
@@ -456,10 +441,10 @@ export default function StockPrediction({
       {!embedded && (
         <button
           onClick={generate}
-          disabled={loading || cooldown > 0}
-          style={!(loading || cooldown > 0) ? { backgroundColor: '#017e3b' } : {}}
+          disabled={loading}
+          style={!loading ? { backgroundColor: '#017e3b' } : {}}
           className={`text-white py-2 px-5 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-wait ${
-            loading || cooldown > 0 ? 'bg-gray-400' : 'hover:opacity-90'
+            loading ? 'bg-gray-400' : 'hover:opacity-90'
           }`}
         >
           {btnLabel}
