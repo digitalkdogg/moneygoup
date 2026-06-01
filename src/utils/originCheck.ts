@@ -22,15 +22,19 @@ export function checkOrigin(request: NextRequest): NextResponse | null {
   const requestReferer = request.headers.get('referer');
   const method = request.method.toUpperCase();
 
+  // Safari in Private Browsing / iCloud Private Relay sends Origin: null.
+  // Treat it the same as a missing Origin and fall through to Referer validation.
+  const effectiveOrigin = requestOrigin === 'null' ? null : requestOrigin;
+
   // 1. Validate Origin header if present
-  if (requestOrigin && !allowedOrigins.has(requestOrigin)) {
+  if (effectiveOrigin && !allowedOrigins.has(effectiveOrigin)) {
     return unauthorizedResponse('Unauthorized origin');
   }
 
   // 2. Stricter validation for mutating methods (CSRF protection)
   if (MUTATING_METHODS.includes(method)) {
     // If Origin is missing, fallback to Referer validation
-    if (!requestOrigin) {
+    if (!effectiveOrigin) {
       if (!requestReferer) {
         // Both Origin and Referer are missing for a mutating request
         return forbiddenResponse('Missing Origin/Referer for mutating request');
