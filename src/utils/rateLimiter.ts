@@ -112,3 +112,6 @@ export const contactLimiter = new RateLimiter({ limit: 3, windowMs: 60 * 60 * 10
 
 /** 5 unsubscribe attempts per IP per 15 minutes */
 export const unsubscribeLimiter = new RateLimiter({ limit: 5, windowMs: 15 * 60 * 1000 });
+
+/** 100 admin panel requests per IP per 15 minutes */
+export const adminLimiter = new RateLimiter({ limit: 100, windowMs: 15 * 60 * 1000 });

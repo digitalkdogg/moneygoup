@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ZodSchema, z } from 'zod'
+import { createErrorResponse } from './errorResponse'
 
 type Handler<T> = (
   req: NextRequest,
@@ -29,13 +30,7 @@ export const validate =
         )
       }
 
-      const err =
-        error instanceof Error ? error : new Error('Unknown error')
-
-      return NextResponse.json(
-        { message: 'Internal Server Error', error: err.message },
-        { status: 500 }
-      )
+      return createErrorResponse(error, 'Internal Server Error', { status: 500 })
     }
   }
 

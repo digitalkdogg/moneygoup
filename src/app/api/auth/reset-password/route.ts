@@ -96,8 +96,8 @@ export async function POST(request: NextRequest) {
     );
 
     await executeRawQuery(
-      'UPDATE password_reset_tokens SET used_at = NOW() WHERE id = ?',
-      [token.id]
+      'UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = ? AND used_at IS NULL',
+      [token.user_id]
     );
 
     logger.info('Password reset successful', { userId: token.user_id });

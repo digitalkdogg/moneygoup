@@ -57,7 +57,7 @@ export const authOptions: NextAuthOptions = {
           if (!user) {
             await bcrypt.compare(credentials.password, await getDummyHash());
             logger.warn('Authorization attempt with unknown username:', {
-              username: credentials.username,
+              username: credentials.username.substring(0, 2) + '***',
             });
             return null;
           }
@@ -69,7 +69,7 @@ export const authOptions: NextAuthOptions = {
 
           if (!isPasswordValid) {
             logger.warn('Authorization attempt with invalid password for user:', {
-              username: credentials.username,
+              username: credentials.username.substring(0, 2) + '***',
             });
             return null;
           }

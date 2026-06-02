@@ -7,6 +7,8 @@ import { unauthorizedResponse, forbiddenResponse, createErrorResponse } from '@/
 import { createLogger } from '@/utils/logger';
 import { sendApprovalEmail } from '@/lib/email';
 import { checkOrigin } from '@/utils/originCheck';
+import { checkRateLimit } from '@/utils/rateLimitMiddleware';
+import { adminLimiter } from '@/utils/rateLimiter';
 
 const logger = createLogger('api/admin/users');
 
@@ -23,6 +25,9 @@ const adminPatchSchema = z.object({
 export async function GET(request: NextRequest) {
   const originCheckResponse = checkOrigin(request);
   if (originCheckResponse) return originCheckResponse;
+
+  const rateLimitResponse = checkRateLimit(request, adminLimiter, 'admin');
+  if (rateLimitResponse) return rateLimitResponse;
 
   const session = await getServerSession(authOptions);
 
@@ -79,6 +84,9 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const originCheckResponse = checkOrigin(request);
   if (originCheckResponse) return originCheckResponse;
+
+  const rateLimitResponse = checkRateLimit(request, adminLimiter, 'admin');
+  if (rateLimitResponse) return rateLimitResponse;
 
   const session = await getServerSession(authOptions);
 
