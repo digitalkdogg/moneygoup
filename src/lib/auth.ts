@@ -8,6 +8,14 @@ import { evaluateApprovalStatus } from '@/utils/approvalStatus';
 
 const logger = createLogger('auth');
 
+// Computed once on first login attempt, then cached. Ensures bcrypt work runs
+// even for unknown usernames so response time doesn't reveal account existence.
+let _dummyHash: string | null = null;
+async function getDummyHash(): Promise<string> {
+  if (!_dummyHash) _dummyHash = await bcrypt.hash('timing-guard', 10);
+  return _dummyHash;
+}
+
 const SESSION_MAX_AGE_SECS = process.env.SESSION_MAX_AGE
   ? (parseInt(process.env.SESSION_MAX_AGE) || 30 * 24 * 60 * 60)
   : 30 * 24 * 60 * 60;
@@ -47,6 +55,7 @@ export const authOptions: NextAuthOptions = {
             Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
 
           if (!user) {
+            await bcrypt.compare(credentials.password, await getDummyHash());
             logger.warn('Authorization attempt with unknown username:', {
               username: credentials.username,
             });
