@@ -2,6 +2,7 @@ import { NextResponse, NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { checkOrigin } from '@/utils/originCheck';
+import { isInternalRequest } from '@/utils/internalAuth';
 import { createErrorResponse, unauthorizedResponse, forbiddenResponse } from '@/utils/errorResponse';
 import { deepmoneyCache } from '@/utils/cache';
 import { deepmoneyLimiter } from '@/utils/rateLimiter';
@@ -425,9 +426,7 @@ async function enrichTickers(tickers: string[]) {
 // ---------------------------------------------------------------------------
 export async function GET(request: NextRequest) {
     // --- Auth & Origin Split ---
-    const apiKey = request.headers.get('x-api-key');
-    const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
-    const isInternal = apiKey && apiKey === internalSecret;
+    const isInternal = isInternalRequest(request);
 
     if (!isInternal) {
         const originCheckResponse = checkOrigin(request as any);
@@ -479,7 +478,7 @@ export async function GET(request: NextRequest) {
         let marketIndices = null;
         try {
             const marketIndicesRes = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3001'}/api/market/indices`, {
-                headers: { 'x-api-key': process.env.DEEPMONEY_INTERNAL_SECRET || '' },
+                headers: { ...(process.env.DEEPMONEY_INTERNAL_SECRET && { 'x-api-key': process.env.DEEPMONEY_INTERNAL_SECRET }) },
                 signal: AbortSignal.timeout(10_000)
             });
             marketIndices = marketIndicesRes.ok ? await marketIndicesRes.json() : null;

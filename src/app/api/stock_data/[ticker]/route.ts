@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isInternalRequest } from '@/utils/internalAuth';
 import { executeRawQuery, transaction } from '@/utils/databaseHelper'
 import { createErrorResponse, unauthorizedResponse, forbiddenResponse, validationErrorResponse } from '@/utils/errorResponse';
 import { secCompanyCache, stockDataCache } from '@/utils/cache';
@@ -284,9 +285,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const userId = session.user.id;
   const userRole = (session.user as any).role || 'user';
 
-  const apiKey = request.headers.get('x-api-key');
-  const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
-  const isInternal = apiKey && apiKey === internalSecret;
+  const isInternal = isInternalRequest(request);
 
   // 0. Check role-based limits BEFORE cache (skip if internal)
   if (!isInternal) {

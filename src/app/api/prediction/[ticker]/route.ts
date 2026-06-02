@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { checkOrigin } from '@/utils/originCheck';
+import { isInternalRequest } from '@/utils/internalAuth';
 import { unauthorizedResponse, createErrorResponse, validationErrorResponse } from '@/utils/errorResponse';
 import { createLogger } from '@/utils/logger';
 import { predictionSemaphore } from '@/utils/predictionQueue';
@@ -26,9 +27,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ ticker: string }> }
 ) {
-  const apiKey = request.headers.get('x-api-key');
-  const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
-  const isInternal = apiKey && apiKey === internalSecret;
+  const isInternal = isInternalRequest(request);
 
   if (!isInternal) {
     const originCheck = checkOrigin(request);

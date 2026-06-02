@@ -43,10 +43,11 @@ export default withAuth(
         // Public pages — allow through so the middleware function still runs (CSP gets set)
         if (PUBLIC_PATHS.some(p => pathname === p || pathname.startsWith(p + '?'))) return true;
 
-        // x-api-key bypass
+        // x-api-key bypass — secret must be ≥32 bytes or bypass is disabled
         const apiKey = req.headers.get("x-api-key");
         const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
-        if (apiKey && internalSecret && apiKey === internalSecret) return true;
+        const secretIsStrong = !!(internalSecret && internalSecret.length >= 32);
+        if (secretIsStrong && apiKey === internalSecret) return true;
 
         return !!token;
       },

@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { RateLimiter } from './rateLimiter';
 import { createLogger } from './logger';
+import { isInternalRequest } from './internalAuth';
 
 const logger = createLogger('utils/rateLimitMiddleware');
 
@@ -78,9 +79,7 @@ export function checkRateLimit(
   secondaryId?: string
 ): NextResponse | null {
   // BYPASS: Internal requests using the secret key are not rate limited
-  const apiKey = request.headers.get('x-api-key');
-  const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
-  if (apiKey && internalSecret && apiKey === internalSecret) {
+  if (isInternalRequest(request)) {
     return null;
   }
 

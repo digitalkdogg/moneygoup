@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { checkOrigin } from '@/utils/originCheck';
+import { isInternalRequest } from '@/utils/internalAuth';
 import { unauthorizedResponse, createErrorResponse, validationErrorResponse } from '@/utils/errorResponse';
 import { createLogger } from '@/utils/logger';
 import { tickerSchema } from '@/utils/validationSchemas';
@@ -31,9 +32,7 @@ type SavePredictionPayload = z.infer<typeof savePredictionSchema>;
 
 export async function POST(request: NextRequest) {
   // 1. Check authentication: internal API key OR session
-  const apiKey = request.headers.get('x-api-key');
-  const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
-  const isInternal = apiKey && apiKey === internalSecret;
+  const isInternal = isInternalRequest(request);
 
   // Parse body first to potentially get user_id from internal calls
   let body: unknown;
