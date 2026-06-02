@@ -11,7 +11,8 @@ const BASE_URL = (process.env.NEXTAUTH_URL || 'https://growmystocks.com').replac
 // The token is HMAC-SHA256(email) so the endpoint can verify the URL wasn't
 // forged — without it anyone who knows an email address could deactivate accounts.
 function unsubscribeToken(email: string): string {
-  const secret = process.env.NEXTAUTH_SECRET || '';
+  const secret = process.env.NEXTAUTH_SECRET;
+  if (!secret) throw new Error('NEXTAUTH_SECRET is not configured — cannot sign unsubscribe tokens');
   return createHmac('sha256', secret).update(email).digest('hex');
 }
 

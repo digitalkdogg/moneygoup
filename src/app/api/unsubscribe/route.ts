@@ -11,7 +11,8 @@ const logger = createLogger('api/unsubscribe');
 const emailSchema = z.string().email();
 
 function verifyToken(email: string, token: string): boolean {
-  const secret = process.env.NEXTAUTH_SECRET || '';
+  const secret = process.env.NEXTAUTH_SECRET;
+  if (!secret) throw new Error('NEXTAUTH_SECRET is not configured — cannot verify unsubscribe tokens');
   const expected = createHmac('sha256', secret).update(email).digest('hex');
   try {
     return timingSafeEqual(Buffer.from(token, 'hex'), Buffer.from(expected, 'hex'));
