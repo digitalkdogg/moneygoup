@@ -23,8 +23,11 @@ try:
 except ImportError:
     REDIS_AVAILABLE = False
 
-BASE_URL = os.getenv('NEXTAUTH_URL', 'http://localhost:3001')
-REDIS_URL = os.getenv('REDIS_URL', 'redis://127.0.0.1:6379')
+BASE_URL   = os.getenv('NEXTAUTH_URL', 'http://localhost:3001')
+REDIS_URL  = os.getenv('REDIS_URL', 'redis://127.0.0.1:6379')
+# On production the app checks Origin against ALLOWED_ORIGINS.
+# Set ORIGIN_OVERRIDE to match your production ALLOWED_ORIGINS value.
+ORIGIN_HDR = os.getenv('ORIGIN_OVERRIDE', BASE_URL)
 
 PASS = '\033[92m✓ PASS\033[0m'
 FAIL = '\033[91m✗ FAIL\033[0m'
@@ -75,7 +78,7 @@ def test_rate_limit(label: str, method: str, url: str, payload: dict,
 
     session = requests.Session()
     # Use a fixed source IP header so all requests share the same rate-limit key.
-    session.headers.update({'X-Forwarded-For': '10.0.0.1', 'Origin': BASE_URL})
+    session.headers.update({'X-Forwarded-For': '10.0.0.1', 'Origin': ORIGIN_HDR})
 
     statuses = []
     for i in range(1, limit + 3):
