@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
   const originCheckResponse = checkOrigin(request);
   if (originCheckResponse) return originCheckResponse;
 
-  const rateLimitResponse = checkRateLimit(request, forgotPasswordLimiter, 'forgot-password');
+  const rateLimitResponse = await checkRateLimit(request, forgotPasswordLimiter, 'forgot-password');
   if (rateLimitResponse) return rateLimitResponse;
 
   const successResponse = NextResponse.json({ message: SUCCESS_MESSAGE }, { status: 200 });

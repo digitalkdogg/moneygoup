@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { RateLimiter } from './rateLimiter';
+import { RedisRateLimiter } from './redisRateLimiter';
 import { createLogger } from './logger';
 import { isInternalRequest } from './internalAuth';
 
@@ -72,19 +72,19 @@ export function getClientIP(request: NextRequest): string {
  * @param secondaryId - Optional secondary identifier (e.g., username, email)
  * @returns NextResponse (429) if limited, null if allowed
  */
-export function checkRateLimit(
+export async function checkRateLimit(
   request: NextRequest,
-  limiter: RateLimiter,
+  limiter: RedisRateLimiter,
   keyPrefix?: string,
   secondaryId?: string
-): NextResponse | null {
+): Promise<NextResponse | null> {
   // BYPASS: Internal requests using the secret key are not rate limited
   if (isInternalRequest(request)) {
     return null;
   }
 
   const ip = getClientIP(request);
-  
+
   // Use IP + secondaryId if available to prevent bypass by IP rotation
   // for authenticated or identifiable actions.
   let key = keyPrefix ? `${keyPrefix}:${ip}` : ip;
@@ -92,7 +92,7 @@ export function checkRateLimit(
     key = `${key}:${secondaryId}`;
   }
 
-  const { allowed, remaining, resetInMs } = limiter.check(key);
+  const { allowed, remaining, resetInMs } = await limiter.check(key);
 
   if (!allowed) {
     logger.info('Rate limit exceeded', { key, ip, secondaryId, keyPrefix });
@@ -125,12 +125,12 @@ export function checkRateLimit(
  * @returns Wrapped handler with rate limiting
  */
 export function withRateLimit(
-  limiter: RateLimiter,
+  limiter: RedisRateLimiter,
   keyPrefix: string | undefined,
   handler: (request: NextRequest, ctx?: any) => Promise<NextResponse>
 ) {
   return async (request: NextRequest, ctx?: any): Promise<NextResponse> => {
-    const rateLimitResponse = checkRateLimit(request, limiter, keyPrefix);
+    const rateLimitResponse = await checkRateLimit(request, limiter, keyPrefix);
     if (rateLimitResponse) return rateLimitResponse;
 
     return handler(request, ctx);

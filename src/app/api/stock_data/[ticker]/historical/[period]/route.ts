@@ -103,7 +103,7 @@ export async function GET(
   const originCheckResponse = checkOrigin(request);
   if (originCheckResponse) return originCheckResponse;
 
-  const rateLimitResponse = checkRateLimit(request, historicalLimiter, 'historical');
+  const rateLimitResponse = await checkRateLimit(request, historicalLimiter, 'historical');
   if (rateLimitResponse) return rateLimitResponse;
 
   const session = await getServerSession(authOptions);

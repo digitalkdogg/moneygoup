@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
   const originCheckResponse = checkOrigin(request);
   if (originCheckResponse) return originCheckResponse;
 
-  const rateLimitResponse = checkRateLimit(request, resetPasswordLimiter, 'reset-password');
+  const rateLimitResponse = await checkRateLimit(request, resetPasswordLimiter, 'reset-password');
   if (rateLimitResponse) return rateLimitResponse;
 
   try {

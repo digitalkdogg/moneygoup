@@ -1,4 +1,5 @@
 // src/utils/rateLimiter.ts
+import { RedisRateLimiter } from './redisRateLimiter';
 
 interface RateLimitEntry {
   count: number;
@@ -75,43 +76,43 @@ export class RateLimiter {
 }
 
 // ── Singleton instances ────────────────────────────────────────
-// Defined here so they persist across requests in the same process.
+// Redis-backed so counters are shared across all workers/containers.
 
 /** 5 registration attempts per IP per 15 minutes */
-export const registerLimiter = new RateLimiter({ limit: 5, windowMs: 15 * 60 * 1000 });
+export const registerLimiter = new RedisRateLimiter({ limit: 5, windowMs: 15 * 60 * 1000 });
 
 /** 10 login attempts per IP per 15 minutes */
-export const loginLimiter = new RateLimiter({ limit: 10, windowMs: 15 * 60 * 1000 });
+export const loginLimiter = new RedisRateLimiter({ limit: 10, windowMs: 15 * 60 * 1000 });
 
 /** 5 prediction attempts per user per minute */
-export const predictionLimiter = new RateLimiter({ limit: 5, windowMs: 60 * 1000 });
+export const predictionLimiter = new RedisRateLimiter({ limit: 5, windowMs: 60 * 1000 });
 
 /** 30 requests per IP per minute for stock data endpoints */
-export const stockDataLimiter = new RateLimiter({ limit: 30, windowMs: 60 * 1000 });
+export const stockDataLimiter = new RedisRateLimiter({ limit: 30, windowMs: 60 * 1000 });
 
 /** 20 requests per IP per minute for news endpoints */
-export const newsLimiter = new RateLimiter({ limit: 20, windowMs: 60 * 1000 });
+export const newsLimiter = new RedisRateLimiter({ limit: 20, windowMs: 60 * 1000 });
 
 /** 15 requests per IP per minute for quote endpoints */
-export const quoteLimiter = new RateLimiter({ limit: 15, windowMs: 60 * 1000 });
+export const quoteLimiter = new RedisRateLimiter({ limit: 15, windowMs: 60 * 1000 });
 
 /** 10 requests per IP per minute for historical data endpoints */
-export const historicalLimiter = new RateLimiter({ limit: 10, windowMs: 60 * 1000 });
+export const historicalLimiter = new RedisRateLimiter({ limit: 10, windowMs: 60 * 1000 });
 
 /** 2 heavy analysis requests per hour per user/IP */
-export const deepmoneyLimiter = new RateLimiter({ limit: 2, windowMs: 60 * 60 * 1000 });
+export const deepmoneyLimiter = new RedisRateLimiter({ limit: 2, windowMs: 60 * 60 * 1000 });
 
 /** 3 forgot-password requests per IP per 15 minutes */
-export const forgotPasswordLimiter = new RateLimiter({ limit: 3, windowMs: 15 * 60 * 1000 });
+export const forgotPasswordLimiter = new RedisRateLimiter({ limit: 3, windowMs: 15 * 60 * 1000 });
 
 /** 5 reset-password attempts per IP per 15 minutes */
-export const resetPasswordLimiter = new RateLimiter({ limit: 5, windowMs: 15 * 60 * 1000 });
+export const resetPasswordLimiter = new RedisRateLimiter({ limit: 5, windowMs: 15 * 60 * 1000 });
 
 /** 3 contact form submissions per IP per hour */
-export const contactLimiter = new RateLimiter({ limit: 3, windowMs: 60 * 60 * 1000 });
+export const contactLimiter = new RedisRateLimiter({ limit: 3, windowMs: 60 * 60 * 1000 });
 
 /** 5 unsubscribe attempts per IP per 15 minutes */
-export const unsubscribeLimiter = new RateLimiter({ limit: 5, windowMs: 15 * 60 * 1000 });
+export const unsubscribeLimiter = new RedisRateLimiter({ limit: 5, windowMs: 15 * 60 * 1000 });
 
 /** 100 admin panel requests per IP per 15 minutes */
-export const adminLimiter = new RateLimiter({ limit: 100, windowMs: 15 * 60 * 1000 });
+export const adminLimiter = new RedisRateLimiter({ limit: 100, windowMs: 15 * 60 * 1000 });

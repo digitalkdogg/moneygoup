@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
   const originCheckResponse = checkOrigin(request);
   if (originCheckResponse) return originCheckResponse;
 
-  const rateLimitResponse = checkRateLimit(request, adminLimiter, 'admin');
+  const rateLimitResponse = await checkRateLimit(request, adminLimiter, 'admin');
   if (rateLimitResponse) return rateLimitResponse;
 
   const session = await getServerSession(authOptions);
@@ -85,7 +85,7 @@ export async function PATCH(request: NextRequest) {
   const originCheckResponse = checkOrigin(request);
   if (originCheckResponse) return originCheckResponse;
 
-  const rateLimitResponse = checkRateLimit(request, adminLimiter, 'admin');
+  const rateLimitResponse = await checkRateLimit(request, adminLimiter, 'admin');
   if (rateLimitResponse) return rateLimitResponse;
 
   const session = await getServerSession(authOptions);

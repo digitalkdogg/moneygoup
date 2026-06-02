@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Rate limit by IP address + username
-    const rateLimitResponse = checkRateLimit(request, registerLimiter, 'register', usernameForRateLimit);
+    const rateLimitResponse = await checkRateLimit(request, registerLimiter, 'register', usernameForRateLimit);
     if (rateLimitResponse) return rateLimitResponse;
 
     const body = await request.json();

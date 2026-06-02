@@ -37,7 +37,7 @@ export async function GET(
     }
   }
 
-  const rateLimitResponse = checkRateLimit(request, newsLimiter, 'news');
+  const rateLimitResponse = await checkRateLimit(request, newsLimiter, 'news');
   if (rateLimitResponse) return rateLimitResponse;
 
   const { ticker: rawTicker } = await params;

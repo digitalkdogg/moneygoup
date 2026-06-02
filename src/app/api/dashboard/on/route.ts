@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   const originCheckResponse = checkOrigin(request);
   if (originCheckResponse) return originCheckResponse;
 
-  const rateLimitResponse = checkRateLimit(request, stockDataLimiter, 'dashboard-on');
+  const rateLimitResponse = await checkRateLimit(request, stockDataLimiter, 'dashboard-on');
   if (rateLimitResponse) return rateLimitResponse;
 
   const session = await getServerSession(authOptions);

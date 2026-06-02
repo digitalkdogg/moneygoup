@@ -22,7 +22,7 @@ function verifyToken(email: string, token: string): boolean {
 }
 
 export async function POST(request: NextRequest) {
-  const rateLimitResponse = checkRateLimit(request, unsubscribeLimiter, 'unsubscribe');
+  const rateLimitResponse = await checkRateLimit(request, unsubscribeLimiter, 'unsubscribe');
   if (rateLimitResponse) return rateLimitResponse;
 
   // RFC 8058: email and token must come from URL query params.

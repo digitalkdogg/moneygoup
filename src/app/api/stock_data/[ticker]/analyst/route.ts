@@ -34,7 +34,7 @@ export async function GET(
     }
   }
 
-  const rateLimitResponse = checkRateLimit(request, stockDataLimiter, 'analyst-data');
+  const rateLimitResponse = await checkRateLimit(request, stockDataLimiter, 'analyst-data');
   if (rateLimitResponse) return rateLimitResponse;
 
   const { ticker: rawTicker } = await params;

@@ -274,7 +274,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (originCheckResponse) return originCheckResponse
 
   // Check rate limit (per-IP)
-  const rateLimitResponse = checkRateLimit(request, stockDataLimiter, 'stock-data');
+  const rateLimitResponse = await checkRateLimit(request, stockDataLimiter, 'stock-data');
   if (rateLimitResponse) return rateLimitResponse;
 
   const session = await getServerSession(authOptions);

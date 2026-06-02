@@ -38,7 +38,7 @@ export const authOptions: NextAuthOptions = {
         const ip = (req?.headers as any)?.['x-forwarded-for']?.split(',')[0].trim()
           ?? (req?.headers as any)?.['x-real-ip']
           ?? 'unknown';
-        const { allowed } = loginLimiter.check(ip);
+        const { allowed } = await loginLimiter.check(ip);
 
         if (!allowed) {
           logger.warn('Login rate limit exceeded', { ip });
