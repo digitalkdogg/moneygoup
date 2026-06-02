@@ -23,11 +23,34 @@ try:
 except ImportError:
     REDIS_AVAILABLE = False
 
-BASE_URL   = os.getenv('NEXTAUTH_URL', 'http://localhost:3001')
-REDIS_URL  = os.getenv('REDIS_URL', 'redis://127.0.0.1:6379')
-# On production the app checks Origin against ALLOWED_ORIGINS.
-# Set ORIGIN_OVERRIDE to match your production ALLOWED_ORIGINS value.
-ORIGIN_HDR = os.getenv('ORIGIN_OVERRIDE', BASE_URL)
+
+def load_env_file() -> dict:
+    """Read key=value pairs from .env or .env.local in the project root."""
+    env = {}
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    for name in ('.env', '.env.local'):
+        path = os.path.join(root, name)
+        if os.path.exists(path):
+            with open(path) as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        k, _, v = line.partition('=')
+                        env.setdefault(k.strip(), v.strip())
+    return env
+
+_file_env = load_env_file()
+
+def _get(key: str, default: str) -> str:
+    return os.getenv(key) or _file_env.get(key) or default
+
+
+BASE_URL  = _get('NEXTAUTH_URL', 'http://localhost:3001')
+REDIS_URL = _get('REDIS_URL',    'redis://127.0.0.1:6379')
+# Use the first value from ALLOWED_ORIGINS as the Origin header so the
+# origin check passes without needing a manual ORIGIN_OVERRIDE env var.
+_allowed  = _get('ALLOWED_ORIGINS', BASE_URL)
+ORIGIN_HDR = os.getenv('ORIGIN_OVERRIDE') or _allowed.split(',')[0].strip()
 
 PASS = '\033[92m✓ PASS\033[0m'
 FAIL = '\033[91m✗ FAIL\033[0m'
