@@ -223,7 +223,7 @@ def test_keys_persist_across_requests():
     flush_redis_keys(b'rl:register:*')
 
     url = f'{BASE_URL}/api/auth/register'
-    headers = {'X-Forwarded-For': '10.0.0.2', 'Origin': BASE_URL}
+    headers = {'X-Forwarded-For': '10.0.0.2', 'Origin': ORIGIN_HDR}
     payload = {'username': 'persisttest', 'email': 'persist@example.com', 'password': 'Password123'}
 
     # Fire 2 requests
