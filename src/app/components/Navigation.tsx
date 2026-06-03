@@ -191,7 +191,7 @@ export default function Navigation() {
 
   return (
     <header>
-      <nav style={{ backgroundColor: 'var(--brand-green-700)' }} className="shadow-lg sticky top-0 z-40 w-full" aria-label="Main navigation">
+      <nav className="bg-[var(--brand-green-700)] shadow-lg sticky top-0 z-40 w-full" aria-label="Main navigation">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
@@ -204,11 +204,11 @@ export default function Navigation() {
                   priority
                 />
                 <span aria-hidden="true">
-                  <span style={{ fontWeight: 500 }}>Grow</span>
-                  <span style={{ color: '#dcfce7', fontWeight: '600', fontSize: '1.1em', marginRight: '1px', marginLeft:'3px'}}>
+                  <span className="font-medium">Grow</span>
+                  <span className="text-[#dcfce7] font-semibold text-[1.1em] mr-px ml-[3px]">
                     MY
                   </span>
-                  <span style={{ fontWeight: 500 }}>Stocks</span>
+                  <span className="font-medium">Stocks</span>
                 </span>
               </Link>
             </div>
@@ -220,8 +220,7 @@ export default function Navigation() {
                 <div className="relative" ref={profileRef}>
                   <button
                     onClick={() => setIsProfileOpen(!isProfileOpen)}
-                    style={{ backgroundColor: '#cfffdf', color: '#09522b' }}
-                    className="flex items-center justify-center md:h-9 md:w-9 lg:h-11 lg:w-11 rounded-full cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600"
+                    className="flex items-center justify-center md:h-9 md:w-9 lg:h-11 lg:w-11 rounded-full cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600 bg-[#cfffdf] text-[#09522b]"
                     aria-expanded={isProfileOpen}
                     aria-haspopup="true"
                     aria-label={`User menu for ${session.user.name}`}
@@ -231,7 +230,7 @@ export default function Navigation() {
 
                   {isProfileOpen && (
                     <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 ring-1 ring-black ring-opacity-5 focus:outline-none" role="menu">
-                      <div className="px-4 py-2 text-sm text-gray-700 border-b border-gray-200" role="none" style={{ fontSize: '16px', fontWeight: 600 }}> 
+                      <div className="px-4 py-2 text-sm text-gray-700 border-b border-gray-200 text-[16px] font-semibold" role="none"> 
                         {session.user.name}
                       </div>
                       <Link
@@ -307,13 +306,12 @@ export default function Navigation() {
         />
         
         {/* Drawer Content */}
-        <div 
-          style={{ backgroundColor: 'var(--brand-green-700)' }}
-          className={`absolute top-0 right-0 h-full w-[80%] max-w-[320px] shadow-xl transition-transform duration-200 ease-out transform ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}
+        <div
+          className={`absolute top-0 right-0 h-full w-[80%] max-w-[320px] shadow-xl transition-transform duration-200 ease-out transform bg-[var(--brand-green-700)] ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}
         >
           <div className="flex flex-col h-full pt-5 pb-6">
             <div className="px-5 mb-8 flex justify-between items-center">
-              <span className="text-xl text-white"><span style={{ fontWeight: 500 }}>Grow</span><span style={{ color: '#baeb9e', fontWeight: '600' }}> My </span><span style={{ fontWeight: 500 }}>Stocks</span></span>
+              <span className="text-xl text-white"><span className="font-medium">Grow</span><span className="text-[#baeb9e] font-semibold"> My </span><span className="font-medium">Stocks</span></span>
               <button 
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="text-white p-2 w-[44px] h-[44px] flex items-center justify-center hover:bg-green-800 rounded-md focus-visible:ring-2 focus-visible:ring-white"
@@ -327,9 +325,8 @@ export default function Navigation() {
 
             {session?.user && (
               <div className="px-5 mb-6 flex items-center space-x-3">
-                <div 
-                  style={{ backgroundColor: '#cfffdf', color: '#09522b' }}
-                  className="h-12 w-12 rounded-full flex items-center justify-center font-bold border-2 border-white/20"
+                <div
+                  className="h-12 w-12 rounded-full flex items-center justify-center font-bold border-2 border-white/20 bg-[#cfffdf] text-[#09522b]"
                 >
                   {initials}
                 </div>

@@ -180,9 +180,8 @@ export default function PortfolioCompareChart({
                 key={p.value}
                 onClick={() => onPeriodChange(p.value)}
                 className={`px-3 py-1 rounded-md xs transition-colors ${
-                  period === p.value ? 'text-white shadow' : 'text-gray-600 hover:bg-gray-200'
+                  period === p.value ? 'text-white shadow bg-[#017e3b]' : 'text-gray-600 hover:bg-gray-200'
                 }`}
-                style={period === p.value ? { backgroundColor: '#017e3b' } : {}}
               >
                 {p.label}
               </button>

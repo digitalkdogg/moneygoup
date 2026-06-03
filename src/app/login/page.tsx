@@ -150,7 +150,7 @@ function LoginForm() {
             />
           </div>
           <div className="mb-6 text-right">
-            <Link href="/forgot-password" className="text-sm hover:text-green-800" style={{ color: '#005a00' }}>
+            <Link href="/forgot-password" className="text-sm hover:text-green-800 text-[#005a00]">
               Forgot password?
             </Link>
           </div>
@@ -162,8 +162,7 @@ function LoginForm() {
           <button
             type="submit"
             disabled={loading}
-            style={{ backgroundColor: '#017e3b' }}
-            className="w-full hover:opacity-90 text-white py-2 px-4 rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600 disabled:opacity-50 cursor-pointer"
+            className="w-full hover:opacity-90 text-white py-2 px-4 rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600 disabled:opacity-50 cursor-pointer bg-[#017e3b]"
           >
             {loading ? 'Logging in...' : 'Log in'}
           </button>
@@ -171,7 +170,7 @@ function LoginForm() {
 
         <p className="mt-6 text-center text-gray-600 text-sm">
           Don&apos;t have an account?{' '}
-          <Link href="/register" className="hover:text-green-800 font-medium" style={{ color: '#005a00' }}>
+          <Link href="/register" className="hover:text-green-800 font-medium text-[#005a00]">
             Register here
           </Link>
         </p>
@@ -187,7 +186,7 @@ function LoginForm() {
         <div className="w-full max-w-2xl mx-auto bg-white rounded-xl shadow-sm border border-gray-100 px-6 py-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-center mb-6">
           {STATS.map((s) => (
             <div key={s.label}>
-              <p className="text-xl font-bold" style={{ color: '#017e3b' }}>{s.value}</p>
+              <p className="text-xl font-bold text-[#017e3b]">{s.value}</p>
               <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
             </div>
           ))}
@@ -217,8 +216,7 @@ function LoginForm() {
         </div>
         <Link
           href="/register"
-          style={{ backgroundColor: '#017e3b' }}
-          className="shrink-0 inline-block hover:opacity-90 text-white text-sm font-semibold px-6 py-2.5 rounded-lg transition-opacity"
+          className="shrink-0 inline-block hover:opacity-90 text-white text-sm font-semibold px-6 py-2.5 rounded-lg transition-opacity bg-[#017e3b]"
         >
           Create Free Account
         </Link>

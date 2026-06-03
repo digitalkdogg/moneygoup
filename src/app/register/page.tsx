@@ -102,7 +102,7 @@ export default function RegisterPage() {
       </h1>
 
       {/* Register card */}
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border-t-4 p-8" style={{ borderColor: '#017e3b' }}>
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border-t-4 p-8 border-t-[#017e3b]">
         <div className="flex flex-col items-center mb-8">
           <Link href="/" className="mb-4">
             <Image src="/growmystock_logo.svg" alt="GrowMyStocks Logo" width={64} height={64} />
@@ -160,8 +160,7 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={loading}
-            style={{ backgroundColor: '#017e3b' }}
-            className="w-full hover:opacity-90 text-white py-2 px-4 rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600 disabled:opacity-50"
+            className="w-full hover:opacity-90 text-white py-2 px-4 rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600 disabled:opacity-50 bg-[#017e3b]"
           >
             {loading ? 'Creating account...' : 'Create Free Account'}
           </button>
@@ -169,7 +168,7 @@ export default function RegisterPage() {
 
         <p className="mt-6 text-center text-gray-600 text-sm">
           Already have an account?{' '}
-          <Link href="/login" className="hover:text-green-800 font-medium" style={{ color: '#005a00' }}>
+          <Link href="/login" className="hover:text-green-800 font-medium text-[#005a00]">
             Log in here
           </Link>
         </p>
@@ -203,7 +202,7 @@ export default function RegisterPage() {
       <div className="w-full max-w-4xl mt-10 grid grid-cols-2 sm:grid-cols-4 gap-4">
         {FEATURES.map((f) => (
           <div key={f.title} className="bg-white rounded-xl p-4 shadow-sm border border-green-100 flex flex-col items-start gap-2">
-            <div className="p-1.5 rounded-lg" style={{ backgroundColor: '#f0fdf4' }}>{f.icon}</div>
+            <div className="p-1.5 rounded-lg bg-[#f0fdf4]">{f.icon}</div>
             <h3 className="text-sm font-semibold text-gray-800 leading-tight">{f.title}</h3>
             <p className="text-xs text-gray-500 leading-snug">{f.description}</p>
           </div>
@@ -218,8 +217,7 @@ export default function RegisterPage() {
         </div>
         <Link
           href="/login"
-          className="shrink-0 inline-block border-2 font-semibold text-sm px-6 py-2.5 rounded-lg transition-colors hover:bg-green-50"
-          style={{ borderColor: '#017e3b', color: '#017e3b' }}
+          className="shrink-0 inline-block border-2 font-semibold text-sm px-6 py-2.5 rounded-lg transition-colors hover:bg-green-50 border-[#017e3b] text-[#017e3b]"
         >
           Log In
         </Link>

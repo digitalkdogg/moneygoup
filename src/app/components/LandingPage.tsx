@@ -139,9 +139,9 @@ export default function LandingPage() {
               <div className={s.dashboardMock}>
                 <div className={s.mockHeader}>
                   <div className={s.mockDots}>
-                    <span style={{ background: '#ff5f57' }} />
-                    <span style={{ background: '#febc2e' }} />
-                    <span style={{ background: '#28c840' }} />
+                    <span className="bg-[#ff5f57]" />
+                    <span className="bg-[#febc2e]" />
+                    <span className="bg-[#28c840]" />
                   </div>
                   <span className={s.mockTitle}>GrowMyStocks Dashboard</span>
                 </div>
@@ -402,7 +402,7 @@ export default function LandingPage() {
               <Link href="/register" className={s.btnPrimaryWhite}>Register an Account</Link>
               <Link href="/login" className={s.btnGhostWhite}>Sign In</Link>
             </div>
-            <p style={{ marginTop: '1.25rem', fontSize: '0.8125rem', color: '#64748b', marginBottom: 0 }}>
+            <p className="mt-5 text-[0.8125rem] text-[#64748b] mb-0">
               Free to register &mdash; account access requires admin approval.
             </p>
           </div>

@@ -361,7 +361,7 @@ export default function PortfolioMetricsPanel({ portfolio, loading, totals, tota
           <p className={`text-base font-bold mb-2 ${insightsTitleColor}`}>
             {metrics.hasAlerts ? '⚠️ ' : '💡 '}{insightsTitle}
           </p>
-          <ul className={`space-y-1.5 text-base leading-snug ${insightsTextColor}`} style={{ paddingLeft: '1rem', listStyleType: 'disc' }}>
+          <ul className={`space-y-1.5 text-base leading-snug pl-4 list-disc ${insightsTextColor}`}>
             {metrics.insights.map((insight, i) => (
               <li key={i} dangerouslySetInnerHTML={{ __html: insight.html }} />
             ))}

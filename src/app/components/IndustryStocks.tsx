@@ -120,8 +120,8 @@ export default function IndustryStocks({ ticker }: IndustryStocksProps) {
       align: 'center' as const,
       format: (val: number) => (
         <div className="w-24 bg-gray-200 rounded-full h-1.5 mx-auto">
-          <div 
-            className="bg-blue-600 h-1.5 rounded-full" 
+          <div
+            className="bg-blue-600 h-1.5 rounded-full"
             style={{ width: `${Math.min(100, Math.max(0, val))}%` }}
           ></div>
         </div>

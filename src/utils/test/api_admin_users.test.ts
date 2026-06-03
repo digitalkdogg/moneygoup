@@ -18,6 +18,9 @@ jest.mock('@/utils/logger', () => ({
     error: jest.fn(),
   }),
 }));
+jest.mock('@/utils/rateLimitMiddleware', () => ({
+  checkRateLimit: jest.fn().mockResolvedValue(null),
+}));
 
 describe('Admin Users API', () => {
   let mockRequest: any;

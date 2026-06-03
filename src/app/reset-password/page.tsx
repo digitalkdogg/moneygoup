@@ -99,8 +99,7 @@ function ResetPasswordForm() {
             </div>
             <Link
               href="/forgot-password"
-              style={{ backgroundColor: '#017e3b' }}
-              className="block w-full text-center hover:opacity-90 text-white py-2 px-4 rounded-lg transition duration-200"
+              className="block w-full text-center hover:opacity-90 text-white py-2 px-4 rounded-lg transition duration-200 bg-[#017e3b]"
             >
               Request New Reset Link
             </Link>
@@ -144,8 +143,7 @@ function ResetPasswordForm() {
             <button
               type="submit"
               disabled={loading}
-              style={{ backgroundColor: '#017e3b' }}
-              className="w-full hover:opacity-90 text-white py-2 px-4 rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600 disabled:opacity-50 cursor-pointer"
+              className="w-full hover:opacity-90 text-white py-2 px-4 rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600 disabled:opacity-50 cursor-pointer bg-[#017e3b]"
             >
               {loading ? 'Saving...' : 'Set New Password'}
             </button>
@@ -154,7 +152,7 @@ function ResetPasswordForm() {
 
         {success && (
           <div>
-            <div style={{ backgroundColor: '#a8d78d' }} className="border-2 border-green-400 text-green-800 px-4 py-3 rounded-lg mb-4 text-sm">
+            <div className="border-2 border-green-400 text-green-800 px-4 py-3 rounded-lg mb-4 text-sm bg-[#a8d78d]">
               Password updated successfully! Redirecting to login...
             </div>
           </div>

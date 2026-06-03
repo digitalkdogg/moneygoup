@@ -303,7 +303,7 @@ describe('POST /api/prediction/save', () => {
     mockRequest = new NextRequest('http://localhost/api/prediction/save', {
       method: 'POST',
       headers: {
-        'x-api-key': 'test-internal-secret',
+        'x-api-key': 'test-internal-secret-32bytes-key',
       },
       body: JSON.stringify({
         ticker: 'AAPL',
@@ -313,7 +313,7 @@ describe('POST /api/prediction/save', () => {
     });
 
     // Mock the internal secret env variable
-    process.env.DEEPMONEY_INTERNAL_SECRET = 'test-internal-secret';
+    process.env.DEEPMONEY_INTERNAL_SECRET = 'test-internal-secret-32bytes-key';
 
     const response = await POST(mockRequest);
     expect(response.status).toBe(200);
@@ -334,7 +334,7 @@ describe('POST /api/prediction/save', () => {
     mockRequest = new NextRequest('http://localhost/api/prediction/save', {
       method: 'POST',
       headers: {
-        'x-api-key': 'test-internal-secret',
+        'x-api-key': 'test-internal-secret-32bytes-key',
       },
       body: JSON.stringify({
         ticker: 'AAPL',
@@ -343,7 +343,7 @@ describe('POST /api/prediction/save', () => {
       }),
     });
 
-    process.env.DEEPMONEY_INTERNAL_SECRET = 'test-internal-secret';
+    process.env.DEEPMONEY_INTERNAL_SECRET = 'test-internal-secret-32bytes-key';
 
     const response = await POST(mockRequest);
     expect(response.status).toBe(400);

@@ -141,7 +141,7 @@ describe('POST /api/auth/reset-password', () => {
     const markUsedCall = (executeRawQuery as jest.Mock).mock.calls[2];
     expect(markUsedCall[0]).toContain('UPDATE password_reset_tokens');
     expect(markUsedCall[0]).toContain('used_at');
-    expect(markUsedCall[1]).toEqual([VALID_TOKEN_ROW.id]);
+    expect(markUsedCall[1]).toEqual([VALID_TOKEN_ROW.user_id]);
   });
 
   // ── Token validation ────────────────────────────────────────────────

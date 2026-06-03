@@ -113,8 +113,7 @@ export default function StockSignalPanel({
             {breakdown && (
               <button
                 onClick={() => setModalOpen(true)}
-                className="hover:underline ml-1"
-                style={{ color: '#017e3b' }}
+                className="hover:underline ml-1 text-[#017e3b]"
               >
                 View score
               </button>
@@ -136,8 +135,8 @@ export default function StockSignalPanel({
                       </div>
                       <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
                         <div
-                          className="h-full rounded-full transition-all duration-500"
-                          style={{ width: `${pct}%`, backgroundColor: '#017e3b' }}
+                          className="h-full rounded-full transition-all duration-500 bg-[#017e3b]"
+                          style={{ width: `${pct}%` }}
                         />
                       </div>
                     </li>
@@ -170,8 +169,7 @@ export default function StockSignalPanel({
         <button
           onClick={onGeneratePrediction}
           disabled={predictionLoading}
-          style={!predictionLoading ? { backgroundColor: '#017e3b' } : {}}
-          className="inline-flex items-center gap-2 text-white py-2.5 px-5 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-wait hover:opacity-90"
+          className={`inline-flex items-center gap-2 text-white py-2.5 px-5 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-wait hover:opacity-90 ${!predictionLoading ? 'bg-[#017e3b]' : ''}`}
         >
           {predictionLoading ? (
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animate-spin" aria-hidden="true">

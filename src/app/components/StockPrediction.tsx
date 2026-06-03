@@ -140,8 +140,7 @@ function ConfidenceBadge({ score }: { score: number }) {
     return (
       <span
         title={CONFIDENCE_TOOLTIP}
-        className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full border cursor-help"
-        style={{ backgroundColor: '#f0fdf4', color: '#005a00', borderColor: '#005a00' }}
+        className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full border cursor-help bg-[#f0fdf4] text-[#005a00] border-[#005a00]"
       >
         High Confidence · {score}
       </span>
@@ -223,7 +222,7 @@ function TrajectoryChart({
 
   return (
     <div className="w-full overflow-x-auto mt-6">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-full" style={{ minWidth: 340 }}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-full min-w-[340px]">
         <defs>
           <clipPath id="chart-clip">
             <rect x={PAD.left} y={PAD.top} width={chartW} height={chartH} />
@@ -442,9 +441,8 @@ export default function StockPrediction({
         <button
           onClick={generate}
           disabled={loading}
-          style={!loading ? { backgroundColor: '#017e3b' } : {}}
           className={`text-white py-2 px-5 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-wait ${
-            loading ? 'bg-gray-400' : 'hover:opacity-90'
+            loading ? 'bg-gray-400' : 'bg-[#017e3b] hover:opacity-90'
           }`}
         >
           {btnLabel}

@@ -33,7 +33,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
         return (
             <div className="p-4 bg-white rounded-lg shadow-lg border border-gray-200">
                 <p className="font-bold text-gray-800">{formattedDate}</p>
-                <p style={{ color: 'rgb(1, 126, 59)' }}>
+                <p className="text-[rgb(1,126,59)]">
                     Value: <span className="font-semibold">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)}</span>
                 </p>
             </div>
@@ -117,10 +117,9 @@ export const PortfolioHistoryChart: React.FC = () => {
                             onClick={() => setPeriod(option.value)}
                             className={`px-3 py-1 rounded-md transition-colors duration-200 cursor-pointer ${
                                 period === option.value
-                                    ? 'text-white shadow'
+                                    ? 'text-white shadow bg-[#017e3b]'
                                     : 'text-gray-600 hover:bg-gray-200'
                             }`}
-                            style={period === option.value ? { backgroundColor: '#017e3b' } : {}}
                         >
                             {option.label}
                         </button>

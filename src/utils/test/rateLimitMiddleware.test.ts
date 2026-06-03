@@ -43,21 +43,21 @@ describe('rateLimitMiddleware', () => {
       mockLimiter = new RateLimiter({ limit: 1, windowMs: 1000 });
     });
 
-    test('allows first request, blocks second', () => {
+    test('allows first request, blocks second', async () => {
       const req = { ip: '1.1.1.1', headers: new Headers() } as unknown as NextRequest;
-      expect(checkRateLimit(req, mockLimiter)).toBeNull();
-      const res = checkRateLimit(req, mockLimiter);
+      expect(await checkRateLimit(req, mockLimiter as any)).toBeNull();
+      const res = await checkRateLimit(req, mockLimiter as any);
       expect(res?.status).toBe(429);
     });
 
-    test('uses secondaryId in key if provided', () => {
+    test('uses secondaryId in key if provided', async () => {
       const req = { ip: '1.1.1.1', headers: new Headers() } as unknown as NextRequest;
       // First request with user1: allowed
-      expect(checkRateLimit(req, mockLimiter, 'prefix', 'user1')).toBeNull();
+      expect(await checkRateLimit(req, mockLimiter as any, 'prefix', 'user1')).toBeNull();
       // Second request with same user1: blocked
-      expect(checkRateLimit(req, mockLimiter, 'prefix', 'user1')?.status).toBe(429);
+      expect((await checkRateLimit(req, mockLimiter as any, 'prefix', 'user1'))?.status).toBe(429);
       // Request with different user2 (same IP): allowed
-      expect(checkRateLimit(req, mockLimiter, 'prefix', 'user2')).toBeNull();
+      expect(await checkRateLimit(req, mockLimiter as any, 'prefix', 'user2')).toBeNull();
     });
   });
 });

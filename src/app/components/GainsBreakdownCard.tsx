@@ -76,7 +76,7 @@ const GainsBreakdownCard: React.FC<GainsBreakdownCardProps> = ({ totals, loading
         <div className="flex-1 space-y-2">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
-              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: '#a8d78d' }}></div>
+              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-[#a8d78d]"></div>
               <span className="text-base text-gray-500">Unrealized Gains</span>
             </div>
             <span className="text-base text-green-700 font-bold">{formatCurrency(totals.unrealizedGain, 0)}</span>

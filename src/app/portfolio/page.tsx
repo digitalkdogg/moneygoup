@@ -102,8 +102,7 @@ function fmtPct(v: number, decimals = 1) {
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
     <h2
-      className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4 pl-3 border-l-2"
-      style={{ borderLeftColor: '#017e3b' }}
+      className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4 pl-3 border-l-2 border-l-[#017e3b]"
     >
       {children}
     </h2>
@@ -433,7 +432,7 @@ export default function PortfolioPage() {
                   <div className="flex-1 flex items-center justify-center">
                     <p className="text-base text-gray-600 text-center">
                       No holdings yet.{' '}
-                      <Link href="/search" className="underline" style={{ color: '#017e3b' }}>
+                      <Link href="/search" className="underline text-[#017e3b]">
                         Search stocks
                       </Link>{' '}
                       to add positions.

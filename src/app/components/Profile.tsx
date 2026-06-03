@@ -71,8 +71,7 @@ export default function Profile() {
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
         <div className="flex items-center space-x-4 mb-4">
           <div
-            style={{ backgroundColor: '#95c779', color: '#09522b' }}
-            className="h-14 w-14 rounded-full flex items-center justify-center text-xl font-bold"
+            className="h-14 w-14 rounded-full flex items-center justify-center text-xl font-bold bg-[#95c779] text-[#09522b]"
             aria-hidden="true"
           >
             {data.username.charAt(0).toUpperCase()}

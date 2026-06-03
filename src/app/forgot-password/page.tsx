@@ -51,7 +51,7 @@ export default function ForgotPasswordPage() {
 
         {submitted ? (
           <div>
-            <div style={{ backgroundColor: '#a8d78d' }} className="border-2 border-green-400 text-green-800 px-4 py-3 rounded-lg mb-6 text-sm">
+            <div className="border-2 border-green-400 text-green-800 px-4 py-3 rounded-lg mb-6 text-sm bg-[#a8d78d]">
               If that email address is registered, you will receive a password reset link shortly. Check your inbox (and spam folder).
             </div>
             <Link
@@ -85,13 +85,12 @@ export default function ForgotPasswordPage() {
             <button
               type="submit"
               disabled={loading}
-              style={{ backgroundColor: '#017e3b' }}
-              className="w-full hover:opacity-90 text-white py-2 px-4 rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600 disabled:opacity-50 cursor-pointer"
+              className="w-full hover:opacity-90 text-white py-2 px-4 rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600 disabled:opacity-50 cursor-pointer bg-[#017e3b]"
             >
               {loading ? 'Sending...' : 'Send Reset Link'}
             </button>
             <p className="mt-4 text-center text-gray-600">
-              <Link href="/login" className="hover:text-green-800 font-medium" style={{ color: '#005a00' }}>
+              <Link href="/login" className="hover:text-green-800 font-medium text-[#005a00]">
                 Back to Login
               </Link>
             </p>
