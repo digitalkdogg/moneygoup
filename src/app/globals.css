@@ -85,7 +85,6 @@ h2 { font-size: 1.75rem; }   /* 28px */
 /* Standard section heading — green left border, all caps */
 .section-heading {
   font-size: 1.75rem;
-  font-weight: 700;
   color: #333;
   text-transform: uppercase;
   letter-spacing: 0.1em;
