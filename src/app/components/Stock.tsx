@@ -507,7 +507,7 @@ export default function Stock({
           {/* Company Description */}
           {stockData.longBusinessSummary && (
             <div className="mb-6"> {/* Added mb-6 for spacing */}
-              <h2 className="text-2xl font-semibold text-gray-800 mb-4">📚 Company Overview</h2>
+              <h2 className="section-heading">Company Overview</h2>
               <div className="text-gray-700 leading-relaxed">
                 {showFullSummary || stockData.longBusinessSummary.length <= TRUNCATE_LENGTH
                   ? stockData.longBusinessSummary
@@ -584,9 +584,7 @@ export default function Stock({
           {/* Portfolio Position Section */}
           {portfolioStatus[primaryTicker] && portfolioData[primaryTicker] && portfolioData[primaryTicker].shares > 0 && (
           <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
-            <h2 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
-              <span>💼</span> Your Portfolio Position
-            </h2>
+            <h2 className="section-heading">Your Portfolio Position</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                 <p className="text-sm text-gray-500 uppercase font-medium mb-1">Total Portfolio Value</p>
@@ -673,7 +671,7 @@ export default function Stock({
         {/* Analyst Sentiment & Price Targets */}
         {data.analyst && (
           <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
-            <h2 className="text-2xl font-semibold text-gray-800 mb-6">📊 Analyst Sentiment & Targets</h2>
+            <h2 className="section-heading">Analyst Sentiment & Targets</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-4">
               {/* Recommendation Trend */}
@@ -765,7 +763,7 @@ export default function Stock({
         {/* Technical Indicators */}
         {indicators && (
           <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
-            <h2 className="text-2xl font-semibold text-gray-800 mb-4">🎯 Technical Indicators & Trading Signal</h2>
+            <h2 className="section-heading">Technical Indicators & Trading Signal</h2>
             <TechnicalIndicatorsDisplay indicators={indicators} titleLevel="h3" />
           </div>
         )}
@@ -773,7 +771,7 @@ export default function Stock({
         {/* Earnings Information */}
         {earningsData && (earningsData.upcomingEarnings || earningsData.historicalEarnings.length > 0) && (
           <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
-            <h2 className="text-2xl font-semibold text-gray-800 mb-4">🗓️ Earnings Information</h2>
+            <h2 className="section-heading">Earnings Information</h2>
 
             {earningsData.upcomingEarnings && (
               <div className="mb-6">
@@ -881,7 +879,7 @@ export default function Stock({
               {/* Stock Info */}
               <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-6">
                 <div className="flex flex-col mb-6 md:flex-row md:items-center md:justify-between gap-7">
-                  <h2 className="text-2xl font-bold text-gray-800">
+                  <h2 className="section-heading">
                     {stockData.name} ({stockData.symbol})
                   </h2>
                   <div className="flex gap-3 items-center">

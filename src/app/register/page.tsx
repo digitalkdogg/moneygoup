@@ -107,7 +107,7 @@ export default function RegisterPage() {
           <Link href="/" className="mb-4">
             <Image src="/growmystock_logo.svg" alt="GrowMyStocks Logo" width={64} height={64} />
           </Link>
-          <h2 className="text-xl font-bold text-gray-800">Create your account</h2>
+          <h2 className="section-heading">Create your account</h2>
           <p className="text-gray-500 text-sm mt-1">Free to join. No credit card required.</p>
         </div>
 
@@ -190,7 +190,7 @@ export default function RegisterPage() {
 
       {/* What you get section */}
       <div className="w-full max-w-4xl mt-16 text-center mb-4">
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
+        <h2 className="section-heading">
           Everything you need to invest smarter
         </h2>
         <p className="text-gray-500 text-sm max-w-xl mx-auto">

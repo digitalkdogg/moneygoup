@@ -36,7 +36,7 @@ export default function DisclaimerPage() {
           <div className="space-y-8 text-sm text-gray-700 leading-relaxed">
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">1. Not Financial Advice</h2>
+              <h2 className="section-heading mb-3">1. Not Financial Advice</h2>
               <p>
                 GrowMyStocks is an informational and educational platform. Nothing on this website — including but not limited to stock data, GPS scores, AI-generated predictions, analyst sentiment summaries, technical indicators, trading signals, portfolio analysis, or any other content — constitutes financial, investment, tax, or legal advice.
               </p>
@@ -46,7 +46,7 @@ export default function DisclaimerPage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">2. AI Predictions & GPS Scores</h2>
+              <h2 className="section-heading mb-3">2. AI Predictions & GPS Scores</h2>
               <p>
                 GrowMyStocks uses artificial intelligence and machine learning models to generate price predictions and GPS (Growth Potential Score) ratings. These outputs are <strong>experimental, speculative, and may be materially inaccurate</strong>.
               </p>
@@ -62,14 +62,14 @@ export default function DisclaimerPage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">3. Past Performance</h2>
+              <h2 className="section-heading mb-3">3. Past Performance</h2>
               <p>
                 Any historical data, charts, returns, or performance metrics displayed on GrowMyStocks are provided for informational context only. <strong>Past performance is not indicative of future results.</strong> The value of investments can go down as well as up, and you may receive back less than you invest.
               </p>
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">4. Market Data Accuracy</h2>
+              <h2 className="section-heading mb-3">4. Market Data Accuracy</h2>
               <p>
                 Market data displayed on GrowMyStocks is sourced from third-party providers including Yahoo Finance. This data may be:
               </p>
@@ -84,7 +84,7 @@ export default function DisclaimerPage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">5. Investment Risk</h2>
+              <h2 className="section-heading mb-3">5. Investment Risk</h2>
               <p>Investing in securities involves significant risk. You should be aware that:</p>
               <ul className="list-disc pl-5 space-y-2 mt-3">
                 <li>Stock prices are volatile and can change rapidly due to factors outside anyone's control</li>
@@ -96,7 +96,7 @@ export default function DisclaimerPage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">6. No Responsibility for Losses</h2>
+              <h2 className="section-heading mb-3">6. No Responsibility for Losses</h2>
               <p>
                 GrowMyStocks, its founders, operators, employees, and affiliates expressly disclaim all liability for any financial losses, damages, or adverse outcomes resulting from your use of this platform or reliance on any information, data, score, prediction, or analysis provided herein.
               </p>
@@ -106,28 +106,28 @@ export default function DisclaimerPage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">7. Seek Professional Advice</h2>
+              <h2 className="section-heading mb-3">7. Seek Professional Advice</h2>
               <p>
                 Before making any investment decision, we strongly encourage you to consult with a qualified and licensed financial advisor who can assess your individual financial situation, goals, risk tolerance, and time horizon. GrowMyStocks is a tool to help you research — it is not a substitute for professional financial guidance.
               </p>
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">8. Third-Party References</h2>
+              <h2 className="section-heading mb-3">8. Third-Party References</h2>
               <p>
                 GrowMyStocks may display analyst ratings, price targets, news sentiment, or other content sourced from or referencing third parties. Such references do not constitute an endorsement of those parties or their views. We are not responsible for the accuracy or completeness of third-party content.
               </p>
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">9. Regulatory Notice</h2>
+              <h2 className="section-heading mb-3">9. Regulatory Notice</h2>
               <p>
                 GrowMyStocks is not registered with the U.S. Securities and Exchange Commission (SEC), the Financial Industry Regulatory Authority (FINRA), or any other financial regulatory body. Use of this platform does not create any client, advisory, or fiduciary relationship between you and GrowMyStocks.
               </p>
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">10. Questions</h2>
+              <h2 className="section-heading mb-3">10. Questions</h2>
               <p>
                 If you have questions about this disclaimer, please <Link href="/contact" className="text-green-700 hover:text-green-800 underline">contact us</Link>.
               </p>

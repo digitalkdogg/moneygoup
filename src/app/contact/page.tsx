@@ -60,7 +60,7 @@ export default function ContactPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">Message Sent!</h2>
+              <h2 className="section-heading">Message Sent!</h2>
               <p className="text-gray-500 mb-6">We've received your message and sent a confirmation to your email.</p>
               <button
                 onClick={() => setStatus('idle')}

@@ -25,14 +25,14 @@ export default function TermsOfServicePage() {
           <div className="space-y-8 text-sm text-gray-700 leading-relaxed">
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">1. Acceptance of Terms</h2>
+              <h2 className="section-heading mb-3">1. Acceptance of Terms</h2>
               <p>
                 By accessing or using GrowMyStocks (&ldquo;the Platform,&rdquo; &ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;), you agree to be bound by these Terms of Service (&ldquo;Terms&rdquo;). If you do not agree to these Terms, you may not use the Platform. These Terms apply to all users, including registered account holders and any visitors to the Platform.
               </p>
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">2. Description of Service</h2>
+              <h2 className="section-heading mb-3">2. Description of Service</h2>
               <p>
                 GrowMyStocks is an AI-assisted stock analysis and portfolio tracking platform. It provides tools including stock search, price data, technical indicators, AI-generated predictions, GPS scores, analyst sentiment aggregation, portfolio management, and watchlist tracking.
               </p>
@@ -42,12 +42,12 @@ export default function TermsOfServicePage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">3. Eligibility</h2>
+              <h2 className="section-heading mb-3">3. Eligibility</h2>
               <p>You must be at least 18 years of age to use GrowMyStocks. By using the Platform, you represent and warrant that you meet this requirement. We reserve the right to terminate accounts of users found to be under 18.</p>
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">4. Account Registration & Security</h2>
+              <h2 className="section-heading mb-3">4. Account Registration & Security</h2>
               <p>Access to the Platform requires registration and admin approval. You agree to:</p>
               <ul className="list-disc pl-5 space-y-2 mt-3">
                 <li>Provide accurate and complete registration information</li>
@@ -59,7 +59,7 @@ export default function TermsOfServicePage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">5. Acceptable Use</h2>
+              <h2 className="section-heading mb-3">5. Acceptable Use</h2>
               <p>You agree not to:</p>
               <ul className="list-disc pl-5 space-y-2 mt-3">
                 <li>Use the Platform for any unlawful purpose or in violation of any applicable laws or regulations</li>
@@ -73,7 +73,7 @@ export default function TermsOfServicePage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">6. No Financial Advice</h2>
+              <h2 className="section-heading mb-3">6. No Financial Advice</h2>
               <p>
                 GrowMyStocks is <strong>not a registered investment advisor, broker-dealer, or financial planning firm</strong>. Nothing on the Platform constitutes a recommendation to buy, sell, or hold any security. All data, scores, predictions, and analysis are provided solely for informational purposes.
               </p>
@@ -83,7 +83,7 @@ export default function TermsOfServicePage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">7. Data Accuracy & Availability</h2>
+              <h2 className="section-heading mb-3">7. Data Accuracy & Availability</h2>
               <p>
                 Market data is sourced from third-party providers and may be delayed, incomplete, or inaccurate. AI-generated predictions and scores are experimental and carry no guarantee of accuracy. We make no representations or warranties regarding the accuracy, timeliness, or completeness of any data on the Platform.
               </p>
@@ -93,7 +93,7 @@ export default function TermsOfServicePage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">8. Intellectual Property</h2>
+              <h2 className="section-heading mb-3">8. Intellectual Property</h2>
               <p>
                 All content, design, software, branding, and features of the Platform are the property of GrowMyStocks and are protected by applicable intellectual property laws. You may not reproduce, distribute, or create derivative works from any part of the Platform without our express written consent.
               </p>
@@ -103,7 +103,7 @@ export default function TermsOfServicePage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">9. Limitation of Liability</h2>
+              <h2 className="section-heading mb-3">9. Limitation of Liability</h2>
               <p>
                 To the fullest extent permitted by law, GrowMyStocks and its operators shall not be liable for any indirect, incidental, special, consequential, or punitive damages, including but not limited to loss of profits, loss of data, or financial losses arising from:
               </p>
@@ -120,49 +120,49 @@ export default function TermsOfServicePage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">10. Disclaimer of Warranties</h2>
+              <h2 className="section-heading mb-3">10. Disclaimer of Warranties</h2>
               <p>
                 The Platform is provided on an &ldquo;as is&rdquo; and &ldquo;as available&rdquo; basis without warranties of any kind, either express or implied, including but not limited to implied warranties of merchantability, fitness for a particular purpose, or non-infringement.
               </p>
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">11. Indemnification</h2>
+              <h2 className="section-heading mb-3">11. Indemnification</h2>
               <p>
                 You agree to indemnify and hold harmless GrowMyStocks and its operators from any claims, damages, losses, liabilities, costs, and expenses (including reasonable legal fees) arising out of or related to your use of the Platform, your violation of these Terms, or your violation of any rights of a third party.
               </p>
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">12. Privacy</h2>
+              <h2 className="section-heading mb-3">12. Privacy</h2>
               <p>
                 Your use of the Platform is also governed by our <Link href="/legal/privacy" className="text-green-700 hover:text-green-800 underline">Privacy Policy</Link>, which is incorporated into these Terms by reference.
               </p>
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">13. Termination</h2>
+              <h2 className="section-heading mb-3">13. Termination</h2>
               <p>
                 We may suspend or terminate your access to the Platform at any time, with or without notice, for any reason including breach of these Terms. Upon termination, your right to use the Platform ceases immediately. Provisions of these Terms that by their nature should survive termination (including limitations of liability, disclaimers, and indemnification) will remain in effect.
               </p>
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">14. Changes to These Terms</h2>
+              <h2 className="section-heading mb-3">14. Changes to These Terms</h2>
               <p>
                 We reserve the right to modify these Terms at any time. Changes will be posted on this page with an updated effective date. Continued use of the Platform after changes are posted constitutes your acceptance of the revised Terms. For material changes, we will make reasonable efforts to notify registered users via email.
               </p>
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">15. Governing Law</h2>
+              <h2 className="section-heading mb-3">15. Governing Law</h2>
               <p>
                 These Terms shall be governed by and construed in accordance with the laws of the United States, without regard to conflict of law principles. Any disputes arising under these Terms shall be resolved through binding arbitration or in a court of competent jurisdiction.
               </p>
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">16. Contact</h2>
+              <h2 className="section-heading mb-3">16. Contact</h2>
               <p>
                 If you have questions about these Terms, please reach out via our <Link href="/contact" className="text-green-700 hover:text-green-800 underline">contact form</Link>.
               </p>

@@ -47,10 +47,7 @@ export default function StockTable<T extends StockTableRow>({
 
   return (
     <section className="bg-white p-4 md:p-6 rounded-2xl shadow-lg mb-8" id="table">
-      <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-4 text-center">
-        {icon && <span className="mr-2">{icon}</span>}
-        {title}
-      </h2>
+      <h2 className="section-heading">{title}</h2>
 
       {loading && data.length === 0 && (
         <p className="text-gray-600 text-center py-4">Loading {title.toLowerCase()}...</p>

@@ -156,7 +156,7 @@ export default function PortfolioCompareChart({
     <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-5 flex flex-col h-full min-h-[480px]">
       {/* Chart header */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-        <h2 className="text-lg font-bold text-gray-800">Performance Chart</h2>
+        <h2 className="section-heading">Performance Chart</h2>
         <div className="flex items-center gap-3 flex-wrap">
           {/* Normalization toggle */}
           <div className="flex rounded-lg bg-gray-100 p-0.5 text-xs">

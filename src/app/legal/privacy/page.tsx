@@ -25,7 +25,7 @@ export default function PrivacyPolicyPage() {
           <div className="prose prose-gray max-w-none space-y-8 text-sm text-gray-700 leading-relaxed">
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">1. Overview</h2>
+              <h2 className="section-heading mb-3">1. Overview</h2>
               <p>
                 GrowMyStocks (&ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;) is committed to protecting your privacy. This Privacy Policy explains what information we collect when you use our platform, how we use it, and the choices you have regarding your data.
               </p>
@@ -35,7 +35,7 @@ export default function PrivacyPolicyPage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">2. Information We Collect</h2>
+              <h2 className="section-heading mb-3">2. Information We Collect</h2>
               <h3 className="font-semibold text-gray-800 mb-2">Account Information</h3>
               <p>When you register, we collect your username and email address. We do not collect payment information directly — if billing is introduced, it will be handled by a PCI-compliant third-party processor.</p>
 
@@ -50,7 +50,7 @@ export default function PrivacyPolicyPage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">3. How We Use Your Information</h2>
+              <h2 className="section-heading mb-3">3. How We Use Your Information</h2>
               <ul className="list-disc pl-5 space-y-2">
                 <li>To provide and operate the GrowMyStocks platform</li>
                 <li>To personalize your dashboard, portfolio, and watchlist experience</li>
@@ -63,7 +63,7 @@ export default function PrivacyPolicyPage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">4. Data Storage & Security</h2>
+              <h2 className="section-heading mb-3">4. Data Storage & Security</h2>
               <p>
                 Your data is stored on secured servers. We implement reasonable technical and organizational safeguards — including encrypted connections (HTTPS), hashed passwords, and access controls — to protect your information against unauthorized access, alteration, or disclosure.
               </p>
@@ -73,7 +73,7 @@ export default function PrivacyPolicyPage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">5. Third-Party Services</h2>
+              <h2 className="section-heading mb-3">5. Third-Party Services</h2>
               <p>We use the following third-party services that may process your data as part of delivering the platform:</p>
               <ul className="list-disc pl-5 space-y-2 mt-3">
                 <li><strong>Resend</strong> — transactional email delivery (account and contact emails)</li>
@@ -83,14 +83,14 @@ export default function PrivacyPolicyPage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">6. Cookies & Session Data</h2>
+              <h2 className="section-heading mb-3">6. Cookies & Session Data</h2>
               <p>
                 GrowMyStocks uses session cookies to keep you logged in between visits. These cookies are essential to the operation of the platform and are not used for advertising tracking. You can disable cookies in your browser settings, but doing so will prevent you from logging in.
               </p>
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">7. Your Rights & Choices</h2>
+              <h2 className="section-heading mb-3">7. Your Rights & Choices</h2>
               <p>You have the right to:</p>
               <ul className="list-disc pl-5 space-y-2 mt-3">
                 <li><strong>Access</strong> the personal information we hold about you</li>
@@ -102,28 +102,28 @@ export default function PrivacyPolicyPage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">8. Data Retention</h2>
+              <h2 className="section-heading mb-3">8. Data Retention</h2>
               <p>
                 We retain your account information for as long as your account is active. If you delete your account, we will remove your personal data from our systems within 30 days, except where retention is required by law or legitimate business necessity (e.g., fraud prevention).
               </p>
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">9. Children&rsquo;s Privacy</h2>
+              <h2 className="section-heading mb-3">9. Children&rsquo;s Privacy</h2>
               <p>
                 GrowMyStocks is not intended for users under the age of 18. We do not knowingly collect personal information from minors. If we become aware that a minor has provided us with personal data, we will delete it promptly.
               </p>
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">10. Changes to This Policy</h2>
+              <h2 className="section-heading mb-3">10. Changes to This Policy</h2>
               <p>
                 We may update this Privacy Policy from time to time. When we do, we will revise the effective date at the top of this page. Continued use of the platform after changes constitutes your acceptance of the updated policy. For material changes, we will make reasonable efforts to notify registered users via email.
               </p>
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">11. Contact</h2>
+              <h2 className="section-heading mb-3">11. Contact</h2>
               <p>
                 If you have questions or concerns about this Privacy Policy or your data, please reach out via our <Link href="/contact" className="text-green-700 hover:text-green-800 underline">contact form</Link>.
               </p>

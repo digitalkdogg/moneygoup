@@ -61,9 +61,7 @@ export default function TrendingStocksGrid() {
     return (
       <div className="w-full">
         <div className="bg-white p-4 md:p-6 rounded-2xl shadow-lg">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
-            Trending (Last 48 Hours)
-          </h2>
+          <h2 className="section-heading">Trending (Last 48 Hours)</h2>
           <div className="p-4 rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-800">
             {error}
           </div>
@@ -92,9 +90,7 @@ export default function TrendingStocksGrid() {
   return (
     <div className="w-full">
       <div className="bg-white p-4 md:p-6 rounded-2xl shadow-lg">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
-          Trending (Last 48 Hours)
-        </h2>
+        <h2 className="section-heading">Trending (Last 48 Hours)</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {displayStocks.slice(0, 12).map((stock, idx) => (
             stock.price === null ? (

@@ -203,8 +203,15 @@
 }
 .sectionTagLight { color: #15803d; }
 .sectionHeader h2 {
-  font-size: clamp(1.75rem, 3vw, 2.4rem); font-weight: 800; color: #0f172a;
-  margin-bottom: 1rem; letter-spacing: -0.025em;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 1rem;
+  padding-left: 0.75rem;
+  border-left: 2px solid #017e3b;
+  line-height: 1.2;
 }
 .sectionHeader p {
   font-size: 0.9375rem; color: #64748b; max-width: 540px; margin: 0 auto; line-height: 1.65;
@@ -260,8 +267,15 @@
   display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: start;
 }
 .predictionLeft h2 {
-  font-size: clamp(1.5rem, 2.5vw, 2rem); font-weight: 800; color: #0f172a;
-  margin-bottom: 0.875rem; letter-spacing: -0.025em; line-height: 1.2;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 1rem;
+  padding-left: 0.75rem;
+  border-left: 2px solid #017e3b;
+  line-height: 1.2;
 }
 .predictionLeft > p { font-size: 0.9375rem; color: #475569; line-height: 1.65; margin-bottom: 2rem; }
 .predHorizons { display: flex; flex-direction: column; gap: 1rem; }
@@ -329,8 +343,15 @@
   display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: start;
 }
 .apiLeft h2 {
-  font-size: clamp(1.5rem, 2.5vw, 2rem); font-weight: 800; color: #0f172a;
-  margin-bottom: 0.875rem; letter-spacing: -0.025em;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 1rem;
+  padding-left: 0.75rem;
+  border-left: 2px solid #017e3b;
+  line-height: 1.2;
 }
 .apiLeft > p { font-size: 0.9375rem; color: #475569; line-height: 1.65; margin-bottom: 2rem; }
 .apiEndpoints { display: flex; flex-direction: column; gap: 0.625rem; }
@@ -376,8 +397,15 @@
   box-shadow: 0 4px 24px rgba(1,126,59,0.08);
 }
 .cta h2 {
-  font-size: clamp(1.5rem, 2.5vw, 2.1rem); font-weight: 800;
-  color: #0f172a; margin-bottom: 0.875rem; letter-spacing: -0.025em;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 1rem;
+  padding-left: 0.75rem;
+  border-left: 2px solid #017e3b;
+  line-height: 1.2;
 }
 .cta p { font-size: 0.9375rem; color: #475569; line-height: 1.65; margin-bottom: 2rem; }
 .ctaActions { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }

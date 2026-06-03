@@ -76,10 +76,24 @@ button.xs, a.xs {
 h1, h2, h3, h4, h5, h6 {
   font-weight: 500;
   line-height: 1.2;
+  color:#333;
 }
  
 h1 { font-size: 2.25rem; }   /* 36px */
 h2 { font-size: 1.75rem; }   /* 28px */
+
+/* Standard section heading — green left border, all caps */
+.section-heading {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #333;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 1rem;
+  padding-left: 0.75rem;
+  border-left: 2px solid #017e3b;
+  line-height: 1.2;
+}
 h3 { font-size: 1.375rem; }  /* 22px */
 h4 { font-size: 1.125rem; }  /* 18px */
 h5 { font-size: 0.9375rem; } /* 15px */

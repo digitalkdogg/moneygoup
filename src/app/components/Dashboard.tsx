@@ -180,9 +180,7 @@ export default function Dashboard() {
           {/* Portfolio Section — hidden until loaded and only shown when user has stocks */}
           {!loadingPortfolio && portfolio.length > 0 && (
             <>
-              <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-6 flex items-center">
-                <span className="mr-3">📈</span>My Portfolio
-              </h2>
+              <h2 className="section-heading">My Portfolio</h2>
 
               <div className="mb-6">
                 <PortfolioSummary
@@ -204,9 +202,7 @@ export default function Dashboard() {
 
           {/* Discovery & Watchlist */}
           <div className="border-t border-gray-200 pt-10 mt-10">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
-              <span className="mr-3">🔍</span>Discovery & Watchlist
-            </h2>
+            <h2 className="section-heading">Discovery & Watchlist</h2>
             <RecommendationsSection />
             <div className="mt-10">
               <WatchlistSection onRefresh={fetchPortfolioData} />

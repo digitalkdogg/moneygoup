@@ -99,7 +99,7 @@ export default function Profile() {
       {/* Stats — only for user / superuser */}
       {data.accountType !== 'admin' && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">Activity Summary</h2>
+          <h2 className="section-heading">Activity Summary</h2>
           <dl className="grid grid-cols-1 sm:grid-cols-3 gap-6">
             <StatCard
               label="Total Lookups"

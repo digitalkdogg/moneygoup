@@ -103,9 +103,7 @@ export default function DeepMoneyPicksSection() {
   return (
     <div className="space-y-10 mb-12">
       <div className="flex items-center justify-between px-2">
-        <h2 className="text-3xl font-extrabold text-gray-900 flex items-center">
-          <span className="mr-3">🧠</span> DeepMoney Engine
-        </h2>
+        <h2 className="section-heading">DeepMoney Engine</h2>
         <button
           onClick={fetchData}
           disabled={loading}

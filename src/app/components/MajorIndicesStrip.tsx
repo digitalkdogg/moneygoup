@@ -90,9 +90,7 @@ export default function MajorIndicesStrip() {
     return (
       <div className="w-full">
         <div className="bg-white p-4 md:p-6 rounded-2xl shadow-lg">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
-            Major Indices
-          </h2>
+          <h2 className="section-heading">Major Indices</h2>
           <div className="p-4 rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-800">
             {error}
           </div>
@@ -104,9 +102,7 @@ export default function MajorIndicesStrip() {
   return (
     <div className="w-full">
       <div className="rounded-2xl">
-        <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-6 flex items-center">
-          <span className="mr-3">📊</span>Market Overview
-        </h2>
+        <h2 className="section-heading">Market Overview</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {indices.map(index => (
             <IndexCard key={index.symbol} index={index} />

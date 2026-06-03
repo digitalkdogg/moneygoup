@@ -116,7 +116,7 @@ function LoginForm() {
           <Link href="/" className="mb-4">
             <Image src="/growmystock_logo.svg" alt="GrowMyStocks Logo" width={64} height={64} />
           </Link>
-          <h2 className="text-xl font-bold text-gray-800">Welcome back</h2>
+          <h2 className="section-heading">Welcome back</h2>
           <p className="text-gray-500 text-sm mt-1">Sign in to your account</p>
         </div>
 
@@ -178,7 +178,7 @@ function LoginForm() {
 
       {/* Why GrowMyStocks section */}
       <div className="w-full max-w-4xl mt-16 text-center mb-4">
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-6">
+        <h2 className="section-heading">
           Know which stocks to buy before the market does.
         </h2>
 

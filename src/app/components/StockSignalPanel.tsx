@@ -83,11 +83,8 @@ export default function StockSignalPanel({
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center gap-2 mb-1">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#017e3b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-        </svg>
-        <h2 className="text-xl font-semibold text-gray-900">GPS + AI prediction</h2>
+      <div className="mb-1">
+        <h2 className="section-heading">GPS + AI prediction</h2>
       </div>
       <p className="text-sm text-gray-500 mb-5">
         Our model scores each stock across key financial signals to generate a rating and outlook. Higher scores indicate stronger momentum in that factor.
