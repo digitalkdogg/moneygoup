@@ -294,11 +294,16 @@ def sync_portfolio_predictions():
                 m2 = min(max(rev_growth / 0.3, 0), 1) * 19
                 m3 = min(max(earn_growth / 0.25, 0), 1) * 19
                 m4 = min(max(price_change / 0.2, 0), 1) * 19
-                m5a = min(max(pred_change_pct / 3.0, 0), 1) * 19
+                m5a = min(max(pred_change_pct / 3.0, -1), 1) * 19
                 m5b = (confidence_score / 100.0) * 5
                 
                 gps = m1 + m2 + m3 + m4 + m5a + m5b
                 gps_score = round(min(gps, 100), 1)
+                
+                bearish_signal = pred_change_pct < 0
+                if bearish_signal:
+                    print(f"  [gps] ⚠️  BEARISH SIGNAL for {ticker}: "
+                          f"ML predicts {pred_change_pct:.2f}% → GPS penalty {m5a:.1f} pts → GPS={gps_score}")
                 
                 gps_breakdown = {
                     'analystUpside': round(m1, 1),
@@ -306,7 +311,8 @@ def sync_portfolio_predictions():
                     'earningsGrowth': round(m3, 1),
                     'fiftyTwoWeekChange': round(m4, 1),
                     'mlpUpside': round(m5a, 1),
-                    'mlpConfidence': round(m5b, 1)
+                    'mlpConfidence': round(m5b, 1),
+                    'bearishSignal': bearish_signal,
                 }
                 
                 print(f"  [gps] Calculated GPS Score for {ticker}: {gps_score}")
