@@ -91,23 +91,34 @@ export const PortfolioCardView: React.FC<PortfolioCardViewProps> = ({ card, acti
         </div>
       </div>
 
-      <CardActions justify="end" compact>
-        <ActionButton
-          label="Buy More"
-          ariaLabel={`Buy more shares of ${card.symbol}`}
-          variant="primary"
-          size="sm"
-          grow={false}
-          onClick={(e) => actions?.onBuyMore?.(card.symbol)}
-        />
-        <ActionButton
-          label="Sell"
-          ariaLabel={`Sell shares of ${card.symbol}`}
-          variant="secondary"
-          size="sm"
-          grow={false}
-          onClick={(e) => actions?.onSell?.(card.symbol)}
-        />
+      <CardActions justify={predictionChange != null && predictionChange < 0 ? 'between' : 'end'} compact>
+        {predictionChange != null && predictionChange < 0 && (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-red-50 border border-red-200 text-red-600 text-[10px] font-semibold leading-tight whitespace-nowrap">
+            <svg className="w-3 h-3 shrink-0" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
+              <path d="M6 1L1 10h10L6 1z" fillOpacity="0" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+              <path d="M6 4.5v3M6 9h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
+            </svg>
+            AI model predicts downside
+          </span>
+        )}
+        <div className="flex gap-2">
+          <ActionButton
+            label="Buy More"
+            ariaLabel={`Buy more shares of ${card.symbol}`}
+            variant="primary"
+            size="sm"
+            grow={false}
+            onClick={(e) => actions?.onBuyMore?.(card.symbol)}
+          />
+          <ActionButton
+            label="Sell"
+            ariaLabel={`Sell shares of ${card.symbol}`}
+            variant="secondary"
+            size="sm"
+            grow={false}
+            onClick={(e) => actions?.onSell?.(card.symbol)}
+          />
+        </div>
       </CardActions>
     </>
   )

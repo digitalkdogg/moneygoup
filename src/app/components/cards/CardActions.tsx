@@ -54,13 +54,14 @@ const ActionButton: React.FC<ActionButtonProps> = ({ label, onClick, variant = '
 interface CardActionsProps {
   children: React.ReactNode
   compact?: boolean
-  justify?: 'start' | 'end'
+  justify?: 'start' | 'end' | 'between'
 }
 
 export const CardActions: React.FC<CardActionsProps> = ({ children, compact, justify = 'start' }) => {
+  const justifyClass = justify === 'end' ? 'justify-end' : justify === 'between' ? 'justify-between' : ''
   return (
     <div
-      className={`flex gap-2 mt-auto border-t border-gray-50 ${compact ? 'p-3' : 'p-5'} ${justify === 'end' ? 'justify-end' : ''}`}
+      className={`flex items-center gap-2 mt-auto border-t border-gray-50 ${compact ? 'p-3' : 'p-5'} ${justifyClass}`}
       onClick={(e) => e.stopPropagation()}
     >
       {children}

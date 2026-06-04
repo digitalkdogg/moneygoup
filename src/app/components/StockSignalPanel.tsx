@@ -71,6 +71,7 @@ export default function StockSignalPanel({
   const score = gpsData?.gpsScore ?? null
   const breakdown = gpsData?.gpsBreakdown ?? null
   const source = gpsData?.source ?? 'none'
+  const isBearish = breakdown != null && typeof (breakdown as any).mlpUpside === 'number' && (breakdown as any).mlpUpside < 0
 
   const sourceLabel =
     source === 'user_stock_predictions' ? 'Your prediction' :
@@ -116,6 +117,18 @@ export default function StockSignalPanel({
               </button>
             )}
           </div>
+
+          {/* Bearish warning */}
+          {isBearish && (
+            <div className="flex items-start gap-2.5 px-3.5 py-3 mb-5 rounded-xl bg-red-50 border border-red-200 text-red-700">
+              <svg className="w-4 h-4 shrink-0 mt-0.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M8 2L2 13h12L8 2z" />
+                <line x1="8" y1="6.5" x2="8" y2="9.5" />
+                <circle cx="8" cy="11.5" r="0.5" fill="currentColor" stroke="none" />
+              </svg>
+              <p className="text-sm font-medium">AI model predicts downside — the MLP signal is negative for this stock&apos;s 1-month outlook.</p>
+            </div>
+          )}
 
           {/* Top drivers */}
           {topDrivers.length > 0 && (
