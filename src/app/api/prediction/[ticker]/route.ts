@@ -96,7 +96,7 @@ export async function POST(
   }
 
   const outlook = (body.outlook || queryOutlook).toString();
-  const validOutlooks = ['1_day', '1_month', '6_month', '1_year', 'all'];
+  const validOutlooks = ['1_week', '1_month', '6_month', '1_year', 'all'];
   const validatedOutlook = validOutlooks.includes(outlook) ? outlook : 'all';
 
   if (predictionSemaphore.isFull()) {
@@ -118,11 +118,11 @@ export async function POST(
       result.predicted_price_1m = result.predicted_price_1m ?? result.predicted_price;
       result.predicted_change_pct_1m = result.predicted_change_pct_1m ?? result.predicted_change_pct;
       result.confidence_score_1m = result.confidence_score_1m ?? result.confidence_score;
-    } else if (validatedOutlook === '1_day') {
-      result.predicted_change_pct = result.predicted_change_pct ?? result.predicted_change_pct_1d;
-      result.confidence_score = result.confidence_score ?? result.confidence_score_1d;
-      result.predicted_price = result.predicted_price ?? result.predicted_price_1d;
-      result.predicted_price_1d = result.predicted_price_1d ?? result.predicted_price;
+    } else if (validatedOutlook === '1_week') {
+      result.predicted_change_pct = result.predicted_change_pct ?? result.predicted_change_pct_1w;
+      result.confidence_score = result.confidence_score ?? result.confidence_score_1w;
+      result.predicted_price = result.predicted_price ?? result.predicted_price_1w;
+      result.predicted_price_1w = result.predicted_price_1w ?? result.predicted_price;
     } else if (validatedOutlook === '6_month') {
       result.predicted_change_pct = result.predicted_change_pct ?? result.predicted_change_pct_6m;
       result.confidence_score = result.confidence_score ?? result.confidence_score_6m;

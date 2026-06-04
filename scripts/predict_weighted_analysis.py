@@ -51,7 +51,7 @@ try:
 except:
     pass
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 import numpy as np
 import pandas as pd
@@ -72,19 +72,20 @@ N_EPOCHS   = 50    # capped for speed
 BATCH_SIZE = 128   # larger batches for faster training
 MC_RUNS    = 12    # reduced for faster trajectory generation
 CACHE_DIR  = os.path.join(os.path.dirname(__file__), 'prediction_cache')
+CACHE_SCHEMA_VERSION = 2  # bump whenever output field names change
 
 
 # ============================================================================
 # CACHING HELPERS
 # ============================================================================
 def get_cache_key(ticker, historical_data):
-    """Generate a unique MD5 hash for (ticker, last_date, data_len)."""
+    """Generate a unique MD5 hash for (ticker, last_date, data_len, schema_version)."""
     if not historical_data:
         return None
     last_row = historical_data[-1]
     last_date = last_row.get('date', last_row.get('Date', ''))
     data_len = len(historical_data)
-    key_str = f"{ticker}_{last_date}_{data_len}"
+    key_str = f"{ticker}_{last_date}_{data_len}_v{CACHE_SCHEMA_VERSION}"
     return hashlib.md5(key_str.encode()).hexdigest()
 
 
@@ -306,6 +307,29 @@ FEATURE_COLUMNS = [
     'WorldBank_Inflation',
     'WorldBank_Consumption',
     'WorldBank_Real_GDP',
+    # ── Post-earnings drift (Items 02) ───────────────────────────────────────
+    'PostEarnings_DayN',
+    'PostEarnings_CumReturn',
+    'PostEarnings_VolRatio',
+    # ── EPS revision velocity (Item 03) ──────────────────────────────────────
+    'EPS_Revision_7d_0Q',
+    'EPS_Revision_7d_1Q',
+    'Revenue_Est_Growth_0Q',
+    'Revenue_Est_Growth_1Q',
+    'EPS_Rev_Up7d',
+    'EPS_Rev_Down7d',
+    # ── Analyst upgrade/downgrade recency (Item 04) ──────────────────────────
+    'Upgrade_Score_7d',
+    'Upgrade_Score_30d',
+    # ── Pre/post-market microstructure (Item 05) ─────────────────────────────
+    'PreMarket_GapPct',
+    'PostMarket_GapPct',
+    'FiftyTwoWeek_PosRatio',
+    # ── Institution ownership delta (Item 06) ────────────────────────────────
+    'Institution_PctHeld',
+    'Institution_PctDelta',
+    # ── Peer relative strength (Item 08) ─────────────────────────────────────
+    'Peer_RS_5d',
 ]
 
 
@@ -389,22 +413,46 @@ def _add_macro_features(f, date_strs, macro_data, close_s, hist_vol, stock_metri
     put_call = f.get('Put_Call_Ratio', pd.Series(np.ones(n))).fillna(1.0)
     f['PC_Skew_Proxy'] = iv_rank.values * put_call.values
 
-    # ── Earnings-window flags ────────────────────────────────────────────────
-    # Parse next earnings date from stockMetrics
-    next_earnings_str = stock_metrics.get('nextEarningsDate')
-    next_earnings_date = None
-    if next_earnings_str:
-        try:
-            next_earnings_date = datetime.fromisoformat(next_earnings_str).date()
-        except Exception:
-            pass
+    # ── Earnings-window flags (Item 01) ──────────────────────────────────────
+    next_e_str  = stock_metrics.get('nextEarningsDate')
+    last_e_str  = stock_metrics.get('lastEarningsDate')  # new field from route
 
-    # Earnings_In_Window: 1 if current date is within ±5 days of known earnings
-    # Days_Since_Last_Earnings: rolling count from historicalEarnings
-    # Days_To_Next_Earnings: days until next earnings (NaN if unknown)
-    f['Earnings_In_Window'] = 0.0
-    f['Days_Since_Last_Earnings'] = 0.0
-    f['Days_To_Next_Earnings'] = np.nan  # Keep as NaN — but don't let fillna(0) corrupt it
+    date_objs_arr = pd.to_datetime(pd.Series(date_strs).str[:10], errors='coerce')
+    today = date.today()
+
+    # Days to next earnings (vectorized)
+    if next_e_str:
+        try:
+            next_e = datetime.fromisoformat(str(next_e_str)[:10]).date()
+            days_to_next = (next_e - today).days
+            # Broadcast: shift by position relative to last row
+            last_idx = len(date_objs_arr) - 1
+            row_offsets = np.arange(len(date_objs_arr)) - last_idx  # 0 for last row
+            f['Days_To_Next_Earnings'] = (days_to_next - row_offsets).astype(float)
+        except Exception:
+            f['Days_To_Next_Earnings'] = np.nan
+    else:
+        f['Days_To_Next_Earnings'] = np.nan
+
+    # Days since last earnings (vectorized)
+    if last_e_str:
+        try:
+            last_e = datetime.fromisoformat(str(last_e_str)[:10]).date()
+            days_since_last = (today - last_e).days
+            last_idx = len(date_objs_arr) - 1
+            row_offsets = np.arange(len(date_objs_arr)) - last_idx
+            f['Days_Since_Last_Earnings'] = np.maximum(0, days_since_last + row_offsets).astype(float)
+        except Exception:
+            f['Days_Since_Last_Earnings'] = 0.0
+    else:
+        f['Days_Since_Last_Earnings'] = 0.0
+
+    # Earnings_In_Window: ±7 days of last OR next earnings
+    days_to  = f['Days_To_Next_Earnings'].values
+    days_from = f['Days_Since_Last_Earnings'].values
+    f['Earnings_In_Window'] = np.where(
+        (np.abs(days_to) <= 7) | (days_from <= 7), 1.0, 0.0
+    )
 
 
     # ── World Bank Macro (Phase 4) ───────────────────────────────────────────
@@ -721,7 +769,79 @@ def _calculate_features_internal(df, stock_metrics, macro_data, news_sentiment, 
     f['RollingSharpe_20d'] = (ret20.mean() / (ret20.std() + 1e-9)).values
 
     # Phase 1 Macro
+    # Inject lastEarningsDate into stock_metrics for _add_macro_features
+    if feature_metrics and 'lastEarningsDate' in feature_metrics:
+        stock_metrics = dict(stock_metrics)  # don't mutate caller's dict
+        stock_metrics['lastEarningsDate'] = feature_metrics.get('lastEarningsDate')
+
     f = _add_macro_features(f, date_strs, macro_data, close_s, f['HistVol_30'].values, stock_metrics)
+
+    # ── Item 02: Post-earnings drift counter + cum return + vol ratio ─────────
+    earnings_hist = (feature_metrics or {}).get('earningsDateHistory', [])
+    earnings_dates_list = []
+    for e in earnings_hist:
+        try:
+            if e.get('date'):
+                earnings_dates_list.append(datetime.fromisoformat(str(e['date'])[:10]).date())
+        except Exception:
+            pass
+    earnings_dates_list.sort()
+
+    date_arr = pd.to_datetime(df['Date']).dt.date.values if 'Date' in df.columns else []
+    n_rows = len(df)
+    post_day_n    = np.zeros(n_rows, dtype=float)
+    cum_ret_arr   = np.zeros(n_rows, dtype=float)
+    vol_ratio_arr = np.ones(n_rows, dtype=float)
+
+    if earnings_dates_list and len(date_arr) > 0:
+        for i, d in enumerate(date_arr):
+            # Most recent earnings date on or before d
+            past = [(d - e).days for e in earnings_dates_list if d >= e]
+            if past:
+                day_n = min(min(past), 21)
+                post_day_n[i] = day_n
+
+                if day_n < 21:
+                    # Index of the earnings date in historical data
+                    earn_date = earnings_dates_list[
+                        next(j for j, e in enumerate(earnings_dates_list) if (d - e).days == min(past))
+                    ]
+                    earn_idx = np.searchsorted(date_arr, earn_date)
+                    earn_close = close[earn_idx] if earn_idx < len(close) else close[i]
+                    cum_ret_arr[i] = (close[i] - earn_close) / (earn_close + 1e-9)
+
+                    pre_vol  = volume[max(0, earn_idx - 20):earn_idx].mean() if earn_idx > 0 else volume[i]
+                    post_vol = volume[earn_idx:i + 1].mean() if i > earn_idx else volume[i]
+                    vol_ratio_arr[i] = post_vol / (pre_vol + 1e-9)
+
+    f['PostEarnings_DayN']    = post_day_n
+    f['PostEarnings_CumReturn'] = cum_ret_arr
+    f['PostEarnings_VolRatio']  = np.clip(vol_ratio_arr, 0.1, 10.0)
+
+    # ── Item 03: EPS revision velocity (scalar broadcast) ──────────────────
+    fm = feature_metrics or {}
+    f['EPS_Revision_7d_0Q']    = float(fm.get('epsRevision7d_0Q')   or 0.0)
+    f['EPS_Revision_7d_1Q']    = float(fm.get('epsRevision7d_1Q')   or 0.0)
+    f['Revenue_Est_Growth_0Q'] = float(fm.get('revenueEstGrowth_0Q') or 0.0)
+    f['Revenue_Est_Growth_1Q'] = float(fm.get('revenueEstGrowth_1Q') or 0.0)
+    f['EPS_Rev_Up7d']          = float(fm.get('epsRevisionsUp7d')   or 0.0)
+    f['EPS_Rev_Down7d']        = float(fm.get('epsRevisionsDown7d') or 0.0)
+
+    # ── Item 04: Analyst upgrade/downgrade recency (scalar broadcast) ───────
+    f['Upgrade_Score_7d']  = float(fm.get('upgradeScore7d')  or 0.0)
+    f['Upgrade_Score_30d'] = float(fm.get('upgradeScore30d') or 0.0)
+
+    # ── Item 05: Pre/post-market microstructure (scalar, most recent row) ───
+    f['PreMarket_GapPct']      = float(fm.get('preMarketChangePct')   or 0.0)
+    f['PostMarket_GapPct']     = float(fm.get('postMarketChangePct')  or 0.0)
+    f['FiftyTwoWeek_PosRatio'] = float(fm.get('fiftyTwoWeekPosRatio') or 0.5)
+
+    # ── Item 06: Institution ownership (scalar broadcast) ───────────────────
+    f['Institution_PctHeld']  = float(fm.get('instPctHeld')  or 0.0)
+    f['Institution_PctDelta'] = float(fm.get('instPctDelta') or 0.0)
+
+    # ── Item 08: Peer relative strength (scalar broadcast) ──────────────────
+    f['Peer_RS_5d'] = float(fm.get('peerRS5d') or 0.0)
 
     # Reorder and fill
     f = f[FEATURE_COLUMNS]
@@ -813,24 +933,26 @@ def select_regime_k(market_vec, min_state_frac=0.15, max_flip_rate=0.30):
     return best_k, best_model, scaler
 
 
-def make_sequences(scaled, targets_6m, targets_1y):
+def make_sequences(scaled, targets_1d, targets_1w, targets_6m, targets_1y):
     """
-    Build (X, y) sequences of length SEQ_LEN, vectorized using NumPy.
-    Matches original logic: n_samples = len(scaled) - SEQ_LEN.
+    Build (X, y) sequences of length SEQ_LEN.
+    Y columns: [p1d, p1w, p6m, p1y]
     """
     n_samples = len(scaled) - SEQ_LEN
     if n_samples <= 0:
         return np.array([], dtype=np.float32), np.array([], dtype=np.float32)
-    
-    # Vectorized sliding window for X
-    # We take all but the last row for windows to match targets[SEQ_LEN:]
+
     from numpy.lib.stride_tricks import sliding_window_view
     X = sliding_window_view(scaled[:-1], (SEQ_LEN, scaled.shape[1])).squeeze(1)
     X = X.reshape(n_samples, -1)
-    
-    # Targets for the end of each sequence (from row SEQ_LEN to end)
-    Y = np.column_stack([targets_6m[SEQ_LEN:], targets_1y[SEQ_LEN:]])
-    
+
+    Y = np.column_stack([
+        targets_1d[SEQ_LEN:],
+        targets_1w[SEQ_LEN:],
+        targets_6m[SEQ_LEN:],
+        targets_1y[SEQ_LEN:],
+    ])
+
     return X.astype(np.float32), Y.astype(np.float32)
 
 
@@ -1229,13 +1351,19 @@ def predict(ticker, input_data):
     # Use scaled close values as regression targets
     scaled_close = scaled[:, close_col_idx]
 
+    T1  = 1    # 1 trading day
+    T5  = 5    # 1 trading week
+    targets_1d  = np.zeros(len(scaled))
+    targets_1w  = np.zeros(len(scaled))
     targets_6m  = np.zeros(len(scaled))
     targets_1y  = np.zeros(len(scaled))
     for i in range(len(scaled)):
+        targets_1d[i]  = scaled_close[min(i + T1,  len(scaled) - 1)]
+        targets_1w[i]  = scaled_close[min(i + T5,  len(scaled) - 1)]
         targets_6m[i]  = scaled_close[min(i + T6,  len(scaled) - 1)]
         targets_1y[i]  = scaled_close[min(i + T12, len(scaled) - 1)]
 
-    X, Y = make_sequences(scaled, targets_6m, targets_1y)
+    X, Y = make_sequences(scaled, targets_1d, targets_1w, targets_6m, targets_1y)
 
     if len(X) < 50:
         raise ValueError("Not enough sequences for training.")
@@ -1254,11 +1382,11 @@ def predict(ticker, input_data):
     if len(X_hold) > 0:
         hold_pred = model.predict(X_hold)
         dummy_pred = np.zeros((len(hold_pred), n_features), dtype=np.float32)
-        dummy_pred[:, close_col_idx] = hold_pred[:, 0]
+        dummy_pred[:, close_col_idx] = hold_pred[:, 2]
         pred_prices_hold = scaler.inverse_transform(dummy_pred)[:, close_col_idx]
 
         dummy_act = np.zeros((len(Y_hold), n_features), dtype=np.float32)
-        dummy_act[:, close_col_idx] = Y_hold[:, 0]
+        dummy_act[:, close_col_idx] = Y_hold[:, 2]
         actual_prices_hold = scaler.inverse_transform(dummy_act)[:, close_col_idx]
 
         cv_mae = float(mean_absolute_error(actual_prices_hold, pred_prices_hold))
@@ -1284,18 +1412,36 @@ def predict(ticker, input_data):
 
     # ---- Deterministic 6m / 12m predictions ----
     last_seq = scaled[-SEQ_LEN:].flatten().reshape(1, -1)
-    pred_scaled = model.predict(last_seq)[0]  # [p6m, p1y]
+    pred_scaled = model.predict(last_seq)[0]  # [p1d, p1w, p6m, p1y]
 
     def inverse_close(scaled_val):
         dummy = np.zeros((1, n_features), dtype=np.float32)
         dummy[0, close_col_idx] = float(scaled_val)
         return float(scaler.inverse_transform(dummy)[0, close_col_idx])
 
-    predicted_price_6m = inverse_close(pred_scaled[0]) * impact_multiplier
-    predicted_price_1y = inverse_close(pred_scaled[1]) * impact_multiplier
+    predicted_price_6m = inverse_close(pred_scaled[2]) * impact_multiplier
+    predicted_price_1y = inverse_close(pred_scaled[3]) * impact_multiplier
+
+    # ---- 1-week prediction: blend MLP T+5 output with trajectory anchor ----
+    # The T+5 MLP head is noisy (5-day returns are ~90% noise; joint training with
+    # 6m/1y targets leaves the T+5 head under-trained). We blend it 30/70 with the
+    # trajectory interpolation and hard-cap at ±2×ATR to prevent extreme swings.
+    _mlp_1w_raw = inverse_close(pred_scaled[1]) * impact_multiplier
+    _traj_anchor_1w = current_price + (predicted_price_6m - current_price) * (T5 / T6)
+    _blended_1w = 0.30 * _mlp_1w_raw + 0.70 * _traj_anchor_1w
+
+    # ATR-based cap: weekly move cannot exceed 2× the 14-day ATR
+    _atr_1w = float(feat_df['ATR_14'].iloc[-1]) if 'ATR_14' in feat_df.columns else current_price * 0.02
+    _max_move_1w = 2.0 * _atr_1w * np.sqrt(5)   # scale daily ATR to 5 days
+    predicted_price_1w = float(np.clip(
+        _blended_1w,
+        current_price - _max_move_1w,
+        current_price + _max_move_1w,
+    ))
 
     # ---- Monte Carlo Dropout — 18-month trajectory ----
-    WAYPOINTS = list(range(21, 379, 21))  # t+21, t+42, ... t+378 (18 months)
+    # t+5 (1 week) is prepended so it appears as the first chart point
+    WAYPOINTS = [T5] + list(range(21, 379, 21))  # t+5, t+21, t+42, ... t+378
 
     # Batched MC uncertainty
     feature_stds = scaled[-20:].std(axis=0)
@@ -1310,42 +1456,43 @@ def predict(ticker, input_data):
 
     # Batch inverse transform
     dummy_mc = np.zeros((MC_RUNS, n_features), dtype=np.float32)
-    dummy_mc[:, close_col_idx] = mc_preds[:, 0]
+    dummy_mc[:, close_col_idx] = mc_preds[:, 2]
     mc_6m = scaler.inverse_transform(dummy_mc)[:, close_col_idx] * impact_multiplier
-    
-    dummy_mc[:, close_col_idx] = mc_preds[:, 1]
+
+    dummy_mc[:, close_col_idx] = mc_preds[:, 3]
     mc_12m = scaler.inverse_transform(dummy_mc)[:, close_col_idx] * impact_multiplier
 
-    # Build trajectory: interpolate across 18 waypoints
-    # Anchors: t=0 → current_price, t=126 → mean(mc_6m), t=252 → mean(mc_12m), t=378 → extrapolate
-    p6m_mean  = float(mc_6m.mean())
-    p12m_mean = float(mc_12m.mean())
-    p18m_est  = p12m_mean + (p12m_mean - p6m_mean)   # simple linear extrapolation
-
-    # Spread scales with horizon
+    # Spread from MC (uncertainty bands only — midpoints use deterministic predictions)
     spread_6m  = float(np.percentile(mc_6m,  90) - np.percentile(mc_6m,  10))
     spread_12m = float(np.percentile(mc_12m, 90) - np.percentile(mc_12m, 10))
-    spread_18m = spread_12m * 1.5  # wider for 18m
+    spread_18m = spread_12m * 1.5
+
+    # 18m extrapolation beyond 12m anchor
+    p18m_est = predicted_price_1y + (predicted_price_1y - predicted_price_6m)
 
     trajectory = []
     last_date_str = str(df['Date'].iloc[-1]) if 'Date' in df.columns else datetime.today().strftime('%Y-%m-%d')
     last_date = datetime.strptime(last_date_str[:10], '%Y-%m-%d')
 
     for idx, td in enumerate(WAYPOINTS):
-        frac6m  = min(td / T6,  1.0)
-        frac12m = min(td / T12, 1.0)
-        frac18m = td / T18
-
-        if td <= T6:
-            mid    = current_price + (p6m_mean  - current_price) * frac6m
-            spread = spread_6m  * frac6m
+        if td == T5:
+            # 1-week: exact MLP T+5 output
+            mid    = predicted_price_1w
+            spread = spread_6m * (T5 / T6)
+        elif td <= T6:
+            # 1w → 6m segment: interpolate toward predicted_price_6m
+            t      = (td - T5) / (T6 - T5)
+            mid    = predicted_price_1w + (predicted_price_6m - predicted_price_1w) * t
+            spread = spread_6m * (td / T6)
         elif td <= T12:
-            t = (td - T6) / (T12 - T6)
-            mid    = p6m_mean + (p12m_mean - p6m_mean) * t
+            # 6m → 12m segment: interpolate toward predicted_price_1y
+            t      = (td - T6) / (T12 - T6)
+            mid    = predicted_price_6m + (predicted_price_1y - predicted_price_6m) * t
             spread = spread_6m + (spread_12m - spread_6m) * t
         else:
-            t = (td - T12) / (T18 - T12)
-            mid    = p12m_mean + (p18m_est - p12m_mean) * t
+            # 12m → 18m: linear extrapolation
+            t      = (td - T12) / (T18 - T12)
+            mid    = predicted_price_1y + (p18m_est - predicted_price_1y) * t
             spread = spread_12m + (spread_18m - spread_12m) * t
 
         # Calendar month label
@@ -1382,19 +1529,15 @@ def predict(ticker, input_data):
     high_uncertainty = abs(predicted_price_1y - current_price) / (current_price + 1e-9) > 0.60
 
     # ---- 6m trajectory bounds (for backward compat predicted_change_range) ----
-    traj_6m = trajectory[5]   # index 5 = waypoint 126 (6 months)
+    traj_6m = trajectory[6]   # index 6 = waypoint 126 (6 months), shifted +1 by t+5 prepend
     prange_low  = round(traj_6m['lower_bound'] - current_price, 2)
     prange_high = round(traj_6m['upper_bound']  - current_price, 2)
 
-    # ---- 1d trajectory point (interpolated from initial movement toward 6m) ----
-    frac_1d = 1.0 / T6  # 1 trading day out of ~126 trading days to 6 months
-    base_1d_return = (p6m_mean - current_price) / (current_price + 1e-9)
-    # CORRECTED: 1-day prediction is now an interpolation, not the full 6m target
-    predicted_price_1d = current_price * (1.0 + base_1d_return * frac_1d)
-    spread_1d = spread_6m * frac_1d
+    # 1w spread (already set above; compute here for the range field)
+    spread_1w = spread_6m * (T5 / T6)
 
-    # ---- 1m trajectory point (index 0 = waypoint t+21 ≈ 1 month) ----
-    traj_1m = trajectory[0]   # index 0 = waypoint 21 trading days (~1 month)
+    # ---- 1m trajectory point (index 1 = waypoint t+21 ≈ 1 month), shifted +1 by t+5 prepend ----
+    traj_1m = trajectory[1]
 
     predicted_price_1m = traj_1m['predicted_price']
     pct_1m = round((predicted_price_1m - current_price) / (current_price + 1e-9) * 100, 2)
@@ -1415,9 +1558,9 @@ def predict(ticker, input_data):
     else:
         cs1m = min(100, cs6m + 10)  # standard: tighter horizon = slight confidence boost
 
-    # ---- 1d metrics ----
-    pct_1d = round((predicted_price_1d - current_price) / (current_price + 1e-9) * 100, 2)
-    cs1d = min(100, cs1m + 5)  # 1d is even tighter → highest confidence
+    # ---- 1w metrics ----
+    pct_1w = round((predicted_price_1w - current_price) / (current_price + 1e-9) * 100, 2)
+    cs1w = min(100, cs1m + 3)  # 1w is tighter than 1m but less certain than 1d was
 
     pct_6m  = round((predicted_price_6m  - current_price) / (current_price + 1e-9) * 100, 2)
     pct_12m = round((predicted_price_1y  - current_price) / (current_price + 1e-9) * 100, 2)
@@ -1425,12 +1568,11 @@ def predict(ticker, input_data):
     result = {
         "ticker":                str(ticker).upper().strip(),
         "regularMarketPrice":    round(current_price, 2),
-        # 1-day short-term
-        "predicted_price_1d":      round(predicted_price_1d, 2),
-        "predicted_change_pct_1d": pct_1d,
-        "confidence_score_1d":     cs1d,
-        "predicted_range_1d":      [round(predicted_price_1d - spread_1d / 2, 2), round(predicted_price_1d + spread_1d / 2, 2)],
-        # short_term_signal_breakdown removed
+        # 1-week short-term (direct T+5 MLP output)
+        "predicted_price_1w":      round(predicted_price_1w, 2),
+        "predicted_change_pct_1w": pct_1w,
+        "confidence_score_1w":     cs1w,
+        "predicted_range_1w":      [round(predicted_price_1w - spread_1w / 2, 2), round(predicted_price_1w + spread_1w / 2, 2)],
         # Dual-horizon
         "predicted_price_6m":   round(predicted_price_6m, 2),
         "predicted_price_1y":   round(predicted_price_1y, 2),
@@ -1482,7 +1624,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='MLP Stock Price Prediction')
     parser.add_argument('ticker',       type=str, help='Stock ticker symbol')
     parser.add_argument('--input_file', type=str, required=True, help='Path to JSON input file')
-    parser.add_argument('--outlook',    type=str, default='all', choices=['1_day', '1_month', '6_month', '1_year', 'all'], help='Prediction outlook')
+    parser.add_argument('--outlook',    type=str, default='all', choices=['1_week', '1_month', '6_month', '1_year', 'all'], help='Prediction outlook')
     args = parser.parse_args()
 
     try:
@@ -1511,12 +1653,12 @@ if __name__ == '__main__':
                 "regime_info": result["regime_info"]
             }
 
-            if args.outlook == '1_day':
+            if args.outlook == '1_week':
                 filtered.update({
-                    "predicted_price": result["predicted_price_1d"],
-                    "predicted_change_pct": result["predicted_change_pct_1d"],
-                    "confidence_score": result["confidence_score_1d"],
-                    "predicted_range": result["predicted_range_1d"]
+                    "predicted_price": result["predicted_price_1w"],
+                    "predicted_change_pct": result["predicted_change_pct_1w"],
+                    "confidence_score": result["confidence_score_1w"],
+                    "predicted_range": result["predicted_range_1w"]
                 })
             elif args.outlook == '1_month':
                 filtered.update({

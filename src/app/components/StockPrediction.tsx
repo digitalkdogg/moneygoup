@@ -54,21 +54,21 @@ interface TrajectoryPoint {
 interface PredictionResult {
   ticker: string
   regularMarketPrice: number
-  predicted_price_1d: number
+  predicted_price_1w: number
   predicted_price_1m: number
   predicted_price_6m: number
   predicted_price_1y: number
-  predicted_change_pct_1d: number
+  predicted_change_pct_1w: number
   predicted_change_pct_1m: number
   predicted_change_pct_6m: number
   predicted_change_pct_1y: number
-  confidence_score_1d: number
+  confidence_score_1w: number
   confidence_score_1m: number
   confidence_score_6m: number
   confidence_score_1y: number
   high_uncertainty: boolean
   predicted_change_range: [number, number]
-  predicted_range_1d?: [number, number]
+  predicted_range_1w?: [number, number]
   monthly_trajectory: TrajectoryPoint[]
   accuracy_metrics: {
     model?: { mae: number; rmse: number; cv_mae?: number }
@@ -169,6 +169,8 @@ function ConfidenceBadge({ score }: { score: number }) {
 // ---------------------------------------------------------------------------
 // SVG Trajectory Chart
 // ---------------------------------------------------------------------------
+type TooltipState = { x: number; y: number; label: string; price: number; pct: number | null } | null
+
 function TrajectoryChart({
   trajectory,
   currentPrice,
@@ -176,7 +178,13 @@ function TrajectoryChart({
   trajectory: TrajectoryPoint[]
   currentPrice: number
 }) {
+  const [tooltip, setTooltip] = useState<TooltipState>(null)
+
   if (!trajectory || trajectory.length === 0) return null
+
+  // Prepend current price as t=0 anchor so the line starts from "now"
+  const nowPoint: TrajectoryPoint = { month: 'Now', predicted_price: currentPrice, lower_bound: currentPrice, upper_bound: currentPrice }
+  const pts = [nowPoint, ...trajectory]
 
   const W = 700
   const H = 260
@@ -186,37 +194,41 @@ function TrajectoryChart({
 
   const allPrices = [
     currentPrice,
-    ...trajectory.map(t => t.predicted_price),
-    ...trajectory.map(t => t.lower_bound),
-    ...trajectory.map(t => t.upper_bound),
+    ...pts.map(t => t.predicted_price),
+    ...pts.map(t => t.lower_bound),
+    ...pts.map(t => t.upper_bound),
   ]
   const minP = Math.min(...allPrices) * 0.98
   const maxP = Math.max(...allPrices) * 1.02
 
-  const xScale = (i: number) => PAD.left + (i / (trajectory.length - 1)) * chartW
+  const xScale = (i: number) => PAD.left + (i / (pts.length - 1)) * chartW
   const yScale = (p: number) => PAD.top + chartH - ((p - minP) / (maxP - minP)) * chartH
 
-  const linePath = trajectory
+  const linePath = pts
     .map((t, i) => `${i === 0 ? 'M' : 'L'} ${xScale(i).toFixed(1)} ${yScale(t.predicted_price).toFixed(1)}`)
     .join(' ')
 
   const bandPath =
-    trajectory.map((t, i) => `${i === 0 ? 'M' : 'L'} ${xScale(i).toFixed(1)} ${yScale(t.upper_bound).toFixed(1)}`).join(' ') +
+    pts.map((t, i) => `${i === 0 ? 'M' : 'L'} ${xScale(i).toFixed(1)} ${yScale(t.upper_bound).toFixed(1)}`).join(' ') +
     ' ' +
-    trajectory.map((t, i) => `L ${xScale(trajectory.length - 1 - i).toFixed(1)} ${yScale(trajectory[trajectory.length - 1 - i].lower_bound).toFixed(1)}`).join(' ') +
+    pts.map((t, i) => `L ${xScale(pts.length - 1 - i).toFixed(1)} ${yScale(pts[pts.length - 1 - i].lower_bound).toFixed(1)}`).join(' ') +
     ' Z'
 
   const currentY  = yScale(currentPrice)
-  const dividerX  = xScale(5)  // between month 6 and 7 (index 5 = 6th point)
-  const m6Idx     = 5
-  const m12Idx    = 11
+  // Indexes shift +1 because pts[0] is now the "Now" anchor
+  const m1wIdx    = 1   // t+5  (1 week)
+  const m1Idx     = 2   // t+21 (1 month)
+  const m6Idx     = 7   // t+126 (6 months)
+  const m12Idx    = 13  // t+252 (12 months)
+  const dividerX  = xScale(m6Idx)
+  const m1wX      = xScale(m1wIdx)
+  const m1wY      = yScale(pts[m1wIdx]?.predicted_price ?? currentPrice)
   const m6X       = xScale(m6Idx)
   const m12X      = xScale(m12Idx)
-  const m6Y       = yScale(trajectory[m6Idx]?.predicted_price ?? currentPrice)
-  const m12Y      = yScale(trajectory[m12Idx]?.predicted_price ?? currentPrice)
-  const m1Idx     = 0   
+  const m6Y       = yScale(pts[m6Idx]?.predicted_price ?? currentPrice)
+  const m12Y      = yScale(pts[m12Idx]?.predicted_price ?? currentPrice)
   const m1X       = xScale(m1Idx)
-  const m1Y       = yScale(trajectory[m1Idx]?.predicted_price ?? currentPrice)
+  const m1Y       = yScale(pts[m1Idx]?.predicted_price ?? currentPrice)
 
   const yTicks = Array.from({ length: 4 }, (_, i) => minP + (i / 3) * (maxP - minP))
 
@@ -232,13 +244,12 @@ function TrajectoryChart({
         {/* Confidence band */}
         <path d={bandPath} fill="#2563EB" fillOpacity="0.10" clipPath="url(#chart-clip)" />
 
-        {/* Current price dashed line */}
+        {/* Current price reference line */}
         <line
           x1={PAD.left} x2={PAD.left + chartW}
           y1={currentY}  y2={currentY}
           stroke="#9CA3AF" strokeWidth="1" strokeDasharray="5 3"
         />
-        <text x={PAD.left + 11} y={currentY - 4} fontSize="10" fill="#6B7280">Current</text>
 
         {/* Month-6 divider */}
         <line
@@ -252,14 +263,33 @@ function TrajectoryChart({
         {/* Price line */}
         <path d={linePath} fill="none" stroke="#2563EB" strokeWidth="2" clipPath="url(#chart-clip)" />
 
-        {/* Month 1 dot */}
-        <circle cx={m1X} cy={m1Y} r="5" fill="#2563EB" stroke="#2826b1c4" />
+        {/* 1-week dot */}
+        <circle
+          cx={m1wX} cy={m1wY} r="6" fill="#2563EB" stroke="#1d4ed8" style={{ cursor: 'pointer' }}
+          onMouseEnter={() => { const p = pts[m1wIdx]?.predicted_price ?? currentPrice; setTooltip({ x: m1wX, y: m1wY, label: '1 Week', price: p, pct: (p - currentPrice) / currentPrice * 100 }) }}
+          onMouseLeave={() => setTooltip(null)}
+        />
 
-        {/* Month 6 dot */}
-        <circle cx={m6X} cy={m6Y} r="5" fill="#2563EB" stroke = "#2826b1c4" />
+        {/* 1-month dot */}
+        <circle
+          cx={m1X} cy={m1Y} r="6" fill="#2563EB" stroke="#1d4ed8" style={{ cursor: 'pointer' }}
+          onMouseEnter={() => { const p = pts[m1Idx]?.predicted_price ?? currentPrice; setTooltip({ x: m1X, y: m1Y, label: '1 Month', price: p, pct: (p - currentPrice) / currentPrice * 100 }) }}
+          onMouseLeave={() => setTooltip(null)}
+        />
 
-        {/* Month 12 dot */}
-        <circle cx={m12X} cy={m12Y} r="5" fill="#2563EB" stroke = "#2826b1c4" />
+        {/* 6-month dot */}
+        <circle
+          cx={m6X} cy={m6Y} r="6" fill="#2563EB" stroke="#1d4ed8" style={{ cursor: 'pointer' }}
+          onMouseEnter={() => { const p = pts[m6Idx]?.predicted_price ?? currentPrice; setTooltip({ x: m6X, y: m6Y, label: '6 Months', price: p, pct: (p - currentPrice) / currentPrice * 100 }) }}
+          onMouseLeave={() => setTooltip(null)}
+        />
+
+        {/* 12-month dot */}
+        <circle
+          cx={m12X} cy={m12Y} r="6" fill="#2563EB" stroke="#1d4ed8" style={{ cursor: 'pointer' }}
+          onMouseEnter={() => { const p = pts[m12Idx]?.predicted_price ?? currentPrice; setTooltip({ x: m12X, y: m12Y, label: '12 Months', price: p, pct: (p - currentPrice) / currentPrice * 100 }) }}
+          onMouseLeave={() => setTooltip(null)}
+        />
 
         {/* Y-axis ticks */}
         {yTicks.map((p, i) => (
@@ -271,9 +301,16 @@ function TrajectoryChart({
           </g>
         ))}
 
-        {/* X-axis labels — every 3rd */}
-        {trajectory.map((t, i) => {
-          if (i % 3 !== 0) return null
+        {/* "Now" dot at t=0 */}
+        <circle
+          cx={xScale(0)} cy={currentY} r="6" fill="#6B7280" stroke="#4B5563" style={{ cursor: 'pointer' }}
+          onMouseEnter={() => setTooltip({ x: xScale(0), y: currentY, label: 'Current Price', price: currentPrice, pct: null })}
+          onMouseLeave={() => setTooltip(null)}
+        />
+
+        {/* X-axis labels — "Now" + every 3rd forecast point */}
+        {pts.map((t, i) => {
+          if (i !== 0 && i % 3 !== 1) return null  // show "Now" (0) and every 3rd thereafter
           return (
             <text
               key={i}
@@ -288,6 +325,34 @@ function TrajectoryChart({
         {/* Axes */}
         <line x1={PAD.left} x2={PAD.left}           y1={PAD.top} y2={PAD.top + chartH} stroke="#D1D5DB" />
         <line x1={PAD.left} x2={PAD.left + chartW}  y1={PAD.top + chartH} y2={PAD.top + chartH} stroke="#D1D5DB" />
+
+        {/* Hover tooltip */}
+        {tooltip && (() => {
+          const TW = 128, TH = tooltip.pct !== null ? 58 : 42, TR = 5
+          const flipLeft = tooltip.x + TW + 12 > W
+          const tx = flipLeft ? tooltip.x - TW - 10 : tooltip.x + 10
+          const ty = Math.max(PAD.top, Math.min(tooltip.y - TH / 2, PAD.top + chartH - TH))
+          const pctStr = tooltip.pct !== null
+            ? `${tooltip.pct >= 0 ? '+' : ''}${tooltip.pct.toFixed(2)}%`
+            : null
+          const pctColor = (tooltip.pct ?? 0) >= 0 ? '#4ade80' : '#f87171'
+          return (
+            <g pointerEvents="none">
+              <rect x={tx} y={ty} width={TW} height={TH} rx={TR} ry={TR} fill="#1e293b" opacity="0.92" />
+              <text x={tx + TW / 2} y={ty + 14} fontSize="10" fill="#94a3b8" textAnchor="middle">
+                {tooltip.label}
+              </text>
+              <text x={tx + TW / 2} y={ty + 30} fontSize="13" fill="#f1f5f9" fontWeight="600" textAnchor="middle">
+                {formatCurrency(tooltip.price)}
+              </text>
+              {pctStr && (
+                <text x={tx + TW / 2} y={ty + 47} fontSize="11" fill={pctColor} textAnchor="middle">
+                  {pctStr}
+                </text>
+              )}
+            </g>
+          )
+        })()}
       </svg>
     </div>
   )
@@ -322,11 +387,10 @@ export default function StockPrediction({
   const [error, setError]             = useState<string | null>(null)
   const [showMetrics, setShowMetrics] = useState(false)
   const [bannerDismissed, setBannerDismissed] = useState(false)
-
   const loading = step === 'fetching' || step === 'predicting'
   const TitleTag = titleLevel;
 
-  const generate = async () => {
+  const generate = async (refresh = false) => {
     setError(null)
     setPrediction(null)
     setDataQuality(null)
@@ -364,7 +428,7 @@ export default function StockPrediction({
             : (historicalEarnings ?? []),
       }
 
-      const res = await fetch(`/api/prediction/${ticker}`, {
+      const res = await fetch(`/api/prediction/${ticker}${refresh ? '?refresh=true' : ''}`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify(payload),
@@ -417,7 +481,7 @@ export default function StockPrediction({
         <>
           <TitleTag className="text-2xl font-semibold text-gray-800 mb-4">📊 AI-Powered Price Prediction</TitleTag>
           <p className="text-gray-600 mb-4">
-            Click the button to generate 1-day, 1-month, 6-month and 12-month price predictions for {ticker} using an MLP neural network.
+            Click the button to generate 1-week, 1-month, 6-month and 12-month price predictions for {ticker} using an MLP neural network.
           </p>
         </>
       )}
@@ -438,15 +502,25 @@ export default function StockPrediction({
       )}
 
       {!embedded && (
-        <button
-          onClick={generate}
-          disabled={loading}
-          className={`text-white py-2 px-5 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-wait ${
-            loading ? 'bg-gray-400' : 'bg-[#017e3b] hover:opacity-90'
-          }`}
-        >
-          {btnLabel}
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => generate()}
+            disabled={loading}
+            className={`text-white py-2 px-5 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-wait ${
+              loading ? 'bg-gray-400' : 'bg-[#017e3b] hover:opacity-90'
+            }`}
+          >
+            {btnLabel}
+          </button>
+          {prediction && !loading && (
+            <button
+              onClick={() => generate(true)}
+              className="text-xs text-gray-500 hover:text-gray-700 underline underline-offset-2"
+            >
+              ↺ Recalculate (skip cache)
+            </button>
+          )}
+        </div>
       )}
 
       {error && <p className="text-red-500 mt-4 text-sm">{error}</p>}
@@ -472,22 +546,22 @@ export default function StockPrediction({
 
           {/* ---- four-horizon headline cards ---- */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            {/* 1-day card */}
+            {/* 1-week card */}
             <div className="p-5 bg-purple-50 rounded-xl border border-purple-200">
-              <p className="text-xs font-semibold text-purple-600 uppercase tracking-wide mb-2">1-Day Price Target</p>
+              <p className="text-xs font-semibold text-purple-600 uppercase tracking-wide mb-2">1-Week Price Target</p>
               <p className="text-3xl font-bold text-purple-800 mb-1">
-                {formatCurrency(prediction.predicted_price_1d)}
+                {formatCurrency(prediction.predicted_price_1w)}
               </p>
-              <p 
-                className={`text-sm font-semibold mb-3 ${prediction.predicted_change_pct_1d < 0 ? 'text-red-600' : ''}`}
-                style={prediction.predicted_change_pct_1d >= 0 ? { color: "#005a00" } : {}}
+              <p
+                className={`text-sm font-semibold mb-3 ${prediction.predicted_change_pct_1w < 0 ? 'text-red-600' : ''}`}
+                style={prediction.predicted_change_pct_1w >= 0 ? { color: "#005a00" } : {}}
               >
-                {prediction.predicted_change_pct_1d >= 0 ? '+' : ''}{formatNumber(prediction.predicted_change_pct_1d, 2)}% from current
+                {prediction.predicted_change_pct_1w >= 0 ? '+' : ''}{formatNumber(prediction.predicted_change_pct_1w, 2)}% from current
               </p>
-              <ConfidenceBadgeBlue score={prediction.confidence_score_1d} />
-              {prediction.predicted_range_1d && (
+              <ConfidenceBadgeBlue score={prediction.confidence_score_1w} />
+              {prediction.predicted_range_1w && (
                 <p className="text-xs text-purple-600 mt-3">
-                  Range: {formatCurrency(prediction.predicted_range_1d[0])} – {formatCurrency(prediction.predicted_range_1d[1])}
+                  Range: {formatCurrency(prediction.predicted_range_1w[0])} – {formatCurrency(prediction.predicted_range_1w[1])}
                 </p>
               )}
             </div>
@@ -505,9 +579,9 @@ export default function StockPrediction({
                 {prediction.predicted_change_pct_1m >= 0 ? '+' : ''}{formatNumber(prediction.predicted_change_pct_1m, 2)}% from current
               </p>
               <ConfidenceBadgeBlue score={prediction.confidence_score_1m} />
-              {prediction.monthly_trajectory?.[0] && (
+              {prediction.monthly_trajectory?.[1] && (
                 <p className="text-xs text-blue-600 mt-3">
-                  Range: {formatCurrency(prediction.monthly_trajectory[0].lower_bound)} – {formatCurrency(prediction.monthly_trajectory[0].upper_bound)}
+                  Range: {formatCurrency(prediction.monthly_trajectory[1].lower_bound)} – {formatCurrency(prediction.monthly_trajectory[1].upper_bound)}
                 </p>
               )}
             </div>
@@ -525,9 +599,9 @@ export default function StockPrediction({
                 {prediction.predicted_change_pct_6m >= 0 ? '+' : ''}{formatNumber(prediction.predicted_change_pct_6m, 2)}% from current
               </p>
               <ConfidenceBadge score={prediction.confidence_score_6m} />
-              {prediction.monthly_trajectory?.[5] && (
+              {prediction.monthly_trajectory?.[6] && (
                 <p className="text-xs text-green-700 mt-3">
-                  Range: {formatCurrency(prediction.monthly_trajectory[5].lower_bound)} – {formatCurrency(prediction.monthly_trajectory[5].upper_bound)}
+                  Range: {formatCurrency(prediction.monthly_trajectory[6].lower_bound)} – {formatCurrency(prediction.monthly_trajectory[6].upper_bound)}
                 </p>
               )}
             </div>
@@ -545,9 +619,9 @@ export default function StockPrediction({
                 {prediction.predicted_change_pct_1y >= 0 ? '+' : ''}{formatNumber(prediction.predicted_change_pct_1y, 2)}% from current
               </p>
               <ConfidenceBadge score={prediction.confidence_score_1y} />
-              {prediction.monthly_trajectory?.[11] && (
+              {prediction.monthly_trajectory?.[12] && (
                 <p className="text-xs text-green-800 mt-3">
-                  Range: {formatCurrency(prediction.monthly_trajectory[11].lower_bound)} – {formatCurrency(prediction.monthly_trajectory[11].upper_bound)}
+                  Range: {formatCurrency(prediction.monthly_trajectory[12].lower_bound)} – {formatCurrency(prediction.monthly_trajectory[12].upper_bound)}
                 </p>
               )}
               <p className="text-xs text-gray-800 mt-2 italic">Wider uncertainty — treat as <br />directional guidance</p>

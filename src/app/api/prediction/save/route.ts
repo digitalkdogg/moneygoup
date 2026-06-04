@@ -16,7 +16,7 @@ const logger = createLogger('api/prediction/save');
 // Validation schema for save payload
 const savePredictionSchema = z.object({
   ticker: tickerSchema,
-  predicted_price_1d: z.number().positive().optional(),
+  predicted_price_1w: z.number().positive().optional(),
   predicted_price_1m: z.coerce.number().positive('predicted_price_1m must be a positive number'),
   predicted_price_6m: z.number().positive().optional(),
   predicted_price_1y: z.number().positive().optional(),
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
     };
 
     // Surgical assignment: only include fields that were provided in the payload
-    if (payload.predicted_price_1d !== undefined) predictionData.predicted_price_1d = payload.predicted_price_1d;
+    if (payload.predicted_price_1w !== undefined) predictionData.predicted_price_1w = payload.predicted_price_1w;
     if (payload.predicted_price_1m !== undefined) predictionData.predicted_price_1m = payload.predicted_price_1m;
     if (payload.predicted_price_6m !== undefined) predictionData.predicted_price_6m = payload.predicted_price_6m;
     if (payload.predicted_price_1y !== undefined) predictionData.predicted_price_1y = payload.predicted_price_1y;

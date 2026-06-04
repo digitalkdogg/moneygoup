@@ -4,7 +4,7 @@ import { useState, FormEvent } from 'react'
 import Link from 'next/link'
 
 export default function ContactPage() {
-  const [form, setForm] = useState({ name: '', email: '', subject: '', message: '' })
+  const [form, setForm] = useState({ name: '', email: '', subject: '', message: '', website: '' })
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
 
@@ -29,7 +29,7 @@ export default function ContactPage() {
         setStatus('error')
       } else {
         setStatus('success')
-        setForm({ name: '', email: '', subject: '', message: '' })
+        setForm({ name: '', email: '', subject: '', message: '', website: '' })
       }
     } catch {
       setErrorMsg('Network error. Please check your connection and try again.')
@@ -71,6 +71,19 @@ export default function ContactPage() {
             </div>
           ) : (
             <form onSubmit={handleSubmit} noValidate className="space-y-5">
+              {/* Honeypot field for bot protection */}
+              <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', width: '0px', height: '0px', overflow: 'hidden' }} aria-hidden="true">
+                <label htmlFor="website">Website</label>
+                <input
+                  id="website"
+                  name="website"
+                  type="text"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  value={form.website}
+                  onChange={handleChange}
+                />
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <div>
                   <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">

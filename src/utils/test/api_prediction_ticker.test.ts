@@ -46,8 +46,8 @@ describe('POST /api/prediction/[ticker]', () => {
     (LimitService.recordLookupEvent as jest.Mock).mockResolvedValue(undefined);
   });
 
-  test('validates 1_day outlook parameter', async () => {
-    mockRequest = new NextRequest('http://localhost/api/prediction/AAPL?outlook=1_day', {
+  test('validates 1_week outlook parameter', async () => {
+    mockRequest = new NextRequest('http://localhost/api/prediction/AAPL?outlook=1_week', {
       method: 'POST',
       body: JSON.stringify({
         historicalData: Array(365).fill({ close: 150, high: 152, low: 148, open: 151, volume: 50000 }),
@@ -57,12 +57,12 @@ describe('POST /api/prediction/[ticker]', () => {
       }),
     });
 
-    // The test primarily validates that 1_day is now an accepted outlook
+    // The test primarily validates that 1_week is now an accepted outlook
     // A full test would mock the Python process spawn and verify the output shape
     // For now, this validates that the outlook is in the validOutlooks list
     const outlook = 'valid';
-    const validOutlooks = ['1_day', '1_month', '6_month', '1_year', 'all'];
-    expect(validOutlooks.includes('1_day')).toBe(true);
+    const validOutlooks = ['1_week', '1_month', '6_month', '1_year', 'all'];
+    expect(validOutlooks.includes('1_week')).toBe(true);
   });
 
   test('validates minimum historical data requirement', async () => {
@@ -116,12 +116,12 @@ describe('POST /api/prediction/[ticker]', () => {
 });
 
 describe('Prediction API Response Schema', () => {
-  test('1_day outlook response includes required fields', () => {
-    // Expected response shape for outlook=1_day (filtered)
+  test('1_week outlook response includes required fields', () => {
+    // Expected response shape for outlook=1_week (filtered)
     const expectedSchema = {
       ticker: 'AAPL',
       regularMarketPrice: 150.0,
-      outlook: '1_day',
+      outlook: '1_week',
       predicted_price: 150.5,
       predicted_change_pct: 0.33,
       confidence_score: 85,
@@ -138,30 +138,25 @@ describe('Prediction API Response Schema', () => {
     expect(expectedSchema).toHaveProperty('predicted_range');
   });
 
-  test('full outlook response includes 1-day fields', () => {
-    // Expected response shape for outlook=all (includes 1_day)
+  test('full outlook response includes 1-week fields', () => {
+    // Expected response shape for outlook=all (includes 1_week)
     const expectedSchema = {
       ticker: 'AAPL',
       regularMarketPrice: 150.0,
-      // 1-day
-      predicted_price_1d: 150.5,
-      predicted_change_pct_1d: 0.33,
-      confidence_score_1d: 85,
-      predicted_range_1d: [150.0, 151.0],
-      short_term_signal_breakdown: {
-        tariff_threat: { score: 0, evidence_count: 0 },
-        energy_cost: { shock_score: 0 },
-      },
+      // 1-week
+      predicted_price_1w: 150.5,
+      predicted_change_pct_1w: 0.33,
+      confidence_score_1w: 85,
+      predicted_range_1w: [150.0, 151.0],
       // Other horizons
       predicted_price_1m: 155.0,
       predicted_change_pct_1m: 3.33,
       confidence_score_1m: 80,
     };
 
-    // Verify 1-day fields are present
-    expect(expectedSchema).toHaveProperty('predicted_price_1d');
-    expect(expectedSchema).toHaveProperty('confidence_score_1d');
-    expect(expectedSchema).toHaveProperty('short_term_signal_breakdown');
+    // Verify 1-week fields are present
+    expect(expectedSchema).toHaveProperty('predicted_price_1w');
+    expect(expectedSchema).toHaveProperty('confidence_score_1w');
   });
 });
 

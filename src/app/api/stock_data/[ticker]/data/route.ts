@@ -454,7 +454,12 @@ export async function GET(
           'defaultKeyStatistics',
           'recommendationTrend',
           'calendarEvents',
-        ],
+          'earningsHistory',
+          'earningsTrend',
+          'upgradeDowngradeHistory',
+          'institutionOwnership',
+          'majorHoldersBreakdown',
+        ] as any,
       });
     } catch (err) {
       logger.warn(`Failed to fetch quoteSummary for ${validatedTicker}`, { error: err });
@@ -470,6 +475,13 @@ export async function GET(
     } catch (err) {
       logger.warn(`Failed to fetch earnings module for ${validatedTicker}`, { error: err });
       earningsModule = {};
+    }
+
+    let liveQuote: any = {};
+    try {
+      liveQuote = await yahooFinance.quote(validatedTicker);
+    } catch (err) {
+      logger.warn(`Failed to fetch live quote for ${validatedTicker}`, { error: err });
     }
 
     const price    = (summary as any).price            ?? {};
@@ -523,6 +535,109 @@ export async function GET(
       ? new Date(nextEarningsDateMs * 1000).toISOString().slice(0, 10)
       : null;
 
+    // ── earningsHistory: precise last 8 earnings dates ──
+    const earningsHist = (summary as any).earningsHistory?.history ?? [];
+    const lastEarningsDate = earningsHist[0]?.quarter instanceof Date
+      ? earningsHist[0].quarter.toISOString()
+      : earningsHist[0]?.quarter
+        ? new Date(earningsHist[0].quarter * 1000).toISOString()
+        : null;
+
+    const earningsDateHistory = earningsHist.slice(0, 8).map((e: any) => {
+      const d = e.quarter instanceof Date ? e.quarter : (e.quarter ? new Date(e.quarter * 1000) : null);
+      return {
+        date: d?.toISOString() ?? null,
+        surprise: e.surprisePercent ?? null,
+      };
+    }).filter((e: any) => e.date !== null);
+
+    // ── earningsTrend: EPS revision velocity ──
+    const trend0 = (summary as any).earningsTrend?.trend?.[0]; // current quarter
+    const trend1 = (summary as any).earningsTrend?.trend?.[1]; // next quarter
+
+    function safeDivide(a: number | null | undefined, b: number | null | undefined): number | null {
+      if (a == null || b == null || Math.abs(b) < 1e-9) return null;
+      return (a - b) / Math.abs(b + 0.01);
+    }
+
+    const epsRevision7d_0Q = safeDivide(
+      trend0?.epsTrend?.current,
+      trend0?.epsTrend?.['7daysAgo']
+    );
+    const epsRevision7d_1Q = safeDivide(
+      trend1?.epsTrend?.current,
+      trend1?.epsTrend?.['7daysAgo']
+    );
+    const epsRevisionsUp7d   = trend0?.epsRevisions?.upLast7days   ?? null;
+    const epsRevisionsDown7d = trend0?.epsRevisions?.downLast7days ?? null;
+    const revenueEstGrowth_0Q = trend0?.revenueEstimate?.growth ?? null;
+    const revenueEstGrowth_1Q = trend1?.revenueEstimate?.growth ?? null;
+
+    // ── upgradeDowngradeHistory: analyst action recency ──
+    const upgradeHist = (summary as any).upgradeDowngradeHistory?.history ?? [];
+    const nowMs = Date.now();
+    const MS_7D  = 7  * 86400000;
+    const MS_30D = 30 * 86400000;
+
+    function upgradeScore(history: any[], windowMs: number): number {
+      const recent = history.filter((h: any) => {
+        const ms = h.epochGradeDate ? h.epochGradeDate * 1000 : 0;
+        return (nowMs - ms) < windowMs;
+      });
+      if (!recent.length) return 0;
+      const ups   = recent.filter((h: any) => h.action === 'up').length;
+      const downs = recent.filter((h: any) => h.action === 'down').length;
+      return (ups - downs) / recent.length;
+    }
+
+    const upgradeScore7d  = upgradeScore(upgradeHist, MS_7D);
+    const upgradeScore30d = upgradeScore(upgradeHist, MS_30D);
+
+    // ── institutionOwnership: Q-o-Q institutional delta ──
+    const ownersList = (summary as any).institutionOwnership?.ownershipList ?? [];
+    const instPctHeld  = ownersList[0]?.pctHeld ?? null;
+    const instPctDelta = ownersList.length >= 2
+      ? (ownersList[0]?.pctHeld ?? 0) - (ownersList[1]?.pctHeld ?? ownersList[0]?.pctHeld ?? 0)
+      : null;
+    const mhBreakdown = (summary as any).majorHoldersBreakdown ?? {};
+    const insiderPctHeld    = mhBreakdown.insidersPercentHeld    ?? null;
+    const institutionCount  = mhBreakdown.institutionsCount      ?? null;
+
+    // ── liveQuote: pre/post market + fresh 52w position ──
+    const preMarketChangePct  = liveQuote.preMarketChangePercent  ?? null;
+    const postMarketChangePct = liveQuote.postMarketChangePercent ?? null;
+    const fw52Low  = liveQuote.fiftyTwoWeekLow  ?? null;
+    const fw52High = liveQuote.fiftyTwoWeekHigh ?? null;
+    const fiftyTwoWeekPosRatio = (fw52Low !== null && fw52High !== null && (fw52High - fw52Low) > 0 && currentPrice !== null)
+      ? (currentPrice - fw52Low) / (fw52High - fw52Low)
+      : null;
+    const avgDailyVol3M = liveQuote.averageDailyVolume3Month ?? null;
+
+    // ── Item 08: Peer relative strength (5d) ──
+    let peerRS5d: number | null = null;
+    try {
+      const peersResult = await (yahooFinance as any).recommendationsBySymbol(validatedTicker);
+      const peerSymbols: string[] = (peersResult?.recommendedSymbols ?? [])
+        .slice(0, 5)
+        .map((p: any) => p.symbol)
+        .filter(Boolean);
+
+      if (peerSymbols.length > 0) {
+        const peerQuotes = await Promise.all(
+          peerSymbols.map((s: string) => yahooFinance.quote(s).catch(() => null))
+        );
+        const validPeerQuotes = peerQuotes.filter(Boolean) as any[];
+        if (validPeerQuotes.length > 0) {
+          const peerAvg5d = validPeerQuotes.reduce((sum: number, q: any) =>
+            sum + (q.regularMarketChangePercent ?? 0), 0) / validPeerQuotes.length;
+          const stockReturn5d = (liveQuote.regularMarketChangePercent ?? 0);
+          peerRS5d = stockReturn5d - peerAvg5d;
+        }
+      }
+    } catch (err) {
+      logger.warn(`Failed to fetch peer relative strength for ${validatedTicker}`, { error: err });
+    }
+
     const stockMetrics = {
       regularMarketPrice: currentPrice,
       peRatio,
@@ -548,6 +663,7 @@ export async function GET(
       analystUpside,
       fiftyTwoWeekChange,
       nextEarningsDate,
+      lastEarningsDate,
     };
 
     // ---- 2c. Fetch insider transactions (Form 4, 90-day window) ----
@@ -573,6 +689,31 @@ export async function GET(
       daysToCover: shortInterest.daysToCover,
       insiderNetSellRatio90d: insiderMetrics.insiderNetSellRatio90d,
       insiderTxCount90d: insiderMetrics.insiderTxCount90d,
+      // ── Item 01 & 02: Earnings dates ──
+      lastEarningsDate,
+      earningsDateHistory,
+      // ── Item 03: EPS revision velocity ──
+      epsRevision7d_0Q,
+      epsRevision7d_1Q,
+      epsRevisionsUp7d,
+      epsRevisionsDown7d,
+      revenueEstGrowth_0Q,
+      revenueEstGrowth_1Q,
+      // ── Item 04: Analyst upgrade/downgrade recency ──
+      upgradeScore7d,
+      upgradeScore30d,
+      // ── Item 05: Pre/post-market gap + 52w position ──
+      preMarketChangePct,
+      postMarketChangePct,
+      fiftyTwoWeekPosRatio,
+      avgDailyVol3M,
+      // ── Item 06: Institution ownership ──
+      instPctHeld,
+      instPctDelta,
+      insiderPctHeld,
+      institutionCount,
+      // ── Item 08: Peer relative strength ──
+      peerRS5d,
       asOf: new Date().toISOString().slice(0, 10),
     };
 

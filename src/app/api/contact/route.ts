@@ -22,7 +22,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
 
-  const { name, email, subject, message } = body as Record<string, string>
+  const { name, email, subject, message, website } = body as Record<string, string>
+
+  // Check honeypot field to block automated spam bots
+  if (website) {
+    logger.warn(`Honeypot triggered: rejecting bot submission silently. Email: ${email}`)
+    return NextResponse.json({ success: true })
+  }
 
   if (!name?.trim() || !email?.trim() || !subject?.trim() || !message?.trim()) {
     return NextResponse.json({ error: 'All fields are required' }, { status: 400 })

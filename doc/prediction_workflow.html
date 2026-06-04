@@ -67,6 +67,7 @@
     .highlight-box { background: #f0fdf4; border-left: 4px solid var(--primary); padding: 1rem; margin: 1rem 0; border-radius: 0 6px 6px 0; }
     .warning-box { background: #fffbeb; border-left: 4px solid #f59e0b; padding: 1rem; margin: 1rem 0; border-radius: 0 6px 6px 0; color: #78350f; }
     .new-badge { display: inline-block; font-size: .65rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 999px; margin-left: .5rem; vertical-align: middle; }
+    .updated-badge { display: inline-block; font-size: .65rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; background: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 999px; margin-left: .5rem; vertical-align: middle; }
     .removed-badge { display: inline-block; font-size: .65rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 999px; margin-left: .5rem; vertical-align: middle; }
 
     .step-card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin: 1.5rem 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
@@ -100,7 +101,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Developer Docs</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Generated 2026-05-28</div>
+    <div style="font-size:.78rem;opacity:.75;">Generated 2026-06-03</div>
   </div>
   <nav class="top-bar-nav">
     <a href="moneygoup_overview.html">Overview</a>
@@ -117,6 +118,7 @@
     <a href="gps_score.html">GPS Score</a>
     <a href="style_guide.html">Style Guide</a>
     <a href="SEO.html">SEO</a>
+    <a href="test_feature_columns.html">Feature Validator</a>
   </nav>
 </div>
 
@@ -135,16 +137,21 @@
     <a href="#step2">2. Data Assembly (Node)</a>
     <a href="#step3">3. API Gateway</a>
     <a href="#step4">4. Feature Engine (Python)</a>
-    <a href="#insider-features">— Insider Features (new)</a>
-    <a href="#high-beta-penalty">— High-Beta Penalty (new)</a>
+    <a href="#feature-set">— Full Feature Set (118 cols)</a>
+    <a href="#new-features">— New Feature Groups</a>
+    <a href="#insider-features">— Insider Features</a>
+    <a href="#high-beta-penalty">— High-Beta Penalty</a>
     <a href="#algorithm-flow">— Algorithm Flowchart</a>
-    <a href="#feature-set">— Full Feature Set</a>
     <a href="#regime-analysis">— Regime Analysis</a>
-    <a href="#step5">5. MLP &amp; MC Inference</a>
+    <a href="#step5">5. MLP Architecture (4-output)</a>
+    <a href="#mlp-targets">— Training Targets</a>
     <a href="#step6">6. Signal Weighting</a>
-    <a href="#earnings-dampening">— Earnings Dampening (new)</a>
+    <a href="#week-blend">— 1-Week Blend Logic</a>
+    <a href="#trajectory">— Trajectory Generation</a>
+    <a href="#earnings-dampening">— Earnings Dampening</a>
     <a href="#confidence-scoring">— Confidence Scoring</a>
     <a href="#step7">7. Persistence Layer</a>
+    <a href="#caching">8. Cache Architecture</a>
     <a href="#changelog">Recent Changes</a>
     <div class="section-divider"></div>
     <a href="authentication_flow.html">Auth Flow</a>
@@ -152,6 +159,7 @@
     <a href="recommendation_buckets.html">Recommendation Buckets</a>
     <a href="technical_indicators_guide.html">Technical Indicators</a>
     <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
+    <a href="test_feature_columns.html">Feature Validator</a>
     <a href="style_guide.html">Style Guide</a>
   </nav>
 
@@ -161,14 +169,15 @@
     <div class="meta">
       <span>scripts/predict_weighted_analysis.py</span>
       <span>src/app/api/prediction/[ticker]/route.ts</span>
-      <span>src/app/api/stock_data/[ticker]/data/route.ts</span>
-      <span>Updated 2026-05-28</span>
+      <span>src/app/api/prediction/save/route.ts</span>
+      <span>src/app/components/StockPrediction.tsx</span>
+      <span>Updated 2026-06-03</span>
     </div>
 
     <section id="overview">
-      <p>This document details the end-to-end execution path and mathematical logic behind the Stock Prediction System (v3.2). The pipeline runs an MLPRegressor (sklearn) trained fresh per request on 5 years of enriched historical data, producing 1-day, 1-month, 6-month, and 1-year price targets with Monte Carlo uncertainty bands.</p>
+      <p>This document details the end-to-end execution path and mathematical logic behind the Stock Prediction System (v3.3). The pipeline runs an <strong>MLPRegressor (sklearn)</strong> trained fresh per request on 5 years of enriched historical data, producing 1-week, 1-month, 6-month, and 1-year price targets with Monte Carlo uncertainty bands and an 18-month trajectory chart.</p>
       <div class="highlight-box">
-        <strong>v3.2 changes (2026-05-28):</strong> Insider selling features added to feature set; High-Beta/Valuation Stretch Penalty added to <code>metric_analysis()</code>; 1-month earnings-window confidence dampening; per-user 30-second cooldown removed from the prediction API; client-side countdown UI removed from <code>StockPrediction.tsx</code>.
+        <strong>v3.3 changes (2026-06-03):</strong> Primary short-term outlook changed from 1-day to <strong>1-week (T+5)</strong>. MLP now has a 4-output head: [T+1, T+5, T+126, T+252]. The 1-week prediction is a blended output (30% MLP T+5 / 70% trajectory interpolation) with an ATR-based movement cap. Trajectory now anchors at t=0 (current price) with waypoints starting at t+5. 118 total FEATURE_COLUMNS including 13 newly added columns across 5 feature groups. Cache schema version bumped to v2. UI prediction cards now show 1-Week, 1-Month, 6-Month, 12-Month. Trajectory chart shows a gray "Now" dot at t=0. "Recalculate (skip cache)" button bypasses in-memory cache via <code>?refresh=true</code>.
       </div>
     </section>
 
@@ -182,6 +191,22 @@
           <li><strong>Multi-ticker comparison</strong> — each <code>StockPrediction</code> renders its own "Generate Prediction" button.</li>
         </ul>
         <p>Requires 45 trading days of sequence context (SEQ_LEN = 45). Supports 15-minute server-side caching.</p>
+
+        <h4>Prediction Cards (updated v3.3)</h4>
+        <p>Four headline cards are displayed after a successful prediction run:</p>
+        <table>
+          <thead><tr><th>Card</th><th>Color scheme</th><th>Field</th><th>Change from v3.2</th></tr></thead>
+          <tbody>
+            <tr><td>1-Week Price Target</td><td>Purple</td><td><code>predicted_price_1w</code> / <code>predicted_change_pct_1w</code> / <code>confidence_score_1w</code></td><td>New card — replaces the 1-Day card</td></tr>
+            <tr><td>1-Month Price Target</td><td>Blue</td><td><code>predicted_price_1m</code></td><td>Unchanged position, now second card</td></tr>
+            <tr><td>6-Month Price Target</td><td>Emerald</td><td><code>predicted_price_6m</code></td><td>Unchanged</td></tr>
+            <tr><td>12-Month Price Target</td><td>White/Green border</td><td><code>predicted_price_1y</code></td><td>Unchanged</td></tr>
+          </tbody>
+        </table>
+
+        <h4>Recalculate Button (new v3.3)</h4>
+        <p>After a prediction is displayed, a secondary text button labeled "↺ Recalculate (skip cache)" appears. Clicking it calls <code>generate(true)</code> which appends <code>?refresh=true</code> to the prediction API call, bypassing the in-memory <code>predictionCache</code> and forcing the Python script to re-run.</p>
+
         <div class="highlight-box"><strong>Cooldown removed (2026-05-28):</strong> The previous 30-second per-user-per-ticker client cooldown countdown and the associated <code>tickerCooldown</code> Map on the server have been removed. Throttling is now handled solely by the role-based <code>LimitService</code> daily lookup quota and the <code>predictionSemaphore</code> concurrency cap.</div>
       </div>
     </section>
@@ -208,14 +233,14 @@
           </div>
           <div class="mini-card">
             <h4>Earnings Surprises</h4>
-            <p style="font-size:.82rem;">EPS and revenue surprise % averaged over the last 4 quarters (<code>epsSurpriseAvg4Q</code>, <code>revenueSurpriseAvg4Q</code>).</p>
+            <p style="font-size:.82rem;">EPS and revenue surprise % averaged over the last 4 quarters (<code>epsSurpriseAvg4Q</code>, <code>revenueSurpriseAvg4Q</code>). Earnings date history is included for post-earnings drift calculation.</p>
           </div>
           <div class="mini-card">
             <h4>Short Interest</h4>
             <p style="font-size:.82rem;"><code>shortFloatPct</code> and <code>daysToCover</code> from Yahoo Finance <code>defaultKeyStatistics</code>.</p>
           </div>
           <div class="mini-card">
-            <h4>Insider Transactions <span class="new-badge">new</span></h4>
+            <h4>Insider Transactions</h4>
             <p style="font-size:.82rem;">90-day window computed by <code>extractInsiderMetrics()</code>. Yields <code>insiderNetSellRatio90d</code> (net shares sold / shares outstanding, clipped to [-1,1]) and <code>insiderTxCount90d</code>. Option exercises excluded as directionally ambiguous.</p>
           </div>
           <div class="mini-card">
@@ -225,6 +250,10 @@
           <div class="mini-card">
             <h4>World Bank Macro</h4>
             <p style="font-size:.82rem;">GDP growth, inflation, consumption growth — annual, broadcast across all rows as scalar features.</p>
+          </div>
+          <div class="mini-card">
+            <h4>Extended Feature Metrics <span class="new-badge">new v3.3</span></h4>
+            <p style="font-size:.82rem;">EPS revision velocity (7-day), analyst upgrade/downgrade scores, pre/post-market gap percentages, 52-week positive ratio, institution ownership delta, peer relative strength — all included in <code>featureMetrics</code> object.</p>
           </div>
         </div>
         <p>All data is returned as a single JSON payload with a <code>dataQuality</code> block tracking imputed fields, missing feature metrics, and history depth in years.</p>
@@ -238,19 +267,21 @@
       <h2><span class="step-num">3</span> API Gateway &amp; Guards</h2>
       <div class="step-card">
         <div class="component-tag">POST /api/prediction/[ticker] — route.ts</div>
-        <p>Enforces reliability gates before spawning the Python subprocess:</p>
+        <p>Enforces reliability gates before spawning the Python subprocess. The valid <code>outlook</code> values are now: <code>1_week</code>, <code>1_month</code>, <code>6_month</code>, <code>1_year</code>, <code>all</code>. The default is <code>all</code>.</p>
         <table>
           <thead><tr><th>Guard</th><th>Behavior</th></tr></thead>
           <tbody>
             <tr><td>Origin check / session auth</td><td>Internal <code>x-api-key</code> bypasses session requirement</td></tr>
             <tr><td>Approval guard</td><td><code>checkApprovalGuard(userId)</code> — rejects suspended accounts</td></tr>
             <tr><td>LimitService lookup quota</td><td>Returns 403 LIMIT_EXCEEDED if user has exceeded daily lookup count</td></tr>
-            <tr><td><code>predictionCache</code> check</td><td>Returns cached result if available and <code>refresh</code> not requested</td></tr>
+            <tr><td><code>predictionCache</code> check</td><td>Returns cached result if available and <code>?refresh=true</code> not set. Cache key: <code>{ticker}_{outlook}</code></td></tr>
             <tr><td>Historical data validation</td><td>Requires ≥ 365 rows of historical data; returns 422 otherwise</td></tr>
             <tr><td><code>predictionSemaphore</code></td><td>Limits concurrent Python subprocesses; returns 503 if full</td></tr>
           </tbody>
         </table>
-        <div class="highlight-box"><strong>Cooldown removed (2026-05-28):</strong> The <code>tickerCooldown</code> Map, 30-second per-user lock, and 429 responses for rapid repeat requests have been removed. The semaphore and LimitService are the remaining rate controls.</div>
+        <div class="highlight-box">
+          <strong>Outlook key change (v3.3):</strong> The default short-term outlook used for cache key and response population is now <code>1_week</code> instead of <code>1_day</code>. The <code>predicted_price_1w</code> / <code>predicted_change_pct_1w</code> / <code>confidence_score_1w</code> fields are populated on the result object when outlook is <code>1_week</code> or <code>all</code>.
+        </div>
         <p>The enriched payload is written to a temp JSON file in <code>os.tmpdir()</code>, passed to the Python script via <code>--input_file</code>, and cleaned up in the <code>finally</code> block regardless of outcome.</p>
       </div>
     </section>
@@ -261,38 +292,121 @@
       <h2><span class="step-num">4</span> Feature Engine &amp; Regime Detection</h2>
       <div class="step-card">
         <div class="component-tag">scripts/predict_weighted_analysis.py — build_features() / _calculate_features_internal()</div>
-        <p>Transforms the raw JSON into a <strong>119+ column feature tensor</strong> (including 11 regime columns). Features fall into the following groups:</p>
-        <ul>
-          <li><strong>OHLCV core:</strong> Open, High, Low, Close, Volume</li>
-          <li><strong>Technical indicators:</strong> MACD, Bollinger Bands, RSI-14, Stochastic-14, ATR-14, SMA-20/200, EMA-50/200</li>
-          <li><strong>Long-horizon:</strong> HiRatio/LoRatio 52w, ROC 6m/12m, GoldenCross</li>
-          <li><strong>Lag features:</strong> Close_lag_5/10/20, Volume_lag_5</li>
-          <li><strong>Short-term momentum:</strong> ROC_5d, ROC_20d, Return_1d/5d/20d</li>
-          <li><strong>Trend context:</strong> PriceToHigh/Low_20d, PriceToHigh_5d, EMA_Slope_10/20, VolumePriceTrend</li>
-          <li><strong>Rolling statistics:</strong> RollingMean/Std/Skew/Sharpe_20d</li>
-          <li><strong>Fundamentals (scalar broadcast):</strong> PE, PB, TrailingEPS, ForwardEPS, RevenueGrowth, EarningsGrowth, ProfitMargins, D/E, ROE, Beta, DivYield, AnalystPremium, AnalystPremiumWeighted, RecommendationMean</li>
-          <li><strong>Macro series:</strong> VIX, VIX_20d_Avg, Treasury10Y/3M, SectorETF_60d_Corr</li>
-          <li><strong>Credit risk proxy:</strong> HYG/LQD level and 20d momentum, HYG_LQD_Ratio</li>
-          <li><strong>Dollar:</strong> DXY_Level, DXY_Return_20d</li>
-          <li><strong>Curve slope:</strong> CurveSlope_10M3M</li>
-          <li><strong>Relative strength:</strong> RS_vs_SPY_20d, RS_vs_SectorETF_20d</li>
-          <li><strong>Commodities:</strong> WTI/Copper/Wheat return 20d + 60d beta</li>
-          <li><strong>Volatility proxies:</strong> HistVol_30, VIX_RealVol_Ratio, PC_Skew_Proxy</li>
-          <li><strong>Options:</strong> IV, IV_Rank, Put_Call_Ratio</li>
-          <li><strong>Earnings &amp; short interest:</strong> EPS_Surprise_Avg_4Q, Revenue_Surprise_Avg_4Q, ShortFloatPct, DaysToCover</li>
-          <li><strong>Insider activity:</strong> InsiderNetSellRatio_90d, InsiderTxCount_90d <span class="new-badge">new</span></li>
-          <li><strong>Earnings-window flags:</strong> Earnings_In_Window, Days_Since_Last_Earnings, Days_To_Next_Earnings</li>
-          <li><strong>Calendar:</strong> Month_Sin, Month_Cos, EarningsSeason</li>
-          <li><strong>Derived sentiment:</strong> NewsSentiment, EarningsBeatStreak</li>
-          <li><strong>World Bank macro (Phase 4):</strong> WorldBank_GDP, WorldBank_Inflation, WorldBank_Consumption, WorldBank_Real_GDP</li>
-          <li><strong>Regime columns (Phase 2-3):</strong> Regime_0–3, Regime_Prob_0–3, Regime_x_PC_Ratio, Regime_x_HYG_LQD, Regime_x_RS_SPY</li>
-        </ul>
+        <p>Transforms the raw JSON into a <strong>118-column base feature tensor</strong> (plus 11 dynamically appended regime columns = 129 total). Features fall into the following groups:</p>
+
+        <section id="feature-set">
+          <h4>Complete FEATURE_COLUMNS List (118 base columns)</h4>
+          <table>
+            <thead><tr><th>Group</th><th>Columns</th></tr></thead>
+            <tbody>
+              <tr><td>OHLCV core</td><td>Open, High, Low, Close, Volume</td></tr>
+              <tr><td>MACD</td><td>MACD, MACD_Signal</td></tr>
+              <tr><td>Bollinger Bands</td><td>BB_Upper, BB_Lower, BB_Mid</td></tr>
+              <tr><td>RSI</td><td>RSI_14</td></tr>
+              <tr><td>Stochastic</td><td>STOCH_K, STOCH_D</td></tr>
+              <tr><td>ATR</td><td>ATR_14</td></tr>
+              <tr><td>Moving averages</td><td>SMA_20, EMA_50, SMA_200, EMA_200</td></tr>
+              <tr><td>Long-horizon indicators</td><td>HiRatio_52w, LoRatio_52w, ROC_6m, ROC_12m, GoldenCross</td></tr>
+              <tr><td>Historical volatility</td><td>HistVol_30</td></tr>
+              <tr><td>Fundamentals (scalar broadcast)</td><td>PE_Ratio, PB_Ratio, TrailingEPS, ForwardEPS, RevenueGrowth, EarningsGrowth, ProfitMargins, DebtToEquity, ReturnOnEquity, Beta, DivYield, AnalystPremium, AnalystPremiumWeighted, RecommendationMean</td></tr>
+              <tr><td>Macro series</td><td>VIX, VIX_20d_Avg, Treasury10Y, SectorETF_60d_Corr</td></tr>
+              <tr><td>Derived sentiment</td><td>NewsSentiment, EarningsBeatStreak</td></tr>
+              <tr><td>Calendar</td><td>Month_Sin, Month_Cos, EarningsSeason</td></tr>
+              <tr><td>Lag features</td><td>Close_lag_5, Close_lag_10, Close_lag_20, Volume_lag_5</td></tr>
+              <tr><td>Short-term ROC</td><td>ROC_5d, ROC_20d, Return_1d, Return_5d, Return_20d</td></tr>
+              <tr><td>Price vs rolling high/low</td><td>PriceToHigh_20d, PriceToLow_20d, PriceToHigh_5d, VolumePriceTrend, EMA_Slope_10, EMA_Slope_20</td></tr>
+              <tr><td>Rolling return statistics</td><td>RollingMean_20d, RollingStd_20d, RollingSkew_20d, RollingSharpe_20d</td></tr>
+              <tr><td>Options market</td><td>IV, IV_Rank, Put_Call_Ratio</td></tr>
+              <tr><td>Earnings surprises &amp; short interest</td><td>EPS_Surprise_Avg_4Q, Revenue_Surprise_Avg_4Q, ShortFloatPct, DaysToCover</td></tr>
+              <tr><td>Insider activity (SEC Form 4)</td><td>InsiderNetSellRatio_90d, InsiderTxCount_90d</td></tr>
+              <tr><td>Credit risk proxy</td><td>HYG_Level, HYG_Mom_20d, LQD_Level, LQD_Mom_20d, HYG_LQD_Ratio</td></tr>
+              <tr><td>Dollar</td><td>DXY_Level, DXY_Return_20d</td></tr>
+              <tr><td>Rates / curve</td><td>Treasury3M, CurveSlope_10M3M</td></tr>
+              <tr><td>Relative strength</td><td>RS_vs_SPY_20d, RS_vs_SectorETF_20d</td></tr>
+              <tr><td>Commodities</td><td>WTI_Return_20d, WTI_Beta_60d, Copper_Return_20d, Copper_Beta_60d, Wheat_Return_20d, Wheat_Beta_60d</td></tr>
+              <tr><td>Volatility term structure</td><td>VIX_RealVol_Ratio</td></tr>
+              <tr><td>Put/Call skew proxy</td><td>PC_Skew_Proxy</td></tr>
+              <tr><td>Earnings-window flags</td><td>Earnings_In_Window, Days_Since_Last_Earnings, Days_To_Next_Earnings</td></tr>
+              <tr><td>World Bank macro</td><td>WorldBank_GDP, WorldBank_Inflation, WorldBank_Consumption, WorldBank_Real_GDP</td></tr>
+              <tr><td>Post-earnings drift <span class="new-badge">new</span></td><td>PostEarnings_DayN, PostEarnings_CumReturn, PostEarnings_VolRatio</td></tr>
+              <tr><td>EPS revision velocity <span class="new-badge">new</span></td><td>EPS_Revision_7d_0Q, EPS_Revision_7d_1Q, Revenue_Est_Growth_0Q, Revenue_Est_Growth_1Q, EPS_Rev_Up7d, EPS_Rev_Down7d</td></tr>
+              <tr><td>Analyst upgrade/downgrade recency <span class="new-badge">new</span></td><td>Upgrade_Score_7d, Upgrade_Score_30d</td></tr>
+              <tr><td>Pre/post-market microstructure <span class="new-badge">new</span></td><td>PreMarket_GapPct, PostMarket_GapPct, FiftyTwoWeek_PosRatio</td></tr>
+              <tr><td>Institution ownership delta <span class="new-badge">new</span></td><td>Institution_PctHeld, Institution_PctDelta</td></tr>
+              <tr><td>Peer relative strength <span class="new-badge">new</span></td><td>Peer_RS_5d</td></tr>
+            </tbody>
+          </table>
+          <p style="font-size:.83rem;color:#64748b;">Regime columns appended dynamically (not in FEATURE_COLUMNS constant): Regime_0–3, Regime_Prob_0–3, Regime_x_PC_Ratio, Regime_x_HYG_LQD, Regime_x_RS_SPY (11 columns). Total features fed to MLP: 129.</p>
+        </section>
       </div>
 
-      <section id="insider-features">
-        <h3>Insider Activity Features <span class="new-badge">new</span></h3>
+      <section id="new-features">
+        <h3>New Feature Groups (v3.3) <span class="new-badge">new</span></h3>
         <div class="step-card">
-          <p>Two new columns added to <code>FEATURE_COLUMNS</code> (inserted in the <em>Earnings Surprises &amp; Short Interest</em> block):</p>
+          <h4>Post-Earnings Drift (Item 02) — 3 columns</h4>
+          <table>
+            <thead><tr><th>Feature</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>PostEarnings_DayN</code></td><td>Number of trading days elapsed since the most recent earnings date, capped at 21. Zero after 21 days.</td></tr>
+              <tr><td><code>PostEarnings_CumReturn</code></td><td>Cumulative price return from the earnings date close to the current row close. Captures post-earnings drift magnitude.</td></tr>
+              <tr><td><code>PostEarnings_VolRatio</code></td><td>Ratio of average post-earnings volume to the 20-day pre-earnings average. Clipped to [0.1, 10]. Elevated ratios indicate heightened investor attention.</td></tr>
+            </tbody>
+          </table>
+
+          <h4 style="margin-top:1.5rem;">EPS Revision Velocity (Item 03) — 6 columns</h4>
+          <table>
+            <thead><tr><th>Feature</th><th>Source field</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>EPS_Revision_7d_0Q</code></td><td><code>epsRevision7d_0Q</code></td><td>7-day EPS estimate revision for the current quarter. Positive = analysts raising estimates.</td></tr>
+              <tr><td><code>EPS_Revision_7d_1Q</code></td><td><code>epsRevision7d_1Q</code></td><td>7-day EPS estimate revision for next quarter.</td></tr>
+              <tr><td><code>Revenue_Est_Growth_0Q</code></td><td><code>revenueEstGrowth_0Q</code></td><td>Consensus revenue growth estimate for the current quarter.</td></tr>
+              <tr><td><code>Revenue_Est_Growth_1Q</code></td><td><code>revenueEstGrowth_1Q</code></td><td>Consensus revenue growth estimate for next quarter.</td></tr>
+              <tr><td><code>EPS_Rev_Up7d</code></td><td><code>epsRevisionsUp7d</code></td><td>Count of analyst upward EPS revisions in the last 7 days.</td></tr>
+              <tr><td><code>EPS_Rev_Down7d</code></td><td><code>epsRevisionsDown7d</code></td><td>Count of analyst downward EPS revisions in the last 7 days.</td></tr>
+            </tbody>
+          </table>
+
+          <h4 style="margin-top:1.5rem;">Analyst Upgrade/Downgrade Recency (Item 04) — 2 columns</h4>
+          <table>
+            <thead><tr><th>Feature</th><th>Source field</th><th>Range</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>Upgrade_Score_7d</code></td><td><code>upgradeScore7d</code></td><td>[-1, 1]</td><td>Net score of analyst rating changes in the last 7 days. Positive = net upgrades.</td></tr>
+              <tr><td><code>Upgrade_Score_30d</code></td><td><code>upgradeScore30d</code></td><td>[-1, 1]</td><td>Net score of analyst rating changes in the last 30 days.</td></tr>
+            </tbody>
+          </table>
+
+          <h4 style="margin-top:1.5rem;">Pre/Post-Market Microstructure (Item 05) — 3 columns</h4>
+          <table>
+            <thead><tr><th>Feature</th><th>Source field</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>PreMarket_GapPct</code></td><td><code>preMarketChangePct</code></td><td>Pre-market price change % relative to prior close. Captures overnight sentiment.</td></tr>
+              <tr><td><code>PostMarket_GapPct</code></td><td><code>postMarketChangePct</code></td><td>After-hours price change % relative to regular session close.</td></tr>
+              <tr><td><code>FiftyTwoWeek_PosRatio</code></td><td><code>fiftyTwoWeekPosRatio</code></td><td>Fraction of the last 52-week range that is below the current price (0=at 52w low, 1=at 52w high).</td></tr>
+            </tbody>
+          </table>
+
+          <h4 style="margin-top:1.5rem;">Institution Ownership Delta (Item 06) — 2 columns</h4>
+          <table>
+            <thead><tr><th>Feature</th><th>Source field</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>Institution_PctHeld</code></td><td><code>instPctHeld</code></td><td>Percentage of float held by institutions (0–1). Higher = stronger institutional backing.</td></tr>
+              <tr><td><code>Institution_PctDelta</code></td><td><code>instPctDelta</code></td><td>Quarter-over-quarter change in institutional ownership %. Positive = institutions accumulating.</td></tr>
+            </tbody>
+          </table>
+
+          <h4 style="margin-top:1.5rem;">Peer Relative Strength (Item 08) — 1 column</h4>
+          <table>
+            <thead><tr><th>Feature</th><th>Source field</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>Peer_RS_5d</code></td><td><code>peerRS5d</code></td><td>5-day price return of this stock minus the average 5-day return of its closest peers. Positive = outperforming peers.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="insider-features">
+        <h3>Insider Activity Features</h3>
+        <div class="step-card">
           <table>
             <thead><tr><th>Feature</th><th>Source field</th><th>Range</th><th>Description</th></tr></thead>
             <tbody>
@@ -301,12 +415,11 @@
             </tbody>
           </table>
           <p>Both values are applied only to the most recent 63 rows of the feature matrix (approximately 3 months of trading days). All earlier rows receive a neutral value of 0.0 to avoid contaminating historical training samples with look-ahead data.</p>
-          <p>The values are computed by <code>extractInsiderMetrics()</code> in <code>route.ts</code>, which fetches the Yahoo Finance <code>insiderTransactions</code> module and filters to transactions within the 90-day cutoff.</p>
         </div>
       </section>
 
       <section id="high-beta-penalty">
-        <h3>High-Beta / Valuation Stretch Penalty <span class="new-badge">new</span></h3>
+        <h3>High-Beta / Valuation Stretch Penalty</h3>
         <div class="step-card">
           <p>Added to <code>metric_analysis()</code> in the heuristic adjustment layer. Applied when a stock has both a high beta (indicating volatility) and is trading near its 52-week high (indicating potential mean-reversion risk):</p>
           <div class="formula">
@@ -314,26 +427,14 @@ if beta &gt; 2.5 AND HiRatio_52w &gt; 0.95:
     stretch_penalty = 1.0 - ((beta - 2.5) * 0.015)
     total_impact += stretch_penalty - 1.0
           </div>
-          <p>At beta = 3.0 near a 52-week high, this applies a <strong>-0.75%</strong> impact to the final price target. At beta = 4.0, it applies <strong>-2.25%</strong>. The penalty is unbounded below but practically small for beta values seen in normal equities. It is entirely absent for beta &lt;= 2.5 or stocks not near their 52-week high.</p>
+          <p>At beta = 3.0 near a 52-week high, this applies a <strong>-0.75%</strong> impact to the final price target. At beta = 4.0, it applies <strong>-2.25%</strong>. The penalty is absent for beta &lt;= 2.5 or stocks not near their 52-week high.</p>
         </div>
       </section>
 
       <section id="algorithm-flow">
         <h3>Algorithm Flowchart</h3>
         <div class="step-card" style="background:#f8fafc;border:1px dashed var(--primary);">
-          <p style="text-align:center;">JSON Input &rarr; <strong>119+ Feature Engineering</strong><br>(OHLCV + Lag + ROC + Rolling Stats + Fundamentals + Macro + Credit + Commodities + Options + Insider + Regime)<br>&darr;<br>GMM/KMeans Regime Detection (K=3 or 4) + One-hot + Prob columns + Interaction terms<br>&darr;<br>MinMaxScaler &rarr; SEQ_LEN=45 sliding windows &rarr; <strong>MLP Training</strong> (Adam, early-stop, 20% holdout)<br>&darr;<br>Deterministic inference (1 pass) + <strong>Monte Carlo Dropout</strong> (12 passes, per-feature noise)<br>&darr;<br><strong>Heuristic Weighting</strong> (metric_analysis + consumer multiplier + high-beta penalty)<br>&darr;<br>JSON Output: 1d / 1m / 6m / 1y prices, confidence scores, 18-month trajectory</p>
-        </div>
-      </section>
-
-      <section id="feature-set">
-        <h3>Feature Caching &amp; Incremental Updates</h3>
-        <div class="step-card">
-          <p>The script maintains two cache layers in <code>scripts/prediction_cache/</code>:</p>
-          <ul>
-            <li><strong>Result cache</strong> — keyed by MD5(ticker + last_date + data_len). Full prediction JSON stored as <code>{key}.json</code>. Subsequent requests for the same data snapshot skip the entire model pipeline.</li>
-            <li><strong>Feature cache</strong> — the full feature DataFrame stored as <code>{ticker}_features_df.pkl</code>. On the next run, if the new data is a forward extension of the cached data, only the new rows are computed using a 252-row lookback buffer. Broadcaster-scalar features (fundamentals, macro, insider) are updated in-place on the cached frame.</li>
-          </ul>
-          <p>CPU usage is throttled via environment variables (<code>OMP_NUM_THREADS=1</code>, <code>MKL_NUM_THREADS=1</code>, etc.) set before numpy/sklearn import, and the process priority is lowered via <code>os.nice(15)</code>.</p>
+          <p style="text-align:center;">JSON Input &rarr; <strong>118 Feature Engineering</strong><br>(OHLCV + Lag + ROC + Rolling Stats + Fundamentals + Macro + Credit + Commodities + Options + Insider + Post-Earnings + EPS Revision + Upgrade Scores + Microstructure + Institution + Peer RS)<br>&darr;<br>GMM/KMeans Regime Detection (K=3 or 4) &rarr; 11 regime columns appended &rarr; 129 total features<br>&darr;<br>MinMaxScaler &rarr; SEQ_LEN=45 sliding windows &rarr; <strong>4-output MLP Training</strong> (Adam, early-stop, 20% holdout)<br>Targets: [T+1, T+5, T+126, T+252] scaled close values<br>&darr;<br>Deterministic T+5 / T+126 / T+252 inference (1 pass)<br>1-week = 30% MLP T+5 + 70% trajectory interpolation, capped at ±2×ATR×√5<br>&darr;<br>Monte Carlo Dropout (12 passes, per-feature noise) &rarr; spread bands only<br>&darr;<br><strong>Heuristic Weighting</strong> (metric_analysis + consumer multiplier + high-beta penalty)<br>&darr;<br>18-month trajectory: t=0 (current), t+5 (1w), t+21 (1m), t+42 ... t+378<br>&darr;<br>JSON Output: 1w / 1m / 6m / 1y prices, confidence scores, trajectory</p>
         </div>
       </section>
 
@@ -344,7 +445,7 @@ if beta &gt; 2.5 AND HiRatio_52w &gt; 0.95:
           <div class="formula">regime_vec_cols = ['VIX', 'HistVol_30', 'HYG_LQD_Ratio', 'RS_vs_SPY_20d',
                        'DXY_Return_20d', 'CurveSlope_10M3M', 'RollingMean_20d',
                        'RollingStd_20d', 'WorldBank_GDP', 'WorldBank_Inflation']</div>
-          <p>K is selected by <code>select_regime_k()</code> which evaluates K=3 and K=4 against two gates: minimum state population fraction ≥ 15% and temporal flip rate ≤ 30%. The first K that passes both gates is used. If neither passes, the evaluation falls through to KMeans as a fallback.</p>
+          <p>K is selected by <code>select_regime_k()</code> which evaluates K=3 and K=4 against two gates: minimum state population fraction ≥ 15% and temporal flip rate ≤ 30%. The first K that passes both gates is used. If neither passes, evaluation falls through to KMeans as a fallback.</p>
           <p>The resulting regime labels and GMM posterior probabilities are added as one-hot (<code>Regime_0</code>–<code>Regime_3</code>), soft probability (<code>Regime_Prob_0</code>–<code>Regime_Prob_3</code>), and three interaction columns (<code>Regime_x_PC_Ratio</code>, <code>Regime_x_HYG_LQD</code>, <code>Regime_x_RS_SPY</code>). The four named states are: <em>risk_on_trending</em>, <em>risk_off_stress</em>, <em>high_vol_choppy</em>, <em>low_vol_mean_reverting</em>.</p>
         </div>
       </section>
@@ -353,60 +454,131 @@ if beta &gt; 2.5 AND HiRatio_52w &gt; 0.95:
     <div class="flow-arrow">&#8595;</div>
 
     <section id="step5">
-      <h2><span class="step-num">5</span> MLP Training &amp; MC Inference</h2>
+      <h2><span class="step-num">5</span> MLP Architecture — 4-Output Head</h2>
       <div class="step-card">
         <div class="component-tag">sklearn MLPRegressor — hidden_layer_sizes=(256, 128, 64, 32)</div>
-        <p>A fresh MLP is trained per request on all available sequences. Architecture:</p>
+        <p>A fresh MLP is trained per request on all available sequences. The model now has a 4-output head, simultaneously predicting scaled close prices at four future horizons.</p>
         <table>
           <thead><tr><th>Hyperparameter</th><th>Value</th><th>Notes</th></tr></thead>
           <tbody>
-            <tr><td>Hidden layers</td><td>(256, 128, 64, 32)</td><td>Widened to handle 119+ features</td></tr>
+            <tr><td>Hidden layers</td><td>(256, 128, 64, 32)</td><td>Widened to handle 129 features (118 base + 11 regime)</td></tr>
             <tr><td>Activation</td><td>ReLU</td><td></td></tr>
             <tr><td>Optimizer</td><td>Adam</td><td>lr=0.001</td></tr>
             <tr><td>Max iterations</td><td>50</td><td>Capped for speed</td></tr>
-            <tr><td>Early stopping</td><td>Yes</td><td>val_fraction=0.1, n_iter_no_change=8</td></tr>
+            <tr><td>Early stopping</td><td>Yes</td><td>validation_fraction=0.1, n_iter_no_change=8</td></tr>
             <tr><td>Sequence length</td><td>45 trading days</td><td>SEQ_LEN; sliding window via stride tricks</td></tr>
-            <tr><td>Targets</td><td>scaled Close at t+126, t+252</td><td>Dual-head: 6m and 12m simultaneously</td></tr>
+            <tr><td>Output head</td><td>4 targets simultaneously</td><td>[T+1, T+5, T+126, T+252] scaled close values</td></tr>
           </tbody>
         </table>
-        <p>Validation uses a single 80/20 holdout (last 20% of sequences) rather than walk-forward cross-validation for speed. CV-MAPE from holdout feeds into the confidence score.</p>
-        <p>Monte Carlo uncertainty is generated via 12 forward passes (<code>MC_RUNS=12</code>) with additive Gaussian noise scaled per-feature to the standard deviation of the last 20 rows of each feature column. The 10th–90th percentile spread of MC outputs gives the trajectory confidence band.</p>
+
+        <section id="mlp-targets">
+          <h4>Training Targets</h4>
+          <table>
+            <thead><tr><th>Output index</th><th>Horizon</th><th>Calendar equivalent</th><th>Usage</th></tr></thead>
+            <tbody>
+              <tr><td>0</td><td>T+1</td><td>Next trading day</td><td>Auxiliary loss; not directly exposed in UI</td></tr>
+              <tr><td>1</td><td>T+5</td><td>1 trading week</td><td>Blended with trajectory to produce <code>predicted_price_1w</code></td></tr>
+              <tr><td>2</td><td>T+126</td><td>~6 months</td><td>Primary deterministic anchor for <code>predicted_price_6m</code></td></tr>
+              <tr><td>3</td><td>T+252</td><td>~12 months</td><td>Primary deterministic anchor for <code>predicted_price_1y</code></td></tr>
+            </tbody>
+          </table>
+          <p>Validation uses a single 80/20 holdout (last 20% of sequences). CV-MAPE from the T+126 output on the holdout set feeds into the confidence score. Monte Carlo uncertainty is generated via 12 forward passes (<code>MC_RUNS=12</code>) applied only to the T+126 and T+252 heads for trajectory uncertainty bands.</p>
+        </section>
       </div>
     </section>
 
     <div class="flow-arrow">&#8595;</div>
 
     <section id="step6">
-      <h2><span class="step-num">6</span> Signal Weighting &amp; Confidence</h2>
+      <h2><span class="step-num">6</span> Signal Weighting, 1-Week Blend &amp; Trajectory</h2>
       <div class="step-card">
         <div class="component-tag">metric_analysis() + confidence_score()</div>
-        <p>The raw MLP price target is multiplied by an <code>impact_multiplier</code> built from additive heuristic signals:</p>
+        <p>The raw MLP price targets (T+126, T+252) are multiplied by an <code>impact_multiplier</code> built from additive heuristic signals:</p>
         <table>
           <thead><tr><th>Signal</th><th>Max impact</th><th>Notes</th></tr></thead>
           <tbody>
             <tr><td>RSI overbought/oversold</td><td>±1.5%</td><td>RSI &gt; 75 penalizes; &lt; 25 boosts</td></tr>
             <tr><td>Trend (is_uptrend)</td><td>+2% / -1%</td><td>20-day price trend direction</td></tr>
-            <tr><td>20d growth rate</td><td>variable</td><td>Scaled × 0.03</td></tr>
+            <tr><td>20d growth rate</td><td>variable</td><td>Scaled × 0.03, capped at ±10% input</td></tr>
             <tr><td>News sentiment</td><td>±1.5%</td><td>Weighted tanh score × 0.015</td></tr>
-            <tr><td>External technical score</td><td>±7%</td><td>Score × 0.005 (max input ≈ ±14)</td></tr>
+            <tr><td>External technical score</td><td>±2% (reliability-weighted)</td><td>Score × 0.005 × reliability, capped at 2%</td></tr>
             <tr><td>Analyst consensus (reliability-weighted)</td><td>±5%</td><td>consensus_value × 0.05 × min(aoc/40, 1)</td></tr>
             <tr><td>Analyst numerical premium</td><td>±7.5%</td><td>analyst_weighted × 0.05 × min(aoc/40, 1.5)</td></tr>
             <tr><td>Earnings beat streak</td><td>+4%</td><td>1% per consecutive beat, max 4</td></tr>
-            <tr><td>High-beta stretch penalty <span class="new-badge">new</span></td><td>variable</td><td>Only when beta &gt; 2.5 AND HiRatio_52w &gt; 0.95</td></tr>
+            <tr><td>High-beta stretch penalty</td><td>variable</td><td>Only when beta &gt; 2.5 AND HiRatio_52w &gt; 0.95</td></tr>
             <tr><td>Consumer sector multiplier</td><td>±3%</td><td>World Bank consumption growth × 0.005, clamped</td></tr>
           </tbody>
         </table>
       </div>
 
-      <section id="earnings-dampening">
-        <h3>1-Month Earnings-Window Confidence Dampening <span class="new-badge">new</span></h3>
+      <section id="week-blend">
+        <h3>1-Week Prediction Blend Logic <span class="updated-badge">updated v3.3</span></h3>
         <div class="step-card">
-          <p>The 1-month confidence score is now adjusted based on proximity to the next earnings date:</p>
+          <p>The T+5 MLP output head is subject to high noise (5-day returns are ~90% noise; joint training with 6m/1y targets leaves the T+5 head under-trained relative to longer horizons). The final 1-week price is therefore a blend with a hard cap:</p>
+          <div class="formula">
+# Step 1: MLP T+5 raw output (after impact_multiplier)
+_mlp_1w_raw = inverse_close(pred_scaled[1]) * impact_multiplier
+
+# Step 2: Trajectory interpolation anchor (linear from current price toward 6m target)
+_traj_anchor_1w = current_price + (predicted_price_6m - current_price) * (T5 / T6)
+                # T5=5, T6=126 → traj_anchor ≈ current_price + 3.97% of the 6m move
+
+# Step 3: Blend 30% MLP / 70% trajectory
+_blended_1w = 0.30 * _mlp_1w_raw + 0.70 * _traj_anchor_1w
+
+# Step 4: ATR-based cap — 5-day move cannot exceed 2× daily ATR scaled to 5 days
+_atr_1w = ATR_14 (last row)
+_max_move_1w = 2.0 * _atr_1w * sqrt(5)
+predicted_price_1w = clip(_blended_1w, current_price - _max_move_1w,
+                                       current_price + _max_move_1w)
+          </div>
+        </div>
+      </section>
+
+      <section id="trajectory">
+        <h3>18-Month Trajectory Generation <span class="updated-badge">updated v3.3</span></h3>
+        <div class="step-card">
+          <p>The trajectory contains <strong>19 waypoints</strong>, each with a midpoint price, lower bound, and upper bound. Waypoints are at trading-day offsets:</p>
+          <div class="formula">WAYPOINTS = [T5=5] + list(range(21, 379, 21))
+# → [5, 21, 42, 63, 84, 105, 126, 147, 168, 189, 210, 231, 252, 273, 294, 315, 336, 357, 378]</div>
+          <p>The trajectory always starts at t=0 (current price) as a gray "Now" dot prepended in the UI by <code>TrajectoryChart</code>. The 19 backend waypoints then follow. This means the UI renders pts[0] = Now, pts[1] = t+5 (1 week), pts[2] = t+21 (1 month), pts[7] = t+126 (6 months), pts[13] = t+252 (12 months).</p>
+          <table>
+            <thead><tr><th>Segment</th><th>Midpoint</th><th>Spread</th></tr></thead>
+            <tbody>
+              <tr><td>t=5 (1 week)</td><td><code>predicted_price_1w</code></td><td><code>spread_6m × (T5/T6)</code></td></tr>
+              <tr><td>t+5 to t+126 (1w → 6m)</td><td>Linear interpolation from 1w to 6m</td><td>Linear interpolation of spread</td></tr>
+              <tr><td>t+126 to t+252 (6m → 12m)</td><td>Linear interpolation using <code>predicted_price_6m</code> and <code>predicted_price_1y</code> anchors (deterministic)</td><td>Linear interpolation spread_6m → spread_12m</td></tr>
+              <tr><td>t+252 to t+378 (12m → 18m)</td><td>Linear extrapolation: 1y + (1y - 6m) × t</td><td>Linear interpolation spread_12m → spread_18m</td></tr>
+            </tbody>
+          </table>
+          <p>MC runs provide the <strong>spread only</strong>. The midpoints use deterministic MLP predictions to avoid MC mean regression toward the training distribution median.</p>
+
+          <h4>Trajectory Chart Interaction (StockPrediction.tsx)</h4>
+          <p>Hover tooltips appear on all named dots showing: time frame label / predicted price / % change from current. The tooltip auto-flips to the left when a dot is near the right edge of the SVG viewport.</p>
+          <table>
+            <thead><tr><th>Dot color</th><th>Point</th><th>Index in pts array</th></tr></thead>
+            <tbody>
+              <tr><td>Gray (<code>#6B7280</code>)</td><td>Current Price (Now)</td><td>pts[0] — prepended by UI</td></tr>
+              <tr><td>Blue (<code>#2563EB</code>)</td><td>1 Week (t+5)</td><td>pts[1]</td></tr>
+              <tr><td>Blue</td><td>1 Month (t+21)</td><td>pts[2]</td></tr>
+              <tr><td>Blue</td><td>6 Months (t+126)</td><td>pts[7]</td></tr>
+              <tr><td>Blue</td><td>12 Months (t+252)</td><td>pts[13]</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="earnings-dampening">
+        <h3>1-Month Earnings-Window Confidence Dampening</h3>
+        <div class="step-card">
+          <p>The 1-month confidence score is adjusted based on proximity to the next earnings date:</p>
           <div class="formula">if days_to_earnings &lt;= 14:
     cs1m = max(0, cs6m - 10)   # near earnings: binary event risk, lower confidence
 else:
-    cs1m = min(100, cs6m + 10)  # standard: tighter horizon = slight boost</div>
-          <p>Previously <code>cs1m</code> was always <code>cs6m + 10</code>. The new logic correctly reflects that a 1-month window that contains an earnings release carries more binary outcome risk than a 6-month window, and should therefore not receive an automatic confidence boost. The <code>nextEarningsDate</code> field from <code>stockMetrics</code> drives this calculation; if missing, <code>_days_to_earnings</code> defaults to 999 (far away), preserving the standard boost.</p>
+    cs1m = min(100, cs6m + 10)  # standard: tighter horizon = slight boost
+
+cs1w = min(100, cs1m + 3)      # 1-week: tighter than 1-month</div>
+          <p>The <code>nextEarningsDate</code> field from <code>stockMetrics</code> drives this calculation; if missing, <code>_days_to_earnings</code> defaults to 999 (far away), preserving the standard boost.</p>
         </div>
       </section>
 
@@ -417,7 +589,7 @@ else:
           <table>
             <thead><tr><th>Component</th><th>Max pts</th><th>Thresholds</th></tr></thead>
             <tbody>
-              <tr><td>CV-MAPE (holdout accuracy)</td><td>40</td><td>&lt;5% → 40 pts; &lt;10% → 30 pts; &lt;20% → 15 pts; else 0</td></tr>
+              <tr><td>CV-MAPE (holdout accuracy on T+126)</td><td>40</td><td>&lt;5% → 40 pts; &lt;10% → 30 pts; &lt;20% → 15 pts; else 0</td></tr>
               <tr><td>History depth</td><td>25</td><td>≥5y → 25; ≥4y → 20; ≥3y → 12; ≥2y → 5; else 0</td></tr>
               <tr><td>Feature completeness</td><td>20</td><td>0 imputed → 20; ≤2 → 14; ≤5 → 8; else 0</td></tr>
               <tr><td>Analyst coverage</td><td>15</td><td>≥10 analysts → 15; ≥5 → 10; ≥1 → 5; else 0</td></tr>
@@ -426,8 +598,8 @@ else:
           <p>Derived confidence scores:</p>
           <ul>
             <li><code>cs1y = max(0, cs6m - 15)</code> — longer horizon, wider uncertainty</li>
-            <li><code>cs1m</code> — see earnings-window logic above</li>
-            <li><code>cs1d = min(100, cs1m + 5)</code> — tightest horizon, highest confidence</li>
+            <li><code>cs1m = cs6m ± 10</code> — see earnings-window logic above</li>
+            <li><code>cs1w = min(100, cs1m + 3)</code> — tightest primary horizon</li>
           </ul>
         </div>
       </section>
@@ -438,28 +610,64 @@ else:
     <section id="step7">
       <h2><span class="step-num">7</span> Persistence Layer</h2>
       <div class="step-card">
-        <div class="component-tag">POST /api/prediction/save</div>
-        <p>After a successful prediction run, the API route fires an async (fire-and-forget) call to <code>/api/prediction/save</code> that persists the 1-month predicted price and GPS score to <code>user_stock_predictions</code> for the requesting user. The GPS score is computed from <code>calculateGpsScore()</code> using analyst upside, revenue growth, earnings growth, 52-week price change, ML alpha (predicted_change_pct_1m), and AI confidence (confidence_score_1m).</p>
+        <div class="component-tag">POST /api/prediction/save — route.ts</div>
+        <p>After a successful prediction run, the API route fires an async (fire-and-forget) call to <code>/api/prediction/save</code> that persists the 1-month predicted price and GPS score to <code>user_stock_predictions</code> for the requesting user. The GPS score is computed from <code>calculateGpsScore()</code> using analyst upside, revenue growth, earnings growth, 52-week price change, ML alpha (<code>predicted_change_pct_1m</code>), and AI confidence (<code>confidence_score_1m</code>).</p>
+        <p>The save payload accepts both <code>predicted_price_1w</code> and <code>predicted_price_1m</code> as optional fields alongside the required <code>predicted_price_1m</code>. The DB column <code>predicted_price_1w</code> is populated when provided.</p>
         <p>Internal (deepmoney sync) calls skip GPS computation and persistence.</p>
+        <div class="highlight-box">
+          <strong>Field naming (v3.3):</strong> The persistence route schema now accepts <code>predicted_price_1w</code> as an optional field. The route internally still requires <code>predicted_price_1m</code> for GPS calculation. No field was removed — <code>predicted_price_1d</code> was never persisted (the 1d prediction was only displayed in the UI).
+        </div>
+      </div>
+    </section>
+
+    <section id="caching">
+      <h2>Cache Architecture</h2>
+      <div class="step-card">
+        <div class="component-tag">scripts/prediction_cache/ — result cache + feature cache</div>
+        <p>The script maintains two cache layers in <code>scripts/prediction_cache/</code>:</p>
+        <ul>
+          <li><strong>Result cache (v2)</strong> — keyed by <code>MD5(ticker + last_date + data_len + "v2")</code>. Full prediction JSON stored as <code>{key}.json</code>. The schema version is embedded in the key string via <code>CACHE_SCHEMA_VERSION = 2</code>. Bumping this constant invalidates all stale v1 caches automatically without manual cleanup.</li>
+          <li><strong>Feature cache</strong> — the full feature DataFrame stored as <code>{ticker}_features_df.pkl</code>. On the next run, if the new data is a forward extension of the cached data, only the new rows are computed using a 252-row lookback buffer. Broadcaster-scalar features (fundamentals, macro, insider) are updated in-place on the cached frame.</li>
+        </ul>
+        <p>Server-side in-memory cache (<code>predictionCache</code>) stores prediction results keyed by <code>{ticker}_{outlook}</code>. Bypassed by <code>?refresh=true</code>.</p>
+        <p>CPU usage is throttled via environment variables (<code>OMP_NUM_THREADS=1</code>, <code>MKL_NUM_THREADS=1</code>, etc.) set before numpy/sklearn import, and the process priority is lowered via <code>os.nice(15)</code>.</p>
       </div>
     </section>
 
     <section id="changelog">
-      <h2>Recent Changes (2026-05-28)</h2>
+      <h2>Recent Changes</h2>
       <div class="step-card">
+        <h4>v3.3 (2026-06-03)</h4>
         <table>
           <thead><tr><th>File</th><th>Change</th></tr></thead>
           <tbody>
-            <tr><td><code>predict_weighted_analysis.py</code></td><td>Added <code>InsiderNetSellRatio_90d</code> and <code>InsiderTxCount_90d</code> to <code>FEATURE_COLUMNS</code></td></tr>
-            <tr><td><code>predict_weighted_analysis.py</code></td><td>Added High-Beta/Valuation Stretch Penalty in <code>metric_analysis()</code></td></tr>
-            <tr><td><code>predict_weighted_analysis.py</code></td><td>Added earnings-window confidence dampening for 1-month horizon (<code>cs1m = cs6m - 10</code> when earnings within 14 days)</td></tr>
-            <tr><td><code>predict_weighted_analysis.py</code></td><td>Fixed <code>analyst_count</code> NameError in <code>metric_analysis()</code> (was referencing undefined variable for analyst opinion count)</td></tr>
-            <tr><td><code>src/app/api/stock_data/[ticker]/data/route.ts</code></td><td>Added <code>extractInsiderMetrics()</code> — fetches Yahoo Finance <code>insiderTransactions</code> module and computes 90-day insider metrics</td></tr>
-            <tr><td><code>src/app/api/prediction/[ticker]/route.ts</code></td><td>Removed per-user 30-second cooldown (<code>tickerCooldown</code> Map, 429 responses)</td></tr>
+            <tr><td><code>predict_weighted_analysis.py</code></td><td>Primary outlook changed from 1-day to 1-week (T+5 MLP output head)</td></tr>
+            <tr><td><code>predict_weighted_analysis.py</code></td><td>MLP target vector expanded from 2-output [T+126, T+252] to 4-output [T+1, T+5, T+126, T+252]</td></tr>
+            <tr><td><code>predict_weighted_analysis.py</code></td><td>1-week prediction now blended: 30% MLP T+5 raw + 70% trajectory interpolation, hard-capped at ±2×ATR×√5</td></tr>
+            <tr><td><code>predict_weighted_analysis.py</code></td><td>Trajectory WAYPOINTS changed from range(21,379,21) to [T5=5] + range(21,379,21); t=0 anchor now added by UI</td></tr>
+            <tr><td><code>predict_weighted_analysis.py</code></td><td>6m and 1y trajectory anchors use deterministic MLP outputs rather than MC means</td></tr>
+            <tr><td><code>predict_weighted_analysis.py</code></td><td>CACHE_SCHEMA_VERSION bumped to 2 to invalidate stale caches</td></tr>
+            <tr><td><code>predict_weighted_analysis.py</code></td><td>13 new FEATURE_COLUMNS added: PostEarnings_DayN/CumReturn/VolRatio, EPS_Revision_7d_0Q/1Q, Revenue_Est_Growth_0Q/1Q, EPS_Rev_Up7d/Down7d, Upgrade_Score_7d/30d, PreMarket_GapPct, PostMarket_GapPct, FiftyTwoWeek_PosRatio, Institution_PctHeld/PctDelta, Peer_RS_5d</td></tr>
+            <tr><td><code>src/app/api/prediction/[ticker]/route.ts</code></td><td>Valid outlook values updated to include <code>1_week</code>; default outlook for result population changed from <code>1_day</code> to <code>1_week</code></td></tr>
+            <tr><td><code>src/app/api/prediction/save/route.ts</code></td><td>Schema now accepts optional <code>predicted_price_1w</code> field alongside <code>predicted_price_1m</code></td></tr>
+            <tr><td><code>src/app/components/StockPrediction.tsx</code></td><td>Four prediction cards updated: 1-Week (purple), 1-Month (blue), 6-Month (emerald), 12-Month (green)</td></tr>
+            <tr><td><code>src/app/components/StockPrediction.tsx</code></td><td>TrajectoryChart: Now dot added at t=0 (gray), dots at pts[1]=1wk, pts[2]=1mo, pts[7]=6mo, pts[13]=12mo</td></tr>
+            <tr><td><code>src/app/components/StockPrediction.tsx</code></td><td>Hover tooltips added to all trajectory dots showing label / price / % change</td></tr>
+            <tr><td><code>src/app/components/StockPrediction.tsx</code></td><td>Added "Recalculate (skip cache)" button that passes <code>?refresh=true</code> to bypass <code>predictionCache</code></td></tr>
+            <tr><td><code>scripts/test_feature_columns.py</code></td><td>New offline validator script for all 118 FEATURE_COLUMNS</td></tr>
+          </tbody>
+        </table>
+
+        <h4 style="margin-top:2rem;">v3.2 (2026-05-28)</h4>
+        <table>
+          <thead><tr><th>File</th><th>Change</th></tr></thead>
+          <tbody>
+            <tr><td><code>predict_weighted_analysis.py</code></td><td>Added InsiderNetSellRatio_90d and InsiderTxCount_90d to FEATURE_COLUMNS</td></tr>
+            <tr><td><code>predict_weighted_analysis.py</code></td><td>Added High-Beta/Valuation Stretch Penalty in metric_analysis()</td></tr>
+            <tr><td><code>predict_weighted_analysis.py</code></td><td>Added earnings-window confidence dampening for 1-month horizon</td></tr>
+            <tr><td><code>src/app/api/stock_data/[ticker]/data/route.ts</code></td><td>Added extractInsiderMetrics() — 90-day SEC Form 4 insider metrics</td></tr>
+            <tr><td><code>src/app/api/prediction/[ticker]/route.ts</code></td><td>Removed per-user 30-second cooldown (tickerCooldown Map, 429 responses)</td></tr>
             <tr><td><code>src/app/components/StockPrediction.tsx</code></td><td>Removed client-side cooldown countdown UI</td></tr>
-            <tr><td><code>src/app/components/GainsBreakdownCard.tsx</code></td><td>WCAG AA contrast fixes</td></tr>
-            <tr><td><code>src/app/portfolio/page.tsx</code></td><td>WCAG AA contrast fixes</td></tr>
-            <tr><td><code>src/app/components/PortfolioMetricsPanel.tsx</code></td><td>WCAG AA contrast fixes</td></tr>
           </tbody>
         </table>
       </div>

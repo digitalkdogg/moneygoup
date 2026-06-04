@@ -8,7 +8,6 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; color: #1e293b; display: flex; flex-direction: column; min-height: 100vh; }
 
-
     .layout { display: flex; flex: 1; }
     .sidebar { width: 260px; min-width: 260px; background: #fff; border-right: 1px solid #e2e8f0; padding: 1.5rem 0; position: sticky; top: 92px; height: calc(100vh - 92px); overflow-y: auto; }
     .sidebar h3 { font-size: .65rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #94a3b8; padding: .25rem 1.25rem .5rem; margin-top: .5rem; }
@@ -88,8 +87,7 @@
     .top-bar-nav a { white-space: nowrap; color: rgba(255,255,255,0.72); text-decoration: none; font-size: .8rem; font-weight: 600; padding-bottom: 3px; border-bottom: 2px solid transparent; transition: color .15s, border-color .15s; flex-shrink: 0; }
     .top-bar-nav a:hover { color: #fff; }
     .top-bar-nav a.active { color: #fff; border-bottom-color: #86efac; }
-
-    </style>
+  </style>
 </head>
 <body>
 <div class="top-bar">
@@ -98,7 +96,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">API Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-05-28</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-03</div>
   </div>
   <nav class="top-bar-nav">
     <a href="moneygoup_overview.html">Overview</a>
@@ -115,6 +113,7 @@
     <a href="gps_score.html">GPS Score</a>
     <a href="style_guide.html">Style Guide</a>
     <a href="SEO.html">SEO</a>
+    <a href="test_feature_columns.html">Feature Validator</a>
   </nav>
 </div>
 
@@ -144,6 +143,7 @@
     <a href="recommendation_buckets.html">Recommendation Buckets</a>
     <a href="technical_indicators_guide.html">Technical Indicators</a>
     <a href="admin_user_management.html">Admin User Mgmt</a>
+    <a href="test_feature_columns.html">Feature Validator</a>
     <a href="style_guide.html">Style Guide</a>
   </nav>
 
@@ -153,7 +153,7 @@
       <span>GrowMyStocks</span>
       <span>Next.js 16 App Router</span>
       <span>35+ routes documented</span>
-      <span>Updated 2026-05-28</span>
+      <span>Updated 2026-06-03</span>
     </div>
 
     <div class="summary-grid">
@@ -543,10 +543,18 @@
           <span class="route-path">/api/prediction/[ticker]</span>
           <span class="badge badge-auth">Auth or internal API key</span>
           <span class="badge badge-rate">Rate limited (LimitService)</span>
-          <span class="badge badge-new">Updated 2026-05-28</span>
+          <span class="badge badge-new">Updated 2026-06-03</span>
           <span class="route-file">src/app/api/prediction/[ticker]/route.ts</span>
         </div>
-        <div class="route-desc">Runs the ML prediction pipeline for a single ticker. Spawns <code>scripts/predict_weighted_analysis.py</code> via Node <code>child_process.spawn</code> inside a semaphore to bound concurrent Python processes. Results are cached in <code>predictionCache</code> and persisted asynchronously via <code>/api/prediction/save</code>.</div>
+        <div class="route-desc">Runs the ML prediction pipeline for a single ticker. Spawns <code>scripts/predict_weighted_analysis.py</code> via Node <code>child_process.spawn</code> inside a semaphore to bound concurrent Python processes. Results are cached in <code>predictionCache</code> (keyed <code>{ticker}_{outlook}</code>) and persisted asynchronously via <code>/api/prediction/save</code>.</div>
+        <div class="sub-heading">Query Params</div>
+        <table class="props-table">
+          <thead><tr><th>Param</th><th>Values</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><code>outlook</code></td><td>'1_week' | '1_month' | '6_month' | '1_year' | 'all'</td><td>Controls which specific-horizon fields are backfilled on the response. Default: 'all'. Changed from '1_day' in v3.3.</td></tr>
+            <tr><td><code>refresh</code></td><td>'true'</td><td>When present, bypasses <code>predictionCache</code> and forces a new Python run. Triggered by the "Recalculate (skip cache)" UI button.</td></tr>
+          </tbody>
+        </table>
         <div class="sub-heading">Request Body</div>
         <div class="route-desc">The enriched data payload returned by <code>GET /api/stock_data/{ticker}/data</code>. Must include <code>historicalData</code> (≥ 365 rows), <code>stockMetrics</code>, and optionally <code>featureMetrics</code>, <code>macroData</code>, <code>optionsData</code>, <code>historicalEarnings</code>, and <code>dataQuality</code>.</div>
         <div class="sub-heading">Guards &amp; Caching</div>
@@ -561,27 +569,43 @@
             <tr><td><code>predictionSemaphore</code></td><td>Limits concurrent Python subprocess spawns; returns 503 Busy if full</td></tr>
           </tbody>
         </table>
-        <div class="success-note"><strong>Cooldown removed (2026-05-28):</strong> The previous 30-second per-user-per-ticker cooldown lock (<code>tickerCooldown</code> Map) and its associated 429 responses have been removed. Throttling is now handled exclusively by the LimitService daily quota and the semaphore concurrency cap. The <code>StockPrediction.tsx</code> client-side countdown UI was also removed.</div>
-        <div class="sub-heading">Response</div>
+        <div class="success-note"><strong>Cooldown removed (2026-05-28):</strong> The previous 30-second per-user-per-ticker cooldown lock (<code>tickerCooldown</code> Map) and its associated 429 responses have been removed. Throttling is now handled exclusively by the LimitService daily quota and the semaphore concurrency cap.</div>
+        <div class="sub-heading">Response (v3.3 — 1-week replaces 1-day as primary short-term output)</div>
         <pre>{
   "ticker": string,
   "regularMarketPrice": number,
-  "predicted_price_1d": number,
+  "predicted_price_1w": number,           // NEW — 1-week (T+5), blended MLP+trajectory
   "predicted_price_1m": number,
   "predicted_price_6m": number,
   "predicted_price_1y": number,
-  "predicted_change_pct_1d": number,
+  "predicted_change_pct_1w": number,      // NEW
   "predicted_change_pct_1m": number,
   "predicted_change_pct_6m": number,
   "predicted_change_pct_1y": number,
-  "confidence_score_1d": number,
+  "confidence_score_1w": number,          // NEW
   "confidence_score_1m": number,
   "confidence_score_6m": number,
   "confidence_score_1y": number,
+  "predicted_range_1w": [number, number], // NEW — ATR-based 1w spread
   "high_uncertainty": boolean,
-  "monthly_trajectory": [ { "month": string, "predicted_price": number, "lower_bound": number, "upper_bound": number }, ... ],
-  "regime_info": { "k": number, "current_regime": number, "current_regime_probs": number[], "regime_names": string[] },
+  "predicted_change_range": [number, number],
+  "monthly_trajectory": [
+    { "month": string, "predicted_price": number, "lower_bound": number, "upper_bound": number },
+    ...  // 19 waypoints: t+5, t+21, t+42, ..., t+378
+  ],
+  "regime_info": {
+    "k": number,
+    "current_regime": number,
+    "current_regime_probs": number[],
+    "regime_names": string[]
+  },
   "metric_analysis": { ... },
+  "accuracy_metrics": { "model": { "mae": number, "rmse": number, "cv_mae": number } },
+  "stock_type": "growth_stock" | "stable_stock",
+  "growth_rate_20d": number,
+  "is_uptrend": 0 | 1,
+  "data_quality": { ... },
+  "observability": { "macro_features_used": string[], "consumer_multiplier_applied": number },
   "gps_score": number,
   "gps_breakdown": { ... },
   "source": "livedata" | "cache"
@@ -601,17 +625,29 @@
           <span class="route-path">/api/prediction/save</span>
           <span class="badge badge-auth">Auth or internal API key</span>
           <span class="badge badge-origin">Origin check</span>
+          <span class="badge badge-new">Updated 2026-06-03</span>
           <span class="route-file">src/app/api/prediction/save/route.ts</span>
         </div>
-        <div class="route-desc">Persists a prediction result to the <code>user_stock_predictions</code> table. Called asynchronously (fire-and-forget) by <code>/api/prediction/[ticker]</code> after a successful model run. Upserts based on <code>(user_id, stock_id)</code>. Internal calls skip GPS persistence.</div>
-        <div class="sub-heading">Request Body</div>
+        <div class="route-desc">Persists a prediction result to the <code>user_stock_predictions</code> table. Called asynchronously (fire-and-forget) by <code>/api/prediction/[ticker]</code> after a successful model run. Upserts based on <code>(user_id, stock_id)</code>. Internal calls skip GPS persistence. GPS score is synced to <code>stock_gps_scores</code> and <code>stock_gps_score_history</code> when changed (compared at 0.1 precision).</div>
+        <div class="sub-heading">Request Body (Zod validated)</div>
         <pre>{
-  "ticker": string,
-  "predicted_price_1m": number,
-  "user_id": string,
-  "gps_score": number,
-  "gps_breakdown": object
+  "ticker": string,                         // required
+  "predicted_price_1m": number,             // required — used for GPS calculation
+  "predicted_price_1w": number,             // optional — persisted to predicted_price_1w column
+  "predicted_price_6m": number,             // optional
+  "predicted_price_1y": number,             // optional
+  "user_id": string,                        // required for internal calls
+  "gps_score": number | null,              // optional (0–100)
+  "gps_breakdown": object,                 // optional
+  "macro_features_used": string[],         // optional
+  "consumer_multiplier_applied": number    // optional
 }</pre>
+        <div class="success-note"><strong>v3.3:</strong> <code>predicted_price_1w</code> added as an accepted optional field. The field name change referenced in initial planning (<code>predicted_price_1d</code> → <code>predicted_price_1w</code>) applies to this new optional field — the 1-day value was never persisted, so there is no migration needed.</div>
+        <div class="sub-heading">Response</div>
+        <pre>200 { "message": "Prediction saved successfully" }
+400 { "message": "...", "errors": [...] }  — Zod validation failure
+404 { "message": "Stock not found: TICKER" }
+500 { ... }</pre>
       </div>
     </div>
 
@@ -684,42 +720,66 @@
           <span class="route-path">/api/stock_data/[ticker]/data</span>
           <span class="badge badge-auth">Auth required</span>
           <span class="badge badge-cache">15-min cache</span>
-          <span class="badge badge-new">Updated 2026-05-28</span>
+          <span class="badge badge-new">Updated 2026-06-03</span>
           <span class="route-file">src/app/api/stock_data/[ticker]/data/route.ts</span>
         </div>
         <div class="route-desc">Returns an enriched data payload specifically formatted as input for the Python prediction model. Used in step 1 of the two-step prediction flow. Calls Yahoo Finance for 5 years of OHLCV data, fundamentals, earnings, options, and 11 macro symbols in parallel. Sector medians are used to impute missing fundamental values. Cached in memory for 15 minutes (max 500 entries).</div>
-        <div class="sub-heading">New in 2026-05-28: Insider Transaction Metrics</div>
-        <div class="route-desc">A new internal function <code>extractInsiderMetrics(insiderTxData, sharesOutstanding)</code> fetches the Yahoo Finance <code>insiderTransactions</code> quoteSummary module and computes two metrics from transactions within the trailing 90 days:</div>
-        <table class="props-table">
-          <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
-          <tbody>
-            <tr><td><code>insiderNetSellRatio90d</code></td><td>number | null</td><td>(net shares sold) / sharesOutstanding, clipped to [-1, 1]. Positive = net selling. Option exercises excluded.</td></tr>
-            <tr><td><code>insiderTxCount90d</code></td><td>number | null</td><td>Count of SEC Form 4 transactions (sales + purchases) in the 90-day window.</td></tr>
-          </tbody>
-        </table>
-        <div class="route-desc">These are included in the <code>featureMetrics</code> object of the response and forwarded to the Python model, which maps them to the new <code>InsiderNetSellRatio_90d</code> and <code>InsiderTxCount_90d</code> feature columns.</div>
-        <div class="sub-heading">Response shape (featureMetrics block)</div>
+        <div class="sub-heading">featureMetrics block (expanded v3.3)</div>
+        <div class="route-desc">The <code>featureMetrics</code> object is forwarded directly to the Python model and maps to the FEATURE_COLUMNS array. As of v3.3, it includes all fields needed for the 118 base feature columns:</div>
         <pre>{
   "featureMetrics": {
+    // Earnings surprises
     "epsSurpriseAvg4Q": number | null,
     "revenueSurpriseAvg4Q": number | null,
+    // Short interest
     "shortFloatPct": number | null,
     "daysToCover": number | null,
+    // Insider activity
     "insiderNetSellRatio90d": number | null,
     "insiderTxCount90d": number | null,
+    // Earnings dates
+    "lastEarningsDate": string | null,
+    "earningsDateHistory": [ { "date": string, "surprise": number } ],
+    // EPS revision velocity (v3.3)
+    "epsRevision7d_0Q": number | null,
+    "epsRevision7d_1Q": number | null,
+    "revenueEstGrowth_0Q": number | null,
+    "revenueEstGrowth_1Q": number | null,
+    "epsRevisionsUp7d": number | null,
+    "epsRevisionsDown7d": number | null,
+    // Analyst upgrade/downgrade recency (v3.3)
+    "upgradeScore7d": number | null,
+    "upgradeScore30d": number | null,
+    // Pre/post-market microstructure (v3.3)
+    "preMarketChangePct": number | null,
+    "postMarketChangePct": number | null,
+    "fiftyTwoWeekPosRatio": number | null,
+    // Institution ownership (v3.3)
+    "instPctHeld": number | null,
+    "instPctDelta": number | null,
+    // Peer relative strength (v3.3)
+    "peerRS5d": number | null,
     "asOf": "YYYY-MM-DD"
   }
 }</pre>
         <div class="sub-heading">Full payload structure</div>
         <pre>{
   "ticker": string,
-  "historicalData": [ { "date": string, "open": number, "high": number, "low": number, "close": number, "volume": number }, ... ],
-  "stockMetrics": { "regularMarketPrice": number, "peRatio": number, "beta": number, "nextEarningsDate": string | null, ... },
-  "macroData": { "vix": [...], "treasury10y": [...], "sectorEtf": {...}, "hyg": [...], "lqd": [...], "dxy": [...], "spy": [...], "treasury3m": [...], "wti": [...], "copper": [...], "wheat": [...], "worldBank": {...} },
-  "optionsData": { "iv": number | null, "ivRank": number | null, "putCallRatio": number | null, "available": boolean },
+  "historicalData": [ { "date": string, "open": number, "high": number, "low": number,
+                        "close": number, "volume": number }, ... ],
+  "stockMetrics": { "regularMarketPrice": number, "peRatio": number, "beta": number,
+                    "nextEarningsDate": string | null, "lastEarningsDate": string | null, ... },
+  "macroData": { "vix": [...], "treasury10y": [...], "sectorEtf": {...}, "hyg": [...],
+                 "lqd": [...], "dxy": [...], "spy": [...], "treasury3m": [...],
+                 "wti": [...], "copper": [...], "wheat": [...], "worldBank": {...} },
+  "optionsData": { "iv": number | null, "ivRank": number | null,
+                   "putCallRatio": number | null, "available": boolean },
   "featureMetrics": { ... },
-  "historicalEarnings": [ { "date": string, "epsActual": number | null, "epsEstimate": number | null } ],
-  "dataQuality": { "historyDays": number, "historyYears": number, "fundamentalsComplete": boolean, "imputedFields": string[], "missingFeatureMetrics": string[] | undefined },
+  "historicalEarnings": [ { "date": string, "epsActual": number | null,
+                             "epsEstimate": number | null } ],
+  "dataQuality": { "historyDays": number, "historyYears": number,
+                   "fundamentalsComplete": boolean, "imputedFields": string[],
+                   "missingFeatureMetrics": string[] | undefined },
   "source": "livedata" | "cache"
 }</pre>
         <div class="dep-list">

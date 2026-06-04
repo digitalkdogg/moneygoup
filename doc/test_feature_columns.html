@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Feature Column Validator — GrowMyStocks Docs</title>
+  <style>
+    :root {
+      --primary: #15803d;
+      --primary-dark: #166534;
+      --bg: #f8fafc;
+      --text: #1e293b;
+      --code-bg: #1e293b;
+      --code-text: #f8fafc;
+      --border: #e2e8f0;
+      --purple: #7c3aed;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      line-height: 1.6;
+      color: var(--text);
+      background: var(--bg);
+      margin: 0; padding: 0;
+    }
+
+    /* Top Bar */
+    .top-bar { background: #017e3b; color: #fff; padding: 0 2rem; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+    .top-bar-header { display: flex; align-items: center; justify-content: space-between; height: 56px; }
+    .top-bar .brand { font-size: 1.2rem; font-weight: 700; letter-spacing: .02em; }
+    .top-bar .brand span { color: #bbf7d0; }
+    .top-bar .subtitle { font-size: .8rem; opacity: .8; }
+    .top-bar-nav { display: flex; gap: 1.75rem; overflow-x: auto; scrollbar-width: none; padding: 6px 0 8px; border-top: 1px solid rgba(255,255,255,0.15); }
+    .top-bar-nav::-webkit-scrollbar { display: none; }
+    .top-bar-nav a { white-space: nowrap; color: rgba(255,255,255,0.72); text-decoration: none; font-size: .8rem; font-weight: 600; padding-bottom: 3px; border-bottom: 2px solid transparent; transition: color .15s, border-color .15s; flex-shrink: 0; }
+    .top-bar-nav a:hover { color: #fff; }
+    .top-bar-nav a.active { color: #fff; border-bottom-color: #86efac; }
+
+    /* Layout */
+    .layout { display: flex; flex: 1; }
+
+    /* Sidebar */
+    .sidebar { width: 260px; min-width: 260px; background: #fff; border-right: 1px solid #e2e8f0; padding: 1.5rem 0; position: sticky; top: 92px; height: calc(100vh - 92px); overflow-y: auto; }
+    .sidebar h3 { font-size: .65rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #94a3b8; padding: .25rem 1.25rem .5rem; margin-top: .5rem; }
+    .sidebar a { display: block; padding: .45rem 1.25rem; font-size: .85rem; color: #475569; text-decoration: none; border-left: 3px solid transparent; transition: all .15s; line-height: 1.4; }
+    .sidebar a:hover { background: #f0fdf4; color: #017e3b; border-left-color: #86efac; }
+    .sidebar a.active { background: #f0fdf4; color: #017e3b; font-weight: 600; border-left-color: #017e3b; }
+    .sidebar .section-divider { border-top: 1px solid #f1f5f9; margin: .5rem 0; }
+
+    /* Main */
+    main { padding: 3rem; max-width: 1100px; width: 100%; }
+    h1 { color: var(--primary-dark); border-bottom: 2px solid var(--primary); padding-bottom: .5rem; margin-bottom: 2rem; }
+    h2 { color: var(--primary); margin-top: 3rem; border-bottom: 1px solid var(--border); padding-bottom: .5rem; }
+    h3 { color: #334155; margin-top: 2rem; background: #f1f5f9; padding: .5rem 1rem; border-radius: 6px; }
+    h4 { color: var(--primary-dark); margin-top: 1.5rem; font-size: 1.05rem; }
+    ul { list-style: disc; margin-left: 1.5rem; padding-left: 0; }
+    li { margin-bottom: .5rem; }
+    p { margin-bottom: 1rem; }
+    code { padding: .2rem .4rem; border-radius: 4px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: .9rem; background: #f1f5f9; }
+    pre { background: var(--code-bg); color: var(--code-text); padding: 1.2rem; border-radius: 8px; overflow-x: auto; margin: 1rem 0; font-size: .83rem; line-height: 1.6; }
+    pre code { background: transparent; padding: 0; color: inherit; }
+
+    .highlight-box { background: #f0fdf4; border-left: 4px solid var(--primary); padding: 1rem; margin: 1rem 0; border-radius: 0 6px 6px 0; }
+    .warning-box { background: #fffbeb; border-left: 4px solid #f59e0b; padding: 1rem; margin: 1rem 0; border-radius: 0 6px 6px 0; color: #78350f; }
+    .new-badge { display: inline-block; font-size: .65rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 999px; margin-left: .5rem; vertical-align: middle; }
+
+    .step-card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin: 1.5rem 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .component-tag { font-size: .75rem; font-weight: bold; text-transform: uppercase; padding: .2rem .5rem; border-radius: 4px; background: #f1f5f9; color: #64748b; margin-bottom: .75rem; display: inline-block; }
+
+    table { width: 100%; border-collapse: collapse; font-size: .85rem; margin: .75rem 0; }
+    th { text-align: left; color: #64748b; font-weight: 600; padding: .4rem .6rem; border-bottom: 1px solid var(--border); background: #f8fafc; }
+    td { padding: .4rem .6rem; vertical-align: top; border-bottom: 1px solid #f1f5f9; }
+    tr:last-child td { border-bottom: none; }
+
+    .fn-block { border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; }
+    .fn-block h4 { margin-top: 0; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 1rem; color: var(--primary-dark); }
+
+    .meta { font-size: .8rem; color: #64748b; margin-bottom: 2rem; display: flex; gap: 1rem; flex-wrap: wrap; }
+    .meta span { background: #f1f5f9; padding: .2rem .6rem; border-radius: 4px; }
+
+    .pass { color: #15803d; font-weight: 700; }
+    .fail { color: #991b1b; font-weight: 700; }
+    .warn { color: #b45309; font-weight: 700; }
+
+    .check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+    .check-card { background: white; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
+    .check-card .label { font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: #64748b; margin-bottom: .25rem; }
+    .check-card .value { font-size: 1.5rem; font-weight: 800; color: #017e3b; }
+
+    footer { margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: .85rem; text-align: center; }
+
+    @media (max-width: 768px) { .sidebar { display: none; } main { padding: 1.5rem; } }
+  </style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div class="top-bar-header">
+    <div>
+      <div class="brand">Grow<span>MY</span>Stocks</div>
+      <div class="subtitle">Developer Docs</div>
+    </div>
+    <div style="font-size:.78rem;opacity:.75;">Generated 2026-06-03</div>
+  </div>
+  <nav class="top-bar-nav">
+    <a href="moneygoup_overview.html">Overview</a>
+    <a href="api_documentation.html">API Docs</a>
+    <a href="architecture_documentation.html">Architecture</a>
+    <a href="authentication_flow.html">Auth Flow</a>
+    <a href="admin_user_management.html">Admin User Mgmt</a>
+    <a href="recommendation_buckets.html">Rec Buckets</a>
+    <a href="components_documentation.html">Components</a>
+    <a href="database_documentation.html">Database</a>
+    <a href="prediction_workflow.html">Prediction Flow</a>
+    <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
+    <a href="technical_indicators_guide.html">Technical Guide</a>
+    <a href="gps_score.html">GPS Score</a>
+    <a href="style_guide.html">Style Guide</a>
+    <a href="SEO.html">SEO</a>
+    <a href="test_feature_columns.html" class="active">Feature Validator</a>
+  </nav>
+</div>
+
+<div class="layout">
+
+  <nav class="sidebar" aria-label="Feature validator sections">
+    <h3>GrowMyStocks Docs</h3>
+    <a href="moneygoup_overview.html">App Overview</a>
+    <a href="prediction_workflow.html">Prediction Flow</a>
+    <a href="api_documentation.html">API Routes</a>
+    <div class="section-divider"></div>
+    <h3>On this page</h3>
+    <a href="#overview">Overview</a>
+    <a href="#usage">Usage</a>
+    <a href="#checks">What Is Checked</a>
+    <a href="#allow-zero">Allow-Zero Columns</a>
+    <a href="#expected-ranges">Expected Ranges</a>
+    <a href="#spot-checks">Spot-Checks</a>
+    <a href="#synthetic-data">Synthetic Data</a>
+    <a href="#functions">Functions</a>
+    <a href="#dependencies">Dependencies</a>
+    <a href="#notes">Notes</a>
+    <div class="section-divider"></div>
+    <a href="technical_indicators_guide.html">Technical Indicators</a>
+    <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
+    <a href="style_guide.html">Style Guide</a>
+  </nav>
+
+  <main>
+    <p style="font-size:.8rem;color:#94a3b8;margin-bottom:.25rem;">doc / test_feature_columns.html</p>
+    <h1>Feature Column Validator</h1>
+    <div class="meta">
+      <span>scripts/test_feature_columns.py</span>
+      <span>Python CLI Script</span>
+      <span>Utility / Test</span>
+      <span>Generated 2026-06-03</span>
+    </div>
+
+    <section id="overview">
+      <h2>Overview</h2>
+      <p><code>test_feature_columns.py</code> is an offline CI-style validator that verifies every column in the <code>FEATURE_COLUMNS</code> list defined in <code>predict_weighted_analysis.py</code> is correctly computed by <code>_calculate_features_internal()</code>. It requires no API keys, no live market data, and no network access — all inputs are generated synthetically.</p>
+      <div class="highlight-box">
+        Added in v3.3 (2026-06-03). The script was created to provide a fast regression check after any edit to the feature engineering pipeline, especially after the 13 new columns added in v3.3 (post-earnings drift, EPS revision velocity, upgrade scores, microstructure, institution ownership, peer RS). Running it takes approximately 5–10 seconds on a standard server.
+      </div>
+
+      <div class="check-grid">
+        <div class="check-card">
+          <div class="label">Feature columns validated</div>
+          <div class="value">118</div>
+        </div>
+        <div class="check-card">
+          <div class="label">Column-level checks per column</div>
+          <div class="value">4</div>
+        </div>
+        <div class="check-card">
+          <div class="label">Earnings logic spot-checks</div>
+          <div class="value">12</div>
+        </div>
+        <div class="check-card">
+          <div class="label">Network calls required</div>
+          <div class="value">0</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="usage">
+      <h2>Usage</h2>
+      <div class="step-card">
+        <div class="component-tag">CLI — Python 3.8+</div>
+        <pre><code># From the project root:
+python3 scripts/test_feature_columns.py
+
+# Verbose mode — prints a row for every column, not just failures:
+python3 scripts/test_feature_columns.py --verbose
+python3 scripts/test_feature_columns.py -v</code></pre>
+        <p>Exit codes:</p>
+        <table>
+          <thead><tr><th>Exit code</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td><code>0</code></td><td>All checks passed</td></tr>
+            <tr><td><code>1</code></td><td>One or more checks failed — error details printed to stdout</td></tr>
+          </tbody>
+        </table>
+        <p>The script imports directly from <code>predict_weighted_analysis</code> using a <code>sys.path.insert</code> relative to the script directory, so it works correctly whether invoked from the project root or the <code>scripts/</code> directory.</p>
+      </div>
+    </section>
+
+    <section id="checks">
+      <h2>What Is Checked</h2>
+      <div class="step-card">
+        <p>For each of the 118 columns in <code>FEATURE_COLUMNS</code>, four checks are applied to the output DataFrame from <code>_calculate_features_internal()</code>:</p>
+        <table>
+          <thead><tr><th>#</th><th>Check</th><th>Failure condition</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>Existence</td><td>Column is not present in the output DataFrame at all. Reports <span class="fail">MISSING</span>.</td></tr>
+            <tr><td>2</td><td>NaN rate</td><td>More than 5% of values are NaN after the general <code>fillna</code> pass. Columns are expected to be mostly filled.</td></tr>
+            <tr><td>3</td><td>All-zero</td><td>All absolute values are below <code>1e-12</code> (effectively zero). This catches columns that were assigned but never populated. Columns in the <code>ALLOW_ALL_ZERO</code> set are excluded from this check.</td></tr>
+            <tr><td>4</td><td>Range</td><td>Any value falls outside the defined <code>EXPECTED_RANGES</code> bounds for that column (e.g. RSI must be in [0, 100]). Columns without a defined range skip this check.</td></tr>
+          </tbody>
+        </table>
+        <p>Additionally, a column-count check verifies that the output DataFrame has at least as many columns as there are entries in <code>FEATURE_COLUMNS</code>.</p>
+      </div>
+    </section>
+
+    <section id="allow-zero">
+      <h2>Allow-Zero Columns</h2>
+      <div class="step-card">
+        <p>The following columns legitimately produce all-zero output in a synthetic dataset and are excluded from the all-zero check:</p>
+        <table>
+          <thead><tr><th>Column</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td><code>GoldenCross</code></td><td>Binary flag; could be all 0 or all 1 depending on simulated price path</td></tr>
+            <tr><td><code>EarningsSeason</code></td><td>Sparse — only months Jan/Apr/Jul/Oct get 1.0</td></tr>
+            <tr><td><code>InsiderNetSellRatio_90d</code></td><td>Only the most recent 63 rows are populated; historical rows are 0.0 by design</td></tr>
+            <tr><td><code>InsiderTxCount_90d</code></td><td>Same look-ahead isolation logic as InsiderNetSellRatio_90d</td></tr>
+            <tr><td><code>PostEarnings_CumReturn</code></td><td>Cumulative return could be near-zero in synthetic data</td></tr>
+            <tr><td><code>EPS_Revision_7d_0Q</code></td><td>Scalar broadcast — value depends on featureMetrics input; 0 if not supplied</td></tr>
+            <tr><td><code>EPS_Revision_7d_1Q</code></td><td>Same as above</td></tr>
+            <tr><td><code>Revenue_Est_Growth_0Q</code></td><td>Same as above</td></tr>
+            <tr><td><code>Revenue_Est_Growth_1Q</code></td><td>Same as above</td></tr>
+            <tr><td><code>EPS_Rev_Up7d</code></td><td>Same as above</td></tr>
+            <tr><td><code>EPS_Rev_Down7d</code></td><td>Same as above</td></tr>
+            <tr><td><code>Upgrade_Score_7d</code></td><td>Same as above</td></tr>
+            <tr><td><code>Upgrade_Score_30d</code></td><td>Same as above</td></tr>
+            <tr><td><code>PostMarket_GapPct</code></td><td>Post-market change could be 0.0</td></tr>
+            <tr><td><code>Institution_PctDelta</code></td><td>Quarter-over-quarter delta could be 0</td></tr>
+            <tr><td><code>Peer_RS_5d</code></td><td>Could be 0 if peer RS not provided</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="expected-ranges">
+      <h2>Expected Value Ranges</h2>
+      <div class="step-card">
+        <p>Columns with defined range constraints — any row value outside these bounds triggers a range failure:</p>
+        <table>
+          <thead><tr><th>Column</th><th>Min</th><th>Max</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><code>Open, High, Low, Close, Volume</code></td><td>0</td><td>—</td><td>Price and volume must be non-negative</td></tr>
+            <tr><td><code>RSI_14</code></td><td>0</td><td>100</td><td>RSI oscillator range</td></tr>
+            <tr><td><code>STOCH_K, STOCH_D</code></td><td>0</td><td>100</td><td>Stochastic oscillator range</td></tr>
+            <tr><td><code>HiRatio_52w</code></td><td>0</td><td>1.05</td><td>Close / 52w-high; small overshoot allowed</td></tr>
+            <tr><td><code>LoRatio_52w</code></td><td>1.0</td><td>—</td><td>Close / 52w-low; must be ≥ 1</td></tr>
+            <tr><td><code>Month_Sin, Month_Cos</code></td><td>-1</td><td>1</td><td>Sine/cosine cyclical encoding</td></tr>
+            <tr><td><code>EarningsSeason</code></td><td>0</td><td>1</td><td>Binary flag</td></tr>
+            <tr><td><code>GoldenCross</code></td><td>0</td><td>1</td><td>Binary flag</td></tr>
+            <tr><td><code>Earnings_In_Window</code></td><td>0</td><td>1</td><td>Binary flag</td></tr>
+            <tr><td><code>PE_Ratio, PB_Ratio</code></td><td>0</td><td>—</td><td>Must be non-negative</td></tr>
+            <tr><td><code>Upgrade_Score_7d/30d</code></td><td>-1</td><td>1</td><td>Net upgrade score bounded</td></tr>
+            <tr><td><code>FiftyTwoWeek_PosRatio</code></td><td>-0.1</td><td>1.1</td><td>Small tolerance around [0, 1]</td></tr>
+            <tr><td><code>PostEarnings_VolRatio</code></td><td>0.09</td><td>10.1</td><td>Clipped to [0.1, 10] + tolerance</td></tr>
+            <tr><td><code>PostEarnings_DayN</code></td><td>0</td><td>22</td><td>Days since earnings, capped at 21 + tolerance</td></tr>
+            <tr><td><code>Days_To_Next_Earnings</code></td><td>-500</td><td>1400</td><td>Wide range; synthetic data spans 1260 days</td></tr>
+            <tr><td><code>Days_Since_Last_Earnings</code></td><td>0</td><td>—</td><td>Must be non-negative</td></tr>
+            <tr><td><code>WorldBank_GDP</code></td><td>-10</td><td>15</td><td>Plausible GDP growth range (%)</td></tr>
+            <tr><td><code>WorldBank_Inflation</code></td><td>-5</td><td>30</td><td>Plausible inflation range (%)</td></tr>
+            <tr><td><code>Institution_PctHeld</code></td><td>0</td><td>1.05</td><td>Percentage as fraction, small overshoot allowed</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="spot-checks">
+      <h2>Spot-Checks — Earnings &amp; Post-Earnings Logic</h2>
+      <div class="step-card">
+        <p>After column-level validation, 12 targeted spot-checks verify the correctness of the earnings window logic using the synthetic inputs (last earnings 30 days ago, next earnings 45 days away):</p>
+        <table>
+          <thead><tr><th>Spot-check</th><th>Expected result</th></tr></thead>
+          <tbody>
+            <tr><td><code>Earnings_In_Window</code> has some 1.0 values</td><td>At least one row within ±7 days of the synthetic last earnings date should be flagged</td></tr>
+            <tr><td><code>Days_To_Next_Earnings</code> last row is ~45</td><td>Within 3 days of 45 (the synthetic next earnings date)</td></tr>
+            <tr><td><code>Days_Since_Last_Earnings</code> last row is ~30</td><td>Within 3 days of 30</td></tr>
+            <tr><td><code>PostEarnings_DayN</code> all values in [0, 21]</td><td>All rows within the expected cap</td></tr>
+            <tr><td><code>PostEarnings_VolRatio</code> clipped to [0.1, 10]</td><td>No value outside [0.09, 10.1]</td></tr>
+            <tr><td><code>EPS_Revision_7d_0Q</code> broadcast correctly</td><td>All rows equal 0.032 (the synthetic input value)</td></tr>
+            <tr><td><code>Upgrade_Score_7d</code> broadcast correctly</td><td>All rows equal 0.5</td></tr>
+            <tr><td><code>PreMarket_GapPct</code> broadcast correctly</td><td>All rows equal 0.004</td></tr>
+            <tr><td><code>Institution_PctHeld</code> broadcast correctly</td><td>All rows equal 0.68</td></tr>
+            <tr><td><code>FiftyTwoWeek_PosRatio</code> broadcast correctly</td><td>All rows equal 0.72</td></tr>
+            <tr><td><code>Peer_RS_5d</code> broadcast correctly</td><td>All rows equal 0.008</td></tr>
+            <tr><td>No NaN in final DataFrame</td><td>Zero NaN cells after all fillna passes</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="synthetic-data">
+      <h2>Synthetic Data Generation</h2>
+      <div class="step-card">
+        <p>The test harness constructs 1,260 business days (~5 trading years) of realistic synthetic data. All inputs are built by helper functions in the script itself:</p>
+        <table>
+          <thead><tr><th>Function</th><th>Produces</th></tr></thead>
+          <tbody>
+            <tr><td><code>_make_dates(n=1260)</code></td><td>Business-day date strings ending yesterday</td></tr>
+            <tr><td><code>_make_ohlcv(date_strs)</code></td><td>Geometric random walk (seed=42) with Open/High/Low/Close/Volume, realistic noise</td></tr>
+            <tr><td><code>_make_macro_series(date_strs, base, drift, noise)</code></td><td>A single macro time series as <code>[{date, close}]</code> dicts</td></tr>
+            <tr><td><code>build_mock_inputs(date_strs)</code></td><td>Assembles all inputs: OHLCV DataFrame, stock_metrics dict, macro_data dict (11 symbols + World Bank), feature_metrics dict (all 20+ fields), options_data dict</td></tr>
+          </tbody>
+        </table>
+
+        <h4>Key synthetic values used in spot-checks</h4>
+        <table>
+          <thead><tr><th>Field</th><th>Synthetic value</th></tr></thead>
+          <tbody>
+            <tr><td>Next earnings date</td><td>today + 45 days</td></tr>
+            <tr><td>Last earnings date</td><td>today - 30 days</td></tr>
+            <tr><td>Earnings date history</td><td>4 past quarters at 90-day intervals</td></tr>
+            <tr><td><code>epsRevision7d_0Q</code></td><td>0.032</td></tr>
+            <tr><td><code>upgradeScore7d</code></td><td>0.5</td></tr>
+            <tr><td><code>preMarketChangePct</code></td><td>0.004</td></tr>
+            <tr><td><code>instPctHeld</code></td><td>0.68</td></tr>
+            <tr><td><code>fiftyTwoWeekPosRatio</code></td><td>0.72</td></tr>
+            <tr><td><code>peerRS5d</code></td><td>0.008</td></tr>
+            <tr><td>VIX base</td><td>18.0</td></tr>
+            <tr><td>10-year treasury base</td><td>4.2%</td></tr>
+            <tr><td>World Bank GDP growth</td><td>2.8%</td></tr>
+            <tr><td>World Bank Inflation</td><td>3.1%</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="functions">
+      <h2>Functions / Methods</h2>
+
+      <div class="fn-block">
+        <h4>run_tests(verbose=False)</h4>
+        <p>Main entry point. Builds synthetic data, calls <code>_calculate_features_internal()</code>, then runs column-level validation and spot-checks. Prints a formatted report and exits with code 0 (pass) or 1 (fail).</p>
+        <table>
+          <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+          <tr><td>verbose</td><td><code>bool</code></td><td>When True, prints a result row for every column instead of only failures</td></tr>
+        </table>
+        <h4 style="margin-top:1rem;">Returns</h4>
+        <p><code>None</code> — exits the process with code 0 or 1 via <code>sys.exit()</code></p>
+        <h4>Example</h4>
+        <pre><code>python3 scripts/test_feature_columns.py --verbose</code></pre>
+      </div>
+
+      <div class="fn-block">
+        <h4>build_mock_inputs(date_strs)</h4>
+        <p>Assembles all inputs required by <code>_calculate_features_internal()</code> using deterministic synthetic values. The function ensures every new feature group added to FEATURE_COLUMNS has a corresponding non-trivial source value in <code>feature_metrics</code> so that broadcast assignments produce testable non-zero output.</p>
+        <table>
+          <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+          <tr><td>date_strs</td><td><code>list[str]</code></td><td>Business day date strings from <code>_make_dates()</code></td></tr>
+        </table>
+        <h4 style="margin-top:1rem;">Returns</h4>
+        <p><code>tuple</code> — <code>(df, stock_metrics, macro_data, feature_metrics, options_data, current_price)</code></p>
+      </div>
+
+      <div class="fn-block">
+        <h4>_make_ohlcv(date_strs)</h4>
+        <p>Generates a synthetic OHLCV DataFrame using a geometric Brownian motion process with seed 42. Daily returns are drawn from Normal(0.0004, 0.015). High and Low are computed as noisy perturbations of Open and Close. Volume is a random integer in [500K, 5M].</p>
+        <table>
+          <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+          <tr><td>date_strs</td><td><code>list[str]</code></td><td>Date strings to use as the Date column</td></tr>
+        </table>
+        <h4 style="margin-top:1rem;">Returns</h4>
+        <p><code>pd.DataFrame</code> with columns: Date, Open, High, Low, Close, Volume</p>
+      </div>
+
+      <div class="fn-block">
+        <h4>_make_macro_series(date_strs, base=100.0, drift=0.0001, noise=0.008)</h4>
+        <p>Generates a synthetic macro time series for a single symbol (e.g. VIX, TNX, SPY) as a list of <code>{date, close}</code> dicts compatible with the format expected by <code>merge_series_by_date()</code> in the prediction script.</p>
+        <table>
+          <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+          <tr><td>date_strs</td><td><code>list[str]</code></td><td>Date strings</td></tr>
+          <tr><td>base</td><td><code>float</code></td><td>Starting price level</td></tr>
+          <tr><td>drift</td><td><code>float</code></td><td>Daily drift (log return mean)</td></tr>
+          <tr><td>noise</td><td><code>float</code></td><td>Daily volatility (log return std dev)</td></tr>
+        </table>
+        <h4 style="margin-top:1rem;">Returns</h4>
+        <p><code>list[dict]</code> — each element has keys <code>date</code> (str) and <code>close</code> (float)</p>
+      </div>
+    </section>
+
+    <section id="dependencies">
+      <h2>Dependencies</h2>
+      <ul>
+        <li><strong>predict_weighted_analysis</strong> — imports <code>FEATURE_COLUMNS</code> and <code>_calculate_features_internal</code> directly</li>
+        <li><strong>numpy</strong> — synthetic data generation and array operations</li>
+        <li><strong>pandas</strong> — DataFrame construction and date handling</li>
+        <li><strong>datetime, timedelta, date</strong> — Python standard library, for earnings date arithmetic</li>
+        <li><strong>sys, os, argparse</strong> — Python standard library</li>
+      </ul>
+      <p>All of predict_weighted_analysis's own dependencies (sklearn, etc.) are also needed at import time.</p>
+    </section>
+
+    <section id="notes">
+      <h2>Notes</h2>
+      <div class="highlight-box">
+        <strong>When to run this script:</strong> After any edit to <code>FEATURE_COLUMNS</code>, any addition/removal of feature computation logic in <code>_calculate_features_internal()</code>, or any change to how <code>feature_metrics</code> fields are mapped to DataFrame columns. The script catches regressions — columns present in FEATURE_COLUMNS that are missing, all-zero, NaN-heavy, or out of range in the output DataFrame.
+      </div>
+      <div class="warning-box">
+        <strong>Limitation:</strong> The script validates the feature engineering function in isolation using synthetic data. It does not test the full MLP training pipeline, regime detection, cache behavior, or the API route. Use it as a fast smoke test, not a full integration test. Production predictions may exhibit different value distributions than the synthetic test data.
+      </div>
+      <p>The <code>ALLOW_ALL_ZERO</code> set must be kept in sync manually when new scalar-broadcast features are added to FEATURE_COLUMNS. If a newly added column legitimately produces all-zero output in synthetic data (because its source field is not wired into <code>build_mock_inputs()</code>), add it to both <code>ALLOW_ALL_ZERO</code> and verify that <code>build_mock_inputs()</code> provides a non-trivial test value for the corresponding <code>feature_metrics</code> key.</p>
+    </section>
+
+    <footer>GrowMyStocks Developer Docs &copy; 2026</footer>
+  </main>
+</div>
+
+</body>
+</html>
