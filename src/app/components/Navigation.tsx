@@ -195,7 +195,7 @@ export default function Navigation() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
-              <Link href="/" className="flex items-center md:gap-1 lg:gap-2 md:text-lg lg:text-2xl text-2xl font-bold text-white focus-visible:ring-2 focus-visible:ring-white rounded-md p-1">
+              <Link href="/" className="flex items-center gap-2 md:gap-1 lg:gap-2 md:text-lg lg:text-2xl text-2xl font-bold text-white focus-visible:ring-2 focus-visible:ring-white rounded-md p-1">
                 <Image
                   src="/growmystock_logo.svg"
                   alt="Grow My Stocks"
