@@ -73,6 +73,7 @@ export default function LandingPage() {
             <a href="#how-it-works">How It Works</a>
             <a href="#prediction">AI Prediction</a>
             <a href="#deep-money">DeepMoney</a>
+            <Link href="/login">Log In</Link>
             <Link href="/register" className={s.navCta}>Register an Account</Link>
           </nav>
           <button

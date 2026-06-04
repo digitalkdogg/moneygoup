@@ -17,6 +17,7 @@ const registerSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters long').max(50, 'Username cannot exceed 50 characters'),
   email: z.string().email('Invalid email address').max(255, 'Email cannot exceed 255 characters'),
   password: z.string().min(8, 'Password must be at least 8 characters long').max(100, 'Password cannot exceed 100 characters').regex(/\d/, 'Password must contain at least one number'),
+  website: z.string().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -42,7 +43,17 @@ export async function POST(request: NextRequest) {
     if (rateLimitResponse) return rateLimitResponse;
 
     const body = await request.json();
-    const { username, email, password } = registerSchema.parse(body);
+    const { username, email, password, website } = registerSchema.parse(body);
+
+    // Honeypot validation to intercept bots
+    if (website) {
+      logger.warn(`Honeypot triggered during registration: rejecting bot submission silently. Email: ${email}`);
+      return NextResponse.json({
+        message: 'Account created and awaiting admin approval',
+        userId: 999999,
+        approvalStatus: 'pending'
+      }, { status: 201 });
+    }
 
     // Check for conflicts — rejected accounts are allowed to re-register
     const [emailRows] = await executeRawQuery('SELECT id, approval_status FROM users WHERE email = ?', [email]);
