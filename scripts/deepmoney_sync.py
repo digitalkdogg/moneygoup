@@ -335,9 +335,11 @@ def sync_deepmoney():
                         is_active = IF(is_purchased = 0, 1, is_active)
                     """, (user_id, stock_id))
 
-        # 6. Process ETF Holdings surfaced through Phase 3 pipeline
-        etf_holdings_surfaced = data.get('etf_holdings_surfaced', [])
-        print(f"Processing {len(etf_holdings_surfaced)} surfaced ETF holdings...")
+        # 6. Fetch surfaced ETF holdings via the shared /holdings endpoint
+        # The prediction call above already ran scoreETFHoldings + populated etf_holding_scores.
+        # We now read those cached scores back through the same endpoint the UI uses.
+        hot_etfs = data.get('hot_etfs', [])
+        print(f"Fetching ETF holdings for {len(hot_etfs)} hot ETF(s) via /api/stock_data/[ticker]/holdings...")
 
         etf_holding_rs_query = """
         INSERT INTO recommended_stocks (
@@ -348,91 +350,55 @@ def sync_deepmoney():
         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
 
-        etf_holding_scores_query = """
-        INSERT INTO etf_holding_scores (
-            parent_etf_ticker, ticker, company_name, holding_percent,
-            gps_score, gps_breakdown, predicted_change_pct, confidence_score,
-            predicted_price_1m, bearish_signal, surfaced, score_source, beta,
-            snapshot_date
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        ON DUPLICATE KEY UPDATE
-            company_name         = VALUES(company_name),
-            holding_percent      = VALUES(holding_percent),
-            gps_score            = VALUES(gps_score),
-            gps_breakdown        = VALUES(gps_breakdown),
-            predicted_change_pct = VALUES(predicted_change_pct),
-            confidence_score     = VALUES(confidence_score),
-            predicted_price_1m   = VALUES(predicted_price_1m),
-            bearish_signal       = VALUES(bearish_signal),
-            surfaced             = VALUES(surfaced),
-            score_source         = VALUES(score_source),
-            beta                 = VALUES(beta)
-        """
-
         holdings_written = 0
-        for h in etf_holdings_surfaced:
-            if not h.get('surfaced'):
-                continue  # defensive: flat array should only contain surfaced=true
+        for etf in hot_etfs:
+            etf_ticker = etf.get('ticker')
+            if not etf_ticker:
+                continue
+            try:
+                holdings_resp = requests.get(
+                    f"{INTERNAL_API_URL}/api/stock_data/{etf_ticker}/holdings",
+                    headers={"x-api-key": INTERNAL_SECRET},
+                    timeout=30,
+                )
+                holdings_resp.raise_for_status()
+                holdings_json = holdings_resp.json()
+            except Exception as e:
+                print(f"  Warning: failed to fetch holdings for {etf_ticker}: {e}")
+                continue
 
-            ticker        = h.get('ticker')
-            parent_etf    = h.get('parentETFTicker')
-            gps           = h.get('gps_score', 0)
-            gps_breakdown = h.get('gps_breakdown') or {}
-            pred_change   = h.get('predicted_change_pct', 0)
-            conf_score    = h.get('confidence_score', 0)
-            pred_price    = h.get('predicted_price_1m')
-            bearish       = 1 if h.get('bearish_signal') else 0
-            score_source  = h.get('score_source', 'fresh')
-            beta          = h.get('beta')
-            holding_pct   = h.get('holdingPercent', 0)
-            company_name  = h.get('companyName') or ticker
+            for h in holdings_json.get('holdings', []):
+                if not h.get('surfaced'):
+                    continue
 
-            print(f"  > ETF holding: {ticker} (parent: {parent_etf}, GPS: {gps}, Pred: {pred_change:.2f}%)")
+                ticker        = h.get('ticker')
+                gps           = h.get('gps_score', 0) or 0
+                gps_breakdown = h.get('gps_breakdown') or {}
+                score_source  = h.get('score_source', 'cached')
+                holding_pct   = h.get('holdingPercent', 0)
+                company_name  = h.get('companyName') or ticker
 
-            pred_input_json = json.dumps({
-                'predicted_change_pct': pred_change,
-                'confidence_score':     conf_score,
-                'predicted_price_1m':   pred_price,
-                'score_source':         score_source,
-            })
+                print(f"  > ETF holding: {ticker} (parent: {etf_ticker}, GPS: {gps})")
 
-            # recommended_stocks: cleared each sync, feeds the dashboard
-            cursor.execute(etf_holding_rs_query, (
-                'etf_holding',                  # type
-                parent_etf,                     # parent_etf_ticker
-                holding_pct,                    # holding_percent
-                ticker,                         # ticker
-                company_name,                   # company_name
-                gps,                            # gps_score
-                json.dumps(gps_breakdown),      # gps_breakdown
-                bearish,                        # bearish_signal
-                'ETF Holding',                  # classification
-                pred_change,                    # metric_value  (= predicted_change_pct)
-                f"CS: {conf_score:.0f}",        # metric_label
-                f"etf_holdings/{parent_etf}",   # discovery_source
-                pred_input_json,                # prediction_input
-                today,                          # snapshot_date
-            ))
+                pred_input_json = json.dumps({'score_source': score_source})
 
-            # etf_holding_scores: persistent upsert, keeps history
-            cursor.execute(etf_holding_scores_query, (
-                parent_etf,                     # parent_etf_ticker
-                ticker,                         # ticker
-                company_name,                   # company_name
-                holding_pct,                    # holding_percent
-                gps,                            # gps_score
-                json.dumps(gps_breakdown),      # gps_breakdown
-                pred_change,                    # predicted_change_pct
-                conf_score,                     # confidence_score
-                pred_price,                     # predicted_price_1m
-                bearish,                        # bearish_signal
-                1,                              # surfaced
-                score_source,                   # score_source
-                beta,                           # beta
-                today,                          # snapshot_date
-            ))
-
-            holdings_written += 1
+                cursor.execute(etf_holding_rs_query, (
+                    'etf_holding',                  # type
+                    etf_ticker,                     # parent_etf_ticker
+                    holding_pct,                    # holding_percent
+                    ticker,                         # ticker
+                    company_name,                   # company_name
+                    gps,                            # gps_score
+                    json.dumps(gps_breakdown),      # gps_breakdown
+                    0,                              # bearish_signal (surfaced = non-bearish)
+                    'ETF Holding',                  # classification
+                    gps,                            # metric_value
+                    score_source,                   # metric_label
+                    f"etf_holdings/{etf_ticker}",   # discovery_source
+                    pred_input_json,                # prediction_input
+                    today,                          # snapshot_date
+                ))
+                holdings_written += 1
 
         print(f"  ETF holdings persisted: {holdings_written}")
 

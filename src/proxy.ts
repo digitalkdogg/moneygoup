@@ -15,6 +15,7 @@ function buildCsp(nonce: string): string {
     // unsafe-eval is needed only in dev for Next.js Fast Refresh (react-refresh runtime)
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ''}`,
     `style-src 'self' 'nonce-${nonce}' 'unsafe-inline'`,
+    `style-src-attr 'unsafe-inline'`,
     `img-src 'self' data: https:`,
     `font-src 'self' https:`,
   ].join('; ');

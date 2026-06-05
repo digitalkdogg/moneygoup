@@ -92,6 +92,16 @@ interface EarningsData {
   }[];
 }
 
+interface EtfHoldingRow {
+  ticker: string;
+  companyName: string;
+  holdingPercent: number;
+  gps_score: number | null;
+  gps_breakdown: any | null;
+  score_source: string | null;
+  surfaced: boolean;
+}
+
 type HistoricalResponse = HistoricalData[] | { error: string }
 
 export default function Stock({
@@ -121,6 +131,8 @@ export default function Stock({
   const [gpsData, setGpsData] = useState<GpsData | null>(null)
   const [gpsLoading, setGpsLoading] = useState(false)
   const [predictionLoading, setPredictionLoading] = useState(false)
+  const [etfHoldings, setEtfHoldings] = useState<EtfHoldingRow[] | null>(null)
+  const [etfHoldingsLoading, setEtfHoldingsLoading] = useState(false)
   const predictionTriggerRef = useRef<() => void>(() => {})
   const onPredictionLoadingChange = useCallback((v: boolean) => setPredictionLoading(v), [])
 
@@ -355,6 +367,19 @@ export default function Stock({
       .catch(() => setGpsData(null))
       .finally(() => setGpsLoading(false))
   }, [primaryTicker, isSingleTicker])
+
+  useEffect(() => {
+    if (!isSingleTicker) return
+    const stockData = stockDataMap[primaryTicker]?.stock
+    if (!stockData || stockData.quoteType?.toUpperCase() !== 'ETF') return
+    setEtfHoldings(null)
+    setEtfHoldingsLoading(true)
+    fetch(`/api/stock_data/${primaryTicker}/holdings`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setEtfHoldings(d?.holdings ?? null))
+      .catch(() => setEtfHoldings(null))
+      .finally(() => setEtfHoldingsLoading(false))
+  }, [primaryTicker, isSingleTicker, stockDataMap])
 
   const handleWatchlistToggle = async (tickerToToggle: string) => {
     // Store previous state for rollback
@@ -650,6 +675,80 @@ export default function Stock({
             </div>
           </div>
           )}
+
+        {/* ETF Top Holdings Panel */}
+        {stockData.quoteType?.toUpperCase() === 'ETF' && (etfHoldingsLoading || (etfHoldings && etfHoldings.length > 0)) && (
+          <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
+            <div className="flex items-baseline gap-2 mb-4">
+              <h2 className="section-heading">Top Holdings</h2>
+              <span className="text-sm text-gray-400 font-normal">{primaryTicker}</span>
+            </div>
+            {etfHoldingsLoading ? (
+              <div className="space-y-3">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="animate-pulse flex items-center gap-4 py-2">
+                    <div className="w-6 h-4 bg-gray-100 rounded" />
+                    <div className="w-16 h-4 bg-gray-200 rounded" />
+                    <div className="flex-1 h-4 bg-gray-100 rounded" />
+                    <div className="w-12 h-4 bg-gray-100 rounded" />
+                    <div className="w-16 h-5 bg-gray-100 rounded-full" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-gray-400 uppercase text-xs border-b border-gray-100">
+                      <th className="pb-2 pr-4 font-medium w-8">#</th>
+                      <th className="pb-2 pr-4 font-medium">Ticker</th>
+                      <th className="pb-2 pr-4 font-medium">Company</th>
+                      <th className="pb-2 pr-4 font-medium text-right">Weight</th>
+                      <th className="pb-2 font-medium text-right">GPS Score</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(etfHoldings ?? []).map((h, idx) => {
+                      const gps = h.gps_score;
+                      let pillClass = 'bg-gray-100 text-gray-500';
+                      if (gps !== null) {
+                        if (gps >= 65) pillClass = 'bg-green-100 text-green-800';
+                        else if (gps >= 45) pillClass = 'bg-yellow-100 text-yellow-800';
+                        else pillClass = 'bg-red-100 text-red-700';
+                      }
+                      return (
+                        <tr key={h.ticker} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                          <td className="py-2.5 pr-4 text-gray-400 font-medium">{idx + 1}</td>
+                          <td className="py-2.5 pr-4">
+                            <button
+                              onClick={() => router.push(`/search/${h.ticker}`)}
+                              className="font-semibold text-[#017e3b] hover:underline cursor-pointer"
+                            >
+                              {h.ticker}
+                            </button>
+                          </td>
+                          <td className="py-2.5 pr-4 text-gray-600 max-w-[200px] truncate">{h.companyName}</td>
+                          <td className="py-2.5 pr-4 text-right text-gray-700 font-medium tabular-nums">
+                            {(h.holdingPercent * 100).toFixed(2)}%
+                          </td>
+                          <td className="py-2.5 text-right">
+                            {gps !== null ? (
+                              <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold tabular-nums ${pillClass}`}>
+                                {gps.toFixed(1)}
+                              </span>
+                            ) : (
+                              <span className="text-gray-300">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
           <StockSignalPanel

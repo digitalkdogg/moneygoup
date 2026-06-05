@@ -510,21 +510,17 @@ export async function GET(request: NextRequest) {
             Array.from(allTickersSet)
         );
 
-        const etfHoldingsSurfaced = hotEtfs.flatMap(e => e.top_holdings_surfaced ?? []);
-
         const data = {
             success: true,
             timestamp: new Date().toISOString(),
             count: filteredStocks.length,
             stocks: filteredStocks,
             hot_etfs: hotEtfs,
-            etf_holdings_surfaced: etfHoldingsSurfaced,
             meta: {
                 totalDiscovered: tickerArray.length,
                 enrichedCount: enrichedStocks.length,
                 filteredCount: filteredStocks.length,
                 hotEtfsCount: hotEtfs.length,
-                etfHoldingsSurfacedCount: etfHoldingsSurfaced.length,
                 primaryCount: primaryTickers.size,
                 secondaryCount: allTickersSet.size - primaryTickers.size,
                 feedsQueried: PRIMARY_FEED_URLS.length + primaryTickers.size,

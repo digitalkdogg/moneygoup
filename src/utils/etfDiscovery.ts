@@ -2,7 +2,7 @@ import { getDbConnection } from './db';
 import { yahooFinance, fetchYahooStockSummary, getYahooScreener } from './yahooFinanceHelper';
 import etfWatchlist from '../../public/etf_theme_watchlist.json';
 import { createLogger } from './logger';
-import { fetchETFHoldings, scoreETFHoldings, ScoredETFHolding } from './etfHoldings';
+import { fetchETFHoldings, scoreETFHoldings } from './etfHoldings';
 
 // --- ETF Constants (moved from config.ts) ---
 const ETF_PRICE_FILTER_MAX = 400;
@@ -94,7 +94,6 @@ export interface ETFDiscoveryResult {
   is_leveraged: boolean;
   snapshot_date: string;
   macro_data_asof: string;
-  top_holdings_surfaced?: ScoredETFHolding[];
 }
 
 export interface ETFCycleSummary {
@@ -357,21 +356,7 @@ export async function performETFDiscovery(
     if (allHoldings.length > 0) {
       const scored = await scoreETFHoldings(allHoldings, { wbData });
 
-      // Build a lookup: etfTicker → surfaced holdings
-      const surfacedByETF = new Map<string, ScoredETFHolding[]>();
-      for (const h of scored) {
-        if (!h.surfaced) continue;
-        const list = surfacedByETF.get(h.parentETFTicker) ?? [];
-        list.push(h);
-        surfacedByETF.set(h.parentETFTicker, list);
-      }
-
-      for (const etf of finalResults) {
-        etf.top_holdings_surfaced = (surfacedByETF.get(etf.ticker) ?? [])
-          .sort((a, b) => b.gps_score - a.gps_score);
-      }
-
-      const totalSurfaced = [...surfacedByETF.values()].reduce((acc, v) => acc + v.length, 0);
+      const totalSurfaced = scored.filter(h => h.surfaced).length;
       logger.info(`ETF holdings scoring complete`, { totalScoredHoldings: scored.length, totalSurfaced });
     }
   } catch (holdingsErr) {
