@@ -23,7 +23,7 @@ export const CardHeader: React.FC<CardHeaderProps> = ({ symbol, companyName, cha
           <div className="text-xl font-bold text-gray-900 leading-tight">
             {symbol}
           </div>
-          <div className="text-xs text-gray-500 font-medium mt-1 truncate max-w-[200px]">
+          <div className="text-xs text-gray-600 font-semibold mt-1 truncate max-w-[200px]">
             {companyName}
           </div>
         </div>
@@ -33,7 +33,7 @@ export const CardHeader: React.FC<CardHeaderProps> = ({ symbol, companyName, cha
           )}
           {changePercent !== null && (
             <div
-              className={`text-xs font-semibold text-right ${getChangeColor(changePercent)}`}
+              className={`text-[13px] font-semibold text-right ${getChangeColor(changePercent)}`}
               aria-label={`Price ${isPositive ? 'up' : 'down'} by ${formatPercent(changePercent)}`}
             >
               {changeAmount !== null && changeAmount !== undefined
@@ -52,7 +52,7 @@ export const CardHeader: React.FC<CardHeaderProps> = ({ symbol, companyName, cha
         <div className="text-2xl font-bold text-gray-900 leading-none">
           {symbol}
         </div>
-        <div className="text-xs text-gray-500 font-medium mt-1 truncate max-w-[160px]">
+        <div className="text-xs text-gray-600 font-semibold mt-1 truncate max-w-[160px]">
           {companyName}
         </div>
       </div>
@@ -62,7 +62,7 @@ export const CardHeader: React.FC<CardHeaderProps> = ({ symbol, companyName, cha
         )}
         {changePercent !== null && (
           <div
-            className={`text-xs font-semibold ${getChangeColor(changePercent)}`}
+            className={`text-[13px] font-semibold ${getChangeColor(changePercent)}`}
             aria-label={`Price ${isPositive ? 'up' : 'down'} by ${formatPercent(changePercent)}`}
           >
             {changeAmount !== null && changeAmount !== undefined

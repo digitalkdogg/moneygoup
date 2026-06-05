@@ -35,7 +35,7 @@ export const WatchlistCardView: React.FC<WatchlistCardViewProps> = ({ card, acti
       {/* Row 1: GPS Score | Analyst */}
       <div className="px-4 pt-2 pb-1 grid grid-cols-2 gap-3">
         <div>
-          <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">GPS Score</div>
+          <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">GPS Score</div>
           {card.gpsScore != null ? (
             <div className="flex items-center gap-1">
               <span className="text-sm font-bold text-gray-900">{card.gpsScore.toFixed(1)}</span>
@@ -47,11 +47,11 @@ export const WatchlistCardView: React.FC<WatchlistCardViewProps> = ({ card, acti
         </div>
 
         <div>
-          <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Analyst</div>
-          <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-bold border ${card.analystFeedback ? analystBadgeClass : 'bg-gray-100 text-gray-400 border-gray-200'}`}>
+          <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Analyst</div>
+          <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold border ${card.analystFeedback ? analystBadgeClass : 'bg-gray-100 text-gray-400 border-gray-200'}`}>
             {card.analystFeedback ?? 'None'}
           </span>
-          <div className="text-[10px] text-gray-400 mt-0.5">
+          <div className="text-[11px] text-gray-500 mt-0.5">
             {card.analysts ? `${card.analysts} analysts` : ' '}
           </div>
         </div>
@@ -60,20 +60,20 @@ export const WatchlistCardView: React.FC<WatchlistCardViewProps> = ({ card, acti
       {/* Row 2: MA 6M | Predicted 1M */}
       <div className="px-4 pb-0 grid grid-cols-2 gap-3">
         <div>
-          <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">MA 6M</div>
+          <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">MA 6M</div>
           <span className="text-sm font-bold text-gray-900">
             {card.ma6m != null ? formatPrice(card.ma6m) : '—'}
           </span>
         </div>
 
         <div>
-          <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Predicted 1M</div>
+          <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Predicted 1M</div>
           <div className="flex items-center gap-1.5 flex-wrap">
             {card.predictedPrice1m != null ? (
               <>
                 <span className="text-sm font-bold text-gray-900">{formatPrice(card.predictedPrice1m)}</span>
                 {predictionChange != null && (
-                  <span className={`text-xs font-semibold ${getPredictionColor(predictionChange)}`}>
+                  <span className={`text-[13px] font-semibold ${getPredictionColor(predictionChange)}`}>
                     ({predictionChange > 0 ? '+' : ''}{predictionChange.toFixed(1)}%)
                   </span>
                 )}

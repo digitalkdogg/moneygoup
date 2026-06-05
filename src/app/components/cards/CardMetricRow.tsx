@@ -14,7 +14,7 @@ export const CardMetricRow: React.FC<CardMetricRowProps> = ({
 }) => {
   return (
     <div className={`flex justify-between items-start py-1.5 ${className}`}>
-      <span className="text-[11px] text-gray-400 uppercase font-bold tracking-wider mt-0.5">
+      <span className="text-xs text-gray-500 uppercase font-bold tracking-wider mt-0.5">
         {label}
       </span>
       <div className={`text-sm font-bold ${valueClassName}`}>

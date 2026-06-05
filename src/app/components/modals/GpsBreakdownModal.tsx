@@ -56,7 +56,7 @@ export const GpsBreakdownModal: React.FC<GpsBreakdownModalProps> = ({
         {/* Header */}
         <div className="bg-[#017e3b] text-white p-4 relative">
           <div className="pr-8">
-            <h3 className="text-lg font-bold tracking-tight">{symbol}</h3>
+            <h3 className="text-lg font-bold tracking-tight" style={{ color: '#fff' }}>{symbol}</h3>
             <p className="text-[10px] text-green-100 uppercase tracking-widest font-semibold mt-0.5">Global Performance Metric (GPS) v3.0</p>
           </div>
           <button
