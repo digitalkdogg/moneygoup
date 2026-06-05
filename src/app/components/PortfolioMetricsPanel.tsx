@@ -196,6 +196,24 @@ function fmtDollars(v: number) {
   return `${prefix}${abs.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+function MetricBadge({ label, value, tooltip }: { label: string; value: number; tooltip: string }) {
+  return (
+    <div className="relative group bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1 text-center">
+      <div className="flex items-center justify-center gap-1 leading-none mb-0.5">
+        <p className="text-[9px] font-bold text-gray-600 uppercase tracking-wide leading-none">{label}</p>
+        <svg className="w-4 h-4 text-blue-500 cursor-help shrink-0" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 10a3.001 3.001 0 01-2 2.83V13a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+        </svg>
+      </div>
+      <p className="text-base font-bold text-gray-800">{value}</p>
+      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 bg-gray-900 text-white text-[10px] leading-snug rounded-lg px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 text-left shadow-lg">
+        {tooltip}
+        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+      </div>
+    </div>
+  )
+}
+
 function SkeletonPanel() {
   return (
     <div className="space-y-3">
@@ -267,14 +285,23 @@ export default function PortfolioMetricsPanel({ portfolio, loading, totals, tota
               <p className="text-xs text-gray-500 mb-2">Score: {metrics.gradeScore} / 100</p>
               <div className="flex gap-2 flex-wrap">
                 {[
-                  { label: 'Perf Score', value: metrics.perfScore },
-                  { label: 'GPS Quality', value: metrics.qualityScore },
-                  { label: 'Diversification', value: metrics.divScore },
-                ].map(({ label, value }) => (
-                  <div key={label} className="bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1 text-center">
-                    <p className="text-[9px] font-bold text-gray-600 uppercase tracking-wide leading-none mb-0.5">{label}</p>
-                    <p className="text-base font-bold text-gray-800">{value}</p>
-                  </div>
+                  {
+                    label: 'Perf Score',
+                    value: metrics.perfScore,
+                    tooltip: 'Based on your portfolio\'s dollar-weighted return vs. cost basis. 50 = breakeven; scores above 50 reflect positive gains.',
+                  },
+                  {
+                    label: 'GPS Quality',
+                    value: metrics.qualityScore,
+                    tooltip: 'Weighted average GPS score across your holdings. GPS combines AI momentum signals, analyst ratings, and price predictions into a single quality rating.',
+                  },
+                  {
+                    label: 'Diversification',
+                    value: metrics.divScore,
+                    tooltip: 'Derived from the Herfindahl-Hirschman Index (HHI). Near 100 means positions are well spread; lower scores indicate concentration risk in a few holdings.',
+                  },
+                ].map(({ label, value, tooltip }) => (
+                  <MetricBadge key={label} label={label} value={value} tooltip={tooltip} />
                 ))}
               </div>
             </div>

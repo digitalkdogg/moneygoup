@@ -9,6 +9,20 @@ interface GainsBreakdownCardProps {
   loading: boolean;
 }
 
+function InfoTip({ tooltip }: { tooltip: string }) {
+  return (
+    <span className="relative group inline-flex items-center">
+      <svg className="w-4 h-4 text-blue-500 cursor-help shrink-0" viewBox="0 0 20 20" fill="currentColor">
+        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 10a3.001 3.001 0 01-2 2.83V13a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+      </svg>
+      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 bg-gray-900 text-white text-[10px] leading-snug rounded-lg px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 text-left shadow-lg">
+        {tooltip}
+        <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+      </span>
+    </span>
+  )
+}
+
 const GainsBreakdownCard: React.FC<GainsBreakdownCardProps> = ({ totals, loading }) => {
   if (loading && !totals) {
     return (
@@ -78,6 +92,7 @@ const GainsBreakdownCard: React.FC<GainsBreakdownCardProps> = ({ totals, loading
             <div className="flex items-center gap-2">
               <div className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-[#a8d78d]"></div>
               <span className="text-base text-gray-500">Unrealized Gains</span>
+              <InfoTip tooltip="Total paper profit across all positions currently worth more than you paid. Not locked in until you sell." />
             </div>
             <span className="text-base text-green-700 font-bold">{formatCurrency(totals.unrealizedGain, 0)}</span>
           </div>
@@ -85,6 +100,7 @@ const GainsBreakdownCard: React.FC<GainsBreakdownCardProps> = ({ totals, loading
             <div className="flex items-center gap-2">
               <div className="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0"></div>
               <span className="text-base text-gray-500">Unrealized Losses</span>
+              <InfoTip tooltip="Total paper loss across all positions currently worth less than you paid. Not locked in until you sell." />
             </div>
             <span className="text-base text-red-600 font-bold">-{formatCurrency(totals.unrealizedLoss, 0)}</span>
           </div>
@@ -92,6 +108,7 @@ const GainsBreakdownCard: React.FC<GainsBreakdownCardProps> = ({ totals, loading
             <div className="flex items-center gap-2">
               <div className="w-2.5 h-2.5 rounded-full bg-gray-300 flex-shrink-0"></div>
               <span className="text-base text-gray-600 font-semibold">Cost Basis</span>
+              <InfoTip tooltip="The total amount you originally paid for all your current holdings, used as the baseline to calculate gains and losses." />
             </div>
             <span className="text-base text-gray-900 font-bold">{formatCurrency(totals.costBasis, 0)}</span>
           </div>
