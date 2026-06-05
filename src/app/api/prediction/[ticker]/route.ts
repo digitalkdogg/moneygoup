@@ -140,14 +140,16 @@ export async function POST(
     if (!isInternal && result.predicted_price_1m) {
       computedGps = calculateGpsScore(
         {
-          analystUpside: body.stockMetrics?.analystUpside,
-          revenueGrowth: body.stockMetrics?.revenueGrowth,
-          earningsGrowth: body.stockMetrics?.earningsGrowth,
-          fiftyTwoWeekChange: body.stockMetrics?.fiftyTwoWeekChange
+          analystUpside:    body.stockMetrics?.analystUpside,
+          revenueGrowthPct: body.stockMetrics?.revenueGrowth,
+          earningsGrowthPct: body.stockMetrics?.earningsGrowth,
+          priceChange52w:   body.stockMetrics?.fiftyTwoWeekChange,
+          technicalScore:   body.technicalScore,
+          recommendationKey: body.recommendationKey,
         },
         {
-          predicted_change_pct: result.predicted_change_pct_1m,
-          confidence_score: result.confidence_score_1m
+          predictedChangePct1m: result.predicted_change_pct_1m,
+          confidenceScore:      result.confidence_score_1m,
         }
       );
 

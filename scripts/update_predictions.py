@@ -4,6 +4,76 @@ import requests
 import mysql.connector
 from datetime import datetime
 from dotenv import load_dotenv
+
+# ---------------------------------------------------------------------------
+# GPS v3.0 — mirrors src/utils/gps.ts exactly (8 components, 100 pts).
+# Keep this in sync whenever gps.ts changes.
+# ---------------------------------------------------------------------------
+_CONSENSUS_POINTS = {
+    'strongBuy': 9, 'strong_buy': 9,
+    'buy': 7, 'hold': 4, 'underperform': 2, 'sell': 0,
+}
+
+def _recommendation_mean_to_key(mean) -> str:
+    """Convert Yahoo Finance recommendationMean (1=strong buy … 5=sell) to key."""
+    if mean is None:
+        return 'hold'
+    if mean <= 1.5:
+        return 'strongBuy'
+    if mean <= 2.5:
+        return 'buy'
+    if mean <= 3.5:
+        return 'hold'
+    if mean <= 4.5:
+        return 'underperform'
+    return 'sell'
+
+def calculate_gps_v3(
+    predicted_change_pct: float,
+    confidence_score: float,
+    revenue_growth: float,
+    earnings_growth: float,
+    technical_score: float,
+    analyst_upside: float,
+    recommendation_key: str,
+    price_change_52w: float,
+) -> dict:
+    prediction_max = float(os.getenv('GPS_PREDICTION_MAX', '3'))
+
+    # 1. ML Predicted Change 1m (20 pts)
+    m1 = min(max(predicted_change_pct / prediction_max, -1), 1) * 20
+    # 2. AI Model Confidence (5 pts)
+    m2 = (confidence_score / 100) * 5
+    # 3. Revenue Growth YoY (12 pts — full at 30%)
+    m3 = min(max(revenue_growth / 0.3, 0), 1) * 12
+    # 4. Earnings Growth YoY (12 pts — full at 25%)
+    m4 = min(max(earnings_growth / 0.25, 0), 1) * 12
+    # 5. Technical Signal (20 pts — raw -14..+14 mapped linearly to 0..20)
+    m5 = min(max((technical_score + 14) / 28, 0), 1) * 20
+    # 6. Analyst Price Target Upside (12 pts — full at 30%)
+    m6 = min(max(analyst_upside / 0.3, 0), 1) * 12
+    # 7. Analyst Consensus Rating (9 pts)
+    m7 = float(_CONSENSUS_POINTS.get(recommendation_key, _CONSENSUS_POINTS['hold']))
+    # 8. 52-Week Momentum (10 pts — full at 20%)
+    m8 = min(max(price_change_52w / 0.2, 0), 1) * 10
+
+    total = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8
+    score = round(min(max(total, 0), 100), 1)
+
+    return {
+        'score': score,
+        'breakdown': {
+            'mlpUpside':        round(m1, 1),
+            'mlpConfidence':    round(m2, 1),
+            'revenueGrowth':    round(m3, 1),
+            'earningsGrowth':   round(m4, 1),
+            'technicalSignal':  round(m5, 1),
+            'analystUpside':    round(m6, 1),
+            'analystConsensus': round(m7, 1),
+            'priceChange52w':   round(m8, 1),
+        },
+        'bearishSignal': predicted_change_pct < 0,
+    }
  
 # ---------------------------------------------------------------------------
 # Load environment variables from the same directory as this script,
@@ -273,49 +343,31 @@ def sync_portfolio_predictions():
                 predicted_price = float(prediction_result.get('predicted_price_1m', 0))
                 confidence_score = float(prediction_result.get('confidence_score', 0))
 
-                # Debug: log confidence score sources
-                print(f"  [gps] {ticker} confidence_score sources:")
-                print(f"        - generic 'confidence_score': {prediction_result.get('confidence_score')}")
-                print(f"        - '1m' specific: {prediction_result.get('confidence_score_1m')}")
-                print(f"        - using value: {confidence_score}")
+                # GPS v3.0 — matches src/utils/gps.ts exactly
+                sm = stock_data.get('stockMetrics', {})
+                # Prefer top-level recommendationKey (set by /data since GPS fix);
+                # fall back to converting recommendationMean for older cached payloads.
+                rec_key = (stock_data.get('recommendationKey')
+                           or sm.get('recommendationKey')
+                           or _recommendation_mean_to_key(sm.get('recommendationMean')))
+                gps_result = calculate_gps_v3(
+                    predicted_change_pct = prediction_result.get('predicted_change_pct', 0),
+                    confidence_score     = confidence_score,
+                    revenue_growth       = sm.get('revenueGrowth') or 0,
+                    earnings_growth      = sm.get('earningsGrowth') or 0,
+                    technical_score      = float(stock_data.get('technicalScore') or 0),
+                    analyst_upside       = sm.get('analystUpside') or 0,
+                    recommendation_key   = rec_key,
+                    price_change_52w     = sm.get('fiftyTwoWeekChange') or 0,
+                )
+                gps_score     = gps_result['score']
+                gps_breakdown = gps_result['breakdown']
 
-                # GPS Calculation Logic (v2.3)
-                metrics = stock_data.get('stockMetrics', {})
-                upside = metrics.get('analystUpside') or 0
-                rev_growth = metrics.get('revenueGrowth') or 0
-                earn_growth = metrics.get('earningsGrowth') or 0
-                price_change = metrics.get('fiftyTwoWeekChange') or 0
-                
-                # MLP Predicted Change (from the python engine response)
-                pred_change_pct = prediction_result.get('predicted_change_pct', 0)
-                
-                # Component Calculations
-                m1 = min(max(upside / 0.3, 0), 1) * 19
-                m2 = min(max(rev_growth / 0.3, 0), 1) * 19
-                m3 = min(max(earn_growth / 0.25, 0), 1) * 19
-                m4 = min(max(price_change / 0.2, 0), 1) * 19
-                m5a = min(max(pred_change_pct / 3.0, -1), 1) * 19
-                m5b = (confidence_score / 100.0) * 5
-                
-                gps = m1 + m2 + m3 + m4 + m5a + m5b
-                gps_score = round(min(gps, 100), 1)
-                
-                bearish_signal = pred_change_pct < 0
-                if bearish_signal:
-                    print(f"  [gps] ⚠️  BEARISH SIGNAL for {ticker}: "
-                          f"ML predicts {pred_change_pct:.2f}% → GPS penalty {m5a:.1f} pts → GPS={gps_score}")
-                
-                gps_breakdown = {
-                    'analystUpside': round(m1, 1),
-                    'revenueGrowth': round(m2, 1),
-                    'earningsGrowth': round(m3, 1),
-                    'fiftyTwoWeekChange': round(m4, 1),
-                    'mlpUpside': round(m5a, 1),
-                    'mlpConfidence': round(m5b, 1),
-                    'bearishSignal': bearish_signal,
-                }
-                
-                print(f"  [gps] Calculated GPS Score for {ticker}: {gps_score}")
+                if gps_result['bearishSignal']:
+                    print(f"  [gps] BEARISH SIGNAL for {ticker}: "
+                          f"ML predicts {prediction_result.get('predicted_change_pct', 0):.2f}% → "
+                          f"GPS={gps_score}")
+                print(f"  [gps] GPS v3.0 score for {ticker}: {gps_score}")
                 
             else:
                 stats['errors'] += 1

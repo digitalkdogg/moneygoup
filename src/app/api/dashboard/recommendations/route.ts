@@ -8,10 +8,10 @@ import { createErrorResponse, unauthorizedResponse } from '@/utils/errorResponse
 import { checkApprovalGuard } from '@/utils/approvalStatus';
 import { fetchYahooQuotesForSymbols } from '@/utils/yahooFinanceHelper';
 import { DashboardRecommendation, DashboardRecommendationsResponse } from '@/types/dashboard';
- 
+
 const logger = createLogger('api/dashboard/recommendations');
 
-async function fetchMacroContext(): Promise<any> {
+async function fetchMacroContext(): Promise<Record<string, unknown> | null> {
     try {
         const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3001';
         const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
@@ -25,30 +25,31 @@ async function fetchMacroContext(): Promise<any> {
         return null;
     }
 }
- 
+
+function getEnvThreshold(key: string, fallback: number): number {
+  const val = process.env[key]
+  if (!val) return fallback
+  const parsed = parseFloat(val)
+  return isNaN(parsed) ? fallback : parsed
+}
+
 export async function GET(request: NextRequest) {
   const originCheckResponse = checkOrigin(request);
-  if (originCheckResponse) {
-    return originCheckResponse;
-  }
- 
+  if (originCheckResponse) return originCheckResponse;
+
   const session = await getServerSession(authOptions);
- 
-  if (!session) {
-    return unauthorizedResponse();
-  }
- 
+  if (!session) return unauthorizedResponse();
+
   try {
     const userId = session.user?.id;
-    if (!userId) {
-      return unauthorizedResponse('Unauthorized: User ID missing from session.');
-    }
+    if (!userId) return unauthorizedResponse('Unauthorized: User ID missing from session.');
+
     const approvalOutcome = await checkApprovalGuard(userId);
     if (!approvalOutcome.allowed) {
       return NextResponse.json({ message: approvalOutcome.message, code: approvalOutcome.code }, { status: 403 });
     }
 
-    // 1. Fetch predictions and user stock status with extended flags
+    // 1. Fetch predictions with GPS scores
     const [rows] = await executeRawQuery(`
       SELECT
         usp.stock_id,
@@ -75,132 +76,110 @@ export async function GET(request: NextRequest) {
       WHERE usp.user_id = ? AND us.is_active = 1
       ORDER BY usp.last_requested_at DESC;
     `, [userId]);
- 
-    const predictions = rows as any[];
- 
+
+    const predictions = rows as Record<string, unknown>[];
     if (predictions.length === 0) {
       return NextResponse.json({ recommendations: [], asOf: new Date().toISOString() });
     }
- 
-    // 2. Fetch current prices in batch using Yahoo Finance
-    const symbols = predictions.map(p => p.symbol);
-    const stockIdMap = new Map<string, number>(predictions.map(p => [p.symbol, p.stock_id]));
-    
+
+    // 2. Fetch current prices in batch
+    const symbols = predictions.map(p => p.symbol as string);
+    const stockIdMap = new Map<string, number>(predictions.map(p => [p.symbol as string, p.stock_id as number]));
     const quotes = await fetchYahooQuotesForSymbols(symbols, stockIdMap);
-    const quoteMap = new Map<number, any>();
+    const quoteMap = new Map<number, Record<string, unknown>>();
     quotes.forEach(q => {
-      if (q.stock_id !== null) {
-        quoteMap.set(q.stock_id, q);
-      }
+      if (q.stock_id !== null) quoteMap.set(q.stock_id, q as Record<string, unknown>);
     });
- 
-    // 3. Compute recommendations based on thresholds from environment
-    const recommendations: DashboardRecommendation[] = [];
-    
-    const getThreshold = (envVar: string | undefined, defaultValue: number) => {
-      if (!envVar) return defaultValue;
-      const parsed = parseFloat(envVar);
-      return isNaN(parsed) ? defaultValue : parsed;
-    };
 
-    const basePortfolioPositiveThreshold = getThreshold(process.env.RECOMMENDATION_PORTFOLIO_POSITIVE_THRESHOLD, 3);
-    const portfolioNegativeThreshold = getThreshold(process.env.RECOMMENDATION_PORTFOLIO_NEGATIVE_THRESHOLD, -3);
-    const baseWatchlistThreshold = getThreshold(process.env.RECOMMENDATION_WATCHLIST_THRESHOLD, 5);
+    // 3. GPS thresholds from env
+    const buyThreshold       = getEnvThreshold('GPS_RECOMMENDATION_BUY_THRESHOLD', 65);
+    const sellThreshold      = getEnvThreshold('GPS_RECOMMENDATION_SELL_THRESHOLD', 45);
+    const discoveryThreshold = getEnvThreshold('GPS_RECOMMENDATION_DISCOVERY_THRESHOLD', 70);
 
-    // --- Macro Dampeners (Phase 3) ---
+    // 4. Macro GPS adjustment (±3 pts max)
     const macroContext = await fetchMacroContext();
-    const unemployment = macroContext?.macro?.indicators?.unemployment;
-    const globalHealth = macroContext?.risk_index?.globalHealthScore;
+    const unemployment = (macroContext?.macro as Record<string, unknown> | undefined)
+      ?.indicators as Record<string, unknown> | undefined;
+    const unemploymentSignal = (unemployment?.unemployment as Record<string, unknown> | undefined)?.signal as string | undefined;
+    const globalHealth = (macroContext?.risk_index as Record<string, unknown> | undefined)
+      ?.globalHealthScore as number | undefined;
 
-    let buyDampener = 0; // percentage points to ADD to required threshold
-    let globalModifier = 1.0; // GPS/Confidence multiplier
-
-    if (unemployment && unemployment.signal === 'bearish') {
-        // Unemployment is rising (bearish for economy)
-        buyDampener = 2.0; 
-        logger.info('Applying unemployment dampener to BUY thresholds', { delta: unemployment.delta });
+    let macroGpsAdjustment = 0;
+    if (unemploymentSignal === 'bearish') {
+      macroGpsAdjustment -= 2;
+      logger.info('Applying unemployment macro dampener to GPS scores', { adjustment: -2 });
     }
-
-    if (globalHealth !== undefined && globalHealth !== null) {
-        if (globalHealth > 70) globalModifier = 1.05;
-        else if (globalHealth < 45) globalModifier = 0.90;
+    if (globalHealth != null) {
+      if (globalHealth > 70) macroGpsAdjustment += 1.5;
+      else if (globalHealth < 45) macroGpsAdjustment -= 3;
     }
+    macroGpsAdjustment = Math.max(-3, Math.min(3, macroGpsAdjustment));
 
-    const portfolioPositiveThreshold = basePortfolioPositiveThreshold + buyDampener;
-    const watchlistThreshold = baseWatchlistThreshold + buyDampener;
- 
+    // 5. Build recommendations
+    const recommendations: DashboardRecommendation[] = [];
+
     for (const pred of predictions) {
-      const quote = quoteMap.get(pred.stock_id);
+      const quote = quoteMap.get(pred.stock_id as number);
       if (!quote || quote.price === null) continue;
- 
-      const currentPrice = quote.price;
-      const predictedPrice1m = parseFloat(pred.predicted_price_1m);
-      
-      // Calculate percentage difference
-      let deltaPct = ((predictedPrice1m - currentPrice) / currentPrice) * 100;
 
-      // Apply global health modifier to prediction for international context
-      if (globalModifier !== 1.0) {
-          deltaPct *= globalModifier;
-      }
- 
-      const isConfirmed = pred.user_confirmed === 1;
-      const isPurchased = pred.is_purchased === 1;
-      const hasShares = pred.shares > 0;
+      const currentPrice    = quote.price as number;
+      const predictedPrice1m = parseFloat(String(pred.predicted_price_1m));
+      const deltaPct        = ((predictedPrice1m - currentPrice) / currentPrice) * 100;
+
+      const rawGps       = pred.gps_score != null ? parseFloat(String(pred.gps_score)) : null;
+      const adjustedGps  = rawGps != null ? rawGps + macroGpsAdjustment : null;
+
+      const isConfirmed  = pred.user_confirmed === 1;
+      const isPurchased  = pred.is_purchased === 1;
+      const hasShares    = (pred.shares as number) > 0;
 
       let action: 'BUY' | 'SELL' | null = null;
       let scope: 'portfolio' | 'watchlist' | 'discovery' | null = null;
 
+      if (adjustedGps === null) continue;
+
       if (isPurchased && isConfirmed && hasShares) {
-        // Bucket 1: Portfolio (Must have shares)
         scope = 'portfolio';
-        if (deltaPct >= portfolioPositiveThreshold) {
-          action = 'BUY';
-        } else if (deltaPct <= portfolioNegativeThreshold) {
-          action = 'SELL';
-        }
+        if (adjustedGps >= buyThreshold) action = 'BUY';
+        else if (adjustedGps < sellThreshold) action = 'SELL';
       } else if (!isPurchased && isConfirmed) {
-        // Bucket 2: Watchlist (Confirmed by user, 0 shares allowed)
         scope = 'watchlist';
-        if (deltaPct >= watchlistThreshold) {
-          action = 'BUY';
-        }
+        if (adjustedGps >= buyThreshold) action = 'BUY';
       } else if (!isPurchased && !isConfirmed) {
-        // Bucket 3: Discovery (Unconfirmed items, 0 shares allowed)
         scope = 'discovery';
-        if (deltaPct >= watchlistThreshold) {
-          action = 'BUY';
-        }
+        if (adjustedGps >= discoveryThreshold) action = 'BUY';
       }
- 
+
       if (action && scope) {
         recommendations.push({
-          stockId: pred.stock_id,
-          symbol: pred.symbol,
+          stockId:        pred.stock_id as number,
+          symbol:         pred.symbol as string,
           action,
           currentPrice,
           predictedPrice1m,
           deltaPct,
-          gpsScore: pred.gps_score !== null ? parseFloat(pred.gps_score) : null,
-          gpsBreakdown: pred.gps_breakdown ? (typeof pred.gps_breakdown === 'string' ? JSON.parse(pred.gps_breakdown) : pred.gps_breakdown) : null,
-          lastRequestedAt: pred.last_requested_at,
-          scope
+          gpsScore:       rawGps,
+          gpsBreakdown:   pred.gps_breakdown
+            ? (typeof pred.gps_breakdown === 'string' ? JSON.parse(pred.gps_breakdown) : pred.gps_breakdown)
+            : null,
+          lastRequestedAt: pred.last_requested_at as string,
+          scope,
         });
       }
     }
- 
-    // Optional: Sort by absolute delta percentage descending to show strongest signals first
-    recommendations.sort((a, b) => Math.abs(b.deltaPct) - Math.abs(a.deltaPct));
- 
+
+    // Sort by GPS score descending — strongest signals first
+    recommendations.sort((a, b) => (b.gpsScore ?? 0) - (a.gpsScore ?? 0));
+
     const response: DashboardRecommendationsResponse = {
       recommendations,
-      asOf: new Date().toISOString()
+      asOf: new Date().toISOString(),
     };
- 
+
     return NextResponse.json(response);
- 
-  } catch (error: any) {
-    logger.error("Failed to fetch dashboard recommendations.", { error });
+
+  } catch (error: unknown) {
+    logger.error('Failed to fetch dashboard recommendations.', { error });
     return createErrorResponse(error, 'Failed to fetch recommendations.', { status: 500 });
   }
 }

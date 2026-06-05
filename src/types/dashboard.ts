@@ -41,9 +41,9 @@ export interface DashboardRecommendation {
   action: 'BUY' | 'SELL';
   currentPrice: number;
   predictedPrice1m: number;
-  deltaPct: number;
+  deltaPct?: number;          // informational only — BUY/SELL logic uses GPS score
   gpsScore: number | null;
-  gpsBreakdown: any | null;
+  gpsBreakdown: object | null;
   lastRequestedAt: string;
   scope: 'portfolio' | 'watchlist' | 'discovery';
 }

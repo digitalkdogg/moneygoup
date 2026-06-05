@@ -7,10 +7,18 @@ import { checkOrigin } from '@/utils/originCheck';
 import { checkApprovalGuard } from '@/utils/approvalStatus';
 import { createLogger } from '@/utils/logger';
 import { createErrorResponse } from '@/utils/errorResponse';
+import { getGpsLabel } from '@/utils/gps';
 import YahooFinance from 'yahoo-finance2';
 
 const ETF_GPS_THRESHOLD = 75;
 const logger = createLogger('api/dashboard/deepmoney-picks');
+
+function getStockGpsThreshold(): number {
+  const val = process.env.GPS_DEEPMONEY_MIN_SCORE
+  if (!val) return 65
+  const parsed = parseFloat(val)
+  return isNaN(parsed) ? 65 : parsed
+}
 const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
 
 export async function GET(request: NextRequest) {
@@ -45,7 +53,8 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // 2. Fetch Stocks
+    // 2. Fetch Stocks — filtered by GPS minimum threshold, sorted by GPS score
+    const stockGpsMin = getStockGpsThreshold();
     let allStocks: any[] = [];
     if (stockDate) {
       const [rows] = await executeRawQuery(
@@ -55,9 +64,9 @@ export async function GET(request: NextRequest) {
                 trading_signal_score, upcoming_earnings, snapshot_date,
                 trailing_pe, price_to_book, metric_value, metric_label
          FROM recommended_stocks
-         WHERE snapshot_date = ?
+         WHERE snapshot_date = ? AND gps_score >= ?
          ORDER BY gps_score DESC`,
-        [stockDate]
+        [stockDate, stockGpsMin]
       );
       allStocks = rows as any[];
     }
@@ -88,10 +97,16 @@ export async function GET(request: NextRequest) {
             ...stock,
             changeAmount,
             changePercent,
+            recommendationLabel: stock.gps_score != null ? getGpsLabel(parseFloat(stock.gps_score)) : null,
           };
         } catch (e) {
           logger.error(`Error enriching stock ${stock.ticker}`, { error: e });
-          return { ...stock, changeAmount: null, changePercent: null };
+          return {
+            ...stock,
+            changeAmount: null,
+            changePercent: null,
+            recommendationLabel: stock.gps_score != null ? getGpsLabel(parseFloat(stock.gps_score)) : null,
+          };
         }
       })
     );

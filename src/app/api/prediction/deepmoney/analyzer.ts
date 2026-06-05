@@ -31,6 +31,7 @@ export interface EnrichedStock {
     rsi?: number | null;
     tradingSignal?: string;
     tradingSignalScore?: number;
+    recommendationKey?: string | null;
     signalStrength?: number;
     historyRows?: number;
     error?: string;
@@ -89,14 +90,16 @@ export async function analyzeStocks(stocks: EnrichedStock[], sharedContext?: { w
                         // --- GPS Score Calculation (v2.3) ---
                         const gpsResult = calculateGpsScore(
                           {
-                            analystUpside: stock.analystUpside ?? 0,
-                            revenueGrowth: stock.revenueGrowth ?? 0,
-                            earningsGrowth: stock.earningsGrowth ?? 0,
-                            fiftyTwoWeekChange: stock.fiftyTwoWeekChange ?? 0
+                            analystUpside:     stock.analystUpside ?? 0,
+                            revenueGrowthPct:  stock.revenueGrowth ?? 0,
+                            earningsGrowthPct: stock.earningsGrowth ?? 0,
+                            priceChange52w:    stock.fiftyTwoWeekChange ?? 0,
+                            technicalScore:    stock.tradingSignalScore,
+                            recommendationKey: stock.recommendationKey ?? undefined,
                           },
                           {
-                            predicted_change_pct: predictionResult.predicted_change_pct,
-                            confidence_score: predictionResult.confidence_score
+                            predictedChangePct1m: predictionResult.predicted_change_pct,
+                            confidenceScore:      predictionResult.confidence_score,
                           }
                         );
                         

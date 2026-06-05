@@ -14,6 +14,7 @@ import { tickerSchema } from '@/utils/validationSchemas';
 import { z } from 'zod';
 import YahooFinance from 'yahoo-finance2';
 import { macroCache } from '@/utils/cache';
+import { calculateTechnicalIndicators } from '@/utils/technicalIndicators';
 
 const logger = createLogger('api/stock/[ticker]/data');
 const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
@@ -660,6 +661,7 @@ export async function GET(
       analystTargetLow,
       analystOpinionCount: Math.round(analystOpinionCount),
       recommendationMean,
+      recommendationKey:  (finData.recommendationKey as string | null) ?? null,
       analystUpside,
       fiftyTwoWeekChange,
       nextEarningsDate,
@@ -815,6 +817,18 @@ export async function GET(
       earningsSurpriseQuarterCount: surprises.quarterCount,
     };
 
+    // Compute technical score server-side so scripts/update_predictions.py receives
+    // the same value that the web UI passes to the GPS formula.
+    // newsData omitted here (news endpoint is separate) → newsScore defaults to 0.
+    const technicalIndicators = calculateTechnicalIndicators(
+      historicalData,
+      [],
+      stockMetrics.peRatio ?? undefined,
+      stockMetrics.pbRatio ?? undefined,
+      stockMetrics.marketCap ?? undefined,
+    );
+    const technicalScore = technicalIndicators.scoreBreakdown.totalScore;
+
     const payload = {
       ticker:            validatedTicker,
       historicalData,
@@ -824,6 +838,8 @@ export async function GET(
       featureMetrics,
       historicalEarnings,
       dataQuality,
+      technicalScore,
+      recommendationKey: stockMetrics.recommendationKey,
     };
 
     setCache(validatedTicker, payload);

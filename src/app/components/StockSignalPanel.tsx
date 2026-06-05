@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { GpsBreakdownModal } from './modals/GpsBreakdownModal'
+import { getGpsLabel } from '@/utils/gps'
 
 export interface GpsData {
   gpsScore: number | null
@@ -19,36 +20,31 @@ interface StockSignalPanelProps {
 }
 
 const DRIVER_LABELS: Record<string, string> = {
-  analystUpside: 'Analyst Upside',
-  revenueGrowth: 'Revenue Growth',
-  earningsGrowth: 'Earnings Growth',
-  fiftyTwoWeekChange: '52-week price',
-  mlpUpside: 'MLP Alpha',
-  mlpConfidence: 'AI Confidence',
+  mlpUpside:        'ML Prediction',
+  mlpConfidence:    'AI Confidence',
+  revenueGrowth:    'Revenue Growth',
+  earningsGrowth:   'Earnings Growth',
+  technicalSignal:  'Technical Signal',
+  analystUpside:    'Analyst Upside',
+  analystConsensus: 'Analyst Consensus',
+  priceChange52w:   '52-Week Momentum',
 }
 
 const DRIVER_MAX: Record<string, number> = {
-  analystUpside: 19,
-  revenueGrowth: 19,
-  earningsGrowth: 19,
-  fiftyTwoWeekChange: 19,
-  mlpUpside: 19,
-  mlpConfidence: 5,
-}
-
-function getGpsLabel(score: number) {
-  if (score >= 80) return 'Strong Buy'
-  if (score >= 60) return 'Buy'
-  if (score >= 40) return 'Hold'
-  if (score >= 20) return 'Weak'
-  return 'Avoid'
+  mlpUpside:        20,
+  mlpConfidence:    5,
+  revenueGrowth:    12,
+  earningsGrowth:   12,
+  technicalSignal:  20,
+  analystUpside:    12,
+  analystConsensus: 9,
+  priceChange52w:   10,
 }
 
 function getChipColors(score: number) {
-  if (score >= 60) return { bg: '#dcfce7', text: '#166534', dot: '#16a34a' }
-  if (score >= 40) return { bg: '#f3f4f6', text: '#374151', dot: '#9ca3af' }
-  if (score >= 20) return { bg: '#fef3c7', text: '#92400e', dot: '#d97706' }
-  return { bg: '#fee2e2', text: '#991b1b', dot: '#dc2626' }
+  if (score >= 65) return { bg: '#dcfce7', text: '#166534', dot: '#16a34a' }  // green — buy
+  if (score >= 45) return { bg: '#fef3c7', text: '#92400e', dot: '#d97706' }  // amber — hold
+  return { bg: '#fee2e2', text: '#991b1b', dot: '#dc2626' }                   // red — sell
 }
 
 function getTopDrivers(breakdown: Record<string, number> | null) {
