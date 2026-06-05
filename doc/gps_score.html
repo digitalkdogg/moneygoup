@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GPS Score — GrowMyStocks Docs</title>
+    <title>GPS Score — MoneyGoUp Docs</title>
     <style>
         :root {
             --primary: #15803d;
@@ -266,7 +266,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">GPS Score</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-05-24</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-04</div>
   </div>
   <nav class="top-bar-nav">
     <a href="moneygoup_overview.html">Overview</a>
@@ -281,6 +281,8 @@
     <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
     <a href="technical_indicators_guide.html">Technical Guide</a>
     <a href="gps_score.html" class="active">GPS Score</a>
+    <a href="gps_utility.html">GPS Utility</a>
+    <a href="deepmoney_picks_route.html">DeepMoney Picks</a>
     <a href="style_guide.html">Style Guide</a>
     <a href="SEO.html">SEO</a>
   </nav>
@@ -297,219 +299,315 @@
     <div class="section-divider"></div>
     <h3>On this page</h3>
     <a href="#what-is-gps">What is GPS?</a>
+    <a href="#version-history">Version History</a>
     <a href="#score-ranges">Score Ranges</a>
     <a href="#components">Score Components</a>
     <a href="#formula">Full Formula</a>
+    <a href="#bearish-signal">Bearish Signal</a>
     <a href="#data-sources">Data Sources</a>
     <a href="#where-used">Where It Appears</a>
     <a href="#storage">Storage &amp; Write Path</a>
     <a href="#config">Configuration</a>
     <div class="section-divider"></div>
+    <a href="gps_utility.html">GPS Utility (src/utils/gps.ts)</a>
     <a href="database_documentation.html">Database</a>
     <a href="prediction_workflow.html">Prediction Workflow</a>
     <a href="recommendation_buckets.html">Rec Buckets</a>
     <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
     <a href="technical_indicators_guide.html">Technical Indicators</a>
-    <a href="gps_score_model.html">GPS Score Model (DB)</a>
+    <a href="deepmoney_picks_route.html">DeepMoney Picks Route</a>
   </nav>
 
   <main>
-    <h1>GPS Score</h1>
-    <p>The <strong>GPS Score</strong> (Global Performance Score) is a 0–100 composite metric that expresses how attractive a stock looks right now. It blends traditional fundamental signals with the output of the DeepMoney MLP prediction engine into a single number that users and the recommendation engine can act on at a glance.</p>
+    <h1>GPS Score <span style="font-size:0.6em;color:#64748b;font-weight:400;">v3.0</span></h1>
+    <p>The <strong>GPS Score</strong> (GrowMyStocks Prediction Score) is a 0–100 composite metric that expresses how attractive a stock looks right now. Version 3.0 expanded the formula from 6 components to <strong>8 components</strong>, adding a dedicated Technical Signal component (up to 20 pts) and an Analyst Consensus Rating (up to 9 pts) while rebalancing the weights of all other components. The result is a richer, more nuanced signal that no longer relies exclusively on analyst price targets and ML output.</p>
 
     <div class="highlight-box">
-      <strong>One score, two inputs:</strong> four fundamental factors establish how healthy the business is, then the AI prediction layer adds a forward-looking signal. A stock can score well on fundamentals even without a fresh prediction, but the top of the range requires a strong MLP result.
+      <strong>GPS v3.0 — 8 components, 100 points.</strong> Combines ML prediction (25 pts), technical signals (20 pts), fundamentals (24 pts), analyst inputs (21 pts), and 52-week momentum (10 pts). TypeScript and Python implementations are kept in exact parity.
     </div>
 
     <!-- ── What is GPS ─────────────────────────────────────────────────── -->
     <section id="what-is-gps">
       <h2>What is the GPS Score?</h2>
-      <p>GPS stands for <strong>Global Performance Score</strong>. It was designed to answer a single question quickly: <em>how compelling is this stock right now, across both fundamentals and AI-driven price outlook?</em></p>
+      <p>GPS stands for <strong>GrowMyStocks Prediction Score</strong>. It answers a single question quickly: <em>how compelling is this stock right now, across ML prediction, technical signals, fundamentals, and analyst consensus?</em></p>
       <p>The score runs from <strong>0 to 100</strong> and is always rounded to one decimal place. It is recalculated every time a prediction is run for a stock — whether triggered manually by a user, by the <code>update_predictions.py</code> background job, or by the <code>deepmoney_sync.py</code> discovery cycle. The most recent score for each stock is stored in <code>stock_gps_scores</code> (one row per ticker), making it instantly readable without per-user fan-out.</p>
-      <p>A GPS breakdown accompanies every score, showing exactly how many points each of the six components contributed, so users can see <em>why</em> a stock scored the way it did.</p>
+      <p>A GPS breakdown accompanies every score, showing exactly how many points each of the eight components contributed, so users can see <em>why</em> a stock scored the way it did. The breakdown is displayed via <code>GpsBreakdownModal</code> which is reachable from the "View score" button in both the stock detail page and dashboard cards.</p>
+    </section>
+
+    <!-- ── Version History ────────────────────────────────────────────── -->
+    <section id="version-history">
+      <h2>Version History</h2>
+      <table class="schema-table">
+        <thead>
+          <tr><th>Version</th><th>Components</th><th>Key Changes</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>v1 / v2</strong></td>
+            <td>6</td>
+            <td>Original formula: Analyst Upside (19), Revenue Growth (19), Earnings Growth (19), 52-Week Change (19), ML Upside (19), ML Confidence (5). All fundamental components capped at 19 pts each.</td>
+          </tr>
+          <tr>
+            <td><strong>v3.0</strong> (current)</td>
+            <td>8</td>
+            <td>Added <strong>Technical Signal</strong> (20 pts) and <strong>Analyst Consensus Rating</strong> (9 pts). Rebalanced all weights — ML Upside raised to 20, fundamentals reduced to 12 each, Analyst Upside cut to 12, 52-Week Momentum cut to 10. Python <code>update_predictions.py</code> now implements <code>calculate_gps_v3()</code> to maintain exact TS parity. The <code>/api/stock_data/[ticker]/data</code> route now computes and returns <code>technicalScore</code> and <code>recommendationKey</code> at payload top level.</td>
+          </tr>
+        </tbody>
+      </table>
     </section>
 
     <!-- ── Score Ranges ────────────────────────────────────────────────── -->
     <section id="score-ranges">
-      <h2>Score Ranges</h2>
-      <p>The table below describes how scores translate to signal strength. These labels are used in the UI tooltip and breakdown modal.</p>
+      <h2>Score Ranges &amp; Labels</h2>
+      <p>These thresholds are used by <code>getGpsLabel()</code> in <code>src/utils/gps.ts</code>, by <code>GpsBreakdownModal</code> for the summary footer, and by the recommendations engine when tagging picks.</p>
       <table class="schema-table">
         <thead>
           <tr>
             <th>Range</th>
-            <th>Label</th>
+            <th>Label (<code>getGpsLabel</code>)</th>
             <th>Interpretation</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td><span class="range-pill range-low">0 – 24</span></td>
-            <td><strong>Low</strong></td>
-            <td>Weak fundamentals and/or a flat or negative AI price outlook. Not flagged for recommendations.</td>
+            <td><span class="range-pill range-low">0 – 29</span></td>
+            <td><strong>Strong Sell</strong></td>
+            <td>Weak fundamentals and/or a negative AI outlook. Not surfaced in recommendations.</td>
           </tr>
           <tr>
-            <td><span class="range-pill range-below">25 – 49</span></td>
-            <td><strong>Below Average</strong></td>
-            <td>Some positive signals present but not enough to clear recommendation thresholds.</td>
+            <td><span class="range-pill range-below">30 – 44</span></td>
+            <td><strong>Sell</strong></td>
+            <td>Below-average signal across most components. Below standard recommendation thresholds.</td>
           </tr>
           <tr>
-            <td><span class="range-pill range-moderate">50 – 64</span></td>
-            <td><strong>Moderate</strong></td>
-            <td>Solid mixed picture. May appear in discovery recommendations depending on environment thresholds.</td>
+            <td><span class="range-pill range-moderate">45 – 64</span></td>
+            <td><strong>Hold</strong></td>
+            <td>Mixed picture. May appear in discovery depending on environment thresholds.</td>
           </tr>
           <tr>
             <td><span class="range-pill range-strong">65 – 79</span></td>
-            <td><strong>Strong</strong></td>
-            <td>Good fundamentals backed by a positive AI outlook. Likely qualifies for dashboard recommendations.</td>
+            <td><strong>Buy</strong></td>
+            <td>Strong fundamentals and positive AI/technical outlook. Qualifies for dashboard recommendations.</td>
           </tr>
           <tr>
             <td><span class="range-pill range-exceptional">80 – 100</span></td>
-            <td><strong>Exceptional</strong></td>
-            <td>High-conviction signal across all six components. Top of the DeepMoney discovery shortlist.</td>
+            <td><strong>Strong Buy</strong></td>
+            <td>High-conviction signal across all components. Top of the DeepMoney discovery shortlist.</td>
           </tr>
         </tbody>
       </table>
 
       <div class="info-box" style="margin-top:1.5rem;">
-        <strong>DeepMoney sync thresholds:</strong> The <code>deepmoney_sync.py</code> script uses two env-var-controlled GPS gates. Stocks must exceed <code>DEEPMONEY_GPS_VALUE</code> (default <strong>10</strong>) to be recorded in <code>recommended_stocks</code>, and must exceed <code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code> (default <strong>25</strong>) to be pushed to active user dashboards.
+        <strong>DeepMoney sync thresholds:</strong> The <code>deepmoney_sync.py</code> script uses two env-var-controlled GPS gates. Stocks must exceed <code>DEEPMONEY_GPS_VALUE</code> (default <strong>10</strong>) to be recorded in <code>recommended_stocks</code>, and must exceed <code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code> (default <strong>25</strong>) to be pushed to active user dashboards. The <code>deepmoney-picks</code> API route applies its own threshold via <code>GPS_DEEPMONEY_MIN_SCORE</code> (default <strong>65</strong>) on read.
       </div>
     </section>
 
     <!-- ── Components ─────────────────────────────────────────────────── -->
     <section id="components">
-      <h2>Score Components</h2>
-      <p>The GPS score is built from <strong>six components</strong> totalling a maximum of 100 points. The first four are fundamental signals sourced from analyst and financial data. The last two come directly from the DeepMoney MLP prediction engine.</p>
+      <h2>Score Components (v3.0 — 8 components)</h2>
+      <p>The GPS v3.0 score is built from <strong>eight components</strong> totalling a maximum of 100 points. The ML and AI components contribute 25 pts, technical signals 20 pts, fundamentals 24 pts, analyst inputs 21 pts, and momentum 10 pts.</p>
 
       <div class="component-grid">
 
-        <div class="component-card">
-          <div class="component-label">Component 1 — Fundamental</div>
-          <div class="component-name">Analyst Upside</div>
-          <div class="component-pts">Max 19 pts</div>
-          <div class="component-formula">min(max(analystUpside / 0.30, 0), 1) × 19</div>
-          <div class="component-desc">Consensus analyst price target vs. current price, expressed as a fraction. A <strong>30% upside</strong> to the analyst target earns the full 19 points. Negative upside scores 0.</div>
+        <div class="component-card ml-card">
+          <div class="component-label">Component 1 — ML / AI</div>
+          <div class="component-name">ML Predicted Change (1m)</div>
+          <div class="component-pts">Max 20 pts</div>
+          <div class="component-formula">min(max(predictedChangePct1m / GPS_PREDICTION_MAX, -1), 1) × 20</div>
+          <div class="component-desc">1-month percentage price change predicted by the DeepMoney MLP model. Scaled against <code>GPS_PREDICTION_MAX</code> (env var, default <strong>3%</strong>). A 3% predicted gain earns the full 20 pts. A negative prediction can push this component below zero, contributing to a lower overall score. A negative value here also sets <code>bearishSignal = true</code>.</div>
         </div>
 
-        <div class="component-card">
-          <div class="component-label">Component 2 — Fundamental</div>
-          <div class="component-name">Revenue Growth</div>
-          <div class="component-pts">Max 19 pts</div>
-          <div class="component-formula">min(max(revenueGrowth / 0.30, 0), 1) × 19</div>
-          <div class="component-desc">Year-over-year revenue growth rate as a decimal. <strong>30% YoY growth</strong> earns the full 19 points. Shrinking revenue scores 0.</div>
+        <div class="component-card ml-card">
+          <div class="component-label">Component 2 — ML / AI</div>
+          <div class="component-name">AI Model Confidence</div>
+          <div class="component-pts">Max 5 pts</div>
+          <div class="component-formula">(confidenceScore / 100) × 5</div>
+          <div class="component-desc">The model's self-reported confidence in its 1-month prediction, on a 0–100 scale. Full confidence earns 5 pts. Acts as a quality weight on the AI signal.</div>
         </div>
 
         <div class="component-card">
           <div class="component-label">Component 3 — Fundamental</div>
-          <div class="component-name">Earnings Growth</div>
-          <div class="component-pts">Max 19 pts</div>
-          <div class="component-formula">min(max(earningsGrowth / 0.25, 0), 1) × 19</div>
-          <div class="component-desc">Year-over-year earnings (EPS) growth rate as a decimal. <strong>25% YoY growth</strong> earns the full 19 points. Uses a slightly lower ceiling than revenue to reflect EPS volatility.</div>
+          <div class="component-name">Revenue Growth YoY</div>
+          <div class="component-pts">Max 12 pts</div>
+          <div class="component-formula">min(max(revenueGrowthPct / 0.30, 0), 1) × 12</div>
+          <div class="component-desc">Year-over-year revenue growth rate as a fraction. <strong>30% YoY growth</strong> earns the full 12 pts. Shrinking revenue scores 0.</div>
         </div>
 
         <div class="component-card">
           <div class="component-label">Component 4 — Fundamental</div>
-          <div class="component-name">52-Week Price Change</div>
-          <div class="component-pts">Max 19 pts</div>
-          <div class="component-formula">min(max(fiftyTwoWeekChange / 0.20, 0), 1) × 19</div>
-          <div class="component-desc">Trailing 52-week price return as a decimal. <strong>20% price appreciation</strong> over the past year earns the full 19 points. Acts as a momentum proxy alongside the analyst view.</div>
+          <div class="component-name">Earnings Growth YoY</div>
+          <div class="component-pts">Max 12 pts</div>
+          <div class="component-formula">min(max(earningsGrowthPct / 0.25, 0), 1) × 12</div>
+          <div class="component-desc">Year-over-year earnings (EPS) growth rate as a fraction. <strong>25% YoY growth</strong> earns the full 12 pts. Uses a slightly lower ceiling than revenue to reflect EPS volatility.</div>
         </div>
 
-        <div class="component-card ml-card">
-          <div class="component-label">Component 5a — AI / MLP</div>
-          <div class="component-name">MLP Predicted Upside</div>
-          <div class="component-pts">Max 19 pts</div>
-          <div class="component-formula">min(max(predicted_change_pct / GPS_PREDICTION_MAX, 0), 1) × 19</div>
-          <div class="component-desc">The 1-month percentage price change predicted by the DeepMoney MLP model. Scaled against <code>GPS_PREDICTION_MAX</code> (env var, default <strong>3%</strong>). A 3% predicted gain earns the full 19 points.</div>
+        <div class="component-card">
+          <div class="component-label">Component 5 — Technical</div>
+          <div class="component-name">Technical Signal</div>
+          <div class="component-pts">Max 20 pts</div>
+          <div class="component-formula">min(max((technicalScore + 14) / 28, 0), 1) × 20</div>
+          <div class="component-desc">Raw technical score from <code>calculateTechnicalIndicators()</code>, ranging from <strong>-14 to +14</strong>. Mapped linearly to 0–20: a score of -14 maps to 0 pts; +14 maps to 20 pts. Computed server-side in <code>/api/stock_data/[ticker]/data</code> and returned as <code>technicalScore</code> at the payload root.</div>
         </div>
 
-        <div class="component-card ml-card">
-          <div class="component-label">Component 5b — AI / MLP</div>
-          <div class="component-name">MLP Confidence Score</div>
-          <div class="component-pts">Max 5 pts</div>
-          <div class="component-formula">(confidence_score / 100) × 5</div>
-          <div class="component-desc">The model's self-reported confidence in its 1-month prediction, on a 0–100 scale. Full confidence (100) earns 5 bonus points. Acts as a quality weight on the AI signal.</div>
+        <div class="component-card">
+          <div class="component-label">Component 6 — Analyst</div>
+          <div class="component-name">Analyst Price Target Upside</div>
+          <div class="component-pts">Max 12 pts</div>
+          <div class="component-formula">min(max(analystUpside / 0.30, 0), 1) × 12</div>
+          <div class="component-desc">Consensus analyst price target vs. current price as a fraction. <strong>30% upside</strong> earns the full 12 pts. Negative upside scores 0.</div>
+        </div>
+
+        <div class="component-card">
+          <div class="component-label">Component 7 — Analyst</div>
+          <div class="component-name">Analyst Consensus Rating</div>
+          <div class="component-pts">Max 9 pts</div>
+          <div class="component-formula">CONSENSUS_POINTS[recommendationKey] (lookup table)</div>
+          <div class="component-desc">Fixed-point lookup based on the analyst consensus key from Yahoo Finance <code>financialData.recommendationKey</code>. Strong Buy = 9, Buy = 7, Hold = 4, Underperform = 2, Sell = 0. Defaults to Hold (4) if the key is missing. The Python script converts <code>recommendationMean</code> (1–5 scale) to a key via <code>_recommendation_mean_to_key()</code>.</div>
+        </div>
+
+        <div class="component-card">
+          <div class="component-label">Component 8 — Momentum</div>
+          <div class="component-name">52-Week Momentum</div>
+          <div class="component-pts">Max 10 pts</div>
+          <div class="component-formula">min(max(priceChange52w / 0.20, 0), 1) × 10</div>
+          <div class="component-desc">Trailing 52-week price return as a fraction. <strong>20% price appreciation</strong> over the past year earns the full 10 pts. Calculated from <code>defaultKeyStatistics.fiftyTwoWeekChange</code>; if missing, the route derives it from 252 trading days of OHLCV history.</div>
         </div>
 
       </div>
 
       <div class="total-bar">
-        <span>Maximum possible score</span>
-        <span class="pts">19 + 19 + 19 + 19 + 19 + 5 = 100 pts</span>
+        <span>Maximum possible score (v3.0)</span>
+        <span class="pts">20 + 5 + 12 + 12 + 20 + 12 + 9 + 10 = 100 pts</span>
       </div>
     </section>
 
     <!-- ── Full Formula ────────────────────────────────────────────────── -->
     <section id="formula">
       <h2>Full Formula</h2>
-      <p>The canonical implementation lives in <code>src/utils/gps.ts</code> — <code>calculateGpsScore(metrics, prediction)</code>. The Python equivalent is reproduced inline in <code>scripts/update_predictions.py</code> and <code>scripts/deepmoney_sync.py</code> (via the analyzer).</p>
+      <p>The canonical implementation lives in <code>src/utils/gps.ts</code> — <code>calculateGpsScore(metrics, prediction)</code>. The Python equivalent is <code>calculate_gps_v3()</code> in <code>scripts/update_predictions.py</code>. Both must remain in exact parity whenever the formula changes.</p>
 
       <h3>TypeScript (canonical — <code>src/utils/gps.ts</code>)</h3>
-<pre style="background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:1.25rem;font-size:0.82rem;overflow-x:auto;line-height:1.7;"><code>const predMax = parseFloat(process.env.GPS_PREDICTION_MAX ?? '3')
+<pre style="background:#1e293b;color:#f8fafc;border-radius:8px;padding:1.25rem;font-size:0.82rem;overflow-x:auto;line-height:1.7;"><code>const predictionMax = process.env.GPS_PREDICTION_MAX ? parseFloat(process.env.GPS_PREDICTION_MAX) : 3
 
-const m1  = Math.min(Math.max(analystUpside   / 0.30, 0), 1) * 19   // Analyst upside
-const m2  = Math.min(Math.max(revenueGrowth   / 0.30, 0), 1) * 19   // Revenue growth
-const m3  = Math.min(Math.max(earningsGrowth  / 0.25, 0), 1) * 19   // Earnings growth
-const m4  = Math.min(Math.max(fiftyTwoWeekChange / 0.20, 0), 1) * 19 // 52-week change
-const m5a = Math.min(Math.max(predicted_change_pct / predMax, 0), 1) * 19 // MLP upside
-const m5b = (confidence_score / 100) * 5                              // MLP confidence
+// 1. ML Predicted Change 1m (20 pts)
+const m1 = Math.min(Math.max((prediction.predictedChangePct1m || 0) / predictionMax, -1), 1) * 20
+// 2. AI Model Confidence (5 pts)
+const m2 = ((prediction.confidenceScore || 0) / 100) * 5
+// 3. Revenue Growth YoY (12 pts — full at 30%)
+const m3 = Math.min(Math.max((metrics.revenueGrowthPct || 0) / 0.3, 0), 1) * 12
+// 4. Earnings Growth YoY (12 pts — full at 25%)
+const m4 = Math.min(Math.max((metrics.earningsGrowthPct || 0) / 0.25, 0), 1) * 12
+// 5. Technical Signal (20 pts — raw -14..+14 mapped linearly to 0..20)
+const m5 = Math.min(Math.max((rawTech + 14) / 28, 0), 1) * 20
+// 6. Analyst Price Target Upside (12 pts — full at 30%)
+const m6 = Math.min(Math.max((metrics.analystUpside || 0) / 0.3, 0), 1) * 12
+// 7. Analyst Consensus Rating (9 pts — lookup)
+const m7 = CONSENSUS_POINTS[metrics.recommendationKey ?? ''] ?? CONSENSUS_POINTS.hold
+// 8. 52-Week Momentum (10 pts — full at 20%)
+const m8 = Math.min(Math.max((metrics.priceChange52w || 0) / 0.2, 0), 1) * 10
 
-const gps = parseFloat(Math.min(m1+m2+m3+m4+m5a+m5b, 100).toFixed(1))</code></pre>
+const totalGps = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8
+return { score: parseFloat(Math.min(Math.max(totalGps, 0), 100).toFixed(1)), ... }</code></pre>
 
-      <h3>Python equivalent (<code>scripts/update_predictions.py</code>)</h3>
-<pre style="background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:1.25rem;font-size:0.82rem;overflow-x:auto;line-height:1.7;"><code>m1  = min(max(upside      / 0.30, 0), 1) * 19
-m2  = min(max(rev_growth  / 0.30, 0), 1) * 19
-m3  = min(max(earn_growth / 0.25, 0), 1) * 19
-m4  = min(max(price_change / 0.20, 0), 1) * 19
-m5a = min(max(pred_change_pct / 3.0, 0), 1) * 19   # GPS_PREDICTION_MAX hardcoded 3.0
-m5b = (confidence_score / 100.0) * 5
+      <h3>Python equivalent (<code>scripts/update_predictions.py</code> — <code>calculate_gps_v3()</code>)</h3>
+<pre style="background:#1e293b;color:#f8fafc;border-radius:8px;padding:1.25rem;font-size:0.82rem;overflow-x:auto;line-height:1.7;"><code>prediction_max = float(os.getenv('GPS_PREDICTION_MAX', '3'))
 
-gps_score = round(min(m1+m2+m3+m4+m5a+m5b, 100), 1)</code></pre>
+m1 = min(max(predicted_change_pct / prediction_max, -1), 1) * 20
+m2 = (confidence_score / 100) * 5
+m3 = min(max(revenue_growth / 0.3, 0), 1) * 12
+m4 = min(max(earnings_growth / 0.25, 0), 1) * 12
+m5 = min(max((technical_score + 14) / 28, 0), 1) * 20
+m6 = min(max(analyst_upside / 0.3, 0), 1) * 12
+m7 = float(_CONSENSUS_POINTS.get(recommendation_key, _CONSENSUS_POINTS['hold']))
+m8 = min(max(price_change_52w / 0.2, 0), 1) * 10
+
+total = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8
+score = round(min(max(total, 0), 100), 1)</code></pre>
 
       <div class="warn-box">
-        <strong>Ceiling of 1:</strong> Every component uses <code>min(…, 1)</code> before multiplying by its max points, so a metric that far exceeds its threshold still scores the component maximum — it cannot over-contribute. Scores are always capped at 100 overall.
+        <strong>Ceiling of 1, floor of 0 (or -1 for m1):</strong> Fundamental and momentum components use <code>min(…, 1)</code> and <code>max(…, 0)</code> so they cannot over-contribute or go negative. The ML Upside component (m1) uses <code>max(…, -1)</code>, allowing it to contribute negatively when the model predicts a price decline. The overall score is clamped to [0, 100].
+      </div>
+
+      <h3>Consensus Points Lookup</h3>
+      <table class="schema-table">
+        <thead><tr><th>recommendationKey</th><th>Points</th></tr></thead>
+        <tbody>
+          <tr><td><code>strongBuy</code> / <code>strong_buy</code></td><td>9</td></tr>
+          <tr><td><code>buy</code></td><td>7</td></tr>
+          <tr><td><code>hold</code> (default if key is missing)</td><td>4</td></tr>
+          <tr><td><code>underperform</code></td><td>2</td></tr>
+          <tr><td><code>sell</code></td><td>0</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ── Bearish Signal ─────────────────────────────────────────────── -->
+    <section id="bearish-signal">
+      <h2>Bearish Signal</h2>
+      <p>Every GPS result includes a <code>bearishSignal: boolean</code> flag. It is set to <code>true</code> when <code>predictedChangePct1m &lt; 0</code>, meaning the ML model forecasts a price decline over the next month.</p>
+      <p>This flag is surfaced in several places:</p>
+      <ul>
+        <li>The <strong>Portfolio card</strong> (<code>PortfolioCardView</code>) shows an "AI model predicts downside" warning badge whenever <code>predictionChange &lt; 0</code>.</li>
+        <li>The <strong>Python sync script</strong> (<code>update_predictions.py</code>) prints a <code>[gps] BEARISH SIGNAL</code> log line and records the predicted change percentage when the flag is set.</li>
+        <li>The <strong>GPS Breakdown Modal</strong> shows the raw ML Prediction component score (which will be negative) alongside the overall score, giving users full transparency.</li>
+      </ul>
+      <div class="warn-box">
+        A bearish signal does <strong>not</strong> prevent the stock from scoring well overall — a stock with strong fundamentals, positive technicals, and strong analyst consensus can still score in the Buy range even with a slightly negative ML prediction. The signal is informational, not a hard gate.
       </div>
     </section>
 
     <!-- ── Data Sources ────────────────────────────────────────────────── -->
     <section id="data-sources">
       <h2>Data Sources</h2>
-      <p>Each component draws from a different upstream source. All four fundamental inputs arrive via <code>GET /api/stock_data/[ticker]/data</code> → <code>stockMetrics</code> object, which assembles them from Yahoo Finance.</p>
+      <p>All eight GPS inputs flow through the same pipeline: <code>GET /api/stock_data/[ticker]/data</code> assembles the full payload from Yahoo Finance, computes the technical score server-side, and returns everything the prediction engine and GPS calculator need.</p>
 
       <ul class="source-list">
         <li>
-          <span class="source-icon">📈</span>
+          <span class="source-icon">&#x1F916;</span>
           <div>
-            <strong>analystUpside</strong> — Yahoo Finance <code>financialData.targetMeanPrice</code> vs <code>regularMarketPrice</code>. Expressed as a decimal (0.30 = 30%). Sourced via <code>fetchYahooStockSummary()</code>.
+            <strong>predictedChangePct1m</strong> — DeepMoney MLP model output from <code>POST /api/prediction/[ticker]</code>. The predicted 1-month percentage price change. Stored in <code>prediction_result.predicted_change_pct</code> on the Python side.
           </div>
         </li>
         <li>
-          <span class="source-icon">💰</span>
+          <span class="source-icon">&#x1F3AF;</span>
           <div>
-            <strong>revenueGrowth</strong> — Yahoo Finance <code>financialData.revenueGrowth</code>. Year-over-year, already expressed as a decimal.
+            <strong>confidenceScore</strong> — Also from the MLP model response. Self-reported model confidence (0–100). Stored alongside the price prediction.
           </div>
         </li>
         <li>
-          <span class="source-icon">📊</span>
+          <span class="source-icon">&#x1F4B0;</span>
           <div>
-            <strong>earningsGrowth</strong> — Yahoo Finance <code>financialData.earningsGrowth</code>. Year-over-year EPS growth, decimal.
+            <strong>revenueGrowthPct</strong> — Yahoo Finance <code>financialData.revenueGrowth</code>. Year-over-year, decimal. Imputed from sector median if missing.
           </div>
         </li>
         <li>
-          <span class="source-icon">📉</span>
+          <span class="source-icon">&#x1F4CA;</span>
           <div>
-            <strong>fiftyTwoWeekChange</strong> — Yahoo Finance <code>defaultKeyStatistics.52WeekChange</code>. Trailing 1-year price return, decimal.
+            <strong>earningsGrowthPct</strong> — Yahoo Finance <code>financialData.earningsGrowth</code>. Year-over-year EPS growth, decimal.
           </div>
         </li>
         <li>
-          <span class="source-icon">🤖</span>
+          <span class="source-icon">&#x26A1;</span>
           <div>
-            <strong>predicted_change_pct</strong> — DeepMoney MLP model output (<code>scripts/predict_weighted_analysis.py</code>). The predicted 1-month percentage price change. Passed back in the <code>POST /api/prediction/[ticker]</code> response.
+            <strong>technicalScore</strong> — Computed server-side in <code>/api/stock_data/[ticker]/data</code> by calling <code>calculateTechnicalIndicators(historicalData, [], peRatio, pbRatio, marketCap)</code> (news omitted). The raw <code>scoreBreakdown.totalScore</code> (range -14 to +14) is returned at the top level of the payload as <code>technicalScore</code>. On the Python side, <code>stock_data.get('technicalScore')</code> reads it directly.
           </div>
         </li>
         <li>
-          <span class="source-icon">🎯</span>
+          <span class="source-icon">&#x1F4C8;</span>
           <div>
-            <strong>confidence_score</strong> — DeepMoney MLP model output. Self-reported model confidence, 0–100. Also returned in the prediction response alongside the price forecast.
+            <strong>analystUpside</strong> — Yahoo Finance <code>financialData.targetMeanPrice</code> vs <code>regularMarketPrice</code>. Expressed as a fraction. Stored in <code>stockMetrics.analystUpside</code>.
+          </div>
+        </li>
+        <li>
+          <span class="source-icon">&#x1F4DD;</span>
+          <div>
+            <strong>recommendationKey</strong> — Yahoo Finance <code>financialData.recommendationKey</code> (string like <code>"buy"</code>, <code>"strongBuy"</code>). Now returned at both <code>stockMetrics.recommendationKey</code> <em>and</em> at the payload top level as <code>recommendationKey</code>. The Python script prefers the top-level value and falls back to converting <code>recommendationMean</code> (1–5 float) via <code>_recommendation_mean_to_key()</code> for older cached payloads.
+          </div>
+        </li>
+        <li>
+          <span class="source-icon">&#x1F4C9;</span>
+          <div>
+            <strong>priceChange52w</strong> — Yahoo Finance <code>defaultKeyStatistics.fiftyTwoWeekChange</code>. Trailing 1-year price return, decimal. If missing from Yahoo, derived from the last 252 rows of OHLCV history.
           </div>
         </li>
       </ul>
@@ -520,17 +618,20 @@ gps_score = round(min(m1+m2+m3+m4+m5a+m5b, 100), 1)</code></pre>
       <h2>Where the GPS Score Appears</h2>
 
       <h3>Stock detail page — Signal Panel</h3>
-      <p>The <code>StockSignalPanel</code> component reads <code>gpsData</code> state from <code>Stock.tsx</code> (fetched from <code>GET /api/stock_data/[ticker]/gps</code>) and renders the score, a coloured label, and a top-3 component breakdown as progress bars. A <strong>"View score"</strong> button (renamed from "View breakdown" in May 2026) opens <code>GpsBreakdownModal</code> with all six components. In the card-level <code>GpsTooltip</code> component, the same action is triggered by a "View score" text button (previously a circled-i icon).</p>
-      <p>When a prediction completes, the GPS score is included directly in the prediction response payload, so <code>Stock.tsx</code> updates the displayed score <strong>immediately</strong> — without a round-trip re-fetch — eliminating the race condition that existed when the write was async.</p>
+      <p>The <code>StockSignalPanel</code> component reads <code>gpsData</code> state from <code>Stock.tsx</code> (fetched from <code>GET /api/stock_data/[ticker]/gps</code>) and renders the score, a coloured label, and a top-3 component breakdown as progress bars. A <strong>"View score"</strong> button opens <code>GpsBreakdownModal</code> with all eight components and their exact point contributions. In the card-level <code>GpsTooltip</code> component, the same modal is triggered via a "View score" text button.</p>
+      <p>When a prediction completes, the GPS score is included directly in the prediction response payload, so <code>Stock.tsx</code> updates the displayed score <strong>immediately</strong> without a round-trip re-fetch.</p>
 
       <h3>Watchlist &amp; Portfolio cards</h3>
-      <p>GPS score and breakdown are joined from <code>stock_gps_scores</code> in the watchlist and portfolio queries via a <code>LEFT JOIN</code> and rendered in <code>WatchlistCardView</code> and <code>PortfolioCardView</code> respectively via the <code>GpsTooltip</code> component.</p>
+      <p>GPS score and breakdown are joined from <code>stock_gps_scores</code> in the watchlist and portfolio queries via a <code>LEFT JOIN</code> and rendered in <code>WatchlistCardView</code> and <code>PortfolioCardView</code> respectively via the <code>GpsTooltip</code> component. The portfolio card also shows a red "AI model predicts downside" badge when <code>predictionChange &lt; 0</code>.</p>
+
+      <h3>GPS Breakdown Modal</h3>
+      <p><code>GpsBreakdownModal</code> (at <code>src/app/components/modals/GpsBreakdownModal.tsx</code>) displays all eight component scores in a clean list format (e.g., "ML Prediction (1m): 14.0 / 20"). The header uses an inline style (<code>color: '#fff'</code>) on the ticker <code>h3</code> to override a global CSS rule from <code>globals.css</code> that otherwise sets <code>h3</code> to a dark foreground. The summary footer colour is determined by score: green (&ge;65), amber (45–64), or red (&lt;45).</p>
 
       <h3>Dashboard recommendations</h3>
       <p>The recommendations engine (<code>GET /api/dashboard/recommendations</code>) uses GPS via <code>COALESCE(sgs.gps_score, rs.gps_score)</code>. The score is included in each recommendation object so clients can display it alongside the BUY/SELL signal.</p>
 
       <h3>DeepMoney Picks</h3>
-      <p>The DeepMoney discovery section reads GPS directly from <code>recommended_stocks</code> (populated during the sync cycle) and sorts picks by score descending.</p>
+      <p>The <code>GET /api/dashboard/deepmoney-picks</code> route reads GPS directly from <code>recommended_stocks</code> (populated during the sync cycle). It filters by <code>GPS_DEEPMONEY_MIN_SCORE</code> (default 65) and sorts picks descending by GPS score. Each pick also gets a <code>recommendationLabel</code> via <code>getGpsLabel()</code> for display in the UI.</p>
     </section>
 
     <!-- ── Storage & Write Path ───────────────────────────────────────── -->
@@ -539,7 +640,7 @@ gps_score = round(min(m1+m2+m3+m4+m5a+m5b, 100), 1)</code></pre>
       <p>GPS scores are stored in two database tables:</p>
       <ul>
         <li><code>stock_gps_scores</code> — one row per stock, always reflecting the latest score (primary read source for all consumers).</li>
-        <li><code>stock_gps_score_history</code> — append-only log, a new row is written only when the score changes.</li>
+        <li><code>stock_gps_score_history</code> — append-only log; a new row is written only when the score changes.</li>
       </ul>
 
       <h3>Write optimisation — skip if unchanged</h3>
@@ -549,7 +650,7 @@ gps_score = round(min(m1+m2+m3+m4+m5a+m5b, 100), 1)</code></pre>
         <li>The <code>stock_gps_score_history</code> insert</li>
         <li>The legacy <code>recommended_stocks</code> GPS sync</li>
       </ul>
-      <p>This is particularly valuable for <code>update_predictions.py</code>, which calls <code>/api/prediction/save</code> once per user per stock. For a stock held by N users, only the <em>first</em> call writes GPS; the remaining N−1 calls pay only for a cheap PK read.</p>
+      <p>This is particularly valuable for <code>update_predictions.py</code>, which calls <code>/api/prediction/save</code> once per user per stock. For a stock held by N users, only the first call writes GPS; the remaining N−1 calls pay only for a cheap PK read.</p>
 
       <h3>Write sources</h3>
       <table class="schema-table">
@@ -560,10 +661,6 @@ gps_score = round(min(m1+m2+m3+m4+m5a+m5b, 100), 1)</code></pre>
           <tr><td>Phase 3 backfill SQL</td><td>One-time migration backfill from legacy data</td><td><code>user_backfill</code> / <code>recommended_backfill</code></td></tr>
         </tbody>
       </table>
-
-      <div class="highlight-box">
-        See <a href="gps_score_model.html">GPS Score Model</a> for full database schema details and the complete migration history.
-      </div>
     </section>
 
     <!-- ── Configuration ──────────────────────────────────────────────── -->
@@ -578,7 +675,12 @@ gps_score = round(min(m1+m2+m3+m4+m5a+m5b, 100), 1)</code></pre>
           <tr>
             <td><code>GPS_PREDICTION_MAX</code></td>
             <td><code>3</code></td>
-            <td>The predicted 1-month percentage change that earns the full 19 MLP Upside points. Raising this makes component 5a harder to max out; lowering it amplifies even small predictions. Note: the Python scripts currently hardcode <code>3.0</code> independently.</td>
+            <td>The predicted 1-month percentage change that earns the full 20 ML Upside points. Read from environment in both TypeScript (<code>src/utils/gps.ts</code>) and Python (<code>scripts/update_predictions.py</code> via <code>os.getenv</code>).</td>
+          </tr>
+          <tr>
+            <td><code>GPS_DEEPMONEY_MIN_SCORE</code></td>
+            <td><code>65</code></td>
+            <td>Minimum GPS score to include a stock in the DeepMoney Picks API response (<code>GET /api/dashboard/deepmoney-picks</code>).</td>
           </tr>
           <tr>
             <td><code>DEEPMONEY_GPS_VALUE</code></td>
@@ -593,13 +695,13 @@ gps_score = round(min(m1+m2+m3+m4+m5a+m5b, 100), 1)</code></pre>
         </tbody>
       </table>
 
-      <div class="warn-box" style="margin-top:1.5rem;">
-        <strong>Python/TypeScript parity:</strong> <code>GPS_PREDICTION_MAX</code> is read from the environment only in the TypeScript implementation (<code>src/utils/gps.ts</code>). The Python scripts in <code>scripts/update_predictions.py</code> hardcode the divisor as <code>3.0</code>. If you change <code>GPS_PREDICTION_MAX</code>, update the Python scripts to match to keep scores consistent across all write paths.
+      <div class="highlight-box" style="margin-top:1.5rem;">
+        <strong>Python/TypeScript parity (v3.0):</strong> Both the TypeScript implementation (<code>src/utils/gps.ts</code>) and the Python implementation (<code>scripts/update_predictions.py</code> — <code>calculate_gps_v3()</code>) now read <code>GPS_PREDICTION_MAX</code> from the environment. If you change the formula in one file, update the other to match. The formula comment at the top of each file reads: "GPS v3.0 — mirrors src/utils/gps.ts exactly (8 components, 100 pts). Keep this in sync whenever gps.ts changes."
       </div>
     </section>
 
     <footer>
-      GrowMyStocks Documentation &copy; 2026 &mdash; GPS Score &mdash; Updated May 22, 2026
+      MoneyGoUp Documentation &copy; 2026 &mdash; GPS Score v3.0 &mdash; Updated 2026-06-04
     </footer>
   </main>
 

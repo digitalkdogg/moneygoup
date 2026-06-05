@@ -175,6 +175,7 @@ const normalizeYahooData = (data: any, currentSources: string[], secCompanyNames
     marketCap: data.marketCap,
     sector: data.sector,
     industry: data.industry,
+    quoteType: data.quoteType,
     longBusinessSummary: data.longBusinessSummary,
     source: newSources
   };

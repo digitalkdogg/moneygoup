@@ -31,7 +31,10 @@ interface StockData {
   peRatio?: number
   pbRatio?: number
   marketCap?: number
-  longBusinessSummary?: string // Added company description
+  sector?: string
+  industry?: string
+  quoteType?: string
+  longBusinessSummary?: string
 }
 
 interface HistoricalData {
@@ -471,7 +474,18 @@ export default function Stock({
 
     return (
       <div className="container mx-auto px-0 py-8 max-w-6xl">
-        <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
+        <div className="relative bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
+          {/* Industry / ETF corner tag */}
+          {(() => {
+            const isEtf = stockData.quoteType?.toUpperCase() === 'ETF'
+            const label = isEtf ? 'ETF' : stockData.industry || stockData.sector || null
+            if (!label) return null
+            return (
+              <span className="absolute top-0 left-0 inline-flex items-center gap-1.5 bg-[#017e3b] text-white text-[11px] font-bold px-2.5 py-1 rounded-tl-2xl rounded-br-md">
+                {label}
+              </span>
+            )
+          })()}
           {/* Company Title */}
           <div className="flex flex-col mb-4 text-center items-center gap-4">
             <h1 className="text-3xl font-bold text-gray-800">
