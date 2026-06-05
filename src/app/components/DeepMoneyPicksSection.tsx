@@ -29,13 +29,27 @@ interface RecommendedETF {
   current_price: number;
   etf_gps_score: number;
   theme: string;
-  changeAmount?: number | null; // Add changeAmount
-  changePercent?: number | null; // Add changePercent
+  changeAmount?: number | null;
+  changePercent?: number | null;
+}
+
+interface RecommendedETFHolding {
+  id: number;
+  ticker: string;
+  company_name: string;
+  gps_score: number;
+  gps_breakdown?: any;
+  parent_etf_ticker: string;
+  holding_percent: number;
+  bearish_signal: number;
+  metric_value?: number;
+  metric_label?: string;
 }
 
 interface DeepMoneyData {
   hot_stocks: RecommendedStock[];
   hot_etfs: RecommendedETF[];
+  etf_holdings: RecommendedETFHolding[];
 }
 
 export default function DeepMoneyPicksSection() {
@@ -57,7 +71,8 @@ export default function DeepMoneyPicksSection() {
 
       setData({
         hot_stocks: sortedHotStocks,
-        hot_etfs: sortedHotEtfs
+        hot_etfs: sortedHotEtfs,
+        etf_holdings: (json.etf_holdings || []).sort((a: RecommendedETFHolding, b: RecommendedETFHolding) => (b.gps_score || 0) - (a.gps_score || 0)),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -87,9 +102,25 @@ export default function DeepMoneyPicksSection() {
     price: etf.current_price,
     changePercent: etf.changePercent !== undefined ? etf.changePercent : null,
     changeAmount: etf.changeAmount !== undefined ? etf.changeAmount : null,
-    prediction: 'Bullish', // ETFs in this section are picked because they are "hot"
+    prediction: 'Bullish',
     gpsScore: etf.etf_gps_score !== null ? parseFloat(etf.etf_gps_score as any) : null,
-    gpsBreakdown: null // ETFs don't have the same breakdown structure yet
+    gpsBreakdown: null
+  });
+
+  const mapETFHoldingToDeepmoneyCard = (h: RecommendedETFHolding): DeepmoneyCard => ({
+    variant: 'deepmoney',
+    symbol: h.ticker,
+    companyName: h.parent_etf_ticker
+      ? `${h.company_name} · ${h.parent_etf_ticker} (${((h.holding_percent || 0) * 100).toFixed(1)}%)`
+      : h.company_name,
+    price: null,
+    changePercent: null,
+    changeAmount: null,
+    prediction: typeof h.metric_value === 'number' ? h.metric_value : null,
+    gpsScore: h.gps_score !== null ? parseFloat(h.gps_score as any) : null,
+    gpsBreakdown: h.gps_breakdown
+      ? (typeof h.gps_breakdown === 'string' ? JSON.parse(h.gps_breakdown) : h.gps_breakdown)
+      : null,
   });
 
   if (loading && !data) {
@@ -133,8 +164,8 @@ export default function DeepMoneyPicksSection() {
         icon="🧺"
         data={data?.hot_etfs || []}
         renderCard={(etf) => (
-          <StockCard 
-            card={mapEtfToDeepmoneyCard(etf)} 
+          <StockCard
+            card={mapEtfToDeepmoneyCard(etf)}
             actions={{ onCardClick: (symbol) => router.push(`/search/${symbol}`) }}
           />
         )}
@@ -142,6 +173,23 @@ export default function DeepMoneyPicksSection() {
         error={error}
         emptyMessage="No hot ETFs matching your criteria found today."
       />
+
+      {(data?.etf_holdings?.length ?? 0) > 0 && (
+        <StockCardSection<RecommendedETFHolding>
+          title="Surfaced ETF Holdings"
+          icon="📡"
+          data={data?.etf_holdings || []}
+          renderCard={(holding) => (
+            <StockCard
+              card={mapETFHoldingToDeepmoneyCard(holding)}
+              actions={{ onCardClick: (symbol) => router.push(`/search/${symbol}`) }}
+            />
+          )}
+          loading={loading}
+          error={error}
+          emptyMessage="No surfaced ETF holdings today."
+        />
+      )}
     </div>
   );
 }

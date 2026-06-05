@@ -50,6 +50,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         hot_stocks: [],
         hot_etfs: [],
+        etf_holdings: [],
       });
     }
 
@@ -71,7 +72,22 @@ export async function GET(request: NextRequest) {
       allStocks = rows as any[];
     }
 
-    // 3. Fetch ETFs
+    // 3. Fetch surfaced ETF holdings
+    let etfHoldings: any[] = [];
+    if (stockDate) {
+      const [rows] = await executeRawQuery(
+        `SELECT id, type, ticker, company_name, gps_score, gps_breakdown,
+                parent_etf_ticker, holding_percent, bearish_signal,
+                metric_value, metric_label, snapshot_date
+         FROM recommended_stocks
+         WHERE snapshot_date = ? AND type = 'etf_holding'
+         ORDER BY gps_score DESC`,
+        [stockDate]
+      );
+      etfHoldings = rows as any[];
+    }
+
+    // 4. Fetch ETFs
     let allEtfs: any[] = [];
     if (etfDate) {
       const [rows] = await executeRawQuery(
@@ -137,6 +153,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       hot_stocks: enrichedHotStocks,
       hot_etfs: enrichedHotEtfs,
+      etf_holdings: etfHoldings,
     });
 
   } catch (error) {

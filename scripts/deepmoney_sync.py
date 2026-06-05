@@ -108,6 +108,7 @@ def sync_deepmoney():
             print(f"  [debug] Passed to AI Analyzer: {debug.get('passedToAnalyzer')}")
             print(f"  [debug] Rejected by AI (<1.5%): {debug.get('rejectedByAI')}")
             print(f"  [debug] Final Filtered Count: {debug.get('filteredCount')}")
+            print(f"  [debug] ETF Holdings Surfaced: {meta.get('etfHoldingsSurfacedCount')}")
     except Exception as e:
         print(f"Error fetching data from API: {e}")
         return
@@ -333,6 +334,107 @@ def sync_deepmoney():
                         user_confirmed = IF(is_purchased = 0, 0, user_confirmed),
                         is_active = IF(is_purchased = 0, 1, is_active)
                     """, (user_id, stock_id))
+
+        # 6. Process ETF Holdings surfaced through Phase 3 pipeline
+        etf_holdings_surfaced = data.get('etf_holdings_surfaced', [])
+        print(f"Processing {len(etf_holdings_surfaced)} surfaced ETF holdings...")
+
+        etf_holding_rs_query = """
+        INSERT INTO recommended_stocks (
+            type, parent_etf_ticker, holding_percent, ticker, company_name,
+            gps_score, gps_breakdown, bearish_signal,
+            classification, metric_value, metric_label,
+            discovery_source, prediction_input, snapshot_date
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+
+        etf_holding_scores_query = """
+        INSERT INTO etf_holding_scores (
+            parent_etf_ticker, ticker, company_name, holding_percent,
+            gps_score, gps_breakdown, predicted_change_pct, confidence_score,
+            predicted_price_1m, bearish_signal, surfaced, score_source, beta,
+            snapshot_date
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ON DUPLICATE KEY UPDATE
+            company_name         = VALUES(company_name),
+            holding_percent      = VALUES(holding_percent),
+            gps_score            = VALUES(gps_score),
+            gps_breakdown        = VALUES(gps_breakdown),
+            predicted_change_pct = VALUES(predicted_change_pct),
+            confidence_score     = VALUES(confidence_score),
+            predicted_price_1m   = VALUES(predicted_price_1m),
+            bearish_signal       = VALUES(bearish_signal),
+            surfaced             = VALUES(surfaced),
+            score_source         = VALUES(score_source),
+            beta                 = VALUES(beta)
+        """
+
+        holdings_written = 0
+        for h in etf_holdings_surfaced:
+            if not h.get('surfaced'):
+                continue  # defensive: flat array should only contain surfaced=true
+
+            ticker        = h.get('ticker')
+            parent_etf    = h.get('parentETFTicker')
+            gps           = h.get('gps_score', 0)
+            gps_breakdown = h.get('gps_breakdown') or {}
+            pred_change   = h.get('predicted_change_pct', 0)
+            conf_score    = h.get('confidence_score', 0)
+            pred_price    = h.get('predicted_price_1m')
+            bearish       = 1 if h.get('bearish_signal') else 0
+            score_source  = h.get('score_source', 'fresh')
+            beta          = h.get('beta')
+            holding_pct   = h.get('holdingPercent', 0)
+            company_name  = h.get('companyName') or ticker
+
+            print(f"  > ETF holding: {ticker} (parent: {parent_etf}, GPS: {gps}, Pred: {pred_change:.2f}%)")
+
+            pred_input_json = json.dumps({
+                'predicted_change_pct': pred_change,
+                'confidence_score':     conf_score,
+                'predicted_price_1m':   pred_price,
+                'score_source':         score_source,
+            })
+
+            # recommended_stocks: cleared each sync, feeds the dashboard
+            cursor.execute(etf_holding_rs_query, (
+                'etf_holding',                  # type
+                parent_etf,                     # parent_etf_ticker
+                holding_pct,                    # holding_percent
+                ticker,                         # ticker
+                company_name,                   # company_name
+                gps,                            # gps_score
+                json.dumps(gps_breakdown),      # gps_breakdown
+                bearish,                        # bearish_signal
+                'ETF Holding',                  # classification
+                pred_change,                    # metric_value  (= predicted_change_pct)
+                f"CS: {conf_score:.0f}",        # metric_label
+                f"etf_holdings/{parent_etf}",   # discovery_source
+                pred_input_json,                # prediction_input
+                today,                          # snapshot_date
+            ))
+
+            # etf_holding_scores: persistent upsert, keeps history
+            cursor.execute(etf_holding_scores_query, (
+                parent_etf,                     # parent_etf_ticker
+                ticker,                         # ticker
+                company_name,                   # company_name
+                holding_pct,                    # holding_percent
+                gps,                            # gps_score
+                json.dumps(gps_breakdown),      # gps_breakdown
+                pred_change,                    # predicted_change_pct
+                conf_score,                     # confidence_score
+                pred_price,                     # predicted_price_1m
+                bearish,                        # bearish_signal
+                1,                              # surfaced
+                score_source,                   # score_source
+                beta,                           # beta
+                today,                          # snapshot_date
+            ))
+
+            holdings_written += 1
+
+        print(f"  ETF holdings persisted: {holdings_written}")
 
         # Post-sync cleanup: remove discovery entries for stocks that didn't qualify this run.
         # This replaces the old pre-clear approach and is exact — only stocks not in

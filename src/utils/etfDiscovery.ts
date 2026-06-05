@@ -2,6 +2,7 @@ import { getDbConnection } from './db';
 import { yahooFinance, fetchYahooStockSummary, getYahooScreener } from './yahooFinanceHelper';
 import etfWatchlist from '../../public/etf_theme_watchlist.json';
 import { createLogger } from './logger';
+import { fetchETFHoldings, scoreETFHoldings, ScoredETFHolding } from './etfHoldings';
 
 // --- ETF Constants (moved from config.ts) ---
 const ETF_PRICE_FILTER_MAX = 400;
@@ -93,6 +94,7 @@ export interface ETFDiscoveryResult {
   is_leveraged: boolean;
   snapshot_date: string;
   macro_data_asof: string;
+  top_holdings_surfaced?: ScoredETFHolding[];
 }
 
 export interface ETFCycleSummary {
@@ -336,6 +338,45 @@ export async function performETFDiscovery(
   });
 
   const finalResults = qualifyingETFs.sort((a, b) => b.etf_gps_score - a.etf_gps_score).slice(0, 10);
+
+  // --- Phase 3: Score top holdings for each qualifying ETF ------------------
+  try {
+    const topN = parseInt(process.env.ETF_HOLDINGS_TOP_N ?? '5', 10);
+
+    // Fetch holdings for all qualifying ETFs in parallel
+    const holdingsByETF = await Promise.all(
+      finalResults.map(async etf => ({
+        etfTicker: etf.ticker,
+        holdings: await fetchETFHoldings(etf.ticker, topN),
+      }))
+    );
+
+    // Aggregate all holdings into one list for global deduplication scoring
+    const allHoldings = holdingsByETF.flatMap(e => e.holdings);
+
+    if (allHoldings.length > 0) {
+      const scored = await scoreETFHoldings(allHoldings, { wbData });
+
+      // Build a lookup: etfTicker → surfaced holdings
+      const surfacedByETF = new Map<string, ScoredETFHolding[]>();
+      for (const h of scored) {
+        if (!h.surfaced) continue;
+        const list = surfacedByETF.get(h.parentETFTicker) ?? [];
+        list.push(h);
+        surfacedByETF.set(h.parentETFTicker, list);
+      }
+
+      for (const etf of finalResults) {
+        etf.top_holdings_surfaced = (surfacedByETF.get(etf.ticker) ?? [])
+          .sort((a, b) => b.gps_score - a.gps_score);
+      }
+
+      const totalSurfaced = [...surfacedByETF.values()].reduce((acc, v) => acc + v.length, 0);
+      logger.info(`ETF holdings scoring complete`, { totalScoredHoldings: scored.length, totalSurfaced });
+    }
+  } catch (holdingsErr) {
+    logger.error('ETF holdings scoring failed — continuing without holdings data', { error: holdingsErr });
+  }
 
   const duration = Date.now() - startTime;
   await persistETFs(finalResults, {
