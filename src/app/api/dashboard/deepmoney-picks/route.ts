@@ -84,7 +84,15 @@ export async function GET(request: NextRequest) {
          ORDER BY gps_score DESC`,
         [stockDate]
       );
-      etfHoldings = rows as any[];
+      // Deduplicate by ticker — a holding may appear in multiple ETFs.
+      // Rows are ordered by gps_score DESC, so the first occurrence is the best score.
+      const seen = new Set<string>();
+      etfHoldings = (rows as any[]).filter(h => {
+        const t = (h.ticker as string)?.toUpperCase();
+        if (!t || seen.has(t)) return false;
+        seen.add(t);
+        return true;
+      });
     }
 
     // 4. Fetch ETFs

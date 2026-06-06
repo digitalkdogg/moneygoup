@@ -78,17 +78,32 @@ export async function GET(request: NextRequest) {
     `, [userId]);
 
     const predictions = rows as Record<string, unknown>[];
-    if (predictions.length === 0) {
+
+    // 1b. Fetch ETF holding recommendations (last 7 days)
+    const [etfRecRows] = await executeRawQuery(
+      `SELECT stock_ticker, etf_ticker, gps_score, predicted_change_pct, confidence_score, created_at
+       FROM etf_stock_recommendations
+       WHERE user_id = ? AND created_at >= NOW() - INTERVAL 7 DAY
+       ORDER BY gps_score DESC`,
+      [userId]
+    );
+    const etfRecs = etfRecRows as Record<string, unknown>[];
+
+    if (predictions.length === 0 && etfRecs.length === 0) {
       return NextResponse.json({ recommendations: [], asOf: new Date().toISOString() });
     }
 
-    // 2. Fetch current prices in batch
-    const symbols = predictions.map(p => p.symbol as string);
+    // 2. Fetch current prices in batch — include ETF holding tickers so cards show live price
+    const predSymbols = predictions.map(p => p.symbol as string);
+    const etfHoldingSymbols = [...new Set(etfRecs.map(r => r.stock_ticker as string))];
+    const allSymbols = [...new Set([...predSymbols, ...etfHoldingSymbols])];
     const stockIdMap = new Map<string, number>(predictions.map(p => [p.symbol as string, p.stock_id as number]));
-    const quotes = await fetchYahooQuotesForSymbols(symbols, stockIdMap);
+    const quotes = await fetchYahooQuotesForSymbols(allSymbols, stockIdMap);
     const quoteMap = new Map<number, Record<string, unknown>>();
+    const symbolPriceMap = new Map<string, number>();
     quotes.forEach(q => {
-      if (q.stock_id !== null) quoteMap.set(q.stock_id, q as Record<string, unknown>);
+      if (q.stock_id !== null) quoteMap.set(q.stock_id as number, q as Record<string, unknown>);
+      if (q.symbol && q.price !== null) symbolPriceMap.set(q.symbol as string, q.price as number);
     });
 
     // 3. GPS thresholds from env
@@ -134,7 +149,7 @@ export async function GET(request: NextRequest) {
       const hasShares    = (pred.shares as number) > 0;
 
       let action: 'BUY' | 'SELL' | null = null;
-      let scope: 'portfolio' | 'watchlist' | 'discovery' | null = null;
+      let scope: DashboardRecommendation['scope'] | null = null;
 
       if (adjustedGps === null) continue;
 
@@ -166,6 +181,39 @@ export async function GET(request: NextRequest) {
           scope,
         });
       }
+    }
+
+    // 6. Merge ETF holding recommendations — deduplicate against symbols already present
+    const existingSymbols = new Set(recommendations.map(r => r.symbol));
+    const seenEtfTickers = new Set<string>();
+    for (const rec of etfRecs) {
+      const symbol = (rec.stock_ticker as string).toUpperCase();
+      // Skip if this ticker already has a portfolio/watchlist/discovery card
+      if (existingSymbols.has(symbol)) continue;
+      // Deduplicate: one card per stock ticker (keep highest GPS, already ordered DESC)
+      if (seenEtfTickers.has(symbol)) continue;
+      seenEtfTickers.add(symbol);
+
+      const gps = rec.gps_score != null ? parseFloat(String(rec.gps_score)) : null;
+      if (gps === null) continue;
+
+      const currentPrice = symbolPriceMap.get(symbol) ?? 0;
+      const predChangePct = rec.predicted_change_pct != null ? parseFloat(String(rec.predicted_change_pct)) : 0;
+      const predictedPrice1m = currentPrice > 0 ? currentPrice * (1 + predChangePct / 100) : 0;
+
+      recommendations.push({
+        stockId:         0,
+        symbol,
+        action:          'BUY',
+        currentPrice,
+        predictedPrice1m,
+        deltaPct:        predChangePct,
+        gpsScore:        gps,
+        gpsBreakdown:    null,
+        lastRequestedAt: rec.created_at as string,
+        scope:           'etf_holding',
+        etfTicker:       (rec.etf_ticker as string).toUpperCase(),
+      });
     }
 
     // Sort by GPS score descending — strongest signals first

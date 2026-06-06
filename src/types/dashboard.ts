@@ -45,7 +45,8 @@ export interface DashboardRecommendation {
   gpsScore: number | null;
   gpsBreakdown: object | null;
   lastRequestedAt: string;
-  scope: 'portfolio' | 'watchlist' | 'discovery';
+  scope: 'portfolio' | 'watchlist' | 'discovery' | 'etf_holding';
+  etfTicker?: string;         // set when scope === 'etf_holding'
 }
 
 export interface DashboardRecommendationsResponse {

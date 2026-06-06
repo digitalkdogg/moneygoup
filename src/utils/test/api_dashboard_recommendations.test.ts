@@ -42,6 +42,8 @@ describe('GET /api/dashboard/recommendations', () => {
         { stock_id: 1, symbol: 'AAPL', predicted_price_1m: '103', gps_score: '70', gps_breakdown: null, last_requested_at: '2026-04-11T12:00:00Z', is_purchased: 1, user_confirmed: 1, shares: 10, is_active: 1 }
       ]
     ]);
+    // 1b. Mock ETF holdings recommendations query (none)
+    (executeRawQuery as jest.Mock).mockResolvedValueOnce([[]]);
 
     // 2. Mock Yahoo Finance utility (current price 100)
     (fetchYahooQuotesForSymbols as jest.Mock).mockResolvedValue([
@@ -66,6 +68,8 @@ describe('GET /api/dashboard/recommendations', () => {
         { stock_id: 2, symbol: 'TSLA', predicted_price_1m: '97', gps_score: '30', gps_breakdown: null, last_requested_at: '2026-04-11T12:00:00Z', is_purchased: 1, user_confirmed: 1, shares: 5, is_active: 1 }
       ]
     ]);
+    // 1b. Mock ETF holdings recommendations query (none)
+    (executeRawQuery as jest.Mock).mockResolvedValueOnce([[]]);
 
     // 2. Mock Yahoo Finance utility (current price 100)
     (fetchYahooQuotesForSymbols as jest.Mock).mockResolvedValue([
@@ -90,6 +94,8 @@ describe('GET /api/dashboard/recommendations', () => {
         { stock_id: 4, symbol: 'NVDA', predicted_price_1m: '110', gps_score: '75', gps_breakdown: null, last_requested_at: '2026-04-11T12:00:00Z', is_purchased: 0, user_confirmed: 0, shares: 0, is_active: 1 }
       ]
     ]);
+    // 1b. Mock ETF holdings recommendations query (none)
+    (executeRawQuery as jest.Mock).mockResolvedValueOnce([[]]);
 
     // 2. Mock Yahoo Finance utility (current price 100)
     (fetchYahooQuotesForSymbols as jest.Mock).mockResolvedValue([
@@ -113,6 +119,8 @@ describe('GET /api/dashboard/recommendations', () => {
         { stock_id: 3, symbol: 'MSFT', predicted_price_1m: '102', gps_score: '55', gps_breakdown: null, last_requested_at: '2026-04-11T12:00:00Z', is_purchased: 1, user_confirmed: 1, shares: 1, is_active: 1 }
       ]
     ]);
+    // 1b. Mock ETF holdings recommendations query (none)
+    (executeRawQuery as jest.Mock).mockResolvedValueOnce([[]]);
 
     // 2. Mock Yahoo Finance utility (current price 100)
     (fetchYahooQuotesForSymbols as jest.Mock).mockResolvedValue([

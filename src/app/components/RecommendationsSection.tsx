@@ -23,6 +23,27 @@ const RecommendationsSection: React.FC<RecommendationsSectionProps> = ({ scopes 
     return 'SELL';
   };
 
+  const getScopeBadge = (rec: DashboardRecommendation) => {
+    if (rec.scope === 'etf_holding') {
+      return (
+        <span className="px-1 rounded-sm uppercase text-[8px] font-bold bg-teal-100 text-teal-700 border border-teal-200">
+          etf holding
+        </span>
+      );
+    }
+    return (
+      <span className={`px-1 rounded-sm uppercase text-[8px] font-bold ${
+        rec.scope === 'portfolio'
+          ? 'bg-blue-100 text-blue-700 border border-blue-200'
+          : rec.scope === 'watchlist'
+            ? 'bg-amber-100 text-amber-700 border border-amber-200'
+            : 'bg-purple-100 text-purple-700 border border-purple-200'
+      }`}>
+        {rec.scope}
+      </span>
+    );
+  };
+
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -89,33 +110,37 @@ const RecommendationsSection: React.FC<RecommendationsSectionProps> = ({ scopes 
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filtered.map((rec) => (
-              <Link key={rec.symbol} href={`/search/${rec.symbol}`}>
+              <Link key={`${rec.scope}-${rec.symbol}`} href={`/search/${rec.symbol}`}>
                 <MiniDataCard
                   label={rec.symbol}
                   badge={getBadgeText(rec)}
-                  primaryText={`Current ${formatCurrency(rec.currentPrice)}`}
+                  primaryText={
+                    rec.scope === 'etf_holding'
+                      ? `GPS: ${rec.gpsScore !== null ? rec.gpsScore.toFixed(1) : 'N/A'}`
+                      : `Current ${formatCurrency(rec.currentPrice)}`
+                  }
                   secondaryText={
-                    <div className="flex items-center gap-1">
-                      <span>GPS Score: {rec.gpsScore !== null && typeof rec.gpsScore === 'number' ? rec.gpsScore.toFixed(1) : 'N/A'}</span>
-                      {rec.gpsScore !== null && (
-                        <GpsTooltip score={rec.gpsScore} breakdown={rec.gpsBreakdown} symbol={rec.symbol} />
-                      )}
-                    </div>
+                    rec.scope === 'etf_holding' ? (
+                      <span>+{(rec.deltaPct ?? 0).toFixed(1)}% predicted</span>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <span>GPS Score: {rec.gpsScore !== null && typeof rec.gpsScore === 'number' ? rec.gpsScore.toFixed(1) : 'N/A'}</span>
+                        {rec.gpsScore !== null && (
+                          <GpsTooltip score={rec.gpsScore} breakdown={rec.gpsBreakdown} symbol={rec.symbol} />
+                        )}
+                      </div>
+                    )
                   }
                   tone={rec.action === 'BUY' ? 'positive' : 'negative'}
                   subLabel={
                     <span className="flex items-center gap-1">
-                      <span>Updated: {new Date(rec.lastRequestedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      {rec.scope === 'etf_holding' ? (
+                        <span>In {rec.etfTicker}</span>
+                      ) : (
+                        <span>Updated: {new Date(rec.lastRequestedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      )}
                       <span className="mx-1">•</span>
-                      <span className={`px-1 rounded-sm uppercase text-[8px] font-bold ${
-                        rec.scope === 'portfolio'
-                          ? 'bg-blue-100 text-blue-700 border border-blue-200'
-                          : rec.scope === 'watchlist'
-                            ? 'bg-amber-100 text-amber-700 border border-amber-200'
-                            : 'bg-purple-100 text-purple-700 border border-purple-200'
-                      }`}>
-                        {rec.scope}
-                      </span>
+                      {getScopeBadge(rec)}
                     </span>
                   }
                 />

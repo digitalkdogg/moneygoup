@@ -261,6 +261,147 @@ def save_prediction(ticker: str, predicted_price: float, user_id: int, gps_score
  
  
 # ---------------------------------------------------------------------------
+# Helpers for prediction cache
+# ---------------------------------------------------------------------------
+def _empty_cache_entry() -> dict:
+    return {
+        'predicted_price':      None,
+        'predicted_change_pct': None,
+        'confidence_score':     None,
+        'gps_score':            None,
+        'gps_breakdown':        None,
+    }
+
+
+# ---------------------------------------------------------------------------
+# ETF holdings: detection + recommendation persistence
+# ---------------------------------------------------------------------------
+def fetch_etf_holdings(ticker: str, limit: int = 10) -> tuple[bool, list[str]]:
+    """Call the holdings endpoint. Returns (is_etf, [holding_ticker, ...])."""
+    url = f"{INTERNAL_API_URL}/api/stock_data/{ticker}/holdings?limit={limit}"
+    try:
+        response = get_with_auth(url)
+        response.raise_for_status()
+        data = response.json()
+        is_etf = bool(data.get('isEtf'))
+        tickers = [h['ticker'] for h in data.get('holdings', []) if h.get('ticker')]
+        return is_etf, tickers
+    except Exception as exc:
+        print(f"  [etf] WARNING: could not fetch holdings for {ticker}: {exc}")
+        return False, []
+
+
+def save_etf_recommendation(user_id: int, etf_ticker: str, stock_ticker: str,
+                             gps_score: float, predicted_change_pct: float,
+                             confidence_score: float) -> bool:
+    url = f"{INTERNAL_API_URL}/api/etf/holdings-recommendation"
+    payload = {
+        'user_id':             user_id,
+        'etf_ticker':          etf_ticker,
+        'stock_ticker':        stock_ticker,
+        'gps_score':           round(gps_score, 1),
+        'predicted_change_pct': round(predicted_change_pct, 2),
+        'confidence_score':    round(confidence_score, 1),
+        'source':              'etf_holdings_scan',
+    }
+    try:
+        response = post_with_auth(url, payload)
+        if response.ok:
+            print(f"  [rec] ETF rec saved: {stock_ticker} in {etf_ticker} for user {user_id} "
+                  f"(GPS {gps_score:.1f}, +{predicted_change_pct:.1f}%)")
+            return True
+        print(f"  [rec] WARNING: save rec returned {response.status_code} for "
+              f"{stock_ticker} (user {user_id})")
+        return False
+    except Exception as exc:
+        print(f"  [rec] ERROR saving rec for {stock_ticker}: {exc}")
+        return False
+
+
+def save_gps_score_to_db(cursor, ticker: str, gps_score: float, gps_breakdown: dict) -> bool:
+    """Upsert GPS score into stock_gps_scores (global, not per-user).
+    Mirrors what /api/prediction/save does after calling calculate_gps_v3."""
+    try:
+        cursor.execute("SELECT id FROM stocks WHERE symbol = %s LIMIT 1", (ticker,))
+        row = cursor.fetchone()
+        if not row:
+            print(f"  [gps-db] SKIP {ticker}: not found in stocks table")
+            return False
+        stock_id = row[0]
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        cursor.execute(
+            """INSERT INTO stock_gps_scores
+                   (stock_id, as_of, gps_score, gps_breakdown, source)
+               VALUES (%s, %s, %s, %s, 'etf_holdings_scan')
+               ON DUPLICATE KEY UPDATE
+                   as_of         = VALUES(as_of),
+                   gps_score     = VALUES(gps_score),
+                   gps_breakdown = VALUES(gps_breakdown),
+                   source        = VALUES(source)""",
+            (stock_id, now, gps_score, json.dumps(gps_breakdown or {}))
+        )
+        return True
+    except Exception as exc:
+        print(f"  [gps-db] ERROR saving GPS for {ticker}: {exc}")
+        return False
+
+
+def run_prediction_for_holding(ticker: str,
+                                prediction_cache: dict) -> dict | None:
+    """Compute or retrieve a cached prediction result for an ETF holding ticker.
+    Returns a dict with gps_score, predicted_change_pct, confidence_score, or None on failure.
+    Populates the shared cache as a side-effect."""
+    if ticker in prediction_cache:
+        return prediction_cache[ticker]
+
+    stock_data = fetch_stock_data(ticker)
+    if not stock_data:
+        prediction_cache[ticker] = _empty_cache_entry()
+        return None
+
+    historical = stock_data.get('historicalData', [])
+    if len(historical) < 365:
+        print(f"  [etf] SKIP {ticker}: only {len(historical)} days of history.")
+        prediction_cache[ticker] = _empty_cache_entry()
+        return None
+
+    prediction_result = run_prediction(ticker, stock_data)
+    if not prediction_result:
+        prediction_cache[ticker] = _empty_cache_entry()
+        return None
+
+    predicted_price      = float(prediction_result.get('predicted_price_1m', 0))
+    predicted_change_pct = float(prediction_result.get('predicted_change_pct', 0))
+    confidence_score_val = float(prediction_result.get('confidence_score', 0))
+
+    sm = stock_data.get('stockMetrics', {})
+    rec_key = (stock_data.get('recommendationKey')
+               or sm.get('recommendationKey')
+               or _recommendation_mean_to_key(sm.get('recommendationMean')))
+    gps_result = calculate_gps_v3(
+        predicted_change_pct = predicted_change_pct,
+        confidence_score     = confidence_score_val,
+        revenue_growth       = sm.get('revenueGrowth') or 0,
+        earnings_growth      = sm.get('earningsGrowth') or 0,
+        technical_score      = float(stock_data.get('technicalScore') or 0),
+        analyst_upside       = sm.get('analystUpside') or 0,
+        recommendation_key   = rec_key,
+        price_change_52w     = sm.get('fiftyTwoWeekChange') or 0,
+    )
+
+    entry = {
+        'predicted_price':      predicted_price,
+        'predicted_change_pct': predicted_change_pct,
+        'confidence_score':     confidence_score_val,
+        'gps_score':            gps_result['score'],
+        'gps_breakdown':        gps_result['breakdown'],
+    }
+    prediction_cache[ticker] = entry
+    print(f"  [etf] {ticker}: GPS={entry['gps_score']}, pred={predicted_change_pct:.2f}%")
+    return entry
+
+
+# ---------------------------------------------------------------------------
 # Main sync routine
 # ---------------------------------------------------------------------------
 def sync_portfolio_predictions():
@@ -296,10 +437,10 @@ def sync_portfolio_predictions():
           f"{len(unique_users)} user(s), {len(unique_tickers)} unique ticker(s).")
  
     # --- Process ---------------------------------------------------------
-    # prediction_cache: ticker → (predicted_price_1m, gps_score, gps_breakdown) (or None on failure)
+    # prediction_cache: ticker → dict with prediction results (or all-None dict on failure)
     # Keyed by ticker so we run the expensive model only once per stock,
     # regardless of how many users hold it.
-    prediction_cache: dict[str, tuple[float | None, float | None, dict | None]] = {}
+    prediction_cache: dict[str, dict] = {}
  
     stats = {'predicted': 0, 'cached': 0, 'saved': 0, 'skipped': 0, 'errors': 0}
  
@@ -311,37 +452,44 @@ def sync_portfolio_predictions():
  
         # Check cache first (nice-to-have: avoid re-running model for shared stocks)
         if ticker in prediction_cache:
-            predicted_price, gps_score, gps_breakdown = prediction_cache[ticker]
+            cached = prediction_cache[ticker]
+            predicted_price   = cached['predicted_price']
+            gps_score         = cached['gps_score']
+            gps_breakdown     = cached['gps_breakdown']
             print(f"  [cache] Using cached prediction for {ticker}: {predicted_price} (GPS: {gps_score})")
             stats['cached'] += 1
         else:
             # Fetch enriched data from the data endpoint
             stock_data = fetch_stock_data(ticker)
             if stock_data is None:
-                prediction_cache[ticker] = (None, None, None)
+                prediction_cache[ticker] = _empty_cache_entry()
                 stats['errors'] += 1
                 continue
- 
+
             # Validate minimum history depth (same gate as the API route: 365 rows)
             historical = stock_data.get('historicalData', [])
             if not historical or len(historical) < 365:
                 print(f"  [data] SKIP {ticker}: only {len(historical)} days of history "
                       f"(minimum 365 required).")
-                prediction_cache[ticker] = (None, None, None)
+                prediction_cache[ticker] = _empty_cache_entry()
                 stats['skipped'] += 1
                 continue
- 
+
             # Run the prediction model
             prediction_result = run_prediction(ticker, stock_data)
 
             # Calculate GPS Score
-            gps_score = None
-            predicted_price = None
-            gps_breakdown = None
+            gps_score            = None
+            predicted_price      = None
+            gps_breakdown        = None
+            predicted_change_pct = None
+            confidence_score_val = None
+
             if prediction_result is not None:
                 stats['predicted'] += 1
-                predicted_price = float(prediction_result.get('predicted_price_1m', 0))
-                confidence_score = float(prediction_result.get('confidence_score', 0))
+                predicted_price      = float(prediction_result.get('predicted_price_1m', 0))
+                predicted_change_pct = float(prediction_result.get('predicted_change_pct', 0))
+                confidence_score_val = float(prediction_result.get('confidence_score', 0))
 
                 # GPS v3.0 — matches src/utils/gps.ts exactly
                 sm = stock_data.get('stockMetrics', {})
@@ -351,8 +499,8 @@ def sync_portfolio_predictions():
                            or sm.get('recommendationKey')
                            or _recommendation_mean_to_key(sm.get('recommendationMean')))
                 gps_result = calculate_gps_v3(
-                    predicted_change_pct = prediction_result.get('predicted_change_pct', 0),
-                    confidence_score     = confidence_score,
+                    predicted_change_pct = predicted_change_pct,
+                    confidence_score     = confidence_score_val,
                     revenue_growth       = sm.get('revenueGrowth') or 0,
                     earnings_growth      = sm.get('earningsGrowth') or 0,
                     technical_score      = float(stock_data.get('technicalScore') or 0),
@@ -365,15 +513,21 @@ def sync_portfolio_predictions():
 
                 if gps_result['bearishSignal']:
                     print(f"  [gps] BEARISH SIGNAL for {ticker}: "
-                          f"ML predicts {prediction_result.get('predicted_change_pct', 0):.2f}% → "
+                          f"ML predicts {predicted_change_pct:.2f}% → "
                           f"GPS={gps_score}")
                 print(f"  [gps] GPS v3.0 score for {ticker}: {gps_score}")
-                
+
             else:
                 stats['errors'] += 1
-            
-            prediction_cache[ticker] = (predicted_price, gps_score, gps_breakdown)
- 
+
+            prediction_cache[ticker] = {
+                'predicted_price':      predicted_price,
+                'predicted_change_pct': predicted_change_pct,
+                'confidence_score':     confidence_score_val,
+                'gps_score':            gps_score,
+                'gps_breakdown':        gps_breakdown,
+            }
+
         # Skip saving if the prediction failed
         if predicted_price is None:
             print(f"  [save] Skipping save for user {user_id} / {ticker} (no prediction).")
@@ -386,16 +540,81 @@ def sync_portfolio_predictions():
         else:
             stats['errors'] += 1
  
+    # --- ETF Holdings: scan each user's ETF positions for hot holdings --------
+    gps_threshold  = float(os.getenv('ETF_HOLDINGS_GPS_THRESHOLD',        '65'))
+    pred_threshold = float(os.getenv('ETF_HOLDINGS_PREDICTION_THRESHOLD', '3.0'))
+    conf_threshold = float(os.getenv('ETF_HOLDINGS_CONFIDENCE_THRESHOLD', '60'))
+
+    print(f"\n[ETF Holdings] Thresholds: GPS≥{gps_threshold}, pred≥{pred_threshold}%, conf≥{conf_threshold}%")
+
+    # ETF detection cache: ticker → (is_etf, [holding_tickers])
+    etf_cache: dict[str, tuple[bool, list[str]]] = {}
+    etf_recs_saved = 0
+
+    # Group rows by user so we process each user's ETF set once
+    user_rows: dict[int, list[dict]] = {}
+    for row in rows:
+        user_rows.setdefault(row['user_id'], []).append(row)
+
+    for user_id, user_row_list in user_rows.items():
+        username = user_row_list[0]['username']
+        user_etfs_processed = set()
+
+        for row in user_row_list:
+            ticker = row['ticker']
+
+            if ticker in user_etfs_processed:
+                continue
+
+            # Detect ETF (cached)
+            if ticker not in etf_cache:
+                print(f"\n  [etf] Checking {ticker} for ETF holdings...")
+                etf_cache[ticker] = fetch_etf_holdings(ticker)
+            is_etf, holding_tickers = etf_cache[ticker]
+
+            if not is_etf or not holding_tickers:
+                continue
+
+            user_etfs_processed.add(ticker)
+            print(f"\n  [etf] user_id={user_id} ({username}) holds ETF {ticker} "
+                  f"— scanning {len(holding_tickers)} holding(s)")
+
+            for holding_ticker in holding_tickers:
+                result = run_prediction_for_holding(holding_ticker, prediction_cache)
+                if not result:
+                    continue
+
+                gps       = result.get('gps_score')
+                pred      = result.get('predicted_change_pct')
+                conf      = result.get('confidence_score')
+                breakdown = result.get('gps_breakdown') or {}
+
+                if gps is None or pred is None or conf is None:
+                    continue
+
+                # Persist GPS score to stock_gps_scores (global, feeds /search/[ticker])
+                save_gps_score_to_db(cursor, holding_ticker, gps, breakdown)
+
+                # Save recommendation if all hot thresholds are met
+                if gps >= gps_threshold and pred >= pred_threshold and conf >= conf_threshold:
+                    saved = save_etf_recommendation(user_id, ticker, holding_ticker, gps, pred, conf)
+                    if saved:
+                        etf_recs_saved += 1
+
+    print(f"\n[ETF Holdings] Recommendations generated: {etf_recs_saved}")
+
     # --- Wrap up ---------------------------------------------------------
+    conn.commit()  # flush direct GPS writes from ETF holdings scan
     cursor.close()
     conn.close()
- 
+
     print(f"\n[{datetime.now()}] Sync complete.")
     print(f"  Predictions run  : {stats['predicted']}")
     print(f"  Served from cache: {stats['cached']}")
     print(f"  Saves successful : {stats['saved']}")
     print(f"  Skipped (history): {stats['skipped']}")
     print(f"  Errors           : {stats['errors']}")
+    print(f"  ETF recs saved   : {etf_recs_saved}")
  
  
 if __name__ == "__main__":

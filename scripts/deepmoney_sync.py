@@ -272,48 +272,48 @@ def sync_deepmoney():
                 today               # 23. snapshot_date
             ))
 
-            # 5. Check qualification for user_stock_predictions (GPS > DEEPMONEY_RECOMMENDATION_GPS_VALUE)
+            # 5. Ensure stock exists in 'stocks' table and persist GPS score for ALL
+            #    qualifying stocks (those that passed the ML gate and volatility gate above).
+            cursor.execute("SELECT id FROM stocks WHERE symbol = %s", (ticker,))
+            stock_row = cursor.fetchone()
+            if stock_row:
+                stock_id = stock_row[0]
+            else:
+                print(f"    - Adding {ticker} to stocks table...")
+                cursor.execute(
+                    "INSERT INTO stocks (symbol, company_name, price) VALUES (%s, %s, %s)",
+                    (ticker, name, price)
+                )
+                stock_id = cursor.lastrowid
+
+            # GPS score upsert — always, not gated on dashboard threshold
+            cursor.execute(
+                "SELECT gps_score FROM stock_gps_scores WHERE stock_id = %s", (stock_id,)
+            )
+            existing_row = cursor.fetchone()
+            existing_gps = float(existing_row[0]) if existing_row and existing_row[0] is not None else None
+            gps_changed = existing_gps is None or round(existing_gps, 1) != round(float(gps), 1)
+
+            if gps_changed:
+                cursor.execute("""
+                    INSERT INTO stock_gps_scores (stock_id, as_of, gps_score, gps_breakdown, source)
+                    VALUES (%s, NOW(), %s, %s, 'deepmoney_sync')
+                    ON DUPLICATE KEY UPDATE
+                        as_of         = VALUES(as_of),
+                        gps_score     = VALUES(gps_score),
+                        gps_breakdown = VALUES(gps_breakdown),
+                        source        = VALUES(source)
+                """, (stock_id, gps, json.dumps(gps_breakdown)))
+                print(f"    - GPS updated: {existing_gps} → {round(float(gps), 1)}")
+            else:
+                print(f"    - GPS unchanged ({round(float(gps), 1)}), skipping write")
+
+            # 5b. Dashboard qualification: user_stock_predictions + user_stocks
             if gps > dashboard_threshold and predicted_change_pct >= pred_threshold:
                 print(f"    - Qualifying stock found for Dashboard: {ticker} (GPS: {gps})")
-                
-                # a. Ensure stock exists in 'stocks' table
-                cursor.execute("SELECT id FROM stocks WHERE symbol = %s", (ticker,))
-                stock_row = cursor.fetchone()
-                if stock_row:
-                    stock_id = stock_row[0]
-                else:
-                    print(f"    - Adding {ticker} to stocks table...")
-                    cursor.execute(
-                        "INSERT INTO stocks (symbol, company_name, price) VALUES (%s, %s, %s)",
-                        (ticker, name, price)
-                    )
-                    stock_id = cursor.lastrowid
-
                 qualifying_stock_ids.add(stock_id)
 
-                # Only write canonical GPS score if it changed (DECIMAL(5,1) → compare at 1dp).
-                cursor.execute(
-                    "SELECT gps_score FROM stock_gps_scores WHERE stock_id = %s", (stock_id,)
-                )
-                existing_row = cursor.fetchone()
-                existing_gps = float(existing_row[0]) if existing_row and existing_row[0] is not None else None
-                gps_changed = existing_gps is None or round(existing_gps, 1) != round(float(gps), 1)
-
-                if gps_changed:
-                    cursor.execute("""
-                        INSERT INTO stock_gps_scores (stock_id, as_of, gps_score, gps_breakdown, source)
-                        VALUES (%s, NOW(), %s, %s, 'deepmoney_sync')
-                        ON DUPLICATE KEY UPDATE
-                            as_of         = VALUES(as_of),
-                            gps_score     = VALUES(gps_score),
-                            gps_breakdown = VALUES(gps_breakdown),
-                            source        = VALUES(source)
-                    """, (stock_id, gps, json.dumps(gps_breakdown)))
-                    print(f"    - GPS updated: {existing_gps} → {round(float(gps), 1)}")
-                else:
-                    print(f"    - GPS unchanged ({round(float(gps), 1)}), skipping write")
-
-                # b. Add prediction for all active users
+                # Add prediction for all active users
                 for user_id in active_user_ids:
                     # GPS columns removed from user_stock_predictions — now in stock_gps_scores.
                     cursor.execute("""
@@ -327,10 +327,10 @@ def sync_deepmoney():
 
                     # Add to user_stocks as unconfirmed if not already a purchased position
                     cursor.execute("""
-                        INSERT INTO user_stocks 
+                        INSERT INTO user_stocks
                         (user_id, stock_id, is_purchased, user_confirmed, is_active)
                         VALUES (%s, %s, 0, 0, 1)
-                        ON DUPLICATE KEY UPDATE 
+                        ON DUPLICATE KEY UPDATE
                         user_confirmed = IF(is_purchased = 0, 0, user_confirmed),
                         is_active = IF(is_purchased = 0, 1, is_active)
                     """, (user_id, stock_id))

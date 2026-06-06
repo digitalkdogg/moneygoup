@@ -50,7 +50,9 @@ export async function GET(
 
   try {
     // 1. Fetch raw holdings from Yahoo Finance
-    const rawHoldings = await fetchETFHoldings(ticker, 5);
+    const limitParam = request.nextUrl.searchParams.get('limit');
+    const limit = Math.min(Math.max(parseInt(limitParam ?? '5', 10) || 5, 1), 20);
+    const rawHoldings = await fetchETFHoldings(ticker, limit);
 
     if (rawHoldings.length === 0) {
       return NextResponse.json({ ticker, isEtf: false, holdings: [] });
