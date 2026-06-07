@@ -114,22 +114,14 @@ const RecommendationsSection: React.FC<RecommendationsSectionProps> = ({ scopes 
                 <MiniDataCard
                   label={rec.symbol}
                   badge={getBadgeText(rec)}
-                  primaryText={
-                    rec.scope === 'etf_holding'
-                      ? `GPS: ${rec.gpsScore !== null ? rec.gpsScore.toFixed(1) : 'N/A'}`
-                      : `Current ${formatCurrency(rec.currentPrice)}`
-                  }
+                  primaryText={`Current ${formatCurrency(rec.currentPrice)}`}
                   secondaryText={
-                    rec.scope === 'etf_holding' ? (
-                      <span>+{(rec.deltaPct ?? 0).toFixed(1)}% predicted</span>
-                    ) : (
-                      <div className="flex items-center gap-1">
-                        <span>GPS Score: {rec.gpsScore !== null && typeof rec.gpsScore === 'number' ? rec.gpsScore.toFixed(1) : 'N/A'}</span>
-                        {rec.gpsScore !== null && (
-                          <GpsTooltip score={rec.gpsScore} breakdown={rec.gpsBreakdown} symbol={rec.symbol} />
-                        )}
-                      </div>
-                    )
+                    <div className="flex items-center gap-1">
+                      <span>GPS Score: {rec.gpsScore !== null && typeof rec.gpsScore === 'number' ? rec.gpsScore.toFixed(1) : 'N/A'}</span>
+                      {rec.gpsScore !== null && (
+                        <GpsTooltip score={rec.gpsScore} breakdown={rec.gpsBreakdown} symbol={rec.symbol} />
+                      )}
+                    </div>
                   }
                   tone={rec.action === 'BUY' ? 'positive' : 'negative'}
                   subLabel={

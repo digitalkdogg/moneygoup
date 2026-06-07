@@ -96,7 +96,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">API Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-03</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-05</div>
   </div>
   <nav class="top-bar-nav">
     <a href="moneygoup_overview.html">Overview</a>
@@ -111,6 +111,8 @@
     <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
     <a href="technical_indicators_guide.html">Technical Guide</a>
     <a href="gps_score.html">GPS Score</a>
+    <a href="gps_utility.html">GPS Utility</a>
+    <a href="deepmoney_picks_route.html">DeepMoney Picks Route</a>
     <a href="style_guide.html">Style Guide</a>
     <a href="SEO.html">SEO</a>
     <a href="test_feature_columns.html">Feature Validator</a>
@@ -144,6 +146,8 @@
     <a href="technical_indicators_guide.html">Technical Indicators</a>
     <a href="admin_user_management.html">Admin User Mgmt</a>
     <a href="test_feature_columns.html">Feature Validator</a>
+    <a href="gps_score.html">GPS Score</a>
+    <a href="gps_utility.html">GPS Utility</a>
     <a href="style_guide.html">Style Guide</a>
   </nav>
 
@@ -153,7 +157,7 @@
       <span>GrowMyStocks</span>
       <span>Next.js 16 App Router</span>
       <span>35+ routes documented</span>
-      <span>Updated 2026-06-03</span>
+      <span>Updated 2026-06-05</span>
     </div>
 
     <div class="summary-grid">
@@ -453,30 +457,57 @@
           <span class="method method-GET">GET</span>
           <span class="route-path">/api/dashboard/recommendations</span>
           <span class="badge badge-auth">Auth required</span>
+          <span class="badge badge-new">Updated 2026-06-05</span>
           <span class="route-file">src/app/api/dashboard/recommendations/route.ts</span>
         </div>
-        <div class="route-desc">Aggregates predictions for all stocks across three scopes (portfolio, watchlist, discovery) and returns BUY/SELL recommendations sorted by absolute delta percentage. Applies macro dampeners from the World Bank API: if US unemployment is bearish, BUY thresholds are raised by 2%; a global health score adjusts the delta multiplier.</div>
-        <div class="sub-heading">Query Params</div>
+        <div class="route-desc">Aggregates GPS-scored predictions for all stocks across four scopes — <strong>portfolio</strong>, <strong>watchlist</strong>, <strong>discovery</strong>, and <strong>etf_holding</strong> — and returns BUY/SELL recommendations sorted by GPS score descending. Recommendation action is determined purely by GPS thresholds (not delta percentage). Applies a macro GPS adjustment (±3 pts, clamped) sourced from the World Bank API: unemployment bearish lowers GPS by 2 pts; global health score above 70 raises GPS by 1.5 pts; below 45 lowers GPS by 3 pts.</div>
+        <div class="sub-heading">Auth &amp; Guards</div>
+        <div class="route-desc">Requires a valid NextAuth session. Calls <code>checkApprovalGuard(userId)</code> to block suspended accounts. Origin check applied.</div>
+        <div class="sub-heading">GPS Thresholds (env-configurable)</div>
         <table class="props-table">
-          <thead><tr><th>Param</th><th>Values</th><th>Notes</th></tr></thead>
+          <thead><tr><th>Env Var</th><th>Default</th><th>Used for</th></tr></thead>
           <tbody>
-            <tr><td><code>scopes</code></td><td>comma-separated: portfolio,watchlist,discovery</td><td>Optional filter; defaults to all three</td></tr>
+            <tr><td><code>GPS_RECOMMENDATION_BUY_THRESHOLD</code></td><td>65</td><td>portfolio + watchlist BUY</td></tr>
+            <tr><td><code>GPS_RECOMMENDATION_SELL_THRESHOLD</code></td><td>45</td><td>portfolio SELL</td></tr>
+            <tr><td><code>GPS_RECOMMENDATION_DISCOVERY_THRESHOLD</code></td><td>70</td><td>discovery scope BUY</td></tr>
+          </tbody>
+        </table>
+        <div class="sub-heading">Scope Logic</div>
+        <table class="props-table">
+          <thead><tr><th>Scope</th><th>Condition</th><th>BUY if</th><th>SELL if</th></tr></thead>
+          <tbody>
+            <tr><td><code>portfolio</code></td><td>is_purchased=1, user_confirmed=1, shares&gt;0</td><td>adjustedGPS &ge; 65</td><td>adjustedGPS &lt; 45</td></tr>
+            <tr><td><code>watchlist</code></td><td>is_purchased=0, user_confirmed=1</td><td>adjustedGPS &ge; 65</td><td>—</td></tr>
+            <tr><td><code>discovery</code></td><td>is_purchased=0, user_confirmed=0</td><td>adjustedGPS &ge; 70</td><td>—</td></tr>
+            <tr><td><code>etf_holding</code></td><td>From etf_stock_recommendations (last 7 days); ticker not already in portfolio/watchlist/discovery</td><td>Always BUY (pre-filtered by ETF sync)</td><td>—</td></tr>
           </tbody>
         </table>
         <div class="sub-heading">Response</div>
         <pre>{
   "recommendations": [
     {
-      "ticker": string,
-      "action": "BUY" | "SELL",
-      "currentPrice": number,
-      "predictedPrice": number,
-      "deltaPct": number,
-      "scope": "portfolio" | "watchlist" | "discovery"
+      "stockId":         number,
+      "symbol":          string,
+      "action":          "BUY" | "SELL",
+      "currentPrice":    number,
+      "predictedPrice1m": number,
+      "deltaPct":        number,
+      "gpsScore":        number | null,
+      "gpsBreakdown":    object | null,
+      "lastRequestedAt": string,  // ISO timestamp
+      "scope":           "portfolio" | "watchlist" | "discovery" | "etf_holding",
+      "etfTicker":       string | undefined  // present only when scope === "etf_holding"
     }
-  ]
+  ],
+  "asOf": string  // ISO timestamp
 }</pre>
-        <div class="dep-list"><span class="dep-tag">GET /api/worldbank</span></div>
+        <div class="note"><strong>Sorting:</strong> Recommendations are sorted by <code>gpsScore</code> descending — highest conviction signals first. ETF holding cards that duplicate a symbol already present in portfolio/watchlist/discovery are silently dropped. Within ETF holdings, only the highest-GPS occurrence of each ticker is kept.</div>
+        <div class="dep-list">
+          <span class="dep-tag">GET /api/worldbank</span>
+          <span class="dep-tag">fetchYahooQuotesForSymbols</span>
+          <span class="dep-tag">executeRawQuery</span>
+          <span class="dep-tag">checkApprovalGuard</span>
+        </div>
       </div>
 
       <div class="route-card">
@@ -484,14 +515,85 @@
           <span class="method method-GET">GET</span>
           <span class="route-path">/api/dashboard/deepmoney-picks</span>
           <span class="badge badge-auth">Auth required</span>
+          <span class="badge badge-new">Updated 2026-06-05</span>
           <span class="route-file">src/app/api/dashboard/deepmoney-picks/route.ts</span>
         </div>
-        <div class="route-desc">Returns the latest AI-curated snapshot from the <code>recommended_stocks</code> and <code>hot_etfs</code> database tables. Enriches each entry with Yahoo Finance <code>previousClose</code> to compute daily change amount and percentage.</div>
+        <div class="route-desc">Returns the latest AI-curated snapshot from the <code>recommended_stocks</code> and <code>hot_etfs</code> database tables, keyed by snapshot date. Enriches hot stocks and ETFs with Yahoo Finance <code>previousClose</code> to compute <code>changeAmount</code> and <code>changePercent</code>. Also surfaces ETF holdings (<code>type = 'etf_holding'</code>) from the same <code>recommended_stocks</code> table, deduplicated by ticker (highest GPS first). See the <a href="deepmoney_picks_route.html">DeepMoney Picks Route</a> doc for the full data flow.</div>
+        <div class="sub-heading">GPS Thresholds</div>
+        <table class="props-table">
+          <thead><tr><th>Category</th><th>Threshold</th><th>Source</th></tr></thead>
+          <tbody>
+            <tr><td>Hot stocks</td><td><code>GPS_DEEPMONEY_MIN_SCORE</code> env var (default 65)</td><td>Read by <code>getStockGpsThreshold()</code></td></tr>
+            <tr><td>Hot ETFs</td><td>75 (hard-coded constant <code>ETF_GPS_THRESHOLD</code>)</td><td>Module constant</td></tr>
+            <tr><td>ETF holdings</td><td>No GPS filter — all <code>type='etf_holding'</code> rows for the snapshot date</td><td>Deduplicated by ticker</td></tr>
+          </tbody>
+        </table>
         <div class="sub-heading">Response</div>
         <pre>{
-  "hotStocks": [ { "ticker": string, "company_name": string, "current_price": number, "change": number, "change_pct": number, ... } ],
-  "hotEtfs": [ { ... } ]
+  "hot_stocks": [
+    {
+      "id": number,
+      "type": "hot_stocks",
+      "ticker": string,
+      "company_name": string,
+      "current_price": number,
+      "gps_score": number,
+      "gps_breakdown": object | null,
+      "classification": string | null,
+      "analyst_upside_pct": number | null,
+      "revenue_growth_yoy": number | null,
+      "gross_margin_pct": number | null,
+      "rd_spend_pct": number | null,
+      "market_cap_m": number | null,
+      "mention_count": number | null,
+      "discovery_source": string | null,
+      "trading_signal": string | null,
+      "trading_signal_score": number | null,
+      "upcoming_earnings": string | null,
+      "snapshot_date": string,
+      "trailing_pe": number | null,
+      "price_to_book": number | null,
+      "metric_value": number | null,
+      "metric_label": string | null,
+      "changeAmount": number | null,   // computed: current_price - previousClose
+      "changePercent": number | null,  // computed: changeAmount / previousClose * 100
+      "recommendationLabel": string    // e.g. "Strong Buy", "Buy", "Hold"
+    },
+    ...
+  ],
+  "hot_etfs": [
+    {
+      // All columns from hot_etfs table
+      "changeAmount": number | null,
+      "changePercent": number | null
+    },
+    ...
+  ],
+  "etf_holdings": [
+    {
+      "id": number,
+      "type": "etf_holding",
+      "ticker": string,
+      "company_name": string,
+      "gps_score": number,
+      "gps_breakdown": object | null,
+      "parent_etf_ticker": string,
+      "holding_percent": number | null,
+      "bearish_signal": boolean | null,
+      "metric_value": number | null,
+      "metric_label": string | null,
+      "snapshot_date": string
+    },
+    ...
+  ]
 }</pre>
+        <div class="note"><strong>ETF holdings deduplication:</strong> A stock ticker may appear as a holding in multiple ETFs on the same snapshot. The route deduplicates using a <code>Set&lt;string&gt;</code>, keeping the first occurrence per ticker. Rows are ordered by <code>gps_score DESC</code> before deduplication, so the highest-scoring entry is preserved.</div>
+        <div class="dep-list">
+          <span class="dep-tag">yahoo-finance2 (quoteSummary)</span>
+          <span class="dep-tag">executeRawQuery</span>
+          <span class="dep-tag">getGpsLabel (gps utility)</span>
+          <span class="dep-tag">checkApprovalGuard</span>
+        </div>
       </div>
 
       <div class="route-card">
@@ -608,6 +710,7 @@
   "observability": { "macro_features_used": string[], "consumer_multiplier_applied": number },
   "gps_score": number,
   "gps_breakdown": { ... },
+  "bearishSignal": boolean,  // true when predicted_change_pct_1m < 0
   "source": "livedata" | "cache"
 }</pre>
         <div class="dep-list">
@@ -695,23 +798,33 @@
           <span class="method method-GET">GET</span>
           <span class="route-path">/api/stock_data/[ticker]/gps</span>
           <span class="badge badge-auth">Auth required</span>
+          <span class="badge badge-new">Updated 2026-06-05</span>
           <span class="route-file">src/app/api/stock_data/[ticker]/gps/route.ts</span>
         </div>
-        <div class="route-desc">Returns the GPS (Global Performance Score) for a ticker. First checks <code>user_stock_predictions</code> for a user-specific cached score. If not found, falls back to the <code>recommended_stocks</code> table (AI-curated scores). Returns <code>source: 'user'</code> or <code>source: 'system'</code> accordingly.</div>
+        <div class="route-desc">Returns the GPS v3.0 score for a ticker. Checks <code>stock_gps_scores</code> first (canonical per-stock scores written by <code>/api/prediction/save</code>). Falls back to <code>recommended_stocks</code> (AI-curated scores from the DeepMoney sync). If neither table has a score, returns all-null empty response. Concurrently fetches the Yahoo Finance <code>recommendationKey</code> to enrich breakdowns that pre-date GPS v3.0 (missing <code>analystConsensus</code> field).</div>
         <div class="sub-heading">Response</div>
         <pre>{
-  "gpsScore": number,
+  "gpsScore":    number | null,
   "gpsBreakdown": {
-    "analystUpside": number,
-    "revenueGrowth": number,
-    "earningsGrowth": number,
-    "priceChange52w": number,
-    "mlpAlpha": number,
-    "aiConfidence": number
-  },
-  "source": "user" | "system",
-  "asOf": string (ISO timestamp)
+    // GPS v3.0 — 8 components (max pts shown)
+    "mlpUpside":         number,  // max 20
+    "mlpConfidence":     number,  // max 5
+    "revenueGrowth":     number,  // max 12
+    "earningsGrowth":    number,  // max 12
+    "technicalSignal":   number,  // max 20
+    "analystUpside":     number,  // max 12
+    "analystConsensus":  number,  // max 9  (numeric pts; decoded to label in UI)
+    "priceChange52w":    number   // max 10
+  } | null,
+  "source": "stock_gps_scores" | "recommended_stocks" | "none",
+  "asOf":    string | null  // ISO timestamp, null when source is "none"
 }</pre>
+        <div class="note"><strong>Pre-v3.0 breakdown enrichment:</strong> If a stored breakdown is missing the <code>analystConsensus</code> field (indicating it was computed before GPS v3.0), the route fetches the Yahoo Finance <code>financialData.recommendationKey</code> and maps it to consensus points using the same lookup table as the GPS utility: strongBuy=9, buy=7, hold=4, underperform=2, sell=0.</div>
+        <div class="dep-list">
+          <span class="dep-tag">executeRawQuery</span>
+          <span class="dep-tag">fetchYahooStockSummary</span>
+          <span class="dep-tag">checkApprovalGuard</span>
+        </div>
       </div>
 
       <div class="route-card">

@@ -8,8 +8,6 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; color: #1e293b; display: flex; flex-direction: column; min-height: 100vh; }
 
-    /* ── Top header bar ── */
-
     /* ── Layout ── */
     .layout { display: flex; flex: 1; }
     .sidebar { width: 260px; min-width: 260px; background: #fff; border-right: 1px solid #e2e8f0; padding: 1.5rem 0; position: sticky; top: 92px; height: calc(100vh - 92px); overflow-y: auto; }
@@ -70,7 +68,7 @@
     .stat-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem 1.25rem; text-align: center; }
     .stat-card .value { font-size: 2rem; font-weight: 800; color: #017e3b; }
     .stat-card .label { font-size: .75rem; color: #64748b; text-transform: uppercase; letter-spacing: .05em; }
-    
+
     /* ── Top Bar ── */
     .top-bar { background: #017e3b; color: #fff; padding: 0 2rem; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
     .top-bar-header { display: flex; align-items: center; justify-content: space-between; height: 56px; }
@@ -92,7 +90,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Components Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-05-24</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-05</div>
   </div>
   <nav class="top-bar-nav">
     <a href="moneygoup_overview.html">Overview</a>
@@ -107,6 +105,8 @@
     <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
     <a href="technical_indicators_guide.html">Technical Guide</a>
     <a href="gps_score.html">GPS Score</a>
+    <a href="gps_utility.html">GPS Utility</a>
+    <a href="deepmoney_picks_route.html">DeepMoney Picks Route</a>
     <a href="style_guide.html">Style Guide</a>
     <a href="SEO.html">SEO</a>
   </nav>
@@ -150,7 +150,7 @@
       <span>Next.js 14 App Router</span>
       <span>TypeScript + Tailwind CSS</span>
       <span>45+ components documented</span>
-      <span>Updated 2026-05-24</span>
+      <span>Updated 2026-06-05</span>
     </div>
 
     <div class="summary-grid">
@@ -349,11 +349,11 @@
           <div><div class="comp-name">RecommendationsSection</div><div class="comp-file">src/app/components/RecommendationsSection.tsx</div></div>
           <span class="badge badge-client">Client</span>
         </div>
-        <div class="comp-desc">Fetches from <code>GET /api/dashboard/recommendations</code> and renders a grid of <code>MiniDataCard</code> components with BUY/SELL badges. Accepts an optional <code>scopes</code> prop to filter which recommendation buckets (portfolio, watchlist, discovery) are shown.</div>
+        <div class="comp-desc">Fetches from <code>GET /api/dashboard/recommendations</code> and renders a grid of <code>MiniDataCard</code> components with BUY/SELL badges. Accepts an optional <code>scopes</code> prop to filter which recommendation buckets (portfolio, watchlist, discovery, etf_holding) are shown.</div>
         <table class="props-table">
           <thead><tr><th>Prop</th><th>Type</th><th>Required</th></tr></thead>
           <tbody>
-            <tr><td><code>scopes</code></td><td>Array&lt;'portfolio' | 'watchlist' | 'discovery'&gt;</td><td><span class="optional">optional</span></td></tr>
+            <tr><td><code>scopes</code></td><td>Array&lt;'portfolio' | 'watchlist' | 'discovery' | 'etf_holding'&gt;</td><td><span class="optional">optional</span></td></tr>
           </tbody>
         </table>
         <div class="dep-list"><span class="dep-tag">MiniDataCard</span><span class="dep-tag">GET /api/dashboard/recommendations</span></div>
@@ -633,17 +633,18 @@ interface CardActionHandlers {
           <div><div class="comp-name">GpsBreakdownModal</div><div class="comp-file">src/app/components/modals/GpsBreakdownModal.tsx</div></div>
           <span class="badge badge-client">Client</span><span class="badge badge-modal">Modal</span>
         </div>
-        <div class="comp-desc">Full-screen overlay that details how a stock's GPS score was calculated. Displays all 6 sub-score components with their individual values. Brand-green header bar. Closes on backdrop click or a close button.</div>
+        <div class="comp-desc">Full-screen overlay (GPS v3.0) that details how a stock's GPS score was calculated. Displays all <strong>8 component scores</strong> in a list format — ML Prediction (1m), AI Confidence, Revenue Growth, Earnings Growth, Technical Signal, Analyst Upside, Analyst Consensus, and 52-Week Momentum — each shown as "X.X / MAX". The Analyst Consensus row also shows the decoded label (e.g., "Strong Buy") derived from the numeric points value. Summary footer is color-coded by score band: green (&ge;65), amber (45–64), red (&lt;45). Backdrop click or the close button dismisses the modal. The ticker heading uses an inline <code>color: '#fff'</code> style to override a global CSS rule.</div>
         <table class="props-table">
           <thead><tr><th>Prop</th><th>Type</th><th>Required</th></tr></thead>
           <tbody>
             <tr><td><code>isOpen</code></td><td>boolean</td><td><span class="required">required</span></td></tr>
             <tr><td><code>onClose</code></td><td>() =&gt; void</td><td><span class="required">required</span></td></tr>
-            <tr><td><code>ticker</code></td><td>string</td><td><span class="required">required</span></td></tr>
-            <tr><td><code>gpsBreakdown</code></td><td>GpsBreakdown</td><td><span class="required">required</span></td></tr>
+            <tr><td><code>symbol</code></td><td>string</td><td><span class="required">required</span></td></tr>
+            <tr><td><code>score</code></td><td>number | null</td><td><span class="required">required</span></td></tr>
+            <tr><td><code>breakdown</code></td><td>GpsBreakdown | null</td><td><span class="required">required</span></td></tr>
           </tbody>
         </table>
-        <div class="note">GPS sub-scores: Analyst Upside, Revenue Growth, Earnings Growth, 52-Week Price Change, MLP Alpha, AI Confidence. Each is displayed with its raw value and its weighted contribution to the composite score.</div>
+        <div class="note">GPS v3.0 — 8 components, 100 points: mlpUpside (20), mlpConfidence (5), revenueGrowth (12), earningsGrowth (12), technicalSignal (20), analystUpside (12), analystConsensus (9), priceChange52w (10). When breakdown is null, the modal shows only the numeric score.</div>
       </div>
 
       <div class="comp-card">
@@ -773,7 +774,7 @@ interface CardActionHandlers {
           <div><div class="comp-name">StockSignalPanel</div><div class="comp-file">src/app/components/StockSignalPanel.tsx</div></div>
           <span class="badge badge-client">Client</span>
         </div>
-        <div class="comp-desc">Displays the GPS composite score in a color-coded chip (color-coded by score band: green ≥60, gray 40–59, amber 20–39, red &lt;20), the top 3 GPS driver scores as progress bars with labels, and action buttons. Exports the <code>GpsData</code> interface used for GPS prop typing across the app. Updated May 2026: the "View breakdown" link was renamed to <strong>"View score"</strong> for consistency with the <code>GpsTooltip</code> component. The primary action button remains "Show prediction details."</div>
+        <div class="comp-desc">Displays the GPS composite score in a color-coded chip (green &ge;65, amber 45–64, red &lt;45), the source label ("Your prediction" or "Market snapshot"), the top 3 GPS driver scores as progress bars with labels and point values, and a "Show prediction details" action button. When <code>breakdown.mlpUpside &lt; 0</code>, renders a red triangular warning banner: "AI model predicts downside — the MLP signal is negative for this stock's 1-month outlook." Exports the <code>GpsData</code> interface used for GPS prop typing across the app. A "View score" text button opens <code>GpsBreakdownModal</code> with all 8 GPS v3.0 components.</div>
         <table class="props-table">
           <thead><tr><th>Prop</th><th>Type</th><th>Required</th></tr></thead>
           <tbody>
@@ -784,7 +785,7 @@ interface CardActionHandlers {
             <tr><td><code>predictionLoading</code></td><td>boolean</td><td><span class="required">required</span></td></tr>
           </tbody>
         </table>
-        <div class="dep-list"><span class="dep-tag">GpsBreakdownModal</span></div>
+        <div class="dep-list"><span class="dep-tag">GpsBreakdownModal</span><span class="dep-tag">getGpsLabel (gps utility)</span></div>
       </div>
 
       <div class="comp-card">
@@ -792,14 +793,15 @@ interface CardActionHandlers {
           <div><div class="comp-name">TechnicalIndicatorsDisplay</div><div class="comp-file">src/app/components/TechnicalIndicatorsDisplay.tsx</div></div>
           <span class="badge badge-util">Presentational</span>
         </div>
-        <div class="comp-desc">Displays the technical signal analysis. Signal box shows BUY/SELL/HOLD (BUY ≥ +4, SELL ≤ −4). Score breakdown table shows all 7 contributing metrics and their total. Four indicator cards: SMA20, SMA50, RSI14, Momentum.</div>
+        <div class="comp-desc">Displays the technical signal analysis. A score breakdown table shows all 7 contributing metrics (MA Crossover, RSI, Momentum, Price vs SMA, Volatility, News Sentiment, Core Metrics) with their individual scores and text reasons, plus a TOTAL SCORE row that shows BUY (&ge;+4), SELL (&le;-4), or HOLD. Below the table, four indicator cards show SMA20, SMA50, RSI(14), and 10-day Momentum values. RSI values above 70 or below 30 are highlighted.</div>
         <table class="props-table">
           <thead><tr><th>Prop</th><th>Type</th><th>Required</th></tr></thead>
           <tbody>
-            <tr><td><code>signals</code></td><td>TechnicalSignals</td><td><span class="required">required</span></td></tr>
             <tr><td><code>indicators</code></td><td>TechnicalIndicators</td><td><span class="required">required</span></td></tr>
+            <tr><td><code>titleLevel</code></td><td>'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'</td><td><span class="optional">optional</span></td></tr>
           </tbody>
         </table>
+        <div class="note">The <code>scoreBreakdown</code> field on the <code>TechnicalIndicators</code> object contains: <code>maScore</code>, <code>rsiScore</code>, <code>momentumScore</code>, <code>priceScore</code>, <code>volatilityScore</code>, <code>newsScore</code>, <code>coreMetricsScore</code>, <code>totalScore</code>, and corresponding <code>*Reason</code> strings. No separate <code>signals</code> prop is needed — all signal data is embedded in the <code>indicators</code> object.</div>
       </div>
 
       <div class="comp-card">

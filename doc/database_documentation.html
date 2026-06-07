@@ -23,7 +23,7 @@
             margin: 0;
         }
         main {
-            
+
             padding: 3rem;
             max-width: 1000px;
             width: 100%;
@@ -77,6 +77,20 @@
             border-left: 4px solid var(--primary);
             padding: 1rem; margin: 1.5rem 0;
         }
+        .new-badge {
+            display: inline-block;
+            background: #dcfce7;
+            color: #166534;
+            font-size: 0.65rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            border: 1px solid #86efac;
+            margin-left: 0.5rem;
+            vertical-align: middle;
+        }
         .logic-card {
             background: #fff;
             border: 1px solid var(--accent);
@@ -89,7 +103,7 @@
         @media (max-width: 768px) {
             main { margin-left: 0; padding: 1.5rem; }
         }
-    
+
     /* ── Top Bar ── */
     .top-bar { background: #017e3b; color: #fff; padding: 0 2rem; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
     .top-bar-header { display: flex; align-items: center; justify-content: space-between; height: 56px; }
@@ -118,7 +132,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Database Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Generated 2026-05-20</div>
+    <div style="font-size:.78rem;opacity:.75;">Generated 2026-06-06</div>
   </div>
   <nav class="top-bar-nav">
     <a href="moneygoup_overview.html">Overview</a>
@@ -159,10 +173,23 @@
     <a href="#recommended_markets">recommended_markets</a>
     <a href="#hot_etfs">hot_etfs</a>
     <a href="#etf_cycle_summary">etf_cycle_summary</a>
+    <a href="#etf_holding_scores">etf_holding_scores</a>
+    <a href="#etf_stock_recommendations">etf_stock_recommendations</a>
     <a href="#macro_context_snapshots">macro_context_snapshots</a>
     <a href="#user_stock_predictions">user_stock_predictions</a>
     <a href="#stock_gps_scores">stock_gps_scores</a>
     <a href="#stock_gps_score_history">stock_gps_score_history</a>
+    <a href="#portfolio-tables">Portfolio Tables</a>
+    <a href="#portfolio_transactions">portfolio_transactions</a>
+    <a href="#portfolio_daily_snapshots">portfolio_daily_snapshots</a>
+    <a href="#portfolio_position_history">portfolio_position_history</a>
+    <a href="#portfolio_benchmark_performance">portfolio_benchmark_performance</a>
+    <a href="#ancillary-tables">Ancillary Tables</a>
+    <a href="#news">news</a>
+    <a href="#user_stock_news">user_stock_news</a>
+    <a href="#stock_brand">stock_brand</a>
+    <a href="#preview_leads">preview_leads</a>
+    <a href="#preview_visits">preview_visits</a>
     <a href="#world-bank-macro-data">world_bank_macro_data</a>
     <a href="#world-bank-etf-gps-factors">world_bank_etf_gps_factors</a>
     <div class="section-divider"></div>
@@ -181,28 +208,31 @@
 
         <section id="core-logic">
             <h2>Core Business Logic</h2>
-            
+
             <div id="portfolio-logic" class="logic-card">
                 <h4>Portfolio vs. Watchlist vs. Discovery Logic</h4>
                 <p>The system uses the <code>user_stocks</code> table to manage all stock relationships. Status is determined by a combination of <code>is_purchased</code> and <code>user_confirmed</code>:</p>
                 <ul>
-                    <li><strong>Watchlist State:</strong> 
-                        <code>is_purchased = 0</code> AND <code>user_confirmed = 1</code>. 
+                    <li><strong>Watchlist State:</strong>
+                        <code>is_purchased = 0</code> AND <code>user_confirmed = 1</code>.
                         The user has explicitly added this stock to their monitoring list. Shows in "My Watchlist".
                     </li>
-                    <li><strong>Portfolio State:</strong> 
-                        <code>is_purchased = 1</code> AND <code>user_confirmed = 1</code> AND <code>shares > 0</code>. 
+                    <li><strong>Portfolio State:</strong>
+                        <code>is_purchased = 1</code> AND <code>user_confirmed = 1</code> AND <code>shares > 0</code>.
                         The user owns a confirmed position.
                     </li>
-                    <li><strong>Discovery State:</strong> 
-                        <code>is_purchased = 0</code> AND <code>user_confirmed = 0</code>. 
+                    <li><strong>Discovery State:</strong>
+                        <code>is_purchased = 0</code> AND <code>user_confirmed = 0</code>.
                         Stocks automatically identified by the AI engine. These generate recommendations but remain hidden from the user's primary watchlist until confirmed.
+                    </li>
+                    <li><strong>Closed Position:</strong>
+                        <code>is_active = 0</code>. Set when shares reach zero after being sold. The row is retained for history but excluded from active portfolio displays.
                     </li>
                 </ul>
             </div>
 
             <div id="auth-logic" class="logic-card" style="border-color: var(--primary);">
-                <h4 style="color: var(--primary);">Authentication & Governance</h4>
+                <h4 style="color: var(--primary);">Authentication &amp; Governance</h4>
                 <p>User accounts are managed in the <code>users</code> table. Governance is enforced through registration approvals and role-based limits.</p>
                 <ul>
                     <li><strong>Approval Workflow:</strong> New users are created with <code>approval_status = 'pending'</code>. Only <code>'approved'</code> users can establish a session. Administrators can <code>'reject'</code> users with a specific reason.</li>
@@ -257,16 +287,18 @@
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key</td></tr>
+                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key. Auto-increment.</td></tr>
                         <tr><td><code>username</code></td><td><code>VARCHAR(255)</code></td><td>Unique.</td></tr>
                         <tr><td><code>email</code></td><td><code>VARCHAR(255)</code></td><td>Unique, nullable. Required at registration. Used to send password reset emails.</td></tr>
                         <tr><td><code>password_hash</code></td><td><code>VARCHAR(255)</code></td><td>Bcrypt.</td></tr>
-                        <tr><td><code>role</code></td><td><code>ENUM</code></td><td>'user', 'superuser', 'admin'.</td></tr>
-                        <tr><td><code>approval_status</code></td><td><code>ENUM</code></td><td>'pending', 'approved', 'rejected'.</td></tr>
+                        <tr><td><code>role</code></td><td><code>ENUM</code></td><td>'user', 'superuser', 'admin'. Default 'user'.</td></tr>
+                        <tr><td><code>approval_status</code></td><td><code>ENUM</code></td><td>'pending', 'approved', 'rejected', 'unsubscribed', 'archived'. Default 'pending'.</td></tr>
                         <tr><td><code>approved_by</code></td><td><code>INT</code></td><td>FK to users.id.</td></tr>
                         <tr><td><code>approved_at</code></td><td><code>DATETIME</code></td><td>Approval timestamp.</td></tr>
                         <tr><td><code>rejected_reason</code></td><td><code>VARCHAR(255)</code></td><td>Reason for rejection.</td></tr>
                         <tr><td><code>last_login</code></td><td><code>DATETIME</code></td><td>Updated on login.</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Row creation timestamp (auto).</td></tr>
+                        <tr><td><code>modified_at</code></td><td><code>TIMESTAMP</code></td><td>Row modification timestamp (auto).</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -279,11 +311,11 @@
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
                         <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key.</td></tr>
-                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>FK to users.id. The account the reset applies to.</td></tr>
-                        <tr><td><code>token_hash</code></td><td><code>VARCHAR(64)</code></td><td>SHA-256 hash of the raw 32-byte hex token sent in the reset link.</td></tr>
+                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>FK to users.id ON DELETE CASCADE. The account the reset applies to.</td></tr>
+                        <tr><td><code>token_hash</code></td><td><code>VARCHAR(255)</code></td><td>SHA-256 hash of the raw token. Unique index (<code>idx_prt_token_hash</code>).</td></tr>
                         <tr><td><code>expires_at</code></td><td><code>DATETIME</code></td><td>Expiry timestamp (1 hour from creation).</td></tr>
                         <tr><td><code>used_at</code></td><td><code>DATETIME</code></td><td>NULL until consumed; set to NOW() when the POST /reset-password succeeds. Used tokens are rejected on subsequent attempts.</td></tr>
-                        <tr><td><code>created_at</code></td><td><code>DATETIME</code></td><td>Row creation timestamp (auto-set by DB default).</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Row creation timestamp (auto-set by DB default).</td></tr>
                     </tbody>
                 </table>
                 <div class="highlight-box">
@@ -298,11 +330,11 @@
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>role</code></td><td><code>ENUM</code></td><td>Primary Key (user, superuser, admin)</td></tr>
-                        <tr><td><code>max_watchlist_items</code></td><td><code>INT</code></td><td>Quota for monitor list.</td></tr>
-                        <tr><td><code>max_portfolio_items</code></td><td><code>INT</code></td><td>Quota for owned positions.</td></tr>
-                        <tr><td><code>max_lookups_per_24h</code></td><td><code>INT</code></td><td>Daily lookup rate limit.</td></tr>
-                        <tr><td><code>updated_at</code></td><td><code>DATETIME</code></td><td>Last modification.</td></tr>
+                        <tr><td><code>role</code></td><td><code>ENUM</code></td><td>Primary Key ('user', 'superuser', 'admin')</td></tr>
+                        <tr><td><code>max_watchlist_items</code></td><td><code>INT</code></td><td>Quota for monitor list. NULL = unlimited.</td></tr>
+                        <tr><td><code>max_portfolio_items</code></td><td><code>INT</code></td><td>Quota for owned positions. NULL = unlimited.</td></tr>
+                        <tr><td><code>max_lookups_per_24h</code></td><td><code>INT</code></td><td>Daily lookup rate limit. NULL = unlimited.</td></tr>
+                        <tr><td><code>updated_at</code></td><td><code>DATETIME</code></td><td>Last modification. Auto-updated via ON UPDATE CURRENT_TIMESTAMP.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -325,15 +357,22 @@
             <!-- USER_STOCKS -->
             <div id="user_stocks" class="table-card">
                 <div class="table-title">user_stocks</div>
-                <p>The relationship table linking users to their monitored and owned stocks.</p>
+                <p>The relationship table linking users to their monitored and owned stocks. See Portfolio vs. Watchlist logic above for the full state matrix.</p>
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>FK to users.</td></tr>
-                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>FK to stocks.</td></tr>
-                        <tr><td><code>is_purchased</code></td><td><code>TINYINT(1)</code></td><td>0 = Watchlist, 1 = Portfolio.</td></tr>
-                        <tr><td><code>shares</code></td><td><code>DECIMAL(10,4)</code></td><td>Quantity.</td></tr>
-                        <tr><td><code>user_confirmed</code></td><td><code>TINYINT(1)</code></td><td>1 = Manual, 0 = AI Auto-discovery.</td></tr>
+                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>PK part 1. FK to users ON DELETE CASCADE.</td></tr>
+                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>PK part 2. FK to stocks ON DELETE CASCADE.</td></tr>
+                        <tr><td><code>shares</code></td><td><code>DECIMAL(10,4)</code></td><td>Quantity held. Default 0.</td></tr>
+                        <tr><td><code>purchase_price</code></td><td><code>DECIMAL(10,2)</code></td><td>Average price at time of add. Default 0.</td></tr>
+                        <tr><td><code>is_purchased</code></td><td><code>TINYINT(1)</code></td><td>0 = Watchlist/Discovery, 1 = Portfolio. Default 0.</td></tr>
+                        <tr><td><code>user_confirmed</code></td><td><code>TINYINT(1)</code></td><td>1 = Manual add, 0 = AI Auto-discovery. Default 1.</td></tr>
+                        <tr><td><code>is_active</code></td><td><code>TINYINT(1)</code></td><td>0 when shares = 0 after a sell (closed position). Default 1.</td></tr>
+                        <tr><td><code>average_cost_basis</code></td><td><code>DECIMAL(14,4)</code></td><td>Weighted average cost per share, updated on each transaction. NULL until first purchase.</td></tr>
+                        <tr><td><code>initial_purchase_date</code></td><td><code>DATETIME</code></td><td>Timestamp of the very first buy transaction.</td></tr>
+                        <tr><td><code>last_transaction_date</code></td><td><code>DATETIME</code></td><td>Timestamp of the most recent buy or sell transaction.</td></tr>
+                        <tr><td><code>first_purchase_date</code></td><td><code>DATETIME</code></td><td>Alias column for initial_purchase_date (legacy). May differ in older rows.</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Row creation timestamp (auto).</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -371,33 +410,61 @@
             <!-- RECOMMENDED_STOCKS -->
             <div id="recommended_stocks" class="table-card">
                 <div class="table-title">recommended_stocks</div>
-                <p>Stores the latest DeepMoney discovery results for individual stocks. This table is the <strong>third-tier fallback</strong> for <code>GET /api/stock_data/[ticker]/gps</code>: the read path checks <code>stock_gps_scores</code> first, then falls back here. GPS data is kept in sync by <code>deepmoney_sync.py</code> and <code>/api/prediction/save</code>.</p>
+                <p>Stores the latest DeepMoney discovery results. Supports multiple record types via the <code>type</code> column: <code>hot_stocks</code> (standard DeepMoney picks), <code>hot_ai_tech_stocks</code>, and <code>etf_holding</code> (surfaced ETF top-holdings written by <code>deepmoney_sync.py</code>). This table is the <strong>third-tier fallback</strong> for <code>GET /api/stock_data/[ticker]/gps</code>.</p>
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>ticker</code></td><td><code>VARCHAR(20)</code></td><td>Stock symbol.</td></tr>
-                        <tr><td><code>company_name</code></td><td><code>VARCHAR(255)</code></td><td>Full legal name.</td></tr>
-                        <tr><td><code>gps_score</code></td><td><code>DECIMAL(5,1)</code></td><td>0–100 GPS score. NULL if not yet scored.</td></tr>
-                        <tr><td><code>gps_breakdown</code></td><td><code>JSON</code></td><td>Named component scores (analystUpside, revenueGrowth, earningsGrowth, fiftyTwoWeekChange, mlpUpside, mlpConfidence).</td></tr>
-                        <tr><td><code>predicted_price_1m</code></td><td><code>DECIMAL(12,4)</code></td><td>1-month AI price target.</td></tr>
-                        <tr><td><code>current_price</code></td><td><code>DECIMAL(10,2)</code></td><td>Price at discovery time.</td></tr>
-                        <tr><td><code>created_at</code></td><td><code>DATETIME</code></td><td>Discovery timestamp; used as <code>asOf</code> in GPS responses.</td></tr>
+                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key. Auto-increment.</td></tr>
+                        <tr><td><code>type</code></td><td><code>VARCHAR(50)</code></td><td>'hot_stocks', 'hot_ai_tech_stocks', 'etf_holding'. NOT NULL. Indexed.</td></tr>
+                        <tr><td><code>ticker</code></td><td><code>VARCHAR(10)</code></td><td>Stock symbol. NOT NULL. Indexed.</td></tr>
+                        <tr><td><code>company_name</code></td><td><code>VARCHAR(255)</code></td><td>Full legal name. NOT NULL.</td></tr>
+                        <tr><td><code>current_price</code></td><td><code>DECIMAL(12,4)</code></td><td>Price at discovery time.</td></tr>
+                        <tr><td><code>gps_score</code></td><td><code>DECIMAL(8,2)</code></td><td>0–100 GPS score.</td></tr>
+                        <tr><td><code>gps_breakdown</code></td><td><code>JSON</code></td><td>Named component scores.</td></tr>
+                        <tr><td><code>bearish_signal</code></td><td><code>TINYINT(1)</code></td><td>1 if a bearish technical pattern was detected at scoring time.</td></tr>
+                        <tr><td><code>trading_signal</code></td><td><code>VARCHAR(20)</code></td><td>BUY / HOLD / SELL signal from technical analysis engine.</td></tr>
+                        <tr><td><code>trading_signal_score</code></td><td><code>INT</code></td><td>Raw signal score from the technical indicators engine.</td></tr>
+                        <tr><td><code>classification</code></td><td><code>VARCHAR(100)</code></td><td>Category label (e.g. Technology, ETF Holding).</td></tr>
+                        <tr><td><code>analyst_upside_pct</code></td><td><code>DECIMAL(8,2)</code></td><td>Analyst consensus price target upside %.</td></tr>
+                        <tr><td><code>revenue_growth_yoy</code></td><td><code>DECIMAL(10,2)</code></td><td>Year-over-year revenue growth %.</td></tr>
+                        <tr><td><code>gross_margin_pct</code></td><td><code>DECIMAL(8,2)</code></td><td>Gross margin %.</td></tr>
+                        <tr><td><code>rd_spend_pct</code></td><td><code>DECIMAL(8,2)</code></td><td>R&amp;D spend as % of revenue.</td></tr>
+                        <tr><td><code>trailing_pe</code></td><td><code>DECIMAL(10,2)</code></td><td>Trailing price/earnings ratio.</td></tr>
+                        <tr><td><code>price_to_book</code></td><td><code>DECIMAL(10,2)</code></td><td>Price-to-book ratio.</td></tr>
+                        <tr><td><code>metric_value</code></td><td><code>DECIMAL(12,4)</code></td><td>Primary sort metric (varies by type; GPS score for etf_holding rows).</td></tr>
+                        <tr><td><code>metric_label</code></td><td><code>VARCHAR(100)</code></td><td>Human label for metric_value (e.g. "CS: 75", score_source for etf_holding).</td></tr>
+                        <tr><td><code>market_cap_m</code></td><td><code>DECIMAL(16,2)</code></td><td>Market cap in millions.</td></tr>
+                        <tr><td><code>mention_count</code></td><td><code>INT</code></td><td>Social/news mention count. Default 0.</td></tr>
+                        <tr><td><code>discovery_source</code></td><td><code>VARCHAR(100)</code></td><td>Origin of discovery (e.g. 'v2_engine', 'etf_holdings/QQQ').</td></tr>
+                        <tr><td><code>upcoming_earnings</code></td><td><code>VARCHAR(50)</code></td><td>Upcoming earnings date string if available.</td></tr>
+                        <tr><td><code>parent_etf_ticker</code></td><td><code>VARCHAR(20)</code></td><td>For etf_holding rows: the parent ETF that surfaces this stock.</td></tr>
+                        <tr><td><code>holding_percent</code></td><td><code>DECIMAL(10,6)</code></td><td>For etf_holding rows: decimal fraction of ETF assets held in this stock.</td></tr>
+                        <tr><td><code>prediction_input</code></td><td><code>LONGTEXT</code></td><td>JSON snapshot of the prediction payload used to produce this record.</td></tr>
+                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>Date of the discovery run. NOT NULL. Indexed (composite with type).</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Row creation timestamp (auto).</td></tr>
                     </tbody>
                 </table>
+                <div class="highlight-box">
+                    <strong>Note on GPS fallback:</strong> The GPS read path checks <code>stock_gps_scores</code> first, then falls back to <code>recommended_stocks</code>. GPS data is kept in sync by <code>deepmoney_sync.py</code> and <code>/api/prediction/save</code>. The <code>predicted_price_1m</code> column from earlier doc versions was removed; all price targets are now in <code>user_stock_predictions</code>.
+                </div>
             </div>
 
             <!-- RECOMMENDED_MARKETS -->
             <div id="recommended_markets" class="table-card">
                 <div class="table-title">recommended_markets</div>
-                <p>Market-level context records written by the DeepMoney sync cycle (macro regime, risk index, model version).</p>
+                <p>Market-level context records written by the DeepMoney sync cycle. Stores both hot market sectors (<code>hot_markets</code>) and hot AI sub-sector analysis (<code>hot_ai_sectors</code>) via the <code>type</code> discriminator.</p>
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key.</td></tr>
-                        <tr><td><code>regime</code></td><td><code>VARCHAR(50)</code></td><td>GMM market regime label.</td></tr>
-                        <tr><td><code>risk_index</code></td><td><code>DECIMAL(5,2)</code></td><td>Composite market risk score.</td></tr>
-                        <tr><td><code>model_version</code></td><td><code>VARCHAR(20)</code></td><td>Discovery engine version.</td></tr>
-                        <tr><td><code>created_at</code></td><td><code>DATETIME</code></td><td>Record timestamp.</td></tr>
+                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key. Auto-increment.</td></tr>
+                        <tr><td><code>type</code></td><td><code>VARCHAR(50)</code></td><td>'hot_markets' or 'hot_ai_sectors'. NOT NULL.</td></tr>
+                        <tr><td><code>name</code></td><td><code>VARCHAR(255)</code></td><td>Industry name (for hot_markets) or sub-sector name (for hot_ai_sectors). NOT NULL.</td></tr>
+                        <tr><td><code>average_sentiment</code></td><td><code>DECIMAL(5,2)</code></td><td>Average sentiment score across mentions.</td></tr>
+                        <tr><td><code>count</code></td><td><code>INT</code></td><td>Mention count (hot_markets) or article count (hot_ai_sectors).</td></tr>
+                        <tr><td><code>metric_value</code></td><td><code>DECIMAL(12,4)</code></td><td>Primary numeric metric for this record.</td></tr>
+                        <tr><td><code>metric_label</code></td><td><code>VARCHAR(100)</code></td><td>Human label for metric_value.</td></tr>
+                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>Date of discovery run. NOT NULL.</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Row creation timestamp (auto).</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -466,7 +533,7 @@
             <!-- HOT_ETFS -->
             <div id="hot_etfs" class="table-card">
                 <div class="table-title">hot_etfs</div>
-                <p>Stores the results of automated DeepMoney ETF discovery cycles.</p>
+                <p>Stores the results of automated DeepMoney ETF discovery cycles. Written by <code>performETFDiscovery()</code> in <code>src/utils/etfDiscovery.ts</code> via <code>persistETFs()</code>. Keyed on (ticker, snapshot_date) with ON DUPLICATE KEY UPDATE.</p>
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
@@ -474,13 +541,19 @@
                         <tr><td><code>etf_name</code></td><td><code>VARCHAR(255)</code></td><td>Full fund name.</td></tr>
                         <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>Date of discovery.</td></tr>
                         <tr><td><code>current_price</code></td><td><code>DECIMAL(10,2)</code></td><td>Price at snapshot.</td></tr>
-                        <tr><td><code>etf_gps_score</code></td><td><code>DECIMAL(5,1)</code></td><td>0-100 Score.</td></tr>
-                        <tr><td><code>theme</code></td><td><code>VARCHAR(100)</code></td><td>Thematic category.</td></tr>
-                        <tr><td><code>aum_m</code></td><td><code>DECIMAL(12,2)</code></td><td>Assets (Millions).</td></tr>
+                        <tr><td><code>etf_gps_score</code></td><td><code>DECIMAL(5,1)</code></td><td>0–100 ETF GPS score.</td></tr>
+                        <tr><td><code>theme</code></td><td><code>VARCHAR(100)</code></td><td>Thematic category (AI, Technology, etc.).</td></tr>
+                        <tr><td><code>aum_m</code></td><td><code>DECIMAL(12,2)</code></td><td>Assets under management in millions.</td></tr>
                         <tr><td><code>expense_ratio_pct</code></td><td><code>DECIMAL(5,3)</code></td><td>Annual fee %.</td></tr>
-                        <tr><td><code>52wk_return_pct</code></td><td><code>DECIMAL(7,2)</code></td><td>1Y Performance.</td></tr>
-                        <tr><td><code>macro_tailwind_score</code></td><td><code>DECIMAL(5,1)</code></td><td>Structural macro boost.</td></tr>
-                        <tr><td><code>theme_validation_bonus</code></td><td><code>DECIMAL(5,1)</code></td><td>Tech adoption bonus points.</td></tr>
+                        <tr><td><code>52wk_return_pct</code></td><td><code>DECIMAL(7,2)</code></td><td>1-year performance %.</td></tr>
+                        <tr><td><code>3mo_return_pct</code></td><td><code>DECIMAL(7,2)</code></td><td>3-month performance %.</td></tr>
+                        <tr><td><code>avg_daily_volume</code></td><td><code>BIGINT</code></td><td>Average daily share volume.</td></tr>
+                        <tr><td><code>momentum_score</code></td><td><code>DECIMAL(5,1)</code></td><td>Derived 3-month momentum score.</td></tr>
+                        <tr><td><code>news_signal_score</code></td><td><code>DECIMAL(5,1)</code></td><td>Thematic news overlap signal score.</td></tr>
+                        <tr><td><code>macro_tailwind_score</code></td><td><code>DECIMAL(5,1)</code></td><td>Structural macro boost from World Bank indicators.</td></tr>
+                        <tr><td><code>theme_validation_bonus</code></td><td><code>DECIMAL(5,1)</code></td><td>Tech adoption validation bonus points.</td></tr>
+                        <tr><td><code>discovery_source</code></td><td><code>VARCHAR(100)</code></td><td>How this ETF was found (e.g. 'watchlist+news_signal+macro_confirmed').</td></tr>
+                        <tr><td><code>is_leveraged</code></td><td><code>TINYINT(1)</code></td><td>1 if the ETF uses leverage (filtered out by default).</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -488,25 +561,73 @@
             <!-- ETF_CYCLE_SUMMARY -->
             <div id="etf_cycle_summary" class="table-card">
                 <div class="table-title">etf_cycle_summary</div>
-                <p>Cycle-level metadata for ETF discovery runs.</p>
+                <p>Cycle-level metadata for ETF discovery runs. One row inserted per <code>performETFDiscovery()</code> call.</p>
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
                         <tr><td><code>cycle_date</code></td><td><code>DATE</code></td><td>Run date.</td></tr>
-                        <tr><td><code>etfs_evaluated</code></td><td><code>INT</code></td><td>Total candidates.</td></tr>
-                        <tr><td><code>etfs_qualified</code></td><td><code>INT</code></td><td>Passed all filters.</td></tr>
-                        <tr><td><code>etfs_persisted</code></td><td><code>INT</code></td><td>Successfully saved.</td></tr>
-                        <tr><td><code>avg_etf_gps_score</code></td><td><code>DECIMAL(5,1)</code></td><td>Cycle quality metric.</td></tr>
-                        <tr><td><code>top_theme</code></td><td><code>VARCHAR(100)</code></td><td>Strongest thematic sector.</td></tr>
-                        <tr><td><code>cycle_duration_ms</code></td><td><code>INT</code></td><td>Runtime duration.</td></tr>
-                        <tr><td><code>errors</code></td><td><code>TEXT</code></td><td>Logged issues.</td></tr>
+                        <tr><td><code>etfs_evaluated</code></td><td><code>INT</code></td><td>Total candidates evaluated.</td></tr>
+                        <tr><td><code>etfs_qualified</code></td><td><code>INT</code></td><td>Candidates that passed all GPS threshold filters.</td></tr>
+                        <tr><td><code>etfs_persisted</code></td><td><code>INT</code></td><td>Top-N results actually written to hot_etfs.</td></tr>
+                        <tr><td><code>avg_etf_gps_score</code></td><td><code>DECIMAL(5,1)</code></td><td>Mean GPS score of persisted ETFs — cycle quality metric.</td></tr>
+                        <tr><td><code>top_theme</code></td><td><code>VARCHAR(100)</code></td><td>Strongest thematic sector by cumulative GPS score.</td></tr>
+                        <tr><td><code>cycle_duration_ms</code></td><td><code>INT</code></td><td>Wall-clock runtime in milliseconds.</td></tr>
+                        <tr><td><code>errors</code></td><td><code>TEXT</code></td><td>Semicolon-delimited list of per-ETF errors (truncated at 1000 chars).</td></tr>
                     </tbody>
                 </table>
             </div>
 
+            <!-- ETF_HOLDING_SCORES — NEW -->
+            <div id="etf_holding_scores" class="table-card">
+                <div class="table-title">etf_holding_scores <span class="new-badge">NEW</span></div>
+                <p>GPS score cache for the top stock holdings of qualifying ETFs. One row per (parent ETF ticker, holding ticker, snapshot date). Written by the prediction pipeline when <code>scoreETFHoldings()</code> is called from <code>performETFDiscovery()</code>. Read by <code>GET /api/stock_data/[ticker]/holdings</code> to enrich the holdings list returned to the UI and to <code>deepmoney_sync.py</code> when it surfaces holding candidates.</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>ticker</code></td><td><code>VARCHAR(20)</code></td><td>The holding stock symbol.</td></tr>
+                        <tr><td><code>parent_etf_ticker</code></td><td><code>VARCHAR(20)</code></td><td>The ETF that holds this stock. Used to scope lookups — each holding is cached per parent ETF.</td></tr>
+                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>Date of the scoring run. Used with MAX(snapshot_date) to retrieve most-recent scores per ticker.</td></tr>
+                        <tr><td><code>gps_score</code></td><td><code>DECIMAL(8,2)</code></td><td>0–100 GPS score for this holding.</td></tr>
+                        <tr><td><code>gps_breakdown</code></td><td><code>JSON</code></td><td>Named component scores (same structure as stock_gps_scores.gps_breakdown).</td></tr>
+                        <tr><td><code>predicted_change_pct</code></td><td><code>DECIMAL(8,4)</code></td><td>MLP-predicted 1-month price change % for this holding.</td></tr>
+                        <tr><td><code>bearish_signal</code></td><td><code>TINYINT(1)</code></td><td>1 if a bearish indicator was detected for this holding at scoring time.</td></tr>
+                        <tr><td><code>beta</code></td><td><code>DECIMAL(8,4)</code></td><td>Stock beta at time of scoring. Used in the volatility gate (default max 2.0, configurable via ETF_HOLDING_MAX_BETA).</td></tr>
+                        <tr><td><code>score_source</code></td><td><code>VARCHAR(20)</code></td><td>'fresh' if scored live by the MLP, 'cached' if sourced from an existing stock_gps_scores row.</td></tr>
+                    </tbody>
+                </table>
+                <div class="highlight-box">
+                    <strong>Surfacing thresholds (env-configurable):</strong> A holding is flagged <code>surfaced = true</code> in the API response — and therefore eligible to be written to <code>etf_stock_recommendations</code> — when all of the following conditions pass: <code>gps_score &gt;= ETF_HOLDING_GPS_SURFACE_VALUE</code> (default 60), <code>predicted_change_pct &gt;= ETF_HOLDING_MIN_PRED_CHANGE</code> (default 1.5 %), <code>bearish_signal = false</code>, and <code>beta &lt;= ETF_HOLDING_MAX_BETA</code> (default 2.0) or beta is null.
+                </div>
+            </div>
+
+            <!-- ETF_STOCK_RECOMMENDATIONS — NEW -->
+            <div id="etf_stock_recommendations" class="table-card">
+                <div class="table-title">etf_stock_recommendations <span class="new-badge">NEW</span></div>
+                <p>Per-user alert queue for hot stocks surfaced from ETF top-holdings analysis. Written by <code>deepmoney_sync.py</code> (via <code>POST /api/etf/holdings-recommendation</code>) and by the internal API route directly. Read by <code>GET /api/etf/holdings-recommendation</code> (user-facing alert panel) and by <code>GET /api/dashboard/recommendations</code> (recommendation bucket aggregation). Rows are keyed on (user_id, etf_ticker, stock_ticker, snapshot_date) so re-runs upsert existing records and reset the <code>seen</code> flag.</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key. Auto-increment.</td></tr>
+                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>FK to users.id. The user this recommendation is for.</td></tr>
+                        <tr><td><code>etf_ticker</code></td><td><code>VARCHAR(20)</code></td><td>The parent ETF (e.g. QQQ) that surfaces this holding. NOT NULL.</td></tr>
+                        <tr><td><code>stock_ticker</code></td><td><code>VARCHAR(20)</code></td><td>The recommended holding stock symbol. NOT NULL.</td></tr>
+                        <tr><td><code>gps_score</code></td><td><code>DECIMAL(8,2)</code></td><td>GPS score at time of surfacing.</td></tr>
+                        <tr><td><code>predicted_change_pct</code></td><td><code>DECIMAL(8,4)</code></td><td>Predicted 1-month price change %.</td></tr>
+                        <tr><td><code>confidence_score</code></td><td><code>DECIMAL(8,4)</code></td><td>MLP model confidence score.</td></tr>
+                        <tr><td><code>recommendation_reason</code></td><td><code>TEXT</code></td><td>Human-readable explanation, e.g. "AAPL is a top holding of QQQ with GPS 72.5 and +3.2% predicted gain."</td></tr>
+                        <tr><td><code>seen</code></td><td><code>TINYINT(1)</code></td><td>0 = unseen (new alert), 1 = dismissed by user via PATCH. Default 0. Reset to 0 on upsert.</td></tr>
+                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>Date the recommendation was generated.</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Row creation timestamp (auto).</td></tr>
+                    </tbody>
+                </table>
+                <div class="highlight-box">
+                    <strong>Filtering in dashboard:</strong> The recommendations route (<code>GET /api/dashboard/recommendations</code>) queries <code>etf_stock_recommendations</code> for the current user, filtered to rows created within the last 7 days and ordered by <code>gps_score DESC</code>. Stocks already in the user's portfolio, watchlist, or discovery list are excluded from the final output.
+                </div>
+            </div>
+
             <div id="macro_context_snapshots" class="table-card">
                 <div class="table-title">macro_context_snapshots</div>
-                <p>Daily snapshots of processed macro signals for backtesting.</p>
+                <p>Daily snapshots of processed macro signals used to apply GPS adjustments in the recommendations engine and for backtesting.</p>
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
@@ -521,8 +642,168 @@
             </div>
         </section>
 
+        <!-- PORTFOLIO TABLES -->
+        <section id="portfolio-tables">
+            <h2>Portfolio Analytics Tables</h2>
+            <p>These tables support the portfolio performance tracking, transaction history, and benchmark comparison features. They are written to by the portfolio management API routes.</p>
+
+            <div id="portfolio_transactions" class="table-card">
+                <div class="table-title">portfolio_transactions</div>
+                <p>Ledger of all portfolio transactions (buy, sell, dividend, split, deposit, withdrawal). Each row represents a single trade event and is the source of truth for cost basis and share count calculations.</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>id</code></td><td><code>BIGINT</code></td><td>Primary Key. Auto-increment.</td></tr>
+                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>FK to users.id.</td></tr>
+                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>FK to stocks.id.</td></tr>
+                        <tr><td><code>transaction_type</code></td><td><code>ENUM</code></td><td>'buy', 'sell', 'dividend', 'split', 'deposit', 'withdrawal'.</td></tr>
+                        <tr><td><code>shares</code></td><td><code>DECIMAL(14,6)</code></td><td>Number of shares in this transaction. May be NULL for cash events.</td></tr>
+                        <tr><td><code>price_per_share</code></td><td><code>DECIMAL(14,4)</code></td><td>Price per share at transaction time.</td></tr>
+                        <tr><td><code>total_amount</code></td><td><code>DECIMAL(14,2)</code></td><td>Total dollar amount of the transaction. NOT NULL.</td></tr>
+                        <tr><td><code>fees</code></td><td><code>DECIMAL(10,2)</code></td><td>Brokerage fees. Default 0.00.</td></tr>
+                        <tr><td><code>transaction_date</code></td><td><code>DATETIME</code></td><td>When the trade occurred. NOT NULL. Indexed (user_id, transaction_date) and (stock_id, transaction_date).</td></tr>
+                        <tr><td><code>notes</code></td><td><code>VARCHAR(255)</code></td><td>Optional user note.</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>DATETIME</code></td><td>Row creation timestamp (auto).</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="portfolio_daily_snapshots" class="table-card">
+                <div class="table-title">portfolio_daily_snapshots</div>
+                <p>End-of-day portfolio value snapshots per user. Drives the portfolio performance chart. Keyed on (user_id, snapshot_date).</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>PK part 1. FK to users.id.</td></tr>
+                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>PK part 2. The trading date.</td></tr>
+                        <tr><td><code>portfolio_value</code></td><td><code>DECIMAL(14,2)</code></td><td>Total market value of all positions at close. NOT NULL.</td></tr>
+                        <tr><td><code>total_cost_basis</code></td><td><code>DECIMAL(14,2)</code></td><td>Sum of cost basis across all open positions. NOT NULL.</td></tr>
+                        <tr><td><code>unrealized_gain_loss</code></td><td><code>DECIMAL(14,2)</code></td><td>portfolio_value - total_cost_basis. NOT NULL.</td></tr>
+                        <tr><td><code>realized_gain_loss</code></td><td><code>DECIMAL(14,2)</code></td><td>Cumulative realized P&amp;L from closed positions. NOT NULL.</td></tr>
+                        <tr><td><code>daily_change_amount</code></td><td><code>DECIMAL(14,2)</code></td><td>Dollar change from prior day snapshot.</td></tr>
+                        <tr><td><code>daily_change_percent</code></td><td><code>DECIMAL(8,4)</code></td><td>Percent change from prior day snapshot.</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>DATETIME</code></td><td>Row creation timestamp (auto).</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="portfolio_position_history" class="table-card">
+                <div class="table-title">portfolio_position_history</div>
+                <p>Daily per-position snapshots. Enables per-stock contribution analysis within the portfolio. Keyed on (user_id, stock_id, snapshot_date).</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>PK part 1.</td></tr>
+                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>PK part 2. FK to stocks.id.</td></tr>
+                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>PK part 3. The trading date.</td></tr>
+                        <tr><td><code>shares</code></td><td><code>DECIMAL(14,6)</code></td><td>Shares held at end of day.</td></tr>
+                        <tr><td><code>market_value</code></td><td><code>DECIMAL(14,2)</code></td><td>Close price * shares.</td></tr>
+                        <tr><td><code>cost_basis</code></td><td><code>DECIMAL(14,2)</code></td><td>Average cost basis * shares.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="portfolio_benchmark_performance" class="table-card">
+                <div class="table-title">portfolio_benchmark_performance</div>
+                <p>Compares per-user daily portfolio return against the SPY benchmark to compute alpha. Keyed on (user_id, snapshot_date).</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>PK part 1. FK to users.</td></tr>
+                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>PK part 2.</td></tr>
+                        <tr><td><code>portfolio_return_pct</code></td><td><code>DECIMAL(8,4)</code></td><td>User's portfolio return % for the day.</td></tr>
+                        <tr><td><code>spy_return_pct</code></td><td><code>DECIMAL(8,4)</code></td><td>SPY return % for the same day.</td></tr>
+                        <tr><td><code>alpha_pct</code></td><td><code>DECIMAL(8,4)</code></td><td>portfolio_return_pct - spy_return_pct.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ANCILLARY TABLES -->
+        <section id="ancillary-tables">
+            <h2>Ancillary Tables</h2>
+            <p>Supporting tables for news, branding, and marketing/lead-capture features.</p>
+
+            <div id="news" class="table-card">
+                <div class="table-title">news</div>
+                <p>Stores scraped and sentiment-scored news articles. Populated by the DeepMoney discovery pipeline from RSS feeds and news APIs.</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key. Auto-increment.</td></tr>
+                        <tr><td><code>title</code></td><td><code>VARCHAR(512)</code></td><td>Article headline. NOT NULL.</td></tr>
+                        <tr><td><code>link</code></td><td><code>VARCHAR(1024)</code></td><td>Canonical URL. NOT NULL. Unique — prevents duplicate ingestion.</td></tr>
+                        <tr><td><code>pub_date</code></td><td><code>DATETIME</code></td><td>Publication date from source feed.</td></tr>
+                        <tr><td><code>source</code></td><td><code>VARCHAR(255)</code></td><td>Feed source name.</td></tr>
+                        <tr><td><code>sentiment_score</code></td><td><code>DECIMAL(5,2)</code></td><td>Computed sentiment (-1 to +1 scale).</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Ingestion timestamp (auto).</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="user_stock_news" class="table-card">
+                <div class="table-title">user_stock_news</div>
+                <p>Junction table linking news articles to specific user-stock pairs. Enables per-user, per-stock news feeds.</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>FK to users.id.</td></tr>
+                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>FK to stocks.id.</td></tr>
+                        <tr><td><code>news_id</code></td><td><code>INT</code></td><td>FK to news.id.</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Association timestamp (auto).</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="stock_brand" class="table-card">
+                <div class="table-title">stock_brand</div>
+                <p>Stores branding assets for stocks (logo URLs, brand colours). Used by the UI to render stock cards with brand identity.</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>Primary Key. FK to stocks.id.</td></tr>
+                        <tr><td><code>logo_url</code></td><td><code>VARCHAR(512)</code></td><td>URL to the company logo image.</td></tr>
+                        <tr><td><code>brand_color</code></td><td><code>VARCHAR(20)</code></td><td>Primary hex brand colour (e.g. #00a8e0).</td></tr>
+                        <tr><td><code>updated_at</code></td><td><code>TIMESTAMP</code></td><td>Last update timestamp (auto).</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="preview_leads" class="table-card">
+                <div class="table-title">preview_leads</div>
+                <p>Captures contact form submissions from the public marketing preview page. Stores lead data for follow-up.</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>id</code></td><td><code>BIGINT UNSIGNED</code></td><td>Primary Key. Auto-increment.</td></tr>
+                        <tr><td><code>name</code></td><td><code>VARCHAR(120)</code></td><td>Contact name. NOT NULL.</td></tr>
+                        <tr><td><code>email</code></td><td><code>VARCHAR(255)</code></td><td>Contact email. NOT NULL. Indexed.</td></tr>
+                        <tr><td><code>company</code></td><td><code>VARCHAR(180)</code></td><td>Company name (optional).</td></tr>
+                        <tr><td><code>message</code></td><td><code>TEXT</code></td><td>Message body. NOT NULL.</td></tr>
+                        <tr><td><code>ip_address</code></td><td><code>VARCHAR(64)</code></td><td>Submitter IP address for spam/abuse tracking.</td></tr>
+                        <tr><td><code>user_agent</code></td><td><code>VARCHAR(500)</code></td><td>Browser user-agent string.</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Submission timestamp (auto). Indexed.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="preview_visits" class="table-card">
+                <div class="table-title">preview_visits</div>
+                <p>Logs anonymous page visits to the public preview/marketing site for traffic analytics.</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>id</code></td><td><code>BIGINT UNSIGNED</code></td><td>Primary Key. Auto-increment.</td></tr>
+                        <tr><td><code>ip_address</code></td><td><code>VARCHAR(64)</code></td><td>Visitor IP. NOT NULL. Indexed.</td></tr>
+                        <tr><td><code>user_agent</code></td><td><code>VARCHAR(500)</code></td><td>Browser user-agent string.</td></tr>
+                        <tr><td><code>visited_at</code></td><td><code>TIMESTAMP</code></td><td>Visit timestamp (auto). Indexed. NOT NULL.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
         <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem; text-align: center;">
-            MoneyGoUp Database Documentation &copy; 2026 &mdash; Last updated: May 22, 2026
+            GrowMyStocks Database Documentation &copy; 2026 &mdash; Last updated: June 6, 2026
         </footer>
     </main>
     </div>

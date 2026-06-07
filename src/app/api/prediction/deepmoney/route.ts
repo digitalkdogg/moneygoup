@@ -443,12 +443,14 @@ export async function GET(request: NextRequest) {
         }
     }
 
-    // --- Rate limiting ---
-    const clientIP = getClientIP(request);
-    const rateLimitResult = await deepmoneyLimiter.check(isInternal ? 'internal' : clientIP);
-    if (!rateLimitResult.allowed) {
-        logger.warn(`Rate limit exceeded for ${isInternal ? 'internal' : clientIP}`);
-        return forbiddenResponse('Rate limit exceeded. Please try again later.');
+    // --- Rate limiting (internal requests bypass) ---
+    if (!isInternal) {
+        const clientIP = getClientIP(request);
+        const rateLimitResult = await deepmoneyLimiter.check(clientIP);
+        if (!rateLimitResult.allowed) {
+            logger.warn(`Rate limit exceeded for ${clientIP}`);
+            return forbiddenResponse('Rate limit exceeded. Please try again later.');
+        }
     }
 
     // --- Cache check ---

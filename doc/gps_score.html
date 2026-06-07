@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GPS Score — MoneyGoUp Docs</title>
+    <title>GPS Score — GrowMyStocks Docs</title>
     <style>
         :root {
             --primary: #15803d;
@@ -266,7 +266,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">GPS Score</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-04</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-05</div>
   </div>
   <nav class="top-bar-nav">
     <a href="moneygoup_overview.html">Overview</a>
@@ -281,6 +281,8 @@
     <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
     <a href="technical_indicators_guide.html">Technical Guide</a>
     <a href="gps_score.html" class="active">GPS Score</a>
+    <a href="gps_utility.html">GPS Utility</a>
+    <a href="deepmoney_picks_route.html">DeepMoney Picks Route</a>
     <a href="style_guide.html">Style Guide</a>
     <a href="SEO.html">SEO</a>
   </nav>
@@ -348,7 +350,7 @@
           <tr>
             <td><strong>v3.0</strong> (current)</td>
             <td>8</td>
-            <td>Added <strong>Technical Signal</strong> (20 pts) and <strong>Analyst Consensus Rating</strong> (9 pts). Rebalanced all weights — ML Upside raised to 20, fundamentals reduced to 12 each, Analyst Upside cut to 12, 52-Week Momentum cut to 10. Python <code>update_predictions.py</code> now implements <code>calculate_gps_v3()</code> to maintain exact TS parity. The <code>/api/stock_data/[ticker]/data</code> route now computes and returns <code>technicalScore</code> and <code>recommendationKey</code> at payload top level.</td>
+            <td>Added <strong>Technical Signal</strong> (20 pts) and <strong>Analyst Consensus Rating</strong> (9 pts). Rebalanced all weights — ML Upside raised to 20, fundamentals reduced to 12 each, Analyst Upside cut to 12, 52-Week Momentum cut to 10. Python <code>update_predictions.py</code> now implements <code>calculate_gps_v3()</code> to maintain exact TS parity. The <code>/api/stock_data/[ticker]/data</code> route now computes and returns <code>technicalScore</code> and <code>recommendationKey</code> at payload top level. Added <code>bearishSignal: boolean</code> field to <code>GpsResult</code> return type — set when <code>predictedChangePct1m &lt; 0</code>.</td>
           </tr>
         </tbody>
       </table>
@@ -412,7 +414,7 @@
           <div class="component-name">ML Predicted Change (1m)</div>
           <div class="component-pts">Max 20 pts</div>
           <div class="component-formula">min(max(predictedChangePct1m / GPS_PREDICTION_MAX, -1), 1) × 20</div>
-          <div class="component-desc">1-month percentage price change predicted by the DeepMoney MLP model. Scaled against <code>GPS_PREDICTION_MAX</code> (env var, default <strong>3%</strong>). A 3% predicted gain earns the full 20 pts. A negative prediction can push this component below zero, contributing to a lower overall score. A negative value here also sets <code>bearishSignal = true</code>.</div>
+          <div class="component-desc">1-month percentage price change predicted by the DeepMoney MLP model. Scaled against <code>GPS_PREDICTION_MAX</code> (env var, default <strong>3%</strong>). A 3% predicted gain earns the full 20 pts. A negative prediction can push this component below zero, contributing to a lower overall score. A negative value here also sets <code>bearishSignal = true</code> in the <code>GpsResult</code>.</div>
         </div>
 
         <div class="component-card ml-card">
@@ -505,7 +507,12 @@ const m7 = CONSENSUS_POINTS[metrics.recommendationKey ?? ''] ?? CONSENSUS_POINTS
 const m8 = Math.min(Math.max((metrics.priceChange52w || 0) / 0.2, 0), 1) * 10
 
 const totalGps = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8
-return { score: parseFloat(Math.min(Math.max(totalGps, 0), 100).toFixed(1)), ... }</code></pre>
+return {
+  score: parseFloat(Math.min(Math.max(totalGps, 0), 100).toFixed(1)),
+  bearishSignal: (prediction.predictedChangePct1m || 0) &lt; 0,
+  breakdown: { mlpUpside, mlpConfidence, revenueGrowth, earningsGrowth,
+               technicalSignal, analystUpside, analystConsensus, priceChange52w }
+}</code></pre>
 
       <h3>Python equivalent (<code>scripts/update_predictions.py</code> — <code>calculate_gps_v3()</code>)</h3>
 <pre style="background:#1e293b;color:#f8fafc;border-radius:8px;padding:1.25rem;font-size:0.82rem;overflow-x:auto;line-height:1.7;"><code>prediction_max = float(os.getenv('GPS_PREDICTION_MAX', '3'))
@@ -520,7 +527,8 @@ m7 = float(_CONSENSUS_POINTS.get(recommendation_key, _CONSENSUS_POINTS['hold']))
 m8 = min(max(price_change_52w / 0.2, 0), 1) * 10
 
 total = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8
-score = round(min(max(total, 0), 100), 1)</code></pre>
+score = round(min(max(total, 0), 100), 1)
+bearish_signal = predicted_change_pct &lt; 0</code></pre>
 
       <div class="warn-box">
         <strong>Ceiling of 1, floor of 0 (or -1 for m1):</strong> Fundamental and momentum components use <code>min(…, 1)</code> and <code>max(…, 0)</code> so they cannot over-contribute or go negative. The ML Upside component (m1) uses <code>max(…, -1)</code>, allowing it to contribute negatively when the model predicts a price decline. The overall score is clamped to [0, 100].
@@ -542,9 +550,10 @@ score = round(min(max(total, 0), 100), 1)</code></pre>
     <!-- ── Bearish Signal ─────────────────────────────────────────────── -->
     <section id="bearish-signal">
       <h2>Bearish Signal</h2>
-      <p>Every GPS result includes a <code>bearishSignal: boolean</code> flag. It is set to <code>true</code> when <code>predictedChangePct1m &lt; 0</code>, meaning the ML model forecasts a price decline over the next month.</p>
+      <p>Every <code>GpsResult</code> includes a <code>bearishSignal: boolean</code> field. It is set to <code>true</code> when <code>predictedChangePct1m &lt; 0</code>, meaning the ML model forecasts a price decline over the next month. The field is also written to <code>recommended_stocks.bearish_signal</code> during the DeepMoney sync cycle.</p>
       <p>This flag is surfaced in several places:</p>
       <ul>
+        <li>The <strong>Stock detail Signal Panel</strong> (<code>StockSignalPanel</code>) shows a red triangular warning banner reading "AI model predicts downside — the MLP signal is negative for this stock's 1-month outlook." whenever <code>breakdown.mlpUpside &lt; 0</code>. This is checked on the breakdown object directly so the banner appears as soon as GPS data loads, without waiting for a prediction run.</li>
         <li>The <strong>Portfolio card</strong> (<code>PortfolioCardView</code>) shows an "AI model predicts downside" warning badge whenever <code>predictionChange &lt; 0</code>.</li>
         <li>The <strong>Python sync script</strong> (<code>update_predictions.py</code>) prints a <code>[gps] BEARISH SIGNAL</code> log line and records the predicted change percentage when the flag is set.</li>
         <li>The <strong>GPS Breakdown Modal</strong> shows the raw ML Prediction component score (which will be negative) alongside the overall score, giving users full transparency.</li>
@@ -617,16 +626,17 @@ score = round(min(max(total, 0), 100), 1)</code></pre>
 
       <h3>Stock detail page — Signal Panel</h3>
       <p>The <code>StockSignalPanel</code> component reads <code>gpsData</code> state from <code>Stock.tsx</code> (fetched from <code>GET /api/stock_data/[ticker]/gps</code>) and renders the score, a coloured label, and a top-3 component breakdown as progress bars. A <strong>"View score"</strong> button opens <code>GpsBreakdownModal</code> with all eight components and their exact point contributions. In the card-level <code>GpsTooltip</code> component, the same modal is triggered via a "View score" text button.</p>
+      <p>When the <code>mlpUpside</code> breakdown component is negative, the panel also displays a red triangular warning banner alerting the user to the negative AI outlook. The banner reads: "AI model predicts downside — the MLP signal is negative for this stock's 1-month outlook."</p>
       <p>When a prediction completes, the GPS score is included directly in the prediction response payload, so <code>Stock.tsx</code> updates the displayed score <strong>immediately</strong> without a round-trip re-fetch.</p>
 
       <h3>Watchlist &amp; Portfolio cards</h3>
       <p>GPS score and breakdown are joined from <code>stock_gps_scores</code> in the watchlist and portfolio queries via a <code>LEFT JOIN</code> and rendered in <code>WatchlistCardView</code> and <code>PortfolioCardView</code> respectively via the <code>GpsTooltip</code> component. The portfolio card also shows a red "AI model predicts downside" badge when <code>predictionChange &lt; 0</code>.</p>
 
       <h3>GPS Breakdown Modal</h3>
-      <p><code>GpsBreakdownModal</code> (at <code>src/app/components/modals/GpsBreakdownModal.tsx</code>) displays all eight component scores in a clean list format (e.g., "ML Prediction (1m): 14.0 / 20"). The header uses an inline style (<code>color: '#fff'</code>) on the ticker <code>h3</code> to override a global CSS rule from <code>globals.css</code> that otherwise sets <code>h3</code> to a dark foreground. The summary footer colour is determined by score: green (&ge;65), amber (45–64), or red (&lt;45).</p>
+      <p><code>GpsBreakdownModal</code> (at <code>src/app/components/modals/GpsBreakdownModal.tsx</code>) displays all eight component scores in a clean list format (e.g., "ML Prediction (1m): 14.0 / 20"). The header uses an inline style (<code>color: '#fff'</code>) on the ticker <code>h3</code> to override a global CSS rule from <code>globals.css</code> that otherwise sets <code>h3</code> to a dark foreground. The summary footer colour is determined by score: green (&ge;65), amber (45–64), or red (&lt;45). The modal also decodes the numeric <code>analystConsensus</code> points back to a label string (e.g., 7 = "Buy") and displays it inline.</p>
 
       <h3>Dashboard recommendations</h3>
-      <p>The recommendations engine (<code>GET /api/dashboard/recommendations</code>) uses GPS via <code>COALESCE(sgs.gps_score, rs.gps_score)</code>. The score is included in each recommendation object so clients can display it alongside the BUY/SELL signal.</p>
+      <p>The recommendations engine (<code>GET /api/dashboard/recommendations</code>) uses GPS via <code>COALESCE(sgs.gps_score, rs.gps_score)</code>. A macro adjustment of up to ±3 pts is applied based on World Bank unemployment signal and global health score before thresholds are evaluated. The GPS score is included in each recommendation object so clients can display it alongside the BUY/SELL signal.</p>
 
       <h3>DeepMoney Picks</h3>
       <p>The <code>GET /api/dashboard/deepmoney-picks</code> route reads GPS directly from <code>recommended_stocks</code> (populated during the sync cycle). It filters by <code>GPS_DEEPMONEY_MIN_SCORE</code> (default 65) and sorts picks descending by GPS score. Each pick also gets a <code>recommendationLabel</code> via <code>getGpsLabel()</code> for display in the UI.</p>
@@ -681,6 +691,21 @@ score = round(min(max(total, 0), 100), 1)</code></pre>
             <td>Minimum GPS score to include a stock in the DeepMoney Picks API response (<code>GET /api/dashboard/deepmoney-picks</code>).</td>
           </tr>
           <tr>
+            <td><code>GPS_RECOMMENDATION_BUY_THRESHOLD</code></td>
+            <td><code>65</code></td>
+            <td>GPS score required to surface a BUY recommendation for portfolio and watchlist stocks in <code>GET /api/dashboard/recommendations</code>.</td>
+          </tr>
+          <tr>
+            <td><code>GPS_RECOMMENDATION_SELL_THRESHOLD</code></td>
+            <td><code>45</code></td>
+            <td>GPS score below which a portfolio stock triggers a SELL recommendation.</td>
+          </tr>
+          <tr>
+            <td><code>GPS_RECOMMENDATION_DISCOVERY_THRESHOLD</code></td>
+            <td><code>70</code></td>
+            <td>GPS score required for discovery-scope stocks (not yet purchased or confirmed) to appear as BUY recommendations.</td>
+          </tr>
+          <tr>
             <td><code>DEEPMONEY_GPS_VALUE</code></td>
             <td><code>10</code></td>
             <td>Minimum GPS score to record a stock in <code>recommended_stocks</code> during the sync cycle (ML gate).</td>
@@ -699,7 +724,7 @@ score = round(min(max(total, 0), 100), 1)</code></pre>
     </section>
 
     <footer>
-      MoneyGoUp Documentation &copy; 2026 &mdash; GPS Score v3.0 &mdash; Updated 2026-06-04
+      GrowMyStocks Documentation &copy; 2026 &mdash; GPS Score v3.0 &mdash; Updated 2026-06-05
     </footer>
   </main>
 
