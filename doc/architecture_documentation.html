@@ -55,6 +55,7 @@
 
     .note { background: #fffbeb; border-left: 4px solid #fbbf24; padding: .75rem 1rem; border-radius: 0 6px 6px 0; font-size: .85rem; color: #78350f; margin: .5rem 0; line-height: 1.6; }
     .info { background: #eff6ff; border-left: 4px solid #3b82f6; padding: .75rem 1rem; border-radius: 0 6px 6px 0; font-size: .85rem; color: #1e3a8a; margin: .5rem 0; line-height: 1.6; }
+    .updated { background: #f0fdf4; border-left: 4px solid #22c55e; padding: .75rem 1rem; border-radius: 0 6px 6px 0; font-size: .85rem; color: #166534; margin: .5rem 0; line-height: 1.6; }
 
     .dep-list { display: flex; flex-wrap: wrap; gap: .4rem; margin: .6rem 0; }
     .dep-tag { font-size: .78rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 3px 10px; color: #475569; font-family: 'Menlo','Courier New',monospace; }
@@ -80,7 +81,7 @@
     .props-table td { padding: .45rem .75rem; border-bottom: 1px solid #f1f5f9; vertical-align: top; color: #374151; }
     .props-table tr:last-child td { border-bottom: none; }
     .props-table code { background: #f1f5f9; padding: 1px 5px; border-radius: 3px; font-size: .78rem; font-family: 'Menlo','Courier New',monospace; color: #0f172a; }
-  
+
     </style>
 </head>
 <body>
@@ -90,7 +91,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Architecture Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-05-24</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-07</div>
   </div>
   <nav class="top-bar-nav">
     <a href="moneygoup_overview.html">Overview</a>
@@ -148,7 +149,7 @@
       <span>Next.js 14 App Router</span>
       <span>TypeScript</span>
       <span>Tailwind CSS</span>
-      <span>Updated 2026-05-24</span>
+      <span>Updated 2026-06-07</span>
     </div>
 
     <div class="summary-grid">
@@ -173,7 +174,7 @@
             <tr><td>Font</td><td>Rubik (Google Fonts)</td><td>Weights 400/500/600/700, latin subset</td></tr>
             <tr><td>Authentication</td><td>NextAuth.js</td><td>CredentialsProvider, JWT session strategy, bcrypt password hashing</td></tr>
             <tr><td>Database</td><td>MySQL</td><td>Custom helper wrappers in <code>@/utils/databaseHelper</code></td></tr>
-            <tr><td>Market Data</td><td>yahoo-finance2</td><td>Primary source for quotes, historical prices, analyst summaries, earnings. Historical data uses <code>yahooFinance.chart()</code> (migrated from deprecated <code>yahooFinance.historical()</code> in May 2026)</td></tr>
+            <tr><td>Market Data</td><td>yahoo-finance2</td><td>Primary source for quotes, historical prices, analyst summaries, earnings. Historical data uses <code>yahooFinance.chart()</code> (migrated from deprecated <code>yahooFinance.historical()</code> in May 2026). ETF detection uses <code>quoteResult.quoteType === 'ETF'</code> (dynamic, replaces static company_tickers.json lookup).</td></tr>
             <tr><td>ML Prediction</td><td>Python subprocess</td><td><code>scripts/predict_weighted_analysis.py</code> spawned via Node child_process</td></tr>
             <tr><td>Charts</td><td>Recharts</td><td>Used for stock price history and portfolio value charts</td></tr>
             <tr><td>Email</td><td>Resend</td><td>Registration, approval, password reset, contact form</td></tr>
@@ -200,6 +201,7 @@
 │   │   ├── Navigation.tsx
 │   │   ├── Footer.tsx
 │   │   ├── Dashboard.tsx
+│   │   ├── RecommendationsSection.tsx  ETF-aware rec grid (portfolioEtfTickers prop)
 │   │   ├── cards/                  Card system (types, StockCard, BaseCardShell, …)
 │   │   │   └── variants/           PortfolioCardView, WatchlistCardView, …
 │   │   ├── modals/                 GpsBreakdownModal, BuyMoreModal, SellModal, …
@@ -212,7 +214,7 @@
 │       │   ├── forgot-password/
 │       │   └── reset-password/
 │       ├── user/
-│       │   ├── portfolio/
+│       │   ├── portfolio/          GET — enriches each item with is_etf from Yahoo quoteType
 │       │   │   └── historical-value/
 │       │   ├── watchlist/
 │       │   ├── stocks/
@@ -232,12 +234,15 @@
 │       │       ├── route.ts
 │       │       ├── gps/
 │       │       ├── data/
+│       │       ├── holdings/
 │       │       └── industry/
 │       ├── market/
 │       │   ├── indices/
 │       │   └── trending/
 │       ├── admin/
 │       │   └── users/
+│       ├── etf/
+│       │   └── holdings-recommendation/
 │       ├── contact/
 │       └── worldbank/
 │
@@ -246,8 +251,13 @@
 │
 ├── middleware.ts                   Route protection (withAuth)
 │
+├── types/
+│   └── portfolio.d.ts              PortfolioItem — includes is_etf?: boolean
+│
 └── utils/
     ├── databaseHelper.ts           executeRawQuery, insert, upsert, update, remove
+    ├── etfDiscovery.ts             ETF scoring + holdings phase (ETF_HOLDING_TOP_N env)
+    ├── etfHoldings.ts              fetchETFHoldings, scoreETFHoldings
     ├── rateLimiter.ts              loginLimiter, registerLimiter, etc.
     ├── limitService.ts             Role-based resource quotas
     ├── originCheck.ts              checkOrigin() middleware
@@ -256,6 +266,11 @@
     └── formatters.ts               Global number/date formatters
 
 scripts/
+├── deepmoney_sync.py              Full discovery + ETF sync orchestrator
+├── update_predictions.py          Portfolio prediction sync + ETF holdings scan
+│                                   Reads ETF_HOLDING_GPS_SURFACE_VALUE,
+│                                   ETF_HOLDING_MIN_PRED_CHANGE,
+│                                   ETF_HOLDING_MIN_CONFIDENCE env vars
 └── predict_weighted_analysis.py   Python ML prediction model
 
 public/
@@ -275,7 +290,7 @@ doc/                               All HTML documentation files</pre>
           <thead><tr><th>Route</th><th>Component / Page</th><th>Auth</th><th>Notes</th></tr></thead>
           <tbody>
             <tr><td><code>/</code></td><td>Dashboard</td><td>Required</td><td>Portfolio, watchlist, recommendations, indices strip</td></tr>
-            <tr><td><code>/portfolio</code></td><td>Portfolio page</td><td>Required</td><td>Full portfolio view with history chart, gains breakdown, compare chart</td></tr>
+            <tr><td><code>/portfolio</code></td><td>Portfolio page</td><td>Required</td><td>Full portfolio view: history chart, KPIs, gains breakdown, compare chart, holdings sidebar, and Recommendations section. Passes <code>etf_holding</code> scope + <code>portfolioEtfTickers</code> to <code>RecommendationsSection</code> when user holds ETFs.</td></tr>
             <tr><td><code>/search</code></td><td>Search page</td><td>Required</td><td>Search component + TrendingStocksGrid + SectorExplorer</td></tr>
             <tr><td><code>/search/[ticker]</code></td><td>Stock detail page</td><td>Required</td><td>Renders Stock component for a single ticker</td></tr>
             <tr><td><code>/search/industry/[sector]</code></td><td>Industry page</td><td>Required</td><td>Renders IndustryStocks component</td></tr>
@@ -357,14 +372,15 @@ doc/                               All HTML documentation files</pre>
       <div class="section-title" id="data-flow">Data Flow</div>
 
       <div class="arch-card">
-        <h4>Portfolio Data Flow</h4>
+        <h4>Portfolio Data Flow <span style="font-size:.75rem;font-weight:400;color:#64748b;">(updated June 2026)</span></h4>
         <ol class="flow-steps">
-          <li><code>Dashboard</code> component mounts; calls <code>GET /api/user/portfolio</code>.</li>
+          <li><code>Dashboard</code> or <code>PortfolioPage</code> mounts; calls <code>GET /api/user/portfolio</code>.</li>
           <li>API queries <code>user_stocks JOIN stocks JOIN user_stock_predictions JOIN stock_brand</code>.</li>
-          <li>For each holding, fetches live price + analyst summary from Yahoo Finance.</li>
-          <li>Returns enriched portfolio array with totals (costBasis, marketValue, unrealizedGain/Loss).</li>
-          <li><code>Dashboard</code> passes data to <code>PortfolioSummary</code> (KPI cards), <code>PortfolioSection</code> (card grid), and triggers refreshes when the user buys/sells.</li>
+          <li>For each holding, fetches live quote + analyst summary from Yahoo Finance in parallel. The <code>quoteResult.quoteType</code> field is checked: if it equals <code>'ETF'</code> (case-insensitive), the item is flagged <code>is_etf: true</code>. This replaces the previous approach of looking up the static <code>company_tickers.json</code>, which was missing many ETFs such as VGT.</li>
+          <li>Returns enriched portfolio array (now includes <code>is_etf</code> per item) with totals (costBasis, marketValue, unrealizedGain/Loss).</li>
+          <li><code>PortfolioPage</code> derives <code>portfolioEtfTickers</code> (symbols where <code>is_etf === true</code>) and <code>hasEtfInPortfolio</code> from the response. When <code>hasEtfInPortfolio</code> is true, the <code>RecommendationsSection</code> scopes array is extended with <code>'etf_holding'</code> and <code>portfolioEtfTickers</code> is forwarded to filter those cards to the user's actual ETF positions.</li>
         </ol>
+        <div class="updated" style="margin-top:.75rem;"><strong>is_etf detection change (June 2026):</strong> ETF status is now determined dynamically from Yahoo Finance's <code>quoteType</code> field at request time, rather than from the static <code>company_tickers.json</code> file. This correctly identifies fund-of-fund structures and thematic ETFs (e.g., VGT, QQQ, SCHD) that were absent from the SEC dataset.</div>
       </div>
 
       <div class="arch-card">
@@ -387,14 +403,16 @@ doc/                               All HTML documentation files</pre>
       </div>
 
       <div class="arch-card">
-        <h4>Recommendations Data Flow</h4>
+        <h4>Recommendations Data Flow <span style="font-size:.75rem;font-weight:400;color:#64748b;">(updated June 2026)</span></h4>
         <ol class="flow-steps">
           <li><code>RecommendationsSection</code> calls <code>GET /api/dashboard/recommendations</code>.</li>
-          <li>API fetches user's saved predictions from <code>user_stock_predictions</code> for all three scopes (portfolio, watchlist, discovery).</li>
+          <li>API fetches user's saved predictions from <code>user_stock_predictions</code> for portfolio and watchlist scopes. ETF holding recommendations are fetched separately from <code>etf_stock_recommendations</code>.</li>
           <li>Fetches current prices from Yahoo Finance to compare against predicted prices.</li>
           <li>Calls <code>GET /api/worldbank</code> (6-hour cached) to get macro dampeners: if unemployment is bearish, BUY threshold rises by 2%; <code>globalHealthScore</code> adjusts delta multiplier.</li>
-          <li>Returns recommendations sorted by |deltaPct|. Tagged with scope.</li>
+          <li>Returns recommendations sorted by |deltaPct|, tagged with scope (<code>portfolio</code>, <code>watchlist</code>, <code>discovery</code>, or <code>etf_holding</code>). ETF holding items also carry an <code>etfTicker</code> field.</li>
+          <li>On the <code>/portfolio</code> page, <code>RecommendationsSection</code> receives a <code>portfolioEtfTickers</code> prop and client-side filters <code>etf_holding</code> cards so only holdings within the user's actual ETF positions are shown (not watchlist ETFs).</li>
         </ol>
+        <div class="info" style="margin-top:.75rem;"><strong>ETF holding card badge:</strong> Cards with <code>scope === 'etf_holding'</code> render a teal badge labelled "etf holding" and display "In {etfTicker}" in the sub-label instead of the standard last-updated timestamp.</div>
       </div>
     </div>
 
@@ -517,6 +535,7 @@ Each variant uses:
             <tr><td><code>stocksdailyprice</code></td><td>Historical daily closing prices (used for 6-month moving average on watchlist)</td></tr>
             <tr><td><code>recommended_stocks</code></td><td>System-wide AI-curated hot stocks snapshot with GPS scores</td></tr>
             <tr><td><code>hot_etfs</code></td><td>System-wide AI-curated hot ETFs snapshot</td></tr>
+            <tr><td><code>etf_stock_recommendations</code></td><td>Per-user ETF holding recommendations written by <code>update_predictions.py</code>. Each row links a user, a parent ETF ticker, and a holding ticker with GPS/prediction metadata.</td></tr>
           </tbody>
         </table>
       </div>
@@ -544,6 +563,7 @@ Each variant uses:
             <li>Major indices (DJI, GSPC, IXIC, VIX)</li>
             <li>Trending stocks</li>
             <li>Industry/sector peer lists</li>
+            <li><strong>ETF detection</strong> — <code>quoteType === 'ETF'</code> used to set <code>is_etf</code> on portfolio items (dynamic; replaces static SEC list)</li>
           </ul>
         </div>
         <div class="arch-card">
@@ -572,7 +592,7 @@ Each variant uses:
         </div>
         <div class="arch-card">
           <h4>SEC Company Tickers</h4>
-          <p>The full SEC company ticker list is served as a static public asset at <code>/company_tickers.json</code>. The <code>Search</code> component fetches and filters this client-side (up to 200 results), so no backend search API is needed for ticker autocomplete.</p>
+          <p>The full SEC company ticker list is served as a static public asset at <code>/company_tickers.json</code>. The <code>Search</code> component fetches and filters this client-side (up to 200 results), so no backend search API is needed for ticker autocomplete. Note: this file is <strong>not</strong> used for ETF detection — ETF status is determined at runtime via Yahoo Finance's <code>quoteType</code>.</p>
         </div>
       </div>
 
@@ -644,6 +664,7 @@ Each variant uses:
     <!-- ══════════════════════════════════════════ -->
     <div class="section">
       <div class="section-title" id="env-vars">Environment Variables</div>
+      <div class="updated" style="margin-bottom:1rem;"><strong>June 2026 rename:</strong> ETF holding env vars have been standardised to a consistent <code>ETF_HOLDING_*</code> prefix. <code>ETF_HOLDINGS_TOP_N</code> is now <code>ETF_HOLDING_TOP_N</code> (TypeScript). The Python script (<code>update_predictions.py</code>) reads <code>ETF_HOLDING_GPS_SURFACE_VALUE</code>, <code>ETF_HOLDING_MIN_PRED_CHANGE</code>, and <code>ETF_HOLDING_MIN_CONFIDENCE</code> (previously named with an <code>S</code> plural and different suffixes). Defaults are GPS=60, pred change=1.5%, confidence=60 across both runtimes.</div>
       <div class="arch-card">
         <table class="props-table">
           <thead><tr><th>Variable</th><th>Purpose</th><th>Required</th></tr></thead>
@@ -687,13 +708,14 @@ Each variant uses:
             <tr><td><code>GPS_RECOMMENDATION_SELL_THRESHOLD</code></td><td>Maximum GPS score (0-100) below which "SELL" recommendations are triggered. Value of <code>45</code> means stocks with GPS &lt;45 trigger sell signals. Lower threshold = stronger sell signals. Adjust based on risk tolerance.</td><td>No</td></tr>
             <tr><td><code>GPS_RECOMMENDATION_DISCOVERY_THRESHOLD</code></td><td>Minimum GPS score (0-100) for including stocks in discovery/watchlist recommendations. Value of <code>80</code> means only GPS ≥80 stocks appear in discovery lists. Controls quality and relevance of discovery recommendations.</td><td>No</td></tr>
             <tr><td><code>GPS_DEEPMONEY_MIN_SCORE</code></td><td>Minimum GPS score (0-100) required to use DeepMoney predictions as a factor in recommendations. Value of <code>65</code> means only GPS ≥65 stocks trigger DeepMoney-based logic. Ensures predictions are only applied to sufficiently analyzed stocks.</td><td>No</td></tr>
-            <!-- ETF Holdings Analysis -->
-            <tr><td><code>ETF_HOLDINGS_TOP_N</code></td><td>Number of top holdings to analyze per ETF (e.g., <code>10</code>). Only the top N stocks by weight in each ETF will be scanned and scored. Lower = faster but less comprehensive; higher = slower but more thorough analysis.</td><td>No</td></tr>
-            <tr><td><code>ETF_HOLDING_GPS_SURFACE_VALUE</code></td><td>GPS score threshold (0-100) for surfacing ETF holdings in recommendations (e.g., <code>85</code>). Holdings with GPS &lt;85 are filtered out. Controls which holdings appear in user recommendations based on GPS quality.</td><td>No</td></tr>
-            <tr><td><code>ETF_HOLDING_STALENESS_HOURS</code></td><td>Maximum age of cached ETF holdings data in hours before refresh (e.g., <code>6</code> hours). Data older than this is refetched from data provider. Lower = fresher data but more API calls; higher = fewer calls but potentially stale data.</td><td>No</td></tr>
+            <!-- ETF Holdings Analysis — canonical ETF_HOLDING_* set (updated June 2026) -->
+            <tr><td><code>ETF_HOLDING_GPS_SURFACE_VALUE</code></td><td>GPS score threshold (0-100) for surfacing ETF holdings as recommendations. Read by <code>update_predictions.py</code>. Default <code>60</code>. Holdings below this threshold are scored but not saved as user recommendations. Previously named <code>ETF_HOLDINGS_GPS_THRESHOLD</code> in the Python script.</td><td>No</td></tr>
+            <tr><td><code>ETF_HOLDING_MIN_PRED_CHANGE</code></td><td>Minimum predicted price change percentage (e.g., <code>1.5</code>) required for an ETF holding recommendation to be saved. Read by <code>update_predictions.py</code>. Default <code>1.5</code>. Previously named <code>ETF_HOLDINGS_PREDICTION_THRESHOLD</code>.</td><td>No</td></tr>
+            <tr><td><code>ETF_HOLDING_MIN_CONFIDENCE</code></td><td>Minimum AI model confidence score (0-100) for an ETF holding recommendation to be saved. Read by <code>update_predictions.py</code>. Default <code>60</code>. Previously named <code>ETF_HOLDINGS_CONFIDENCE_THRESHOLD</code>.</td><td>No</td></tr>
+            <tr><td><code>ETF_HOLDING_TOP_N</code></td><td>Number of top holdings to analyze per ETF in the TypeScript ETF discovery flow (<code>src/utils/etfDiscovery.ts</code>). Default <code>5</code>. Previously named <code>ETF_HOLDINGS_TOP_N</code>.</td><td>No</td></tr>
             <tr><td><code>ETF_HOLDING_MAX_TICKERS</code></td><td>Maximum number of unique ticker symbols to analyze per ETF (e.g., <code>50</code>). Prevents analyzing massive diversified ETFs (like VTI with 3000+ holdings). Trades comprehensiveness for performance.</td><td>No</td></tr>
-            <tr><td><code>ETF_HOLDING_MAX_BETA</code></td><td>Maximum beta coefficient (volatility multiplier) for including ETF holdings in analysis (e.g., <code>2.0</code>). Filters out extremely volatile holdings. Value of 2.0 = 2x market volatility. Filters for stability.</td><td>No</td></tr>
-            <tr><td><code>ETF_HOLDING_MIN_PRED_CHANGE</code></td><td>Minimum predicted price change percentage to include an ETF holding in recommendations (e.g., <code>1.5</code>). Holdings with &lt;1.5% predicted change are filtered out. Controls signal strength and avoids weak predictions.</td><td>No</td></tr>
+            <tr><td><code>ETF_HOLDING_MAX_BETA</code></td><td>Maximum beta coefficient (volatility multiplier) for including ETF holdings in analysis (e.g., <code>2.0</code>). Filters out extremely volatile holdings. Value of 2.0 = 2x market volatility.</td><td>No</td></tr>
+            <tr><td><code>ETF_HOLDING_STALENESS_HOURS</code></td><td>Maximum age of cached ETF holdings data in hours before a refresh is triggered (e.g., <code>6</code>). Lower = fresher data but more API calls; higher = fewer calls but potentially stale data.</td><td>No</td></tr>
           </tbody>
         </table>
       </div>

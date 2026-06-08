@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MoneyGoUp Recommendation Engine - 3 Bucket Strategy</title>
+    <title>GrowMyStocks — Recommendation Engine Buckets</title>
     <style>
         :root {
             --primary: #15803d;
@@ -11,6 +11,7 @@
             --portfolio: #1d4ed8;
             --watchlist: #b45309;
             --discovery: #7c3aed;
+            --etf-holding: #0d9488;
             --bg: #f8fafc;
             --text: #1e293b;
             --border: #e2e8f0;
@@ -23,7 +24,6 @@
             margin: 0;
         }
         main {
-            
             padding: 3rem;
             max-width: 1000px;
             width: 100%;
@@ -55,12 +55,15 @@
         .watchlist-bucket::before { background: var(--watchlist); }
         .discovery-bucket { border-color: #ddd6fe; background: #f5f3ff; }
         .discovery-bucket::before { background: var(--discovery); }
+        .etf-holding-bucket { border-color: #99f6e4; background: #f0fdfa; }
+        .etf-holding-bucket::before { background: var(--etf-holding); }
 
         .bucket-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
         .bucket-title { font-size: 1.25rem; font-weight: 800; text-transform: uppercase; }
         .portfolio-text { color: var(--portfolio); }
         .watchlist-text { color: var(--watchlist); }
         .discovery-text { color: var(--discovery); }
+        .etf-holding-text { color: var(--etf-holding); }
 
         .criteria-box {
             background: rgba(255,255,255,0.6);
@@ -85,31 +88,42 @@
         .logic-list { margin-top: 1rem; padding-left: 1.2rem; }
         .logic-list li { margin-bottom: 0.5rem; }
 
+        .updated-note { background: #f0fdf4; border-left: 4px solid #22c55e; padding: 0.75rem 1rem; border-radius: 0 6px 6px 0; font-size: 0.85rem; color: #166534; margin: 1rem 0; line-height: 1.6; }
+        .info-note { background: #eff6ff; border-left: 4px solid #3b82f6; padding: 0.75rem 1rem; border-radius: 0 6px 6px 0; font-size: 0.85rem; color: #1e3a8a; margin: 1rem 0; line-height: 1.6; }
+
+        .new-badge { display: inline-block; font-size: .65rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 999px; margin-left: .5rem; vertical-align: middle; }
+
         @media (max-width: 768px) {
             main { margin-left: 0; padding: 1.5rem; }
         }
 
         footer { margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem; text-align: center; }
-    
-    /* ── Top Bar ── */
-    .top-bar { background: #017e3b; color: #fff; padding: 0 2rem; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
-    .top-bar-header { display: flex; align-items: center; justify-content: space-between; height: 56px; }
-    .top-bar .brand { font-size: 1.2rem; font-weight: 700; letter-spacing: .02em; }
-    .top-bar .brand span { color: #bbf7d0; }
-    .top-bar .subtitle { font-size: .8rem; opacity: .8; }
-    .top-bar-nav { display: flex; gap: 1.75rem; overflow-x: auto; scrollbar-width: none; padding: 6px 0 8px; border-top: 1px solid rgba(255,255,255,0.15); }
-    .top-bar-nav::-webkit-scrollbar { display: none; }
-    .top-bar-nav a { white-space: nowrap; color: rgba(255,255,255,0.72); text-decoration: none; font-size: .8rem; font-weight: 600; padding-bottom: 3px; border-bottom: 2px solid transparent; transition: color .15s, border-color .15s; flex-shrink: 0; }
-    .top-bar-nav a:hover { color: #fff; }
-    .top-bar-nav a.active { color: #fff; border-bottom-color: #86efac; }
+
+        /* ── Top Bar ── */
+        .top-bar { background: #017e3b; color: #fff; padding: 0 2rem; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+        .top-bar-header { display: flex; align-items: center; justify-content: space-between; height: 56px; }
+        .top-bar .brand { font-size: 1.2rem; font-weight: 700; letter-spacing: .02em; }
+        .top-bar .brand span { color: #bbf7d0; }
+        .top-bar .subtitle { font-size: .8rem; opacity: .8; }
+        .top-bar-nav { display: flex; gap: 1.75rem; overflow-x: auto; scrollbar-width: none; padding: 6px 0 8px; border-top: 1px solid rgba(255,255,255,0.15); }
+        .top-bar-nav::-webkit-scrollbar { display: none; }
+        .top-bar-nav a { white-space: nowrap; color: rgba(255,255,255,0.72); text-decoration: none; font-size: .8rem; font-weight: 600; padding-bottom: 3px; border-bottom: 2px solid transparent; transition: color .15s, border-color .15s; flex-shrink: 0; }
+        .top-bar-nav a:hover { color: #fff; }
+        .top-bar-nav a.active { color: #fff; border-bottom-color: #86efac; }
 
         .layout { display: flex; flex: 1; }
-    .sidebar { width: 260px; min-width: 260px; background: #fff; border-right: 1px solid #e2e8f0; padding: 1.5rem 0; position: sticky; top: 92px; height: calc(100vh - 92px); overflow-y: auto; }
-    .sidebar h3 { font-size: .65rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #94a3b8; padding: .25rem 1.25rem .5rem; margin-top: .5rem; }
-    .sidebar a { display: block; padding: .45rem 1.25rem; font-size: .85rem; color: #475569; text-decoration: none; border-left: 3px solid transparent; transition: all .15s; line-height: 1.4; }
-    .sidebar a:hover { background: #f0fdf4; color: #017e3b; border-left-color: #86efac; }
-    .sidebar a.active { background: #f0fdf4; color: #017e3b; font-weight: 600; border-left-color: #017e3b; }
-    .sidebar .section-divider { border-top: 1px solid #f1f5f9; margin: .5rem 0; }
+        .sidebar { width: 260px; min-width: 260px; background: #fff; border-right: 1px solid #e2e8f0; padding: 1.5rem 0; position: sticky; top: 92px; height: calc(100vh - 92px); overflow-y: auto; }
+        .sidebar h3 { font-size: .65rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #94a3b8; padding: .25rem 1.25rem .5rem; margin-top: .5rem; }
+        .sidebar a { display: block; padding: .45rem 1.25rem; font-size: .85rem; color: #475569; text-decoration: none; border-left: 3px solid transparent; transition: all .15s; line-height: 1.4; }
+        .sidebar a:hover { background: #f0fdf4; color: #017e3b; border-left-color: #86efac; }
+        .sidebar a.active { background: #f0fdf4; color: #017e3b; font-weight: 600; border-left-color: #017e3b; }
+        .sidebar .section-divider { border-top: 1px solid #f1f5f9; margin: .5rem 0; }
+
+        table { width: 100%; border-collapse: collapse; font-size: .85rem; margin: .75rem 0; }
+        th { text-align: left; color: #64748b; font-weight: 600; padding: .4rem .6rem; border-bottom: 1px solid var(--border); background: #f8fafc; }
+        td { padding: .4rem .6rem; vertical-align: top; border-bottom: 1px solid #f1f5f9; }
+        tr:last-child td { border-bottom: none; }
+        code { padding: .2rem .4rem; border-radius: 4px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: .9rem; background: #f1f5f9; }
     </style>
 </head>
 <body>
@@ -119,7 +133,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Recommendation Buckets</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Generated 2026-05-20</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-07</div>
   </div>
   <nav class="top-bar-nav">
     <a href="moneygoup_overview.html">Overview</a>
@@ -138,8 +152,8 @@
     <a href="SEO.html">SEO</a>
   </nav>
 </div>
-    <div class="layout">
-      <nav class="sidebar" aria-label="Recommendation buckets sections">
+<div class="layout">
+  <nav class="sidebar" aria-label="Recommendation buckets sections">
     <h3>GrowMyStocks Docs</h3>
     <a href="moneygoup_overview.html">App Overview</a>
     <a href="architecture_documentation.html">Architecture</a>
@@ -150,6 +164,8 @@
     <a href="#portfolio">Bucket 1: Portfolio</a>
     <a href="#watchlist">Bucket 2: Watchlist</a>
     <a href="#discovery">Bucket 3: Discovery</a>
+    <a href="#etf-holding">Bucket 4: ETF Holding</a>
+    <a href="#ui-filtering">UI Filtering (Portfolio page)</a>
     <a href="#config">Environment Config</a>
     <div class="section-divider"></div>
     <a href="authentication_flow.html">Auth Flow</a>
@@ -162,23 +178,26 @@
   </nav>
 
     <main>
-        <h1>Recommendation Engine: The 3-Bucket Strategy</h1>
-        <p>MoneyGoUp's recommendation engine classifies stocks into three distinct buckets to provide tailored BUY/SELL signals. This system ensures that user-owned positions, monitored interests, and AI-discovered opportunities are treated with the appropriate level of urgency and validation.</p>
+        <h1>Recommendation Engine: The 4-Bucket Strategy</h1>
+        <p>GrowMyStocks' recommendation engine classifies stocks into four distinct buckets to provide tailored BUY/SELL signals. This system ensures that user-owned positions, monitored interests, AI-discovered opportunities, and ETF top-holding breakouts are each treated with the appropriate level of urgency and validation.</p>
+
+        <div class="updated-note"><strong>June 2026:</strong> A fourth bucket — <strong>ETF Holding</strong> — has been added. When a user holds ETFs in their portfolio, the <code>/portfolio</code> page now surfaces BUY recommendations for high-GPS individual stocks found inside those ETFs. See Bucket 4 below.</div>
 
         <!-- BUCKET 1: PORTFOLIO -->
         <section id="portfolio">
             <div class="bucket-card portfolio-bucket">
                 <div class="bucket-header">
-                    <span style="font-size: 1.5rem;">📊</span>
+                    <span style="font-size: 1.5rem;" role="img" aria-label="chart">&#128202;</span>
                     <span class="bucket-title portfolio-text">Bucket 1: Portfolio</span>
                 </div>
                 <p>Positions that the user has officially purchased and confirmed. These represent real financial stakes and require the highest precision for signals.</p>
                 <ul class="logic-list">
                     <li><strong>Signals:</strong> Surfaces both <strong>BUY</strong> (add to position) and <strong>SELL</strong> (exit/trim) alerts.</li>
                     <li><strong>Logic:</strong> Compares the AI 1-month prediction against the current live market price.</li>
+                    <li><strong>Badge color:</strong> Blue (<code>bg-blue-100 text-blue-700</code>)</li>
                 </ul>
                 <div class="criteria-box">
-                    is_purchased = 1 AND user_confirmed = 1 AND shares > 0 AND is_active = 1
+                    is_purchased = 1 AND user_confirmed = 1 AND shares &gt; 0 AND is_active = 1
                 </div>
                 <div class="threshold-pill">Positive: +3% (default)</div>
                 <div class="threshold-pill">Negative: -3% (default)</div>
@@ -189,13 +208,14 @@
         <section id="watchlist">
             <div class="bucket-card watchlist-bucket">
                 <div class="bucket-header">
-                    <span style="font-size: 1.5rem;">👀</span>
+                    <span style="font-size: 1.5rem;" role="img" aria-label="eyes">&#128064;</span>
                     <span class="bucket-title watchlist-text">Bucket 2: Watchlist</span>
                 </div>
                 <p>Stocks that the user is actively monitoring but does not yet own. These items have been explicitly "confirmed" by the user (e.g., by clicking "Add to Watchlist").</p>
                 <ul class="logic-list">
                     <li><strong>Signals:</strong> Surfaces <strong>BUY</strong> alerts only.</li>
                     <li><strong>Logic:</strong> Monitors for significant upward breakouts predicted by the AI.</li>
+                    <li><strong>Badge color:</strong> Amber (<code>bg-amber-100 text-amber-700</code>)</li>
                 </ul>
                 <div class="criteria-box">
                     is_purchased = 0 AND user_confirmed = 1 AND is_active = 1
@@ -208,7 +228,7 @@
         <section id="discovery">
             <div class="bucket-card discovery-bucket">
                 <div class="bucket-header">
-                    <span style="font-size: 1.5rem;">✨</span>
+                    <span style="font-size: 1.5rem;" role="img" aria-label="sparkles">&#10024;</span>
                     <span class="bucket-title discovery-text">Bucket 3: Discovery</span>
                 </div>
                 <p>High-potential stocks identified automatically by the <code>deepmoney_sync.py</code> engine. These appear as "unconfirmed" and do not show up in the "My Watchlist" section until the user interacts with them.</p>
@@ -221,6 +241,7 @@
                     </li>
                     <li><strong>Target Users:</strong> Qualifying stocks are added for every user who has logged in within the <strong>past 7 days</strong>.</li>
                     <li><strong>Signals:</strong> Surfaces <strong>BUY</strong> alerts only.</li>
+                    <li><strong>Badge color:</strong> Purple (<code>bg-purple-100 text-purple-700</code>)</li>
                 </ul>
                 <div class="criteria-box">
                     is_purchased = 0 AND user_confirmed = 0 AND is_active = 1
@@ -229,18 +250,84 @@
             </div>
         </section>
 
+        <!-- BUCKET 4: ETF HOLDING -->
+        <section id="etf-holding">
+            <div class="bucket-card etf-holding-bucket">
+                <div class="bucket-header">
+                    <span style="font-size: 1.5rem;" role="img" aria-label="building">&#127981;</span>
+                    <span class="bucket-title etf-holding-text">Bucket 4: ETF Holding <span class="new-badge">new</span></span>
+                </div>
+                <p>Individual stocks that are top holdings inside ETFs the user already owns in their portfolio. When the ML pipeline identifies a high-GPS breakout candidate inside one of the user's ETFs, it surfaces that holding as a direct BUY recommendation with a teal "etf holding" badge.</p>
+                <ul class="logic-list">
+                    <li><strong>Signals:</strong> Surfaces <strong>BUY</strong> alerts only (holdings are pre-filtered by the ETF sync before being written to <code>etf_stock_recommendations</code>).</li>
+                    <li><strong>Source:</strong> Written by <code>scripts/update_predictions.py</code> during the ETF Holdings scan phase. The scan runs after standard portfolio predictions complete.</li>
+                    <li><strong>Detection:</strong> Each portfolio item is checked against Yahoo Finance's <code>quoteType</code>. If <code>quoteType === 'ETF'</code>, the item is flagged <code>is_etf: true</code> and its top holdings are fetched via <code>GET /api/stock_data/{ticker}/holdings</code>.</li>
+                    <li><strong>Thresholds (all three must be met):</strong>
+                        <ul>
+                            <li>GPS score &ge; <code>ETF_HOLDING_GPS_SURFACE_VALUE</code> (default 60)</li>
+                            <li>Predicted price change &ge; <code>ETF_HOLDING_MIN_PRED_CHANGE</code>% (default 1.5%)</li>
+                            <li>AI confidence score &ge; <code>ETF_HOLDING_MIN_CONFIDENCE</code> (default 60)</li>
+                        </ul>
+                    </li>
+                    <li><strong>Card sub-label:</strong> Displays "In {ETF ticker}" (e.g., "In VGT") instead of the standard timestamp, so the user knows which of their ETFs contains this holding.</li>
+                    <li><strong>Badge color:</strong> Teal (<code>bg-teal-100 text-teal-700</code>)</li>
+                    <li><strong>Scope value:</strong> <code>'etf_holding'</code></li>
+                    <li><strong>Additional field:</strong> <code>etfTicker</code> (string) — the parent ETF that surfaces this stock.</li>
+                </ul>
+                <div class="criteria-box">
+                    Source: etf_stock_recommendations table<br>
+                    GPS &ge; ETF_HOLDING_GPS_SURFACE_VALUE (default 60)<br>
+                    predicted_change_pct &ge; ETF_HOLDING_MIN_PRED_CHANGE (default 1.5%)<br>
+                    confidence_score &ge; ETF_HOLDING_MIN_CONFIDENCE (default 60)
+                </div>
+                <div class="threshold-pill">GPS: 60 (default)</div>
+                <div class="threshold-pill">Pred change: +1.5% (default)</div>
+                <div class="threshold-pill">Confidence: 60 (default)</div>
+            </div>
+        </section>
+
+        <!-- UI FILTERING -->
+        <section id="ui-filtering">
+            <h2>UI Filtering on the Portfolio Page</h2>
+            <div class="info-note">
+                The <code>etf_holding</code> scope is only enabled on the <code>/portfolio</code> page — the dashboard home page (<code>/</code>) does not include it. This is controlled by the <code>scopes</code> prop passed to <code>RecommendationsSection</code>.
+            </div>
+            <p>The <code>/portfolio</code> page computes two derived values from the portfolio API response:</p>
+            <ul class="logic-list">
+                <li><code>portfolioEtfTickers</code> — array of symbols where <code>is_etf === true</code> (e.g., <code>['VGT', 'QQQ']</code>)</li>
+                <li><code>hasEtfInPortfolio</code> — boolean derived from <code>portfolioEtfTickers.length > 0</code></li>
+            </ul>
+            <p>When <code>hasEtfInPortfolio</code> is <code>true</code>, the page passes:</p>
+            <div class="criteria-box">
+scopes={['portfolio', 'watchlist', 'etf_holding']}
+portfolioEtfTickers={portfolioEtfTickers}
+            </div>
+            <p>Inside <code>RecommendationsSection</code>, a secondary client-side filter ensures <code>etf_holding</code> cards are only shown when <code>r.etfTicker</code> is contained in the <code>portfolioEtfTickers</code> set. This prevents watchlist-only ETF holding cards from leaking onto the portfolio recommendations grid.</p>
+            <p>If the user has no ETFs in their portfolio, the scopes array omits <code>'etf_holding'</code> entirely and <code>portfolioEtfTickers</code> is not passed, so no ETF holding cards are rendered.</p>
+        </section>
+
         <section id="config">
             <h2>Environment Configuration</h2>
-            <p>The signal thresholds for these buckets are fully configurable via <code>.env.local</code>:</p>
-            <ul>
-                <li><code>RECOMMENDATION_PORTFOLIO_POSITIVE_THRESHOLD</code>: Target % for portfolio BUY signals.</li>
-                <li><code>RECOMMENDATION_PORTFOLIO_NEGATIVE_THRESHOLD</code>: Target % for portfolio SELL signals.</li>
-                <li><code>RECOMMENDATION_WATCHLIST_THRESHOLD</code>: Target % for both Watchlist and Discovery BUY signals.</li>
-            </ul>
+            <p>The signal thresholds for these buckets are configurable via <code>.env.local</code> / <code>.env.production</code>. The canonical variable names as of June 2026 are:</p>
+            <table>
+                <thead><tr><th>Variable</th><th>Default</th><th>Applies to bucket</th></tr></thead>
+                <tbody>
+                    <tr><td><code>RECOMMENDATION_PORTFOLIO_POSITIVE_THRESHOLD</code></td><td>+3%</td><td>Portfolio (legacy GPS v2; still honoured)</td></tr>
+                    <tr><td><code>RECOMMENDATION_PORTFOLIO_NEGATIVE_THRESHOLD</code></td><td>-3%</td><td>Portfolio (legacy GPS v2; still honoured)</td></tr>
+                    <tr><td><code>RECOMMENDATION_WATCHLIST_THRESHOLD</code></td><td>+5%</td><td>Watchlist &amp; Discovery</td></tr>
+                    <tr><td><code>ETF_HOLDING_GPS_SURFACE_VALUE</code></td><td>60</td><td>ETF Holding — GPS gate</td></tr>
+                    <tr><td><code>ETF_HOLDING_MIN_PRED_CHANGE</code></td><td>1.5</td><td>ETF Holding — prediction change gate</td></tr>
+                    <tr><td><code>ETF_HOLDING_MIN_CONFIDENCE</code></td><td>60</td><td>ETF Holding — confidence gate</td></tr>
+                    <tr><td><code>ETF_HOLDING_TOP_N</code></td><td>5</td><td>ETF Holding — how many holdings to scan per ETF (TypeScript discovery)</td></tr>
+                    <tr><td><code>ETF_HOLDING_MAX_BETA</code></td><td>2.0</td><td>ETF Holding — max beta for inclusion</td></tr>
+                    <tr><td><code>ETF_HOLDING_STALENESS_HOURS</code></td><td>6</td><td>ETF Holding — cache staleness before re-fetch</td></tr>
+                    <tr><td><code>ETF_HOLDING_MAX_TICKERS</code></td><td>50</td><td>ETF Holding — max distinct tickers per ETF scan</td></tr>
+                </tbody>
+            </table>
         </section>
 
         <footer>
-            MoneyGoUp Recommendation Logic &copy; 2026
+            GrowMyStocks Recommendation Logic &copy; 2026
         </footer>
     </main>
     </div>

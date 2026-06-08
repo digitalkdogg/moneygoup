@@ -62,6 +62,7 @@
 
     /* ── Notes ── */
     .note { background: #fffbeb; border-left: 4px solid #fbbf24; padding: .75rem 1rem; border-radius: 0 6px 6px 0; font-size: .85rem; color: #78350f; margin: .5rem 0; line-height: 1.6; }
+    .updated { background: #f0fdf4; border-left: 4px solid #22c55e; padding: .75rem 1rem; border-radius: 0 6px 6px 0; font-size: .85rem; color: #166534; margin: .5rem 0; line-height: 1.6; }
 
     /* ── Summary table at top ── */
     .summary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
@@ -90,7 +91,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Components Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-05</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-07</div>
   </div>
   <nav class="top-bar-nav">
     <a href="moneygoup_overview.html">Overview</a>
@@ -150,7 +151,7 @@
       <span>Next.js 14 App Router</span>
       <span>TypeScript + Tailwind CSS</span>
       <span>45+ components documented</span>
-      <span>Updated 2026-06-05</span>
+      <span>Updated 2026-06-07</span>
     </div>
 
     <div class="summary-grid">
@@ -233,7 +234,7 @@
           <div><div class="comp-name">Dashboard</div><div class="comp-file">src/app/components/Dashboard.tsx</div></div>
           <span class="badge badge-client">Client</span>
         </div>
-        <div class="comp-desc">Top-level orchestrator for the home page (<code>/</code>). Fetches the user's portfolio via <code>GET /api/user/portfolio</code> on mount. Determines market open/close status (NYSE hours, weekdays only). Composes: <code>MajorIndicesStrip</code>, <code>PortfolioSummary</code>, <code>PortfolioSection</code>, <code>RecommendationsSection</code>, and <code>WatchlistSection</code>. Passes portfolio data and refresh callbacks down to child sections.</div>
+        <div class="comp-desc">Top-level orchestrator for the home page (<code>/</code>). Fetches the user's portfolio via <code>GET /api/user/portfolio</code> on mount. Determines market open/close status (NYSE hours, weekdays only). Composes: <code>MajorIndicesStrip</code>, <code>PortfolioSummary</code>, <code>PortfolioSection</code>, <code>RecommendationsSection</code>, and <code>WatchlistSection</code>. Passes portfolio data and refresh callbacks down to child sections. On the home page, <code>RecommendationsSection</code> is called with <code>scopes={['portfolio', 'watchlist']}</code> — the <code>etf_holding</code> scope is only active on the <code>/portfolio</code> page.</div>
         <div class="dep-list">
           <span class="dep-tag">MajorIndicesStrip</span>
           <span class="dep-tag">PortfolioSummary</span>
@@ -349,14 +350,16 @@
           <div><div class="comp-name">RecommendationsSection</div><div class="comp-file">src/app/components/RecommendationsSection.tsx</div></div>
           <span class="badge badge-client">Client</span>
         </div>
-        <div class="comp-desc">Fetches from <code>GET /api/dashboard/recommendations</code> and renders a grid of <code>MiniDataCard</code> components with BUY/SELL badges. Accepts an optional <code>scopes</code> prop to filter which recommendation buckets (portfolio, watchlist, discovery, etf_holding) are shown.</div>
+        <div class="comp-desc">Fetches from <code>GET /api/dashboard/recommendations</code> and renders a grid of <code>MiniDataCard</code> components with BUY/SELL badges. Accepts an optional <code>scopes</code> prop to filter which recommendation buckets are shown. When the <code>etf_holding</code> scope is included, an optional <code>portfolioEtfTickers</code> prop can be provided to client-side filter ETF holding cards so only holdings whose parent ETF is in the user's portfolio are shown (preventing watchlist ETF holding cards from appearing). Cards with <code>scope === 'etf_holding'</code> render a teal badge and display "In {etfTicker}" in the sub-label.</div>
         <table class="props-table">
           <thead><tr><th>Prop</th><th>Type</th><th>Required</th></tr></thead>
           <tbody>
             <tr><td><code>scopes</code></td><td>Array&lt;'portfolio' | 'watchlist' | 'discovery' | 'etf_holding'&gt;</td><td><span class="optional">optional</span></td></tr>
+            <tr><td><code>portfolioEtfTickers</code></td><td>string[]</td><td><span class="optional">optional</span></td></tr>
           </tbody>
         </table>
-        <div class="dep-list"><span class="dep-tag">MiniDataCard</span><span class="dep-tag">GET /api/dashboard/recommendations</span></div>
+        <div class="updated"><strong>June 2026:</strong> Added <code>portfolioEtfTickers</code> prop. On the <code>/portfolio</code> page, <code>PortfolioPage</code> derives this list from items where <code>is_etf === true</code> in the portfolio API response, then passes it alongside <code>scopes={['portfolio', 'watchlist', 'etf_holding']}</code>. The component builds a Set from this array and filters out any <code>etf_holding</code> card whose <code>etfTicker</code> is not in the set.</div>
+        <div class="dep-list"><span class="dep-tag">MiniDataCard</span><span class="dep-tag">GpsTooltip</span><span class="dep-tag">GET /api/dashboard/recommendations</span></div>
       </div>
 
       <div class="comp-card">
