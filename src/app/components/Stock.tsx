@@ -499,7 +499,7 @@ export default function Stock({
 
     return (
       <div className="container mx-auto px-0 py-8 max-w-6xl">
-        <div className="relative bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
+        <div className="relative bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8 pt-10">
           {/* Industry / ETF corner tag */}
           {(() => {
             const isEtf = stockData.quoteType?.toUpperCase() === 'ETF'

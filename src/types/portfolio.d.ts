@@ -20,5 +20,6 @@ export interface PortfolioItem {
   gpsScore?: number | null;
   gpsBreakdown?: any | null;
   sector?: string | null;
+  is_etf?: boolean;
   [key: string]: any; // For StockTableRow compatibility
 }

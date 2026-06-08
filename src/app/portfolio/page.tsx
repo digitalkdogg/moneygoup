@@ -228,6 +228,8 @@ export default function PortfolioPage() {
   const [overlayLoading, setOverlayLoading] = useState<Set<string>>(new Set())
 
   const kpis = computeKPIs(baseHistory)
+  const portfolioEtfTickers = portfolio.filter(item => item.is_etf === true).map(item => item.symbol)
+  const hasEtfInPortfolio = portfolioEtfTickers.length > 0
 
   // ── Fetch portfolio ────────────────────────────────────────────────────────
 
@@ -477,7 +479,12 @@ export default function PortfolioPage() {
         {/* ── Recommendations ───────────────────────────────────────────── */}
         <section>
           <SectionHeading>Recommendations</SectionHeading>
-          <RecommendationsSection scopes={['portfolio', 'watchlist']} />
+          <RecommendationsSection
+            scopes={hasEtfInPortfolio
+              ? ['portfolio', 'watchlist', 'etf_holding']
+              : ['portfolio', 'watchlist']}
+            portfolioEtfTickers={portfolioEtfTickers}
+          />
         </section>
 
       </div>

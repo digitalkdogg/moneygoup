@@ -136,7 +136,8 @@ export async function GET(request: NextRequest) {
             brand_color: item.primary_color || null,
             gpsScore: item.gps_score !== null ? parseFloat(item.gps_score) : null,
             gpsBreakdown: item.gps_breakdown ? (typeof item.gps_breakdown === 'string' ? JSON.parse(item.gps_breakdown) : item.gps_breakdown) : null,
-            sector: (summary as any)?.assetProfile?.sector || null
+            sector: (summary as any)?.assetProfile?.sector || null,
+            is_etf: (quoteResult as any)?.quoteType?.toUpperCase() === 'ETF'
           };
         } catch (dataError) {
           logger.error(`Error fetching data for ${item.symbol}:`, { error: dataError as Error });
@@ -146,7 +147,8 @@ export async function GET(request: NextRequest) {
             prev_close: null,
             recommendationKey: null,
             numberOfAnalystOpinions: null,
-            brand_color: item.primary_color || null
+            brand_color: item.primary_color || null,
+            is_etf: false
           };
         }
       })

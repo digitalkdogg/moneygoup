@@ -9,9 +9,10 @@ import { GpsTooltip } from './cards/GpsTooltip';
 
 interface RecommendationsSectionProps {
   scopes?: Array<DashboardRecommendation['scope']>;
+  portfolioEtfTickers?: string[];
 }
 
-const RecommendationsSection: React.FC<RecommendationsSectionProps> = ({ scopes }) => {
+const RecommendationsSection: React.FC<RecommendationsSectionProps> = ({ scopes, portfolioEtfTickers }) => {
   const [data, setData] = useState<DashboardRecommendationsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -99,9 +100,17 @@ const RecommendationsSection: React.FC<RecommendationsSectionProps> = ({ scopes 
         </div>
         
         {(() => {
-          const filtered = scopes
+          const etfSet = portfolioEtfTickers
+            ? new Set(portfolioEtfTickers.map(t => t.toUpperCase()))
+            : null;
+          const filtered = (scopes
             ? (data?.recommendations ?? []).filter(r => scopes.includes(r.scope))
-            : (data?.recommendations ?? []);
+            : (data?.recommendations ?? [])
+          ).filter(r =>
+            r.scope !== 'etf_holding' ||
+            !etfSet ||
+            (r.etfTicker && etfSet.has(r.etfTicker.toUpperCase()))
+          );
           return (!filtered.length) ? (
           <div className="flex flex-col items-center justify-center py-10 bg-gray-50 rounded-lg border border-dashed border-gray-200">
             <p className="text-gray-500 font-medium">No actionable recommendations at this time.</p>

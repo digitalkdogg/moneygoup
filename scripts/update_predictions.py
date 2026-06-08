@@ -541,9 +541,9 @@ def sync_portfolio_predictions():
             stats['errors'] += 1
  
     # --- ETF Holdings: scan each user's ETF positions for hot holdings --------
-    gps_threshold  = float(os.getenv('ETF_HOLDINGS_GPS_THRESHOLD',        '65'))
-    pred_threshold = float(os.getenv('ETF_HOLDINGS_PREDICTION_THRESHOLD', '3.0'))
-    conf_threshold = float(os.getenv('ETF_HOLDINGS_CONFIDENCE_THRESHOLD', '60'))
+    gps_threshold  = float(os.getenv('ETF_HOLDING_GPS_SURFACE_VALUE', '60'))
+    pred_threshold = float(os.getenv('ETF_HOLDING_MIN_PRED_CHANGE',   '1.5'))
+    conf_threshold = float(os.getenv('ETF_HOLDING_MIN_CONFIDENCE',    '60'))
 
     print(f"\n[ETF Holdings] Thresholds: GPS≥{gps_threshold}, pred≥{pred_threshold}%, conf≥{conf_threshold}%")
 

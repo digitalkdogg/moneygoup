@@ -340,7 +340,7 @@ export async function performETFDiscovery(
 
   // --- Phase 3: Score top holdings for each qualifying ETF ------------------
   try {
-    const topN = parseInt(process.env.ETF_HOLDINGS_TOP_N ?? '5', 10);
+    const topN = parseInt(process.env.ETF_HOLDING_TOP_N ?? '5', 10);
 
     // Fetch holdings for all qualifying ETFs in parallel
     const holdingsByETF = await Promise.all(
