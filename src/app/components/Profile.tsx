@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import type { ProfileResponse } from '@/types/api';
+import type { ProfileResponse, ProfileStrategy } from '@/types/api';
 
 const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   user: 'Standard Member',
@@ -10,13 +10,28 @@ const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   admin: 'Administrator',
 };
 
+const AGGRESSIVENESS_OPTIONS: Array<{ value: ProfileStrategy['aggressiveness']; label: string; hint: string }> = [
+  { value: 'safe',       label: 'Safe',       hint: 'Higher confidence floor, lower beta tolerance, stricter GPS gate (~5% above baseline)' },
+  { value: 'neutral',    label: 'Neutral',    hint: 'Default thresholds (baseline)' },
+  { value: 'aggressive', label: 'Aggressive', hint: 'Lower thresholds — surfaces higher-volatility picks (~5% below baseline)' },
+];
+
 type FetchState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
   | { status: 'success'; data: ProfileResponse };
 
+type SaveState =
+  | { status: 'idle' }
+  | { status: 'saving' }
+  | { status: 'saved' }
+  | { status: 'error'; message: string };
+
 export default function Profile() {
   const [state, setState] = useState<FetchState>({ status: 'loading' });
+  const [strategy, setStrategy] = useState<ProfileStrategy | null>(null);
+  const [originalStrategy, setOriginalStrategy] = useState<ProfileStrategy | null>(null);
+  const [saveState, setSaveState] = useState<SaveState>({ status: 'idle' });
 
   useEffect(() => {
     let cancelled = false;
@@ -28,7 +43,11 @@ export default function Profile() {
           throw new Error(json.message ?? `Server error (${res.status})`);
         }
         const data: ProfileResponse = await res.json();
-        if (!cancelled) setState({ status: 'success', data });
+        if (!cancelled) {
+          setState({ status: 'success', data });
+          setStrategy(data.strategy);
+          setOriginalStrategy(data.strategy);
+        }
       } catch (err: any) {
         if (!cancelled) setState({ status: 'error', message: err.message ?? 'Failed to load profile' });
       }
@@ -38,6 +57,30 @@ export default function Profile() {
       cancelled = true;
     };
   }, []);
+
+  const isDirty = strategy && originalStrategy &&
+    strategy.aggressiveness !== originalStrategy.aggressiveness;
+
+  async function handleSave() {
+    if (!strategy) return;
+    setSaveState({ status: 'saving' });
+    try {
+      const res = await fetch('/api/user/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ strategy }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.message ?? `Server error (${res.status})`);
+      }
+      setOriginalStrategy(strategy);
+      setSaveState({ status: 'saved' });
+      setTimeout(() => setSaveState({ status: 'idle' }), 2500);
+    } catch (err: any) {
+      setSaveState({ status: 'error', message: err.message ?? 'Failed to save' });
+    }
+  }
 
   // ── Loading ──────────────────────────────────────────────────────────────────
   if (state.status === 'loading') {
@@ -96,6 +139,41 @@ export default function Profile() {
         </dl>
       </div>
 
+      {/* Investment Strategy card */}
+      {strategy && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+          <h2 className="section-heading">Investment Strategy</h2>
+          <p className="text-sm text-gray-600 mb-4">
+            Tune how recommendations and GPS scoring are weighted for your account.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <StrategySelect
+              label="Aggressiveness"
+              value={strategy.aggressiveness}
+              options={AGGRESSIVENESS_OPTIONS}
+              onChange={v => setStrategy({ ...strategy, aggressiveness: v as ProfileStrategy['aggressiveness'] })}
+            />
+          </div>
+
+          <div className="mt-5 flex items-center gap-3">
+            <button
+              onClick={handleSave}
+              disabled={!isDirty || saveState.status === 'saving'}
+              className="px-4 py-2 rounded-lg bg-[#017e3b] text-white text-sm font-semibold hover:bg-[#016330] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+            >
+              {saveState.status === 'saving' ? 'Saving…' : 'Save Strategy'}
+            </button>
+            {saveState.status === 'saved' && (
+              <span className="text-sm text-green-700 font-medium">Saved.</span>
+            )}
+            {saveState.status === 'error' && (
+              <span className="text-sm text-red-600">{saveState.message}</span>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Stats — only for user / superuser */}
       {data.accountType !== 'admin' && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -118,6 +196,39 @@ export default function Profile() {
             />
           </dl>
         </div>
+      )}
+    </div>
+  );
+}
+
+function StrategySelect({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: Array<{ value: string; label: string; hint: string }>;
+  onChange: (v: string) => void;
+}) {
+  const selected = options.find(o => o.value === value);
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+        {label}
+      </label>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-medium text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#017e3b] focus:border-transparent"
+      >
+        {options.map(o => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+      {selected && (
+        <p className="mt-1 text-xs text-gray-500">{selected.hint}</p>
       )}
     </div>
   );

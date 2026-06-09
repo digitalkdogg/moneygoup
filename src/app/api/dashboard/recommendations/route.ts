@@ -8,6 +8,7 @@ import { createErrorResponse, unauthorizedResponse } from '@/utils/errorResponse
 import { checkApprovalGuard } from '@/utils/approvalStatus';
 import { fetchYahooQuotesForSymbols } from '@/utils/yahooFinanceHelper';
 import { DashboardRecommendation, DashboardRecommendationsResponse } from '@/types/dashboard';
+import { getUserStrategy, resolveStrategy, DEFAULT_STRATEGY } from '@/utils/strategy';
 
 const logger = createLogger('api/dashboard/recommendations');
 
@@ -49,7 +50,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: approvalOutcome.message, code: approvalOutcome.code }, { status: 403 });
     }
 
-    // 1. Fetch predictions with GPS scores
+    // Resolve user's current strategy (defaults to neutral when no row).
+    const userStrategy = await getUserStrategy(userId).catch(() => DEFAULT_STRATEGY);
+
+    // 1. Fetch predictions with GPS scores. GPS is now strategy-independent —
+    // we always read the canonical value from stock_gps_scores (fallback to
+    // the recommended_stocks snapshot if missing).
     const [rows] = await executeRawQuery(`
       SELECT
         usp.stock_id,
@@ -106,10 +112,22 @@ export async function GET(request: NextRequest) {
       if (q.symbol && q.price !== null) symbolPriceMap.set(q.symbol as string, q.price as number);
     });
 
-    // 3. GPS thresholds from env
-    const buyThreshold       = getEnvThreshold('GPS_RECOMMENDATION_BUY_THRESHOLD', 65);
-    const sellThreshold      = getEnvThreshold('GPS_RECOMMENDATION_SELL_THRESHOLD', 45);
-    const discoveryThreshold = getEnvThreshold('GPS_RECOMMENDATION_DISCOVERY_THRESHOLD', 70);
+    // 3. GPS thresholds — env defaults, then scaled by the user's strategy multiplier.
+    // safe (1.05) raises the bar; aggressive (0.95) lowers it. Sell is intentionally
+    // not multiplied — users should still be warned about underperformers regardless
+    // of aggressiveness. predChangeGate is the strategy's own absolute value (already
+    // varies with aggressiveness: safe=3%, neutral=1.5%, aggressive=0.5%).
+    const { gates: strategyGates } = resolveStrategy(userStrategy);
+    const mult = strategyGates.envFloorMultiplier;
+
+    const envBuyThreshold       = getEnvThreshold('GPS_RECOMMENDATION_BUY_THRESHOLD', 65);
+    const envSellThreshold      = getEnvThreshold('GPS_RECOMMENDATION_SELL_THRESHOLD', 45);
+    const envDiscoveryThreshold = getEnvThreshold('GPS_RECOMMENDATION_DISCOVERY_THRESHOLD', 70);
+
+    const buyThreshold       = envBuyThreshold * mult;
+    const sellThreshold      = envSellThreshold;
+    const discoveryThreshold = envDiscoveryThreshold * mult;
+    const predChangeGate     = strategyGates.predChangeGate;
 
     // 4. Macro GPS adjustment (±3 pts max)
     const macroContext = await fetchMacroContext();
@@ -153,16 +171,20 @@ export async function GET(request: NextRequest) {
 
       if (adjustedGps === null) continue;
 
+      // Strategy gate: predicted change must clear the user's predChangeGate
+      // for any BUY action. Doesn't apply to SELL (we always warn).
+      const passesPredGate = deltaPct >= predChangeGate;
+
       if (isPurchased && isConfirmed && hasShares) {
         scope = 'portfolio';
-        if (adjustedGps >= buyThreshold) action = 'BUY';
+        if (adjustedGps >= buyThreshold && passesPredGate) action = 'BUY';
         else if (adjustedGps < sellThreshold) action = 'SELL';
       } else if (!isPurchased && isConfirmed) {
         scope = 'watchlist';
-        if (adjustedGps >= buyThreshold) action = 'BUY';
+        if (adjustedGps >= buyThreshold && passesPredGate) action = 'BUY';
       } else if (!isPurchased && !isConfirmed) {
         scope = 'discovery';
-        if (adjustedGps >= discoveryThreshold) action = 'BUY';
+        if (adjustedGps >= discoveryThreshold && passesPredGate) action = 'BUY';
       }
 
       if (action && scope) {

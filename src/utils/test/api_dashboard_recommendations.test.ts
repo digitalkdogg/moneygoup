@@ -36,6 +36,8 @@ describe('GET /api/dashboard/recommendations', () => {
   });
 
   test('returns BUY recommendation when predicted price is >= 3% higher', async () => {
+    // 0. Mock user strategy (neutral baseline)
+    (executeRawQuery as jest.Mock).mockResolvedValueOnce([[{ aggressiveness: 'neutral' }]]);
     // 1. Mock predictions (current 100, predicted 103 -> +3%, gps_score 70 >= buy threshold 65)
     (executeRawQuery as jest.Mock).mockResolvedValueOnce([
       [
@@ -62,6 +64,8 @@ describe('GET /api/dashboard/recommendations', () => {
   });
 
   test('returns SELL recommendation when predicted price is <= 3% lower', async () => {
+    // 0. Mock user strategy (neutral baseline)
+    (executeRawQuery as jest.Mock).mockResolvedValueOnce([[{ aggressiveness: 'neutral' }]]);
     // 1. Mock predictions (current 100, predicted 97 -> -3%, gps_score 30 < sell threshold 45)
     (executeRawQuery as jest.Mock).mockResolvedValueOnce([
       [
@@ -88,6 +92,8 @@ describe('GET /api/dashboard/recommendations', () => {
   });
 
   test('returns discovery recommendation when user_confirmed is 0', async () => {
+    // 0. Mock user strategy (neutral baseline)
+    (executeRawQuery as jest.Mock).mockResolvedValueOnce([[{ aggressiveness: 'neutral' }]]);
     // 1. Mock predictions (current 100, predicted 110 -> +10%, gps_score 75 >= discovery threshold 70)
     (executeRawQuery as jest.Mock).mockResolvedValueOnce([
       [
@@ -113,6 +119,8 @@ describe('GET /api/dashboard/recommendations', () => {
   });
 
   test('returns no recommendation when GPS score is in hold band (45–65)', async () => {
+    // 0. Mock user strategy (neutral baseline)
+    (executeRawQuery as jest.Mock).mockResolvedValueOnce([[{ aggressiveness: 'neutral' }]]);
     // 1. Mock predictions (gps_score 55 — between sell threshold 45 and buy threshold 65)
     (executeRawQuery as jest.Mock).mockResolvedValueOnce([
       [

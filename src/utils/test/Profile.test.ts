@@ -6,6 +6,7 @@ describe('Profile Component', () => {
       const userProfile: ProfileResponse = {
         username: 'john_doe',
         accountType: 'user',
+        strategy: { aggressiveness: 'neutral' },
         stats: {
           lookupCount: 42,
           portfolioItemCount: 5,
@@ -24,6 +25,7 @@ describe('Profile Component', () => {
       const superuserProfile: ProfileResponse = {
         username: 'super_user',
         accountType: 'superuser',
+        strategy: { aggressiveness: 'neutral' },
         stats: {
           lookupCount: 100,
           portfolioItemCount: 20,
@@ -40,6 +42,7 @@ describe('Profile Component', () => {
       const adminProfile: ProfileResponse = {
         username: 'admin_user',
         accountType: 'admin',
+        strategy: { aggressiveness: 'neutral' },
       };
 
       expect(adminProfile.accountType).toBe('admin');
@@ -130,6 +133,7 @@ describe('Profile Component', () => {
       const userProfile: ProfileResponse = {
         username: 'test_user',
         accountType: 'user',
+        strategy: { aggressiveness: 'neutral' },
         stats: {
           lookupCount: 42,
           portfolioItemCount: 5,
@@ -148,6 +152,7 @@ describe('Profile Component', () => {
       const userProfile: ProfileResponse = {
         username: 'test_user',
         accountType: 'user',
+        strategy: { aggressiveness: 'neutral' },
         stats: {
           lookupCount: 42,
           portfolioItemCount: 5,
@@ -168,6 +173,7 @@ describe('Profile Component', () => {
       const userProfile: ProfileResponse = {
         username: 'new_user',
         accountType: 'user',
+        strategy: { aggressiveness: 'neutral' },
         stats: {
           lookupCount: 0,
           portfolioItemCount: 0,
@@ -187,11 +193,13 @@ describe('Profile Component', () => {
         {
           username: 'user1',
           accountType: 'user',
+          strategy: { aggressiveness: 'neutral' },
           stats: { lookupCount: 0, portfolioItemCount: 0, watchlistItemCount: 0 },
         },
         {
           username: 'user2',
           accountType: 'superuser',
+          strategy: { aggressiveness: 'neutral' },
           stats: { lookupCount: 10, portfolioItemCount: 5, watchlistItemCount: 3 },
         },
       ];
@@ -211,6 +219,7 @@ describe('Profile Component', () => {
       const adminProfile: ProfileResponse = {
         username: 'admin_user',
         accountType: 'admin',
+        strategy: { aggressiveness: 'neutral' },
       };
 
       expect(adminProfile.username).toBeDefined();

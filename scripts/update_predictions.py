@@ -4,6 +4,12 @@ import requests
 import mysql.connector
 from datetime import datetime
 from dotenv import load_dotenv
+from strategy_config import (
+    DEFAULT_STRATEGY,
+    resolve_strategy,
+    get_all_user_strategies,
+    strategy_bucket_key,
+)  # aggressiveness-only after the timeframe removal
 
 # ---------------------------------------------------------------------------
 # GPS v3.0 — mirrors src/utils/gps.ts exactly (8 components, 100 pts).
@@ -38,6 +44,7 @@ def calculate_gps_v3(
     recommendation_key: str,
     price_change_52w: float,
 ) -> dict:
+    """Mirrors src/utils/gps.ts calculateGpsScore exactly."""
     prediction_max = float(os.getenv('GPS_PREDICTION_MAX', '3'))
 
     # 1. ML Predicted Change 1m (20 pts)
@@ -228,7 +235,14 @@ def run_prediction(ticker: str, stock_data: dict) -> dict | None:
 # The save endpoint resolves the ticker to a stock_id internally, so we only
 # need to pass ticker, predicted_price_1m, and user_id (for internal calls).
 # ---------------------------------------------------------------------------
-def save_prediction(ticker: str, predicted_price: float, user_id: int, gps_score: float = None, gps_breakdown: dict = None) -> bool:
+def save_prediction(
+    ticker: str,
+    predicted_price: float,
+    user_id: int,
+    gps_score: float = None,
+    gps_breakdown: dict = None,
+) -> bool:
+    """Persist a prediction. GPS goes to stock_gps_scores (one row per stock)."""
     url = f"{INTERNAL_API_URL}/api/prediction/save"
     payload = {
         'ticker':              ticker,
@@ -270,6 +284,7 @@ def _empty_cache_entry() -> dict:
         'confidence_score':     None,
         'gps_score':            None,
         'gps_breakdown':        None,
+        'gps_inputs':           None,
     }
 
 
@@ -378,16 +393,17 @@ def run_prediction_for_holding(ticker: str,
     rec_key = (stock_data.get('recommendationKey')
                or sm.get('recommendationKey')
                or _recommendation_mean_to_key(sm.get('recommendationMean')))
-    gps_result = calculate_gps_v3(
-        predicted_change_pct = predicted_change_pct,
-        confidence_score     = confidence_score_val,
-        revenue_growth       = sm.get('revenueGrowth') or 0,
-        earnings_growth      = sm.get('earningsGrowth') or 0,
-        technical_score      = float(stock_data.get('technicalScore') or 0),
-        analyst_upside       = sm.get('analystUpside') or 0,
-        recommendation_key   = rec_key,
-        price_change_52w     = sm.get('fiftyTwoWeekChange') or 0,
-    )
+    gps_inputs = {
+        'predicted_change_pct': predicted_change_pct,
+        'confidence_score':     confidence_score_val,
+        'revenue_growth':       sm.get('revenueGrowth') or 0,
+        'earnings_growth':      sm.get('earningsGrowth') or 0,
+        'technical_score':      float(stock_data.get('technicalScore') or 0),
+        'analyst_upside':       sm.get('analystUpside') or 0,
+        'recommendation_key':   rec_key,
+        'price_change_52w':     sm.get('fiftyTwoWeekChange') or 0,
+    }
+    gps_result = calculate_gps_v3(**gps_inputs)
 
     entry = {
         'predicted_price':      predicted_price,
@@ -395,6 +411,7 @@ def run_prediction_for_holding(ticker: str,
         'confidence_score':     confidence_score_val,
         'gps_score':            gps_result['score'],
         'gps_breakdown':        gps_result['breakdown'],
+        'gps_inputs':           gps_inputs,
     }
     prediction_cache[ticker] = entry
     print(f"  [etf] {ticker}: GPS={entry['gps_score']}, pred={predicted_change_pct:.2f}%")
@@ -437,25 +454,30 @@ def sync_portfolio_predictions():
           f"{len(unique_users)} user(s), {len(unique_tickers)} unique ticker(s).")
  
     # --- Process ---------------------------------------------------------
-    # prediction_cache: ticker → dict with prediction results (or all-None dict on failure)
-    # Keyed by ticker so we run the expensive model only once per stock,
-    # regardless of how many users hold it.
+    # prediction_cache: ticker → dict with raw prediction results + GPS inputs
+    # (or all-None dict on failure). Keyed by ticker so the expensive model
+    # runs once per stock; GPS is then computed per user using their strategy.
     prediction_cache: dict[str, dict] = {}
- 
+
+    # Batch fetch every user's strategy up front (defaults applied where missing)
+    user_strategies = get_all_user_strategies(cursor, list(unique_users))
+
     stats = {'predicted': 0, 'cached': 0, 'saved': 0, 'skipped': 0, 'errors': 0}
- 
+
     for row in rows:
         ticker  = row['ticker']
         user_id = row['user_id']
- 
-        print(f"\n→ user_id={user_id} ({row['username']})  ticker={ticker}")
- 
-        # Check cache first (nice-to-have: avoid re-running model for shared stocks)
+        strategy = user_strategies.get(user_id, DEFAULT_STRATEGY)
+
+        print(f"\n→ user_id={user_id} ({row['username']})  ticker={ticker}  "
+              f"strategy={strategy_bucket_key(strategy)}")
+
+        # Check cache first (avoid re-running the model for shared stocks)
         if ticker in prediction_cache:
             cached = prediction_cache[ticker]
-            predicted_price   = cached['predicted_price']
-            gps_score         = cached['gps_score']
-            gps_breakdown     = cached['gps_breakdown']
+            predicted_price = cached['predicted_price']
+            gps_score = cached.get('gps_score')
+            gps_breakdown = cached.get('gps_breakdown')
             print(f"  [cache] Using cached prediction for {ticker}: {predicted_price} (GPS: {gps_score})")
             stats['cached'] += 1
         else:
@@ -485,6 +507,8 @@ def sync_portfolio_predictions():
             predicted_change_pct = None
             confidence_score_val = None
 
+            gps_inputs = None
+
             if prediction_result is not None:
                 stats['predicted'] += 1
                 predicted_price      = float(prediction_result.get('predicted_price_1m', 0))
@@ -498,24 +522,24 @@ def sync_portfolio_predictions():
                 rec_key = (stock_data.get('recommendationKey')
                            or sm.get('recommendationKey')
                            or _recommendation_mean_to_key(sm.get('recommendationMean')))
-                gps_result = calculate_gps_v3(
-                    predicted_change_pct = predicted_change_pct,
-                    confidence_score     = confidence_score_val,
-                    revenue_growth       = sm.get('revenueGrowth') or 0,
-                    earnings_growth      = sm.get('earningsGrowth') or 0,
-                    technical_score      = float(stock_data.get('technicalScore') or 0),
-                    analyst_upside       = sm.get('analystUpside') or 0,
-                    recommendation_key   = rec_key,
-                    price_change_52w     = sm.get('fiftyTwoWeekChange') or 0,
-                )
+                gps_inputs = {
+                    'predicted_change_pct': predicted_change_pct,
+                    'confidence_score':     confidence_score_val,
+                    'revenue_growth':       sm.get('revenueGrowth') or 0,
+                    'earnings_growth':      sm.get('earningsGrowth') or 0,
+                    'technical_score':      float(stock_data.get('technicalScore') or 0),
+                    'analyst_upside':       sm.get('analystUpside') or 0,
+                    'recommendation_key':   rec_key,
+                    'price_change_52w':     sm.get('fiftyTwoWeekChange') or 0,
+                }
+                gps_result = calculate_gps_v3(**gps_inputs)
                 gps_score     = gps_result['score']
                 gps_breakdown = gps_result['breakdown']
 
                 if gps_result['bearishSignal']:
                     print(f"  [gps] BEARISH SIGNAL for {ticker}: "
-                          f"ML predicts {predicted_change_pct:.2f}% → "
-                          f"GPS={gps_score}")
-                print(f"  [gps] GPS v3.0 score for {ticker}: {gps_score}")
+                          f"ML predicts {predicted_change_pct:.2f}% → GPS={gps_score}")
+                print(f"  [gps] GPS v3.0 {ticker}: {gps_score}")
 
             else:
                 stats['errors'] += 1
@@ -526,14 +550,15 @@ def sync_portfolio_predictions():
                 'confidence_score':     confidence_score_val,
                 'gps_score':            gps_score,
                 'gps_breakdown':        gps_breakdown,
+                'gps_inputs':           gps_inputs,
             }
 
         # Skip saving if the prediction failed
         if predicted_price is None:
             print(f"  [save] Skipping save for user {user_id} / {ticker} (no prediction).")
             continue
- 
-        # Save the prediction for this user
+
+        # Save the prediction for this user. GPS goes to stock_gps_scores (one row per stock).
         saved = save_prediction(ticker, predicted_price, user_id, gps_score, gps_breakdown)
         if saved:
             stats['saved'] += 1
@@ -541,11 +566,14 @@ def sync_portfolio_predictions():
             stats['errors'] += 1
  
     # --- ETF Holdings: scan each user's ETF positions for hot holdings --------
-    gps_threshold  = float(os.getenv('ETF_HOLDING_GPS_SURFACE_VALUE', '60'))
-    pred_threshold = float(os.getenv('ETF_HOLDING_MIN_PRED_CHANGE',   '1.5'))
-    conf_threshold = float(os.getenv('ETF_HOLDING_MIN_CONFIDENCE',    '60'))
+    # Env-var thresholds are the baseline; each user's strategy can tighten/loosen
+    # them via the gates resolved from their (timeframe, aggressiveness).
+    env_gps_threshold  = float(os.getenv('ETF_HOLDING_GPS_SURFACE_VALUE', '60'))
+    env_pred_threshold = float(os.getenv('ETF_HOLDING_MIN_PRED_CHANGE',   '1.5'))
+    env_conf_threshold = float(os.getenv('ETF_HOLDING_MIN_CONFIDENCE',    '60'))
 
-    print(f"\n[ETF Holdings] Thresholds: GPS≥{gps_threshold}, pred≥{pred_threshold}%, conf≥{conf_threshold}%")
+    print(f"\n[ETF Holdings] Baseline thresholds: "
+          f"GPS≥{env_gps_threshold}, pred≥{env_pred_threshold}%, conf≥{env_conf_threshold}%")
 
     # ETF detection cache: ticker → (is_etf, [holding_tickers])
     etf_cache: dict[str, tuple[bool, list[str]]] = {}
@@ -559,6 +587,21 @@ def sync_portfolio_predictions():
     for user_id, user_row_list in user_rows.items():
         username = user_row_list[0]['username']
         user_etfs_processed = set()
+
+        # Resolve per-user gates (the strictest of env baseline and strategy)
+        user_strategy = user_strategies.get(user_id, DEFAULT_STRATEGY)
+        resolved = resolve_strategy(user_strategy)
+        gates    = resolved['gates']
+        mult     = gates['envFloorMultiplier']
+        # Scale env baselines by the user's aggressiveness multiplier
+        # (safe=1.05, neutral=1.0, aggressive=0.95). predChangeGate floors at
+        # the strategy's own absolute value (safe=3%, neutral=1.5%, aggressive=0.5%).
+        gps_threshold  = env_gps_threshold  * mult
+        pred_threshold = max(env_pred_threshold * mult, gates['predChangeGate'])
+        conf_threshold = env_conf_threshold * mult
+        print(f"\n  [etf] user_id={user_id} strategy={strategy_bucket_key(user_strategy)} "
+              f"mult={mult} "
+              f"gates: GPS≥{gps_threshold:.1f}, pred≥{pred_threshold:.1f}%, conf≥{conf_threshold:.1f}%")
 
         for row in user_row_list:
             ticker = row['ticker']
@@ -584,10 +627,11 @@ def sync_portfolio_predictions():
                 if not result:
                     continue
 
+                # GPS is strategy-independent now; just read what was already computed.
                 gps       = result.get('gps_score')
+                breakdown = result.get('gps_breakdown') or {}
                 pred      = result.get('predicted_change_pct')
                 conf      = result.get('confidence_score')
-                breakdown = result.get('gps_breakdown') or {}
 
                 if gps is None or pred is None or conf is None:
                     continue

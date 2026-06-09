@@ -13,7 +13,8 @@ import { checkApprovalGuard } from '@/utils/approvalStatus';
 
 const logger = createLogger('api/prediction/save');
 
-// Validation schema for save payload
+// Validation schema for save payload. GPS is strategy-independent and always
+// goes to stock_gps_scores (one row per stock, neutral baseline).
 const savePredictionSchema = z.object({
   ticker: tickerSchema,
   predicted_price_1w: z.number().positive().optional(),
@@ -116,13 +117,15 @@ export async function POST(request: NextRequest) {
       predictionData.consumer_multiplier_applied = payload.consumer_multiplier_applied;
     }
 
-    // 4. Upsert into user_stock_predictions table
+    // 4. Upsert into user_stock_predictions (prices only — GPS lives in stock_gps_scores).
     // Unique key is (user_id, stock_id)
     await upsert('user_stock_predictions', predictionData, ['user_id', 'stock_id']);
 
-    // 5. If a GPS score was provided, write to canonical table and sync recommended_stocks.
-    if (payload.gps_score != null && payload.gps_score !== undefined) {
-      const gpsBreakdownJson = payload.gps_breakdown ? JSON.stringify(payload.gps_breakdown) : null;
+    // 5. Global stock_gps_scores gets the GPS score (one row per stock).
+    const globalGpsScore = payload.gps_score;
+    const globalGpsBreakdown = payload.gps_breakdown;
+    if (globalGpsScore != null && globalGpsScore !== undefined) {
+      const gpsBreakdownJson = globalGpsBreakdown ? JSON.stringify(globalGpsBreakdown) : null;
 
       // Read current score once; skip all writes if unchanged (DECIMAL(5,1) → compare at 1dp).
       const [sgsCheck] = await executeRawQuery(
@@ -131,7 +134,7 @@ export async function POST(request: NextRequest) {
       );
       const existingGps = (sgsCheck as any[])[0]?.gps_score;
       const gpsChanged = existingGps == null ||
-        Math.round(parseFloat(existingGps) * 10) !== Math.round(payload.gps_score * 10);
+        Math.round(parseFloat(existingGps) * 10) !== Math.round(globalGpsScore * 10);
 
       if (gpsChanged) {
         // Upsert canonical GPS score (one row per stock).
@@ -145,14 +148,14 @@ export async function POST(request: NextRequest) {
              model_version = VALUES(model_version),
              regime        = VALUES(regime),
              source        = VALUES(source)`,
-          [stockId, mysqlDateTime, payload.gps_score, gpsBreakdownJson]
+          [stockId, mysqlDateTime, globalGpsScore, gpsBreakdownJson]
         );
 
         // Append to score history (INSERT IGNORE; NULL model_version rows are each unique in MySQL).
         await executeRawQuery(
           `INSERT IGNORE INTO stock_gps_score_history (stock_id, as_of, gps_score, gps_breakdown, model_version, regime, source)
            VALUES (?, ?, ?, ?, NULL, NULL, 'prediction_engine')`,
-          [stockId, mysqlDateTime, payload.gps_score, gpsBreakdownJson]
+          [stockId, mysqlDateTime, globalGpsScore, gpsBreakdownJson]
         );
 
         // Legacy sync: keep recommended_stocks in step (no-op if ticker not present).
@@ -165,12 +168,12 @@ export async function POST(request: NextRequest) {
            ) latest ON r.snapshot_date = latest.max_date
            SET r.gps_score = ?, r.gps_breakdown = ?
            WHERE r.ticker = ?`,
-          [payload.ticker, payload.gps_score, gpsBreakdownJson, payload.ticker]
+          [payload.ticker, globalGpsScore, gpsBreakdownJson, payload.ticker]
         );
         if (updateResult?.affectedRows > 0) {
           logger.info('recommended_stocks GPS score synced', {
             ticker: payload.ticker,
-            gps_score: payload.gps_score,
+            gps_score: globalGpsScore,
             rows: updateResult.affectedRows,
           });
         }

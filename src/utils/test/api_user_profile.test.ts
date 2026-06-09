@@ -89,6 +89,7 @@ describe('GET /api/user/profile', () => {
       expect(data).toEqual({
         username: 'admin_user',
         accountType: 'admin',
+        strategy: { aggressiveness: 'neutral' },
       });
       expect(data.stats).toBeUndefined();
     });
@@ -112,10 +113,11 @@ describe('GET /api/user/profile', () => {
 
     test('returns profile with stats for user', async () => {
       (executeRawQuery as jest.Mock)
-        .mockResolvedValueOnce([[{ username: 'john_doe' }]]) // username query
-        .mockResolvedValueOnce([[{ cnt: '42' }]]) // lookup count
-        .mockResolvedValueOnce([[{ cnt: '5' }]]) // portfolio count
-        .mockResolvedValueOnce([[{ cnt: '8' }]]); // watchlist count
+        .mockResolvedValueOnce([[{ username: 'john_doe' }]])         // username query
+        .mockResolvedValueOnce([[{ aggressiveness: 'neutral' }]])     // strategy query
+        .mockResolvedValueOnce([[{ cnt: '42' }]])                    // lookup count
+        .mockResolvedValueOnce([[{ cnt: '5' }]])                     // portfolio count
+        .mockResolvedValueOnce([[{ cnt: '8' }]]);                    // watchlist count
 
       const response = await GET(mockRequest);
       expect(response.status).toBe(200);
@@ -129,14 +131,16 @@ describe('GET /api/user/profile', () => {
           portfolioItemCount: 5,
           watchlistItemCount: 8,
         },
+        strategy: { aggressiveness: 'neutral' },
       });
     });
 
     test('returns zero counts when no data', async () => {
       (executeRawQuery as jest.Mock)
         .mockResolvedValueOnce([[{ username: 'new_user' }]])
-        .mockResolvedValueOnce([[]]) // no lookups
-        .mockResolvedValueOnce([[]]) // no portfolio
+        .mockResolvedValueOnce([[]])  // no strategy row → defaults to neutral
+        .mockResolvedValueOnce([[]])  // no lookups
+        .mockResolvedValueOnce([[]])  // no portfolio
         .mockResolvedValueOnce([[]]); // no watchlist
 
       const response = await GET(mockRequest);
@@ -152,6 +156,7 @@ describe('GET /api/user/profile', () => {
     test('executes COUNT queries with correct SQL', async () => {
       (executeRawQuery as jest.Mock)
         .mockResolvedValueOnce([[{ username: 'john_doe' }]])
+        .mockResolvedValueOnce([[{ aggressiveness: 'neutral' }]])
         .mockResolvedValueOnce([[{ cnt: '42' }]])
         .mockResolvedValueOnce([[{ cnt: '5' }]])
         .mockResolvedValueOnce([[{ cnt: '8' }]]);
@@ -162,21 +167,24 @@ describe('GET /api/user/profile', () => {
       // First call: username
       expect(calls[0][0]).toBe('SELECT username FROM users WHERE id = ?');
 
-      // Second call: lookup count
-      expect(calls[1][0]).toContain('user_lookup_events');
-      expect(calls[1][0]).toContain('user_id = ?');
+      // Second call: investment strategy lookup
+      expect(calls[1][0]).toContain('user_investment_strategy');
 
-      // Third call: portfolio count
-      expect(calls[2][0]).toContain('user_stocks');
-      expect(calls[2][0]).toContain('is_purchased = 1');
-      expect(calls[2][0]).toContain('is_active = 1');
-      expect(calls[2][0]).toContain('shares > 0');
+      // Third call: lookup count
+      expect(calls[2][0]).toContain('user_lookup_events');
+      expect(calls[2][0]).toContain('user_id = ?');
 
-      // Fourth call: watchlist count
+      // Fourth call: portfolio count
       expect(calls[3][0]).toContain('user_stocks');
-      expect(calls[3][0]).toContain('is_purchased = 0');
+      expect(calls[3][0]).toContain('is_purchased = 1');
       expect(calls[3][0]).toContain('is_active = 1');
-      expect(calls[3][0]).toContain('user_confirmed = 1');
+      expect(calls[3][0]).toContain('shares > 0');
+
+      // Fifth call: watchlist count
+      expect(calls[4][0]).toContain('user_stocks');
+      expect(calls[4][0]).toContain('is_purchased = 0');
+      expect(calls[4][0]).toContain('is_active = 1');
+      expect(calls[4][0]).toContain('user_confirmed = 1');
     });
   });
 
@@ -187,6 +195,7 @@ describe('GET /api/user/profile', () => {
       });
       (executeRawQuery as jest.Mock)
         .mockResolvedValueOnce([[{ username: 'super_user' }]])
+        .mockResolvedValueOnce([[{ aggressiveness: 'neutral' }]])
         .mockResolvedValueOnce([[{ cnt: '100' }]])
         .mockResolvedValueOnce([[{ cnt: '15' }]])
         .mockResolvedValueOnce([[{ cnt: '20' }]]);
@@ -205,6 +214,7 @@ describe('GET /api/user/profile', () => {
           portfolioItemCount: 15,
           watchlistItemCount: 20,
         },
+        strategy: { aggressiveness: 'neutral' },
       });
     });
   });
@@ -216,6 +226,7 @@ describe('GET /api/user/profile', () => {
       });
       (executeRawQuery as jest.Mock)
         .mockResolvedValueOnce([[{ username: 'test_user' }]])
+        .mockResolvedValueOnce([[{ aggressiveness: 'neutral' }]])
         .mockResolvedValueOnce([[{ cnt: '999' }]]) // string count
         .mockResolvedValueOnce([[{ cnt: '10' }]])
         .mockResolvedValueOnce([[{ cnt: '5' }]]);
@@ -234,6 +245,7 @@ describe('GET /api/user/profile', () => {
       });
       (executeRawQuery as jest.Mock)
         .mockResolvedValueOnce([[{ username: 'weird_user' }]])
+        .mockResolvedValueOnce([[{ aggressiveness: 'neutral' }]])
         .mockResolvedValueOnce([[{ cnt: '1' }]])
         .mockResolvedValueOnce([[{ cnt: '1' }]])
         .mockResolvedValueOnce([[{ cnt: '1' }]]);

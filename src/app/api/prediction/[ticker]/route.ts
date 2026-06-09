@@ -72,14 +72,9 @@ export async function POST(
   const forceRefresh = searchParams.get('refresh') === 'true';
   const queryOutlook = searchParams.get('outlook') || 'all';
 
-  if (!forceRefresh) {
-    const cacheKey = `${validatedTicker}_${queryOutlook}`;
-    const cachedData = predictionCache.get(cacheKey);
-    if (cachedData) {
-      return NextResponse.json({ ...cachedData as any, source: 'cache' });
-    }
-  }
-
+  // Parse body up front so we have stockMetrics available for GPS recomputation
+  // on cache hits — the cached prediction is strategy-independent, but the GPS
+  // it generates is not, so we must rerun the GPS step every request.
   let body: any;
   try {
     body = await request.json();
@@ -98,6 +93,55 @@ export async function POST(
   const outlook = (body.outlook || queryOutlook).toString();
   const validOutlooks = ['1_week', '1_month', '6_month', '1_year', 'all'];
   const validatedOutlook = validOutlooks.includes(outlook) ? outlook : 'all';
+
+  // Helper: compute GPS from a prediction result + body metrics. GPS is now
+  // strategy-independent (strategy only affects gates at recommendation time,
+  // not the score itself), so the same value is returned on cache hits and
+  // persisted to stock_gps_scores on fresh runs.
+  async function buildResponse(result: any, source: 'cache' | 'livedata') {
+    let computedGps: ReturnType<typeof calculateGpsScore> | null = null;
+    if (!isInternal && result?.predicted_price_1m) {
+      computedGps = calculateGpsScore(
+        {
+          analystUpside:     body.stockMetrics?.analystUpside,
+          revenueGrowthPct:  body.stockMetrics?.revenueGrowth,
+          earningsGrowthPct: body.stockMetrics?.earningsGrowth,
+          priceChange52w:    body.stockMetrics?.fiftyTwoWeekChange,
+          technicalScore:    body.technicalScore,
+          recommendationKey: body.recommendationKey,
+        },
+        {
+          predictedChangePct1m: result.predicted_change_pct_1m,
+          confidenceScore:      result.confidence_score_1m,
+        },
+      );
+
+      // Skip global save on cache hits — already persisted when the cache was populated.
+      if (source === 'livedata') {
+        savePredictionAsync(
+          validatedTicker,
+          result.predicted_price_1m,
+          userId,
+          computedGps.score,
+          computedGps.breakdown,
+        ).catch(() => {});
+      }
+    }
+
+    return NextResponse.json({
+      ...result,
+      source,
+      ...(computedGps && { gps_score: computedGps.score, gps_breakdown: computedGps.breakdown }),
+    });
+  }
+
+  if (!forceRefresh) {
+    const cacheKey = `${validatedTicker}_${queryOutlook}`;
+    const cachedData = predictionCache.get(cacheKey);
+    if (cachedData) {
+      return buildResponse(cachedData, 'cache');
+    }
+  }
 
   if (predictionSemaphore.isFull()) {
     return NextResponse.json({ message: 'Busy' }, { status: 503 });
@@ -136,37 +180,7 @@ export async function POST(
     }
     predictionCache.set(`${validatedTicker}_${validatedOutlook}`, result);
 
-    let computedGps: ReturnType<typeof calculateGpsScore> | null = null
-    if (!isInternal && result.predicted_price_1m) {
-      computedGps = calculateGpsScore(
-        {
-          analystUpside:    body.stockMetrics?.analystUpside,
-          revenueGrowthPct: body.stockMetrics?.revenueGrowth,
-          earningsGrowthPct: body.stockMetrics?.earningsGrowth,
-          priceChange52w:   body.stockMetrics?.fiftyTwoWeekChange,
-          technicalScore:   body.technicalScore,
-          recommendationKey: body.recommendationKey,
-        },
-        {
-          predictedChangePct1m: result.predicted_change_pct_1m,
-          confidenceScore:      result.confidence_score_1m,
-        }
-      );
-
-      savePredictionAsync(
-        validatedTicker,
-        result.predicted_price_1m,
-        userId,
-        computedGps.score,
-        computedGps.breakdown
-      ).catch(() => {});
-    }
-
-    return NextResponse.json({
-      ...result,
-      source: 'livedata',
-      ...(computedGps && { gps_score: computedGps.score, gps_breakdown: computedGps.breakdown }),
-    });
+    return buildResponse(result, 'livedata');
   } catch (error) {
     return createErrorResponse(error, 'Prediction failed', { status: 500 });
   } finally {
@@ -196,28 +210,28 @@ function runPythonPrediction(ticker: string, inputFile: string, outlook: string)
 }
 
 async function savePredictionAsync(
-  ticker: string, 
-  price: number, 
-  userId: string, 
-  gpsScore?: number, 
-  gpsBreakdown?: any
+  ticker: string,
+  price: number,
+  userId: string,
+  gpsScore?: number,
+  gpsBreakdown?: any,
 ) {
   try {
     const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
     const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
     await fetch(`${baseUrl}/api/prediction/save`, {
       method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json', 
-        'Origin': baseUrl, 
-        ...(internalSecret && { 'x-api-key': internalSecret }) 
+      headers: {
+        'Content-Type': 'application/json',
+        'Origin': baseUrl,
+        ...(internalSecret && { 'x-api-key': internalSecret })
       },
-      body: JSON.stringify({ 
-        ticker, 
-        predicted_price_1m: price, 
+      body: JSON.stringify({
+        ticker,
+        predicted_price_1m: price,
         user_id: userId,
         gps_score: gpsScore,
-        gps_breakdown: gpsBreakdown
+        gps_breakdown: gpsBreakdown,
       }),
     });
   } catch {}

@@ -64,6 +64,10 @@ export interface ProfileStats {
   watchlistItemCount: number;
 }
 
+export interface ProfileStrategy {
+  aggressiveness: 'safe' | 'neutral' | 'aggressive';
+}
+
 export type ProfileResponse =
-  | { username: string; accountType: 'user' | 'superuser'; stats: ProfileStats }
-  | { username: string; accountType: 'admin' };
+  | { username: string; accountType: 'user' | 'superuser'; stats: ProfileStats; strategy: ProfileStrategy }
+  | { username: string; accountType: 'admin'; strategy: ProfileStrategy };
