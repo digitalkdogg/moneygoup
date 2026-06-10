@@ -44,6 +44,8 @@ export interface DashboardRecommendation {
   deltaPct?: number;          // informational only — BUY/SELL logic uses GPS score
   gpsScore: number | null;
   gpsBreakdown: object | null;
+  /** Which prediction horizon the GPS reflects (i.e. which delta drove mlpUpside). */
+  gpsHorizon?: '1_week' | '1_month' | '6_month' | '1_year';
   lastRequestedAt: string;
   scope: 'portfolio' | 'watchlist' | 'discovery' | 'etf_holding';
   etfTicker?: string;         // set when scope === 'etf_holding'

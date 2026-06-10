@@ -241,8 +241,14 @@ def save_prediction(
     user_id: int,
     gps_score: float = None,
     gps_breakdown: dict = None,
+    predicted_price_1w: float = None,
+    predicted_price_6m: float = None,
+    predicted_price_1y: float = None,
 ) -> bool:
-    """Persist a prediction. GPS goes to stock_gps_scores (one row per stock)."""
+    """Persist a prediction. GPS goes to stock_gps_scores (one row per stock).
+    All four horizon prices (1w/1m/6m/1y) are persisted to user_stock_predictions
+    so the dashboard recommendations route can pick the right column based on
+    the user's investment_timeframe setting."""
     url = f"{INTERNAL_API_URL}/api/prediction/save"
     payload = {
         'ticker':              ticker,
@@ -253,6 +259,15 @@ def save_prediction(
         payload['gps_score'] = gps_score
     if gps_breakdown is not None:
         payload['gps_breakdown'] = gps_breakdown
+    # Other-horizon prices are optional in the schema; only send when present
+    # so the save route's surgical upsert leaves existing values alone if a run
+    # produced a 1m result but no others.
+    if predicted_price_1w is not None and predicted_price_1w > 0:
+        payload['predicted_price_1w'] = predicted_price_1w
+    if predicted_price_6m is not None and predicted_price_6m > 0:
+        payload['predicted_price_6m'] = predicted_price_6m
+    if predicted_price_1y is not None and predicted_price_1y > 0:
+        payload['predicted_price_1y'] = predicted_price_1y
     
     try:
         response = post_with_auth(url, payload)
@@ -280,6 +295,9 @@ def save_prediction(
 def _empty_cache_entry() -> dict:
     return {
         'predicted_price':      None,
+        'predicted_price_1w':   None,
+        'predicted_price_6m':   None,
+        'predicted_price_1y':   None,
         'predicted_change_pct': None,
         'confidence_score':     None,
         'gps_score':            None,
@@ -388,6 +406,9 @@ def run_prediction_for_holding(ticker: str,
     predicted_price      = float(prediction_result.get('predicted_price_1m', 0))
     predicted_change_pct = float(prediction_result.get('predicted_change_pct', 0))
     confidence_score_val = float(prediction_result.get('confidence_score', 0))
+    predicted_price_1w   = prediction_result.get('predicted_price_1w')
+    predicted_price_6m   = prediction_result.get('predicted_price_6m')
+    predicted_price_1y   = prediction_result.get('predicted_price_1y')
 
     sm = stock_data.get('stockMetrics', {})
     rec_key = (stock_data.get('recommendationKey')
@@ -407,6 +428,9 @@ def run_prediction_for_holding(ticker: str,
 
     entry = {
         'predicted_price':      predicted_price,
+        'predicted_price_1w':   predicted_price_1w,
+        'predicted_price_6m':   predicted_price_6m,
+        'predicted_price_1y':   predicted_price_1y,
         'predicted_change_pct': predicted_change_pct,
         'confidence_score':     confidence_score_val,
         'gps_score':            gps_result['score'],
@@ -478,6 +502,9 @@ def sync_portfolio_predictions():
             predicted_price = cached['predicted_price']
             gps_score = cached.get('gps_score')
             gps_breakdown = cached.get('gps_breakdown')
+            predicted_price_1w = cached.get('predicted_price_1w')
+            predicted_price_6m = cached.get('predicted_price_6m')
+            predicted_price_1y = cached.get('predicted_price_1y')
             print(f"  [cache] Using cached prediction for {ticker}: {predicted_price} (GPS: {gps_score})")
             stats['cached'] += 1
         else:
@@ -506,6 +533,9 @@ def sync_portfolio_predictions():
             gps_breakdown        = None
             predicted_change_pct = None
             confidence_score_val = None
+            predicted_price_1w   = None
+            predicted_price_6m   = None
+            predicted_price_1y   = None
 
             gps_inputs = None
 
@@ -514,6 +544,11 @@ def sync_portfolio_predictions():
                 predicted_price      = float(prediction_result.get('predicted_price_1m', 0))
                 predicted_change_pct = float(prediction_result.get('predicted_change_pct', 0))
                 confidence_score_val = float(prediction_result.get('confidence_score', 0))
+                # Other-horizon prices — surfaced so the dashboard recommendations
+                # route can pick the right column per the user's investment_timeframe.
+                predicted_price_1w = prediction_result.get('predicted_price_1w')
+                predicted_price_6m = prediction_result.get('predicted_price_6m')
+                predicted_price_1y = prediction_result.get('predicted_price_1y')
 
                 # GPS v3.0 — matches src/utils/gps.ts exactly
                 sm = stock_data.get('stockMetrics', {})
@@ -546,6 +581,9 @@ def sync_portfolio_predictions():
 
             prediction_cache[ticker] = {
                 'predicted_price':      predicted_price,
+                'predicted_price_1w':   predicted_price_1w,
+                'predicted_price_6m':   predicted_price_6m,
+                'predicted_price_1y':   predicted_price_1y,
                 'predicted_change_pct': predicted_change_pct,
                 'confidence_score':     confidence_score_val,
                 'gps_score':            gps_score,
@@ -558,8 +596,17 @@ def sync_portfolio_predictions():
             print(f"  [save] Skipping save for user {user_id} / {ticker} (no prediction).")
             continue
 
-        # Save the prediction for this user. GPS goes to stock_gps_scores (one row per stock).
-        saved = save_prediction(ticker, predicted_price, user_id, gps_score, gps_breakdown)
+        # Save the prediction for this user.
+        # - GPS goes to stock_gps_scores (one row per stock).
+        # - All four predicted_price_* columns persist to user_stock_predictions so
+        #   the dashboard recommendations route can pick the right horizon based on
+        #   the user's investment_timeframe.
+        saved = save_prediction(
+            ticker, predicted_price, user_id, gps_score, gps_breakdown,
+            predicted_price_1w=predicted_price_1w,
+            predicted_price_6m=predicted_price_6m,
+            predicted_price_1y=predicted_price_1y,
+        )
         if saved:
             stats['saved'] += 1
         else:

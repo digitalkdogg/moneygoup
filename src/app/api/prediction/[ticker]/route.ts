@@ -19,6 +19,7 @@ import { predictionCache } from '@/utils/cache';
 import { calculateGpsScore } from '@/utils/gps';
 import { LimitService } from '@/utils/limitService';
 import { checkApprovalGuard } from '@/utils/approvalStatus';
+import { getUserStrategy, resolveStrategy, DEFAULT_STRATEGY } from '@/utils/strategy';
 
 const logger = createLogger('api/prediction');
 
@@ -94,36 +95,53 @@ export async function POST(
   const validOutlooks = ['1_week', '1_month', '6_month', '1_year', 'all'];
   const validatedOutlook = validOutlooks.includes(outlook) ? outlook : 'all';
 
-  // Helper: compute GPS from a prediction result + body metrics. GPS is now
-  // strategy-independent (strategy only affects gates at recommendation time,
-  // not the score itself), so the same value is returned on cache hits and
-  // persisted to stock_gps_scores on fresh runs.
+  // Helper: compute GPS from a prediction result + body metrics. The GPS shown
+  // to the user uses the user's investment_timeframe horizon for the ML upside
+  // and confidence components. The 1m baseline is what we persist to
+  // stock_gps_scores so the global table stays coherent across users.
   async function buildResponse(result: any, source: 'cache' | 'livedata') {
     let computedGps: ReturnType<typeof calculateGpsScore> | null = null;
-    if (!isInternal && result?.predicted_price_1m) {
-      computedGps = calculateGpsScore(
-        {
-          analystUpside:     body.stockMetrics?.analystUpside,
-          revenueGrowthPct:  body.stockMetrics?.revenueGrowth,
-          earningsGrowthPct: body.stockMetrics?.earningsGrowth,
-          priceChange52w:    body.stockMetrics?.fiftyTwoWeekChange,
-          technicalScore:    body.technicalScore,
-          recommendationKey: body.recommendationKey,
-        },
-        {
-          predictedChangePct1m: result.predicted_change_pct_1m,
-          confidenceScore:      result.confidence_score_1m,
-        },
-      );
+    let baselineGps: ReturnType<typeof calculateGpsScore> | null = null;
+    let gpsHorizon: '1_week' | '1_month' | '6_month' | '1_year' = '1_month';
 
-      // Skip global save on cache hits — already persisted when the cache was populated.
+    if (!isInternal && result?.predicted_price_1m) {
+      const gpsMetrics = {
+        analystUpside:     body.stockMetrics?.analystUpside,
+        revenueGrowthPct:  body.stockMetrics?.revenueGrowth,
+        earningsGrowthPct: body.stockMetrics?.earningsGrowth,
+        priceChange52w:    body.stockMetrics?.fiftyTwoWeekChange,
+        technicalScore:    body.technicalScore,
+        recommendationKey: body.recommendationKey,
+      };
+
+      // 1m baseline: always computed, always saved to the global table.
+      baselineGps = calculateGpsScore(gpsMetrics, {
+        predictedChangePct1m: result.predicted_change_pct_1m,
+        confidenceScore:      result.confidence_score_1m,
+      });
+
+      // Per-user horizon: pick the prediction matching the user's timeframe.
+      const strategy = await getUserStrategy(userId).catch(() => DEFAULT_STRATEGY);
+      gpsHorizon = strategy.investment_timeframe;
+      const horizonKey = strategy.investment_timeframe.replace('_', ''); // '1week' / '1month' / '6month' / '1year'
+      const suffixMap: Record<string, string> = { '1week': '1w', '1month': '1m', '6month': '6m', '1year': '1y' };
+      const sfx = suffixMap[horizonKey] ?? '1m';
+      const horizonChange = result[`predicted_change_pct_${sfx}`] ?? result.predicted_change_pct_1m;
+      const horizonConfidence = result[`confidence_score_${sfx}`] ?? result.confidence_score_1m;
+
+      computedGps = calculateGpsScore(gpsMetrics, {
+        predictedChangePct1m: horizonChange,
+        confidenceScore:      horizonConfidence,
+      });
+
+      // Persist the NEUTRAL 1m baseline globally (skip on cache hits).
       if (source === 'livedata') {
         savePredictionAsync(
           validatedTicker,
           result.predicted_price_1m,
           userId,
-          computedGps.score,
-          computedGps.breakdown,
+          baselineGps.score,
+          baselineGps.breakdown,
         ).catch(() => {});
       }
     }
@@ -131,7 +149,11 @@ export async function POST(
     return NextResponse.json({
       ...result,
       source,
-      ...(computedGps && { gps_score: computedGps.score, gps_breakdown: computedGps.breakdown }),
+      ...(computedGps && {
+        gps_score: computedGps.score,
+        gps_breakdown: computedGps.breakdown,
+        gps_horizon: gpsHorizon,
+      }),
     });
   }
 

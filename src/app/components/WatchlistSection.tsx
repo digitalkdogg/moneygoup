@@ -144,6 +144,7 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
       ma6m: ma6_month,
       gpsScore: item.gpsScore,
       gpsBreakdown: item.gpsBreakdown,
+      gpsHorizon: (item as any).gpsHorizon,
       predictedPrice1m,
     };
   };

@@ -1,18 +1,18 @@
 /**
  * User Investment Strategy
  *
- * Single source of truth mapping aggressiveness → concrete scoring parameters
- * used by the GPS-driven recommendation pipeline. The companion Python module
- * is scripts/strategy_config.py — keep in sync.
- *
- * Timeframe was removed in favor of a single aggressiveness dimension.
+ * Single source of truth mapping aggressiveness + investment timeframe to
+ * concrete scoring parameters used by the GPS-driven recommendation pipeline
+ * and the DeepMoney discovery flow.
  */
 import { executeRawQuery } from './databaseHelper';
 
 export type Aggressiveness = 'safe' | 'neutral' | 'aggressive';
+export type InvestmentTimeframe = '1_week' | '1_month' | '6_month' | '1_year';
 
 export interface UserStrategy {
   aggressiveness: Aggressiveness;
+  investment_timeframe: InvestmentTimeframe;
 }
 
 /** Gates applied when surfacing recommendations. */
@@ -20,19 +20,39 @@ export interface StrategyGates {
   confidenceFloor: number;   // 0–100; minimum prediction confidence
   betaCutoff: number;        // maximum beta tolerated
   gpsGate: number;           // minimum GPS score
-  predChangeGate: number;    // minimum predicted 1m change %
-  /** Multiplier applied to env-driven floor thresholds (buy/discovery/etf gates).
+  predChangeGate: number;    // minimum predicted change %
+  /** Multiplier on env-driven floor thresholds (buy/discovery/etf gates).
    *  <1 loosens, >1 tightens. safe=1.05, neutral=1.0, aggressive=0.95. */
   envFloorMultiplier: number;
 }
 
+/** Timeframe-derived knobs for prediction + threshold tuning. */
+export interface TimeframeConfig {
+  /** outlook param passed to predict_weighted_analysis.py */
+  outlook: InvestmentTimeframe;
+  /** Multiplier stacked on top of strategyGates.predChangeGate. Short horizons
+   *  lower the bar (less time → smaller expected move), long horizons raise it. */
+  predChangeMultiplier: number;
+  /** Offset added to env-driven sell threshold. Negative = more hair-trigger sells. */
+  sellThresholdShift: number;
+  /** ML validation gate for DeepMoney (minimum positive predicted change %). */
+  mlGate: number;
+  /** Short label for UI display, e.g. "in 6 months". */
+  displayLabel: string;
+  /** Which predicted_price column to read from user_stock_predictions. */
+  predictedPriceColumn: 'predicted_price_1w' | 'predicted_price_1m' | 'predicted_price_6m' | 'predicted_price_1y';
+}
+
 export interface StrategyConfig {
   aggressiveness: Aggressiveness;
+  investment_timeframe: InvestmentTimeframe;
   gates: StrategyGates;
+  timeframe: TimeframeConfig;
 }
 
 export const DEFAULT_STRATEGY: UserStrategy = {
-  aggressiveness: 'neutral',
+  aggressiveness:       'neutral',
+  investment_timeframe: '1_month',
 };
 
 const AGGRESSIVENESS_GATES: Record<Aggressiveness, StrategyGates> = {
@@ -59,31 +79,74 @@ const AGGRESSIVENESS_GATES: Record<Aggressiveness, StrategyGates> = {
   },
 };
 
+const TIMEFRAME_CONFIG: Record<InvestmentTimeframe, TimeframeConfig> = {
+  '1_week': {
+    outlook:              '1_week',
+    predChangeMultiplier: 0.5,
+    sellThresholdShift:   -2,
+    mlGate:               0.5,
+    displayLabel:         'in 1 week',
+    predictedPriceColumn: 'predicted_price_1w',
+  },
+  '1_month': {
+    outlook:              '1_month',
+    predChangeMultiplier: 1.0,
+    sellThresholdShift:   0,
+    mlGate:               1.5,
+    displayLabel:         'in 1 month',
+    predictedPriceColumn: 'predicted_price_1m',
+  },
+  '6_month': {
+    outlook:              '6_month',
+    predChangeMultiplier: 1.5,
+    sellThresholdShift:   3,
+    mlGate:               5,
+    displayLabel:         'in 6 months',
+    predictedPriceColumn: 'predicted_price_6m',
+  },
+  '1_year': {
+    outlook:              '1_year',
+    predChangeMultiplier: 2.0,
+    sellThresholdShift:   5,
+    mlGate:               10,
+    displayLabel:         'in 1 year',
+    predictedPriceColumn: 'predicted_price_1y',
+  },
+};
+
 export function resolveStrategy(strategy: UserStrategy): StrategyConfig {
   return {
-    aggressiveness: strategy.aggressiveness,
-    gates:          AGGRESSIVENESS_GATES[strategy.aggressiveness],
+    aggressiveness:       strategy.aggressiveness,
+    investment_timeframe: strategy.investment_timeframe,
+    gates:                AGGRESSIVENESS_GATES[strategy.aggressiveness],
+    timeframe:            TIMEFRAME_CONFIG[strategy.investment_timeframe],
   };
 }
 
 const VALID_AGGRESSIVENESS: readonly Aggressiveness[] = ['safe', 'neutral', 'aggressive'];
+const VALID_TIMEFRAMES: readonly InvestmentTimeframe[] = ['1_week', '1_month', '6_month', '1_year'];
 
 export function isValidAggressiveness(v: unknown): v is Aggressiveness {
   return typeof v === 'string' && (VALID_AGGRESSIVENESS as readonly string[]).includes(v);
 }
 
+export function isValidTimeframe(v: unknown): v is InvestmentTimeframe {
+  return typeof v === 'string' && (VALID_TIMEFRAMES as readonly string[]).includes(v);
+}
+
 /**
  * Fetch a user's strategy from user_investment_strategy. Falls back to the
- * default (neutral) when the user has no row yet.
+ * default (neutral / 1_month) when the user has no row yet.
  */
 export async function getUserStrategy(userId: number | string): Promise<UserStrategy> {
   const [rows] = await executeRawQuery(
-    'SELECT aggressiveness FROM user_investment_strategy WHERE user_id = ?',
+    'SELECT aggressiveness, investment_timeframe FROM user_investment_strategy WHERE user_id = ?',
     [userId]
   );
   const row = Array.isArray(rows) && rows.length > 0 ? (rows[0] as any) : null;
   if (!row) return DEFAULT_STRATEGY;
   return {
-    aggressiveness: isValidAggressiveness(row.aggressiveness) ? row.aggressiveness : DEFAULT_STRATEGY.aggressiveness,
+    aggressiveness:       isValidAggressiveness(row.aggressiveness) ? row.aggressiveness : DEFAULT_STRATEGY.aggressiveness,
+    investment_timeframe: isValidTimeframe(row.investment_timeframe) ? row.investment_timeframe : DEFAULT_STRATEGY.investment_timeframe,
   };
 }

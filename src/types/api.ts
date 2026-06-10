@@ -64,8 +64,11 @@ export interface ProfileStats {
   watchlistItemCount: number;
 }
 
+export type InvestmentTimeframe = '1_week' | '1_month' | '6_month' | '1_year';
+
 export interface ProfileStrategy {
   aggressiveness: 'safe' | 'neutral' | 'aggressive';
+  investment_timeframe: InvestmentTimeframe;
 }
 
 export type ProfileResponse =

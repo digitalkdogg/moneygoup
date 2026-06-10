@@ -9,6 +9,16 @@ interface GpsBreakdownModalProps {
   symbol: string
   score: number | null
   breakdown: any | null
+  /** Which prediction horizon the mlpUpside component reflects.
+   *  Defaults to '1_month' for back-compat with callers that don't pass it. */
+  horizon?: '1_week' | '1_month' | '6_month' | '1_year'
+}
+
+const HORIZON_LABEL: Record<string, string> = {
+  '1_week':  '1w',
+  '1_month': '1m',
+  '6_month': '6m',
+  '1_year':  '1y',
 }
 
 export const GpsBreakdownModal: React.FC<GpsBreakdownModalProps> = ({
@@ -17,7 +27,9 @@ export const GpsBreakdownModal: React.FC<GpsBreakdownModalProps> = ({
   symbol,
   score,
   breakdown,
+  horizon = '1_month',
 }) => {
+  const mlpLabel = `ML Prediction (${HORIZON_LABEL[horizon] ?? '1m'})`
   if (!isOpen) return null
 
   const getToneColor = (s: number) => {
@@ -83,7 +95,7 @@ export const GpsBreakdownModal: React.FC<GpsBreakdownModalProps> = ({
             <div className="space-y-4">
               <div className="grid grid-cols-1 gap-0.5">
                 <div className="flex justify-between items-center py-2 border-b border-slate-50">
-                  <span className="text-slate-500 text-[10px] uppercase font-bold tracking-wider">ML Prediction (1m)</span>
+                  <span className="text-slate-500 text-[10px] uppercase font-bold tracking-wider">{mlpLabel}</span>
                   <span className="font-mono font-bold text-slate-900 bg-slate-50 px-2 py-0.5 rounded text-sm">{(breakdown.mlpUpside ?? 0).toFixed(1)} / 20</span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b border-slate-50">

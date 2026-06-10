@@ -53,7 +53,7 @@ export const PortfolioCardView: React.FC<PortfolioCardViewProps> = ({ card, acti
           {card.gpsScore != null ? (
             <div className="flex items-center gap-1">
               <span className="text-sm font-bold text-gray-900">{card.gpsScore.toFixed(1)}</span>
-              <GpsTooltip score={card.gpsScore} breakdown={card.gpsBreakdown} symbol={card.symbol} />
+              <GpsTooltip score={card.gpsScore} breakdown={card.gpsBreakdown} symbol={card.symbol} horizon={card.gpsHorizon} />
             </div>
           ) : (
             <span className="text-sm text-gray-400">—</span>

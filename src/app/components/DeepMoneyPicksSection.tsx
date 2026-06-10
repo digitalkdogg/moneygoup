@@ -50,6 +50,7 @@ interface DeepMoneyData {
   hot_stocks: RecommendedStock[];
   hot_etfs: RecommendedETF[];
   etf_holdings: RecommendedETFHolding[];
+  timeframe_label?: string | null;
 }
 
 export default function DeepMoneyPicksSection() {
@@ -73,6 +74,7 @@ export default function DeepMoneyPicksSection() {
         hot_stocks: sortedHotStocks,
         hot_etfs: sortedHotEtfs,
         etf_holdings: (json.etf_holdings || []).sort((a: RecommendedETFHolding, b: RecommendedETFHolding) => (b.gps_score || 0) - (a.gps_score || 0)),
+        timeframe_label: json.timeframe_label ?? null,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -83,6 +85,8 @@ export default function DeepMoneyPicksSection() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  const timeframeLabel = data?.timeframe_label ?? null;
+
   const mapStockToDeepmoneyCard = (stock: RecommendedStock): DeepmoneyCard => ({
     variant: 'deepmoney',
     symbol: stock.ticker,
@@ -92,7 +96,8 @@ export default function DeepMoneyPicksSection() {
     changeAmount: stock.changeAmount !== undefined ? stock.changeAmount : null,
     prediction: stock.metric_value !== undefined && stock.metric_value !== null ? stock.metric_value : (stock.trading_signal === 'BUY' ? 'Bullish' : stock.trading_signal === 'SELL' ? 'Bearish' : 'Neutral'),
     gpsScore: stock.gps_score !== null ? parseFloat(stock.gps_score as any) : null,
-    gpsBreakdown: stock.gps_breakdown ? (typeof stock.gps_breakdown === 'string' ? JSON.parse(stock.gps_breakdown) : stock.gps_breakdown) : null
+    gpsBreakdown: stock.gps_breakdown ? (typeof stock.gps_breakdown === 'string' ? JSON.parse(stock.gps_breakdown) : stock.gps_breakdown) : null,
+    timeframeLabel,
   });
 
   const mapEtfToDeepmoneyCard = (etf: RecommendedETF): DeepmoneyCard => ({
@@ -104,7 +109,8 @@ export default function DeepMoneyPicksSection() {
     changeAmount: etf.changeAmount !== undefined ? etf.changeAmount : null,
     prediction: 'Bullish',
     gpsScore: etf.etf_gps_score !== null ? parseFloat(etf.etf_gps_score as any) : null,
-    gpsBreakdown: null
+    gpsBreakdown: null,
+    timeframeLabel,
   });
 
   const mapETFHoldingToDeepmoneyCard = (h: RecommendedETFHolding): DeepmoneyCard => ({
@@ -121,6 +127,7 @@ export default function DeepMoneyPicksSection() {
     gpsBreakdown: h.gps_breakdown
       ? (typeof h.gps_breakdown === 'string' ? JSON.parse(h.gps_breakdown) : h.gps_breakdown)
       : null,
+    timeframeLabel,
   });
 
   if (loading && !data) {

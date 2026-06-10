@@ -42,11 +42,26 @@ export interface EnrichedStock {
     prediction_input?: any;
 }
 
+/** Options that drive how the analyzer runs the ML and gates the results. */
+export interface AnalyzeOptions {
+    /** outlook passed to predict_weighted_analysis.py — '1_week' / '1_month' / '6_month' / '1_year'. */
+    outlook?: '1_week' | '1_month' | '6_month' | '1_year';
+    /** Minimum positive predicted change % required to surface (ML Validation Gate). */
+    mlGate?: number;
+}
+
 /**
  * Analyzes and filters a list of enriched stocks.
  * Uses Direct Logic approach to avoid internal HTTP overhead.
  */
-export async function analyzeStocks(stocks: EnrichedStock[], sharedContext?: { wbData?: any, marketIndices?: any }): Promise<EnrichedStock[]> {
+export async function analyzeStocks(
+    stocks: EnrichedStock[],
+    sharedContext?: { wbData?: any, marketIndices?: any },
+    options: AnalyzeOptions = {},
+): Promise<EnrichedStock[]> {
+    const outlook = options.outlook ?? '1_month';
+    const mlGate  = options.mlGate  ?? 1.5;
+
     // First filter: stocks that have a positive or neutral tradingSignalScore
     // This pre-filtering reduces the number of heavy prediction calls
     const initialFilteredStocks = stocks.filter(stock => {
@@ -66,26 +81,26 @@ export async function analyzeStocks(stocks: EnrichedStock[], sharedContext?: { w
     }
 
     const filteredStocks: EnrichedStock[] = [];
-    
+
     // Process in smaller serial batches or with limited concurrency to respect CPU/Memory
     const BATCH_SIZE = 3;
     for (let i = 0; i < initialFilteredStocks.length; i += BATCH_SIZE) {
         const batch = initialFilteredStocks.slice(i, i + BATCH_SIZE);
-        
+
         await Promise.all(batch.map(async (stock) => {
             try {
                 // 1. Get complete data payload WITHOUT internal fetch
                 const payload = await getStockDataForPrediction(stock.ticker, sharedContext?.wbData);
 
-                // 2. Run prediction WITHOUT internal fetch
-                const predictionResult: any = await runPredictionInternal(stock.ticker, payload, '1_month');
-                
+                // 2. Run prediction WITHOUT internal fetch — outlook scales with the user's timeframe
+                const predictionResult: any = await runPredictionInternal(stock.ticker, payload, outlook);
+
                 const predictedChangePct = predictionResult.predicted_change_pct;
 
                 if (predictedChangePct !== undefined) {
                     stock.prediction_1m = predictedChangePct;
-                    // Threshold: positive predictions >= 1.5% only (ML Validation Gate)
-                    if (predictedChangePct > 0 && predictedChangePct >= 1.5) {
+                    // Threshold: positive predictions >= mlGate only (timeframe-scaled ML Validation Gate)
+                    if (predictedChangePct > 0 && predictedChangePct >= mlGate) {
                         
                         // --- GPS Score Calculation (v2.3) ---
                         const gpsResult = calculateGpsScore(

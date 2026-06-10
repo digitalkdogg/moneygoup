@@ -8,6 +8,8 @@ import { checkOrigin } from '@/utils/originCheck';
 import { fetchYahooStockSummary } from '@/utils/yahooFinanceHelper';
 import { normalizeRecommendation } from '@/utils/formatters';
 import { checkApprovalGuard } from '@/utils/approvalStatus';
+import { getUserStrategy, resolveStrategy, DEFAULT_STRATEGY } from '@/utils/strategy';
+import { adjustMlpUpsideForHorizon } from '@/utils/gps';
 
 const logger = createLogger('api/user/portfolio');
 
@@ -36,6 +38,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // Resolve user's investment timeframe so we can return a horizon-aware
+    // predicted_price and patch the GPS breakdown's mlpUpside accordingly.
+    const userStrategy = await getUserStrategy(userId).catch(() => DEFAULT_STRATEGY);
+    const priceColumn = resolveStrategy(userStrategy).timeframe.predictedPriceColumn;
+
     const [portfolioItems] = await executeRawQuery(`
       SELECT
         us.user_id,
@@ -49,6 +56,7 @@ export async function GET(request: NextRequest) {
         us.initial_purchase_date,
         us.last_transaction_date,
         usp.predicted_price_1m,
+        COALESCE(usp.${priceColumn}, usp.predicted_price_1m) AS predicted_price_horizon,
         sgs.gps_score,
         sgs.gps_breakdown,
         sb.primary_color
@@ -126,6 +134,21 @@ export async function GET(request: NextRequest) {
             }
           }
 
+          // Patch the cached 1m-baseline breakdown to reflect the user's
+          // timeframe. Math is identical to the dashboard recommendations route.
+          const baselineBreakdown = item.gps_breakdown
+            ? (typeof item.gps_breakdown === 'string' ? JSON.parse(item.gps_breakdown) : item.gps_breakdown)
+            : null;
+          let perUserGpsScore = item.gps_score !== null ? parseFloat(item.gps_score) : null;
+          let perUserGpsBreakdown = baselineBreakdown;
+          const horizonPrice = item.predicted_price_horizon != null ? parseFloat(item.predicted_price_horizon) : null;
+          if (baselineBreakdown && currentPrice && horizonPrice && currentPrice > 0) {
+            const horizonDeltaPct = ((horizonPrice - currentPrice) / currentPrice) * 100;
+            const adjusted = adjustMlpUpsideForHorizon(baselineBreakdown, horizonDeltaPct);
+            perUserGpsScore = adjusted.score;
+            perUserGpsBreakdown = adjusted.breakdown;
+          }
+
           return {
             ...item,
             regularMarketPrice: currentPrice,
@@ -134,8 +157,9 @@ export async function GET(request: NextRequest) {
             recommendationMean: summary?.financialData?.recommendationMean || null,
             numberOfAnalystOpinions: summary?.financialData?.numberOfAnalystOpinions || null,
             brand_color: item.primary_color || null,
-            gpsScore: item.gps_score !== null ? parseFloat(item.gps_score) : null,
-            gpsBreakdown: item.gps_breakdown ? (typeof item.gps_breakdown === 'string' ? JSON.parse(item.gps_breakdown) : item.gps_breakdown) : null,
+            gpsScore: perUserGpsScore,
+            gpsBreakdown: perUserGpsBreakdown,
+            gpsHorizon: userStrategy.investment_timeframe,
             sector: (summary as any)?.assetProfile?.sector || null,
             is_etf: (quoteResult as any)?.quoteType?.toUpperCase() === 'ETF'
           };

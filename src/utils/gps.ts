@@ -52,6 +52,38 @@ export function getGpsLabel(score: number): string {
   return 'Strong Sell'
 }
 
+/**
+ * Patch the `mlpUpside` component of an existing breakdown using a different
+ * predicted-change %. Used to make a globally-cached GPS breakdown horizon-aware
+ * per user without needing the full set of original GPS metrics.
+ *
+ * Other 7 components don't depend on prediction horizon (revenue/earnings growth,
+ * technicals, analyst signals, 52w momentum), so they pass through unchanged.
+ * mlpConfidence stays at the baseline value too — confidence per horizon isn't
+ * persisted yet, and 5 pts out of 100 has small downstream effect.
+ */
+export function adjustMlpUpsideForHorizon(
+  breakdown: GpsBreakdown,
+  predictedChangePctForHorizon: number,
+): { breakdown: GpsBreakdown; score: number } {
+  const predictionMax = process.env.GPS_PREDICTION_MAX ? parseFloat(process.env.GPS_PREDICTION_MAX) : 3
+  const newMlpUpside = Math.min(Math.max(predictedChangePctForHorizon / predictionMax, -1), 1) * 20
+
+  const adjusted: GpsBreakdown = {
+    ...breakdown,
+    mlpUpside: parseFloat(newMlpUpside.toFixed(1)),
+  }
+  const total =
+    adjusted.mlpUpside + adjusted.mlpConfidence + adjusted.revenueGrowth +
+    adjusted.earningsGrowth + adjusted.technicalSignal + adjusted.analystUpside +
+    adjusted.analystConsensus + adjusted.priceChange52w
+
+  return {
+    breakdown: adjusted,
+    score: parseFloat(Math.min(Math.max(total, 0), 100).toFixed(1)),
+  }
+}
+
 export function calculateGpsScore(metrics: GpsMetrics, prediction: GpsPredictionResult): GpsResult {
   const predictionMax = process.env.GPS_PREDICTION_MAX ? parseFloat(process.env.GPS_PREDICTION_MAX) : 3
 

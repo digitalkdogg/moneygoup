@@ -7,14 +7,17 @@ interface GpsTooltipProps {
   score: number | null
   breakdown: any | null
   symbol: string
+  /** Forwarded to the modal so the mlpUpside label matches the horizon
+   *  the breakdown's mlpUpside was actually computed for. */
+  horizon?: '1_week' | '1_month' | '6_month' | '1_year'
 }
 
-export const GpsTooltip: React.FC<GpsTooltipProps> = ({ score, breakdown, symbol }) => {
+export const GpsTooltip: React.FC<GpsTooltipProps> = ({ score, breakdown, symbol, horizon }) => {
   const [isModalOpen, setIsModalOpen] = useState(false)
 
   return (
     <>
-      <button 
+      <button
         onClick={(e) => {
           e.preventDefault()
           e.stopPropagation()
@@ -31,6 +34,7 @@ export const GpsTooltip: React.FC<GpsTooltipProps> = ({ score, breakdown, symbol
         symbol={symbol}
         score={score}
         breakdown={breakdown}
+        horizon={horizon}
       />
     </>
   )

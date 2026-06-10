@@ -10,6 +10,8 @@ import { checkOrigin } from '@/utils/originCheck';
 import { fetchYahooStockSummary } from '@/utils/yahooFinanceHelper';
 import { LimitService } from '@/utils/limitService';
 import { checkApprovalGuard } from '@/utils/approvalStatus';
+import { getUserStrategy, resolveStrategy, DEFAULT_STRATEGY } from '@/utils/strategy';
+import { adjustMlpUpsideForHorizon } from '@/utils/gps';
 
 const logger = createLogger('api/user/watchlist');
 
@@ -37,6 +39,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // Pick the user's timeframe-specific predicted_price column for horizon-aware GPS.
+    const userStrategy = await getUserStrategy(userId).catch(() => DEFAULT_STRATEGY);
+    const priceColumn = resolveStrategy(userStrategy).timeframe.predictedPriceColumn;
+
     const [watchlistItems]: any[] = await executeRawQuery(`
       SELECT
         s.id AS stock_id,
@@ -47,6 +53,7 @@ export async function GET(request: NextRequest) {
         us.is_purchased,
         s.price AS db_price,
         usp.predicted_price_1m,
+        COALESCE(usp.${priceColumn}, usp.predicted_price_1m) AS predicted_price_horizon,
         sgs.gps_score,
         sgs.gps_breakdown
       FROM user_stocks us
@@ -91,6 +98,20 @@ export async function GET(request: NextRequest) {
         const regularMarketPrice = (quoteResult as any)?.regularMarketPrice || item.db_price || 0;
         const prev_close = (quoteResult as any)?.regularMarketPreviousClose || null;
 
+        // Patch the cached 1m-baseline breakdown using the user's timeframe delta.
+        const baselineBreakdown = item.gps_breakdown
+          ? (typeof item.gps_breakdown === 'string' ? JSON.parse(item.gps_breakdown) : item.gps_breakdown)
+          : null;
+        let perUserGpsScore = item.gps_score !== null ? parseFloat(item.gps_score) : null;
+        let perUserGpsBreakdown = baselineBreakdown;
+        const horizonPrice = item.predicted_price_horizon != null ? parseFloat(item.predicted_price_horizon) : null;
+        if (baselineBreakdown && regularMarketPrice > 0 && horizonPrice) {
+          const horizonDeltaPct = ((horizonPrice - regularMarketPrice) / regularMarketPrice) * 100;
+          const adjusted = adjustMlpUpsideForHorizon(baselineBreakdown, horizonDeltaPct);
+          perUserGpsScore = adjusted.score;
+          perUserGpsBreakdown = adjusted.breakdown;
+        }
+
         return {
           ...item,
           ma6_month: ma6_month,
@@ -98,8 +119,9 @@ export async function GET(request: NextRequest) {
           prev_close,
           recommendationKey: summary?.financialData?.recommendationKey || null,
           numberOfAnalystOpinions: summary?.financialData?.numberOfAnalystOpinions || null,
-          gpsScore: item.gps_score !== null ? parseFloat(item.gps_score) : null,
-          gpsBreakdown: item.gps_breakdown ? (typeof item.gps_breakdown === 'string' ? JSON.parse(item.gps_breakdown) : item.gps_breakdown) : null
+          gpsScore: perUserGpsScore,
+          gpsBreakdown: perUserGpsBreakdown,
+          gpsHorizon: userStrategy.investment_timeframe,
         };
       } catch (yahooError: any) {
         logger.error(`Error fetching Yahoo data for ${item.symbol}:`, { error: yahooError });

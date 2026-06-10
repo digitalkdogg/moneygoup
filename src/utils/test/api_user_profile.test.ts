@@ -89,7 +89,7 @@ describe('GET /api/user/profile', () => {
       expect(data).toEqual({
         username: 'admin_user',
         accountType: 'admin',
-        strategy: { aggressiveness: 'neutral' },
+        strategy: { aggressiveness: 'neutral', investment_timeframe: '1_month' },
       });
       expect(data.stats).toBeUndefined();
     });
@@ -131,7 +131,7 @@ describe('GET /api/user/profile', () => {
           portfolioItemCount: 5,
           watchlistItemCount: 8,
         },
-        strategy: { aggressiveness: 'neutral' },
+        strategy: { aggressiveness: 'neutral', investment_timeframe: '1_month' },
       });
     });
 
@@ -214,7 +214,7 @@ describe('GET /api/user/profile', () => {
           portfolioItemCount: 15,
           watchlistItemCount: 20,
         },
-        strategy: { aggressiveness: 'neutral' },
+        strategy: { aggressiveness: 'neutral', investment_timeframe: '1_month' },
       });
     });
   });

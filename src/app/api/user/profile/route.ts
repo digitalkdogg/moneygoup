@@ -6,7 +6,7 @@ import { createErrorResponse, unauthorizedResponse } from '@/utils/errorResponse
 import { createLogger } from '@/utils/logger';
 import { checkOrigin } from '@/utils/originCheck';
 import { checkApprovalGuard } from '@/utils/approvalStatus';
-import { getUserStrategy, isValidAggressiveness } from '@/utils/strategy';
+import { getUserStrategy, isValidAggressiveness, isValidTimeframe } from '@/utils/strategy';
 import type { ProfileResponse } from '@/types/api';
 
 const logger = createLogger('api/user/profile');
@@ -118,25 +118,51 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ message: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const aggressiveness = body?.strategy?.aggressiveness ?? body?.aggressiveness;
+  // Both fields are optional in the payload — pill UX sends only what changed,
+  // dropdown-save UX sends both. At least one must be present and valid.
+  const aggressivenessRaw = body?.strategy?.aggressiveness ?? body?.aggressiveness;
+  const timeframeRaw      = body?.strategy?.investment_timeframe ?? body?.investment_timeframe;
 
-  if (!isValidAggressiveness(aggressiveness)) {
+  const hasAggressiveness = aggressivenessRaw !== undefined;
+  const hasTimeframe      = timeframeRaw !== undefined;
+
+  if (!hasAggressiveness && !hasTimeframe) {
+    return NextResponse.json(
+      { message: 'Must supply aggressiveness and/or investment_timeframe' },
+      { status: 400 }
+    );
+  }
+  if (hasAggressiveness && !isValidAggressiveness(aggressivenessRaw)) {
     return NextResponse.json(
       { message: `Invalid aggressiveness — must be one of: safe, neutral, aggressive` },
       { status: 400 }
     );
   }
+  if (hasTimeframe && !isValidTimeframe(timeframeRaw)) {
+    return NextResponse.json(
+      { message: `Invalid investment_timeframe — must be one of: 1_week, 1_month, 6_month, 1_year` },
+      { status: 400 }
+    );
+  }
+
+  // Load the current row so we can preserve fields the client didn't send.
+  const current = await getUserStrategy(userId);
+  const next = {
+    aggressiveness:       hasAggressiveness ? aggressivenessRaw : current.aggressiveness,
+    investment_timeframe: hasTimeframe      ? timeframeRaw      : current.investment_timeframe,
+  };
 
   try {
     await executeRawQuery(
-      `INSERT INTO user_investment_strategy (user_id, aggressiveness)
-       VALUES (?, ?)
+      `INSERT INTO user_investment_strategy (user_id, aggressiveness, investment_timeframe)
+       VALUES (?, ?, ?)
        ON DUPLICATE KEY UPDATE
-         aggressiveness = VALUES(aggressiveness)`,
-      [userId, aggressiveness]
+         aggressiveness       = VALUES(aggressiveness),
+         investment_timeframe = VALUES(investment_timeframe)`,
+      [userId, next.aggressiveness, next.investment_timeframe]
     );
-    logger.info('Updated user investment strategy', { userId, aggressiveness });
-    return NextResponse.json({ ok: true, strategy: { aggressiveness } }, { status: 200 });
+    logger.info('Updated user investment strategy', { userId, ...next });
+    return NextResponse.json({ ok: true, strategy: next }, { status: 200 });
   } catch (error) {
     logger.error('Failed to update user investment strategy', { error });
     return createErrorResponse(error, 'Failed to update strategy', { status: 500 });

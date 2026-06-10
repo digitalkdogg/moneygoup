@@ -15,6 +15,7 @@ import Sentiment from 'sentiment';
 import { analyzeStocks } from './analyzer';
 import { checkApprovalGuard } from '@/utils/approvalStatus';
 import { performETFDiscovery } from '@/utils/etfDiscovery';
+import { getUserStrategy, resolveStrategy, DEFAULT_STRATEGY } from '@/utils/strategy';
 
 const logger = createLogger('api/prediction/deepmoney');
 const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
@@ -25,7 +26,7 @@ const xmlParser = new XMLParser();
 // Constants
 // ---------------------------------------------------------------------------
 
-const CACHE_KEY = 'hot-tickers-enriched';
+const CACHE_KEY_BASE = 'hot-tickers-enriched';
 const CACHE_TTL_SECONDS = 300; // 5 minutes
 
 const PRIMARY_FEED_URLS = [
@@ -427,6 +428,7 @@ async function enrichTickers(tickers: string[]) {
 export async function GET(request: NextRequest) {
     // --- Auth & Origin Split ---
     const isInternal = isInternalRequest(request);
+    let sessionUserId: string | number | undefined;
 
     if (!isInternal) {
         const originCheckResponse = checkOrigin(request as any);
@@ -441,6 +443,7 @@ export async function GET(request: NextRequest) {
         if (!approvalOutcome.allowed) {
             return NextResponse.json({ message: approvalOutcome.message, code: approvalOutcome.code }, { status: 403 });
         }
+        sessionUserId = session.user?.id;
     }
 
     // --- Rate limiting (internal requests bypass) ---
@@ -453,18 +456,27 @@ export async function GET(request: NextRequest) {
         }
     }
 
-    // --- Cache check ---
+    // --- Resolve user's investment timeframe (drives outlook + ML gate) ---
+    const userStrategy = sessionUserId
+        ? await getUserStrategy(sessionUserId).catch(() => DEFAULT_STRATEGY)
+        : DEFAULT_STRATEGY;
+    const tfCfg = resolveStrategy(userStrategy).timeframe;
+    const outlook = tfCfg.outlook;
+    const mlGate = tfCfg.mlGate;
+    const CACHE_KEY = `${CACHE_KEY_BASE}:${outlook}`;
+
+    // --- Cache check (bucketed by outlook so each timeframe has its own snapshot) ---
     const { searchParams } = new URL(request.url);
     const forceRefresh = searchParams.get('refresh') === 'true';
 
     if (!forceRefresh) {
         const cached = deepmoneyCache.get(CACHE_KEY);
         if (cached) {
-            logger.info('Returning cached enriched hot tickers');
+            logger.info('Returning cached enriched hot tickers', { outlook });
             return NextResponse.json(cached);
         }
     } else {
-        logger.info('DeepMoney V2 force refresh requested');
+        logger.info('DeepMoney V2 force refresh requested', { outlook });
     }
 
 
@@ -496,11 +508,12 @@ export async function GET(request: NextRequest) {
         const enrichedStocks = await enrichTickers(tickerArray);
 
         // --- Analysis Filtering ---
-        // Pass shared data to avoid redundant internal fetches
-        const filteredStocks = await analyzeStocks(enrichedStocks, {
-            wbData,
-            marketIndices
-        });
+        // Pass shared data + user-driven outlook + ML gate to the analyzer
+        const filteredStocks = await analyzeStocks(
+            enrichedStocks,
+            { wbData, marketIndices },
+            { outlook, mlGate },
+        );
 
         // --- ETF Discovery ---
         const seenSectors = new Set<string>();
@@ -518,6 +531,10 @@ export async function GET(request: NextRequest) {
             count: filteredStocks.length,
             stocks: filteredStocks,
             hot_etfs: hotEtfs,
+            // Active investment timeframe driving outlook + ML gate. UI can use
+            // `timeframe_label` to render e.g. "Predicted +8.2% in 6 months".
+            outlook,
+            timeframe_label: tfCfg.displayLabel,
             meta: {
                 totalDiscovered: tickerArray.length,
                 enrichedCount: enrichedStocks.length,
@@ -533,7 +550,7 @@ export async function GET(request: NextRequest) {
                     passedToAnalyzer: enrichedStocks.filter(s => !s.error && s.tradingSignalScore >= 0 && s.historyRows >= 100).length,
                     rejectedByAI: enrichedStocks.filter(s => !s.error && s.tradingSignalScore >= 0 && s.historyRows >= 100).length - filteredStocks.length,
                     filteredCount: filteredStocks.length,
-                    predictionThreshold: '1.5%',
+                    predictionThreshold: `${mlGate}%`,
                     predictionSample: filteredStocks.slice(0, 5).map(s => ({ ticker: s.ticker, pred: s.prediction_1m })),
                 }
             },

@@ -68,8 +68,9 @@ describe('GET /api/user/watchlist', () => {
   });
  
   test('returns watchlist with live Yahoo data and MA', async () => {
-    // First call: watchlist items. Subsequent calls: daily prices per stock.
+    // 0: user strategy lookup. 1: watchlist items. 2+: daily prices per stock.
     (executeRawQuery as jest.Mock)
+      .mockResolvedValueOnce([[{ aggressiveness: 'neutral', investment_timeframe: '1_month' }]])
       .mockResolvedValueOnce([
         [{ stock_id: 1, symbol: 'AAPL', company_name: 'Apple Inc.', shares: 1, purchase_price: 0, is_purchased: 0, user_confirmed: 1, is_active: 1, db_price: 170, predicted_price_1m: 180 }],
       ])
@@ -105,6 +106,7 @@ describe('GET /api/user/watchlist', () => {
  
   test('falls back to db_price when Yahoo quote fails', async () => {
     (executeRawQuery as jest.Mock)
+      .mockResolvedValueOnce([[{ aggressiveness: 'neutral', investment_timeframe: '1_month' }]])
       .mockResolvedValueOnce([
         [{ stock_id: 2, symbol: 'MSFT', company_name: 'Microsoft', shares: 0, purchase_price: 0, is_purchased: 0, db_price: 300, predicted_price_1m: null }],
       ])
@@ -128,6 +130,7 @@ describe('GET /api/user/watchlist', () => {
  
   test('returns null for MA when no daily price data exists', async () => {
     (executeRawQuery as jest.Mock)
+      .mockResolvedValueOnce([[{ aggressiveness: 'neutral', investment_timeframe: '1_month' }]])
       .mockResolvedValueOnce([
         [{ stock_id: 3, symbol: 'TSLA', company_name: 'Tesla', shares: 0, purchase_price: 0, is_purchased: 0, db_price: 250, predicted_price_1m: null }],
       ])
@@ -143,7 +146,9 @@ describe('GET /api/user/watchlist', () => {
   });
  
   test('returns empty watchlist when user has no watchlist items', async () => {
-    (executeRawQuery as jest.Mock).mockResolvedValueOnce([[]]);
+    (executeRawQuery as jest.Mock)
+      .mockResolvedValueOnce([[{ aggressiveness: 'neutral', investment_timeframe: '1_month' }]])
+      .mockResolvedValueOnce([[]]);
  
     const response = await GET(mockRequest);
     expect(response.status).toBe(200);

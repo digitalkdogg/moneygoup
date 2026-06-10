@@ -9,6 +9,7 @@ import { checkApprovalGuard } from '@/utils/approvalStatus';
 import { fetchYahooQuotesForSymbols } from '@/utils/yahooFinanceHelper';
 import { DashboardRecommendation, DashboardRecommendationsResponse } from '@/types/dashboard';
 import { getUserStrategy, resolveStrategy, DEFAULT_STRATEGY } from '@/utils/strategy';
+import { adjustMlpUpsideForHorizon } from '@/utils/gps';
 
 const logger = createLogger('api/dashboard/recommendations');
 
@@ -50,16 +51,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: approvalOutcome.message, code: approvalOutcome.code }, { status: 403 });
     }
 
-    // Resolve user's current strategy (defaults to neutral when no row).
+    // Resolve user's current strategy (defaults to neutral / 1_month when no row).
     const userStrategy = await getUserStrategy(userId).catch(() => DEFAULT_STRATEGY);
 
-    // 1. Fetch predictions with GPS scores. GPS is now strategy-independent —
-    // we always read the canonical value from stock_gps_scores (fallback to
-    // the recommended_stocks snapshot if missing).
+    // Pick the predicted_price column based on the user's timeframe; fall back
+    // to predicted_price_1m so behavior is graceful when other horizons aren't
+    // populated yet. predictedPriceColumn comes from a controlled enum — safe
+    // to interpolate into SQL.
+    const priceColumn = resolveStrategy(userStrategy).timeframe.predictedPriceColumn;
+
+    // 1. Fetch predictions with GPS scores. GPS is strategy-independent — we
+    // always read the canonical value from stock_gps_scores (with a fallback
+    // to the recommended_stocks snapshot).
     const [rows] = await executeRawQuery(`
       SELECT
         usp.stock_id,
         s.symbol,
+        COALESCE(usp.${priceColumn}, usp.predicted_price_1m) as predicted_price,
         usp.predicted_price_1m,
         COALESCE(sgs.gps_score, rs.gps_score) as gps_score,
         COALESCE(sgs.gps_breakdown, rs.gps_breakdown) as gps_breakdown,
@@ -124,10 +132,14 @@ export async function GET(request: NextRequest) {
     const envSellThreshold      = getEnvThreshold('GPS_RECOMMENDATION_SELL_THRESHOLD', 45);
     const envDiscoveryThreshold = getEnvThreshold('GPS_RECOMMENDATION_DISCOVERY_THRESHOLD', 70);
 
+    // Timeframe stacks on top of aggressiveness: it multiplies the predicted-change
+    // bar (longer horizon → bigger expected move required) and shifts the sell
+    // threshold (longer horizon → more tolerant of dips, holds through volatility).
+    const timeframeConfig = resolveStrategy(userStrategy).timeframe;
     const buyThreshold       = envBuyThreshold * mult;
-    const sellThreshold      = envSellThreshold;
+    const sellThreshold      = envSellThreshold + timeframeConfig.sellThresholdShift;
     const discoveryThreshold = envDiscoveryThreshold * mult;
-    const predChangeGate     = strategyGates.predChangeGate;
+    const predChangeGate     = strategyGates.predChangeGate * timeframeConfig.predChangeMultiplier;
 
     // 4. Macro GPS adjustment (±3 pts max)
     const macroContext = await fetchMacroContext();
@@ -156,10 +168,29 @@ export async function GET(request: NextRequest) {
       if (!quote || quote.price === null) continue;
 
       const currentPrice    = quote.price as number;
+      // The query aliases the timeframe-specific column to `predicted_price`,
+      // falling back to predicted_price_1m. Also keep predicted_price_1m around
+      // for the response payload's deprecated `predictedPrice1m` field.
+      const predictedPrice  = parseFloat(String(pred.predicted_price ?? pred.predicted_price_1m));
       const predictedPrice1m = parseFloat(String(pred.predicted_price_1m));
-      const deltaPct        = ((predictedPrice1m - currentPrice) / currentPrice) * 100;
+      const deltaPct        = ((predictedPrice - currentPrice) / currentPrice) * 100;
 
-      const rawGps       = pred.gps_score != null ? parseFloat(String(pred.gps_score)) : null;
+      // Patch the cached 1m baseline breakdown to reflect the user's timeframe's
+      // predicted-change %. Other 7 components don't depend on horizon, so they
+      // pass through unchanged. Score is recomputed off the patched breakdown.
+      const baselineBreakdown = pred.gps_breakdown
+        ? (typeof pred.gps_breakdown === 'string' ? JSON.parse(pred.gps_breakdown) : pred.gps_breakdown)
+        : null;
+
+      let perUserBreakdown = baselineBreakdown;
+      let perUserScore = pred.gps_score != null ? parseFloat(String(pred.gps_score)) : null;
+      if (baselineBreakdown && Number.isFinite(deltaPct)) {
+        const adjusted = adjustMlpUpsideForHorizon(baselineBreakdown, deltaPct);
+        perUserBreakdown = adjusted.breakdown;
+        perUserScore = adjusted.score;
+      }
+
+      const rawGps       = perUserScore;
       const adjustedGps  = rawGps != null ? rawGps + macroGpsAdjustment : null;
 
       const isConfirmed  = pred.user_confirmed === 1;
@@ -196,9 +227,8 @@ export async function GET(request: NextRequest) {
           predictedPrice1m,
           deltaPct,
           gpsScore:       rawGps,
-          gpsBreakdown:   pred.gps_breakdown
-            ? (typeof pred.gps_breakdown === 'string' ? JSON.parse(pred.gps_breakdown) : pred.gps_breakdown)
-            : null,
+          gpsBreakdown:   perUserBreakdown,
+          gpsHorizon:     userStrategy.investment_timeframe,
           lastRequestedAt: pred.last_requested_at as string,
           scope,
         });

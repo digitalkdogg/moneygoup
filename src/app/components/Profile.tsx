@@ -16,6 +16,13 @@ const AGGRESSIVENESS_OPTIONS: Array<{ value: ProfileStrategy['aggressiveness']; 
   { value: 'aggressive', label: 'Aggressive', hint: 'Lower thresholds — surfaces higher-volatility picks (~5% below baseline)' },
 ];
 
+const TIMEFRAME_OPTIONS: Array<{ value: ProfileStrategy['investment_timeframe']; label: string; hint: string }> = [
+  { value: '1_week',  label: '1 Week',  hint: 'Hair-trigger predictions, lower upside bar; ML gate ≥ 0.5%' },
+  { value: '1_month', label: '1 Month', hint: 'Default horizon (baseline); ML gate ≥ 1.5%' },
+  { value: '6_month', label: '6 Month', hint: 'Holds through dips, requires larger upside; ML gate ≥ 5%' },
+  { value: '1_year',  label: '1 Year',  hint: 'Long horizon; requires sizable expected gain; ML gate ≥ 10%' },
+];
+
 type FetchState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
@@ -61,6 +68,7 @@ export default function Profile() {
   const isDirty = strategy && originalStrategy &&
     strategy.aggressiveness !== originalStrategy.aggressiveness;
 
+  // Used by the aggressiveness card (Save button).
   async function handleSave() {
     if (!strategy) return;
     setSaveState({ status: 'saving' });
@@ -79,6 +87,25 @@ export default function Profile() {
       setTimeout(() => setSaveState({ status: 'idle' }), 2500);
     } catch (err: any) {
       setSaveState({ status: 'error', message: err.message ?? 'Failed to save' });
+    }
+  }
+
+  // Used by the timeframe pill card (optimistic save).
+  async function handleTimeframeChange(next: ProfileStrategy['investment_timeframe']) {
+    if (!strategy || strategy.investment_timeframe === next) return;
+    // Optimistic: update local state immediately, revert on failure.
+    const previous = strategy;
+    setStrategy({ ...strategy, investment_timeframe: next });
+    try {
+      const res = await fetch('/api/user/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ investment_timeframe: next }),
+      });
+      if (!res.ok) throw new Error('Save failed');
+      setOriginalStrategy(s => s ? { ...s, investment_timeframe: next } : s);
+    } catch {
+      setStrategy(previous);
     }
   }
 
@@ -171,6 +198,42 @@ export default function Profile() {
               <span className="text-sm text-red-600">{saveState.message}</span>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Investment Timeframe card */}
+      {strategy && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+          <h2 className="section-heading">Investment Timeframe</h2>
+          <p className="text-sm text-gray-600 mb-4">
+            How far out should predictions look? Tightens or loosens the predicted-change bar
+            and the DeepMoney ML validation gate.
+          </p>
+
+          <div className="flex flex-wrap gap-2">
+            {TIMEFRAME_OPTIONS.map(option => {
+              const active = strategy.investment_timeframe === option.value;
+              return (
+                <button
+                  key={option.value}
+                  onClick={() => handleTimeframeChange(option.value)}
+                  aria-pressed={active}
+                  className={`px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
+                    active
+                      ? 'bg-[#017e3b] text-white border-[#017e3b]'
+                      : 'bg-white text-gray-700 border-gray-300 hover:border-[#017e3b] hover:text-[#017e3b]'
+                  }`}
+                >
+                  {option.label}
+                  {active && <span className="ml-1.5" aria-hidden="true">✓</span>}
+                </button>
+              );
+            })}
+          </div>
+
+          <p className="mt-3 text-xs text-gray-500">
+            {TIMEFRAME_OPTIONS.find(o => o.value === strategy.investment_timeframe)?.hint}
+          </p>
         </div>
       )}
 

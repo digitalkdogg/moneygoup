@@ -167,14 +167,14 @@ export default function Navigation() {
         {mobile && <span className="text-xl" aria-hidden="true">›</span>}
       </Link>
       {(session?.user as any)?.role === 'admin' && (
-        <Link 
-          href="/admin/users" 
+        <Link
+          href="/admin/users"
           onClick={() => setIsMobileMenuOpen(false)}
           aria-current={pathname === '/admin/users' ? 'page' : undefined}
           className={`md:px-2 lg:px-4 px-4 py-3 md:py-2 rounded-lg font-medium transition duration-200 flex items-center justify-between border-2 ${
             pathname === '/admin/users'
-              ? mobile 
-                ? 'bg-green-800 text-white border-white/40' 
+              ? mobile
+                ? 'bg-green-800 text-white border-white/40'
                 : 'bg-white text-green-700 shadow-lg border-white'
               : 'text-white border-transparent hover:bg-green-800 hover:border-white/20'
           } ${mobile ? 'w-full text-lg h-[56px]' : 'md:text-sm lg:text-base focus-visible:ring-2 focus-visible:ring-white'}`}
@@ -184,6 +184,22 @@ export default function Navigation() {
             <span>Admin Users</span>
           </span>
           {mobile && <span className="text-xl" aria-hidden="true">›</span>}
+        </Link>
+      )}
+      {/* Profile link — mobile only. On desktop, Profile lives in the avatar dropdown. */}
+      {mobile && session?.user && (
+        <Link
+          href="/profile"
+          onClick={() => setIsMobileMenuOpen(false)}
+          aria-current={pathname === '/profile' ? 'page' : undefined}
+          className={`px-4 py-3 rounded-lg font-medium transition duration-200 flex items-center justify-between border-2 w-full text-lg h-[56px] ${
+            pathname === '/profile'
+              ? 'bg-green-800 text-white border-white/40'
+              : 'text-white border-transparent hover:bg-green-800 hover:border-white/20'
+          }`}
+        >
+          <span>My Profile</span>
+          <span className="text-xl" aria-hidden="true">›</span>
         </Link>
       )}
     </>

@@ -27,7 +27,6 @@
       margin: 0; padding: 0;
     }
 
-    /* Top Bar */
     .top-bar { background: #017e3b; color: #fff; padding: 0 2rem; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
     .top-bar-header { display: flex; align-items: center; justify-content: space-between; height: 56px; }
     .top-bar .brand { font-size: 1.2rem; font-weight: 700; letter-spacing: .02em; }
@@ -39,10 +38,8 @@
     .top-bar-nav a:hover { color: #fff; }
     .top-bar-nav a.active { color: #fff; border-bottom-color: #86efac; }
 
-    /* Layout */
     .layout { display: flex; flex: 1; }
 
-    /* Sidebar */
     .sidebar { width: 260px; min-width: 260px; background: #fff; border-right: 1px solid #e2e8f0; padding: 1.5rem 0; position: sticky; top: 92px; height: calc(100vh - 92px); overflow-y: auto; }
     .sidebar h3 { font-size: .65rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #94a3b8; padding: .25rem 1.25rem .5rem; margin-top: .5rem; }
     .sidebar a { display: block; padding: .45rem 1.25rem; font-size: .85rem; color: #475569; text-decoration: none; border-left: 3px solid transparent; transition: all .15s; line-height: 1.4; }
@@ -50,7 +47,6 @@
     .sidebar a.active { background: #f0fdf4; color: #017e3b; font-weight: 600; border-left-color: #017e3b; }
     .sidebar .section-divider { border-top: 1px solid #f1f5f9; margin: .5rem 0; }
 
-    /* Main */
     main { padding: 3rem; max-width: 1100px; width: 100%; }
     h1 { color: var(--primary-dark); border-bottom: 2px solid var(--primary); padding-bottom: .5rem; margin-bottom: 2rem; }
     h2 { color: var(--primary); margin-top: 3rem; display: flex; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: .5rem; }
@@ -66,6 +62,7 @@
 
     .highlight-box { background: #f0fdf4; border-left: 4px solid var(--primary); padding: 1rem; margin: 1rem 0; border-radius: 0 6px 6px 0; }
     .warning-box { background: #fffbeb; border-left: 4px solid #f59e0b; padding: 1rem; margin: 1rem 0; border-radius: 0 6px 6px 0; color: #78350f; }
+    .updated-box { background: #f0fdf4; border-left: 4px solid #22c55e; padding: 1rem; margin: 1rem 0; border-radius: 0 6px 6px 0; color: #166534; }
     .new-badge { display: inline-block; font-size: .65rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 999px; margin-left: .5rem; vertical-align: middle; }
     .updated-badge { display: inline-block; font-size: .65rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; background: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 999px; margin-left: .5rem; vertical-align: middle; }
     .removed-badge { display: inline-block; font-size: .65rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 999px; margin-left: .5rem; vertical-align: middle; }
@@ -101,7 +98,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Developer Docs</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Generated 2026-06-03</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-09</div>
   </div>
   <nav class="top-bar-nav">
     <a href="moneygoup_overview.html">Overview</a>
@@ -116,6 +113,7 @@
     <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
     <a href="technical_indicators_guide.html">Technical Guide</a>
     <a href="gps_score.html">GPS Score</a>
+    <a href="strategy_system.html">Strategy System</a>
     <a href="style_guide.html">Style Guide</a>
     <a href="SEO.html">SEO</a>
   </nav>
@@ -129,9 +127,11 @@
     <a href="architecture_documentation.html">Architecture</a>
     <a href="components_documentation.html">Components</a>
     <a href="api_documentation.html">API Routes</a>
+    <a href="strategy_system.html">Strategy System</a>
     <div class="section-divider"></div>
     <h3>On this page</h3>
     <a href="#overview">Overview</a>
+    <a href="#strategy-integration">Strategy Integration</a>
     <a href="#step1">1. User Trigger (UI)</a>
     <a href="#step2">2. Data Assembly (Node)</a>
     <a href="#step3">3. API Gateway</a>
@@ -150,7 +150,10 @@
     <a href="#earnings-dampening">— Earnings Dampening</a>
     <a href="#confidence-scoring">— Confidence Scoring</a>
     <a href="#step7">7. Persistence Layer</a>
-    <a href="#caching">8. Cache Architecture</a>
+    <a href="#update-predictions-script">8. update_predictions.py</a>
+    <a href="#etf-holdings-scan">— ETF Holdings Scan</a>
+    <a href="#strategy-gates-etf">— Strategy-Aware ETF Gates</a>
+    <a href="#caching">9. Cache Architecture</a>
     <a href="#changelog">Recent Changes</a>
     <div class="section-divider"></div>
     <a href="authentication_flow.html">Auth Flow</a>
@@ -158,7 +161,6 @@
     <a href="recommendation_buckets.html">Recommendation Buckets</a>
     <a href="technical_indicators_guide.html">Technical Indicators</a>
     <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
-    <a href="test_feature_columns.html">Feature Validator</a>
     <a href="style_guide.html">Style Guide</a>
   </nav>
 
@@ -167,16 +169,48 @@
     <h1>AI Prediction Workflow &amp; Algorithm</h1>
     <div class="meta">
       <span>scripts/predict_weighted_analysis.py</span>
+      <span>scripts/update_predictions.py</span>
       <span>src/app/api/prediction/[ticker]/route.ts</span>
       <span>src/app/api/prediction/save/route.ts</span>
       <span>src/app/components/StockPrediction.tsx</span>
-      <span>Updated 2026-06-03</span>
+      <span>Updated 2026-06-09</span>
     </div>
 
     <section id="overview">
       <p>This document details the end-to-end execution path and mathematical logic behind the Stock Prediction System (v3.3). The pipeline runs an <strong>MLPRegressor (sklearn)</strong> trained fresh per request on 5 years of enriched historical data, producing 1-week, 1-month, 6-month, and 1-year price targets with Monte Carlo uncertainty bands and an 18-month trajectory chart.</p>
       <div class="highlight-box">
-        <strong>v3.3 changes (2026-06-03):</strong> Primary short-term outlook changed from 1-day to <strong>1-week (T+5)</strong>. MLP now has a 4-output head: [T+1, T+5, T+126, T+252]. The 1-week prediction is a blended output (30% MLP T+5 / 70% trajectory interpolation) with an ATR-based movement cap. Trajectory now anchors at t=0 (current price) with waypoints starting at t+5. 118 total FEATURE_COLUMNS including 13 newly added columns across 5 feature groups. Cache schema version bumped to v2. UI prediction cards now show 1-Week, 1-Month, 6-Month, 12-Month. Trajectory chart shows a gray "Now" dot at t=0. "Recalculate (skip cache)" button bypasses in-memory cache via <code>?refresh=true</code>.
+        <strong>v3.3 (2026-06-03):</strong> Primary short-term outlook changed from 1-day to <strong>1-week (T+5)</strong>. MLP now has a 4-output head: [T+1, T+5, T+126, T+252]. The 1-week prediction is a blended output (30% MLP T+5 / 70% trajectory interpolation) with an ATR-based movement cap. 118 total FEATURE_COLUMNS including 13 newly added columns. Cache schema version bumped to v2.
+      </div>
+      <div class="updated-box">
+        <strong>v3.4 / June 2026 — Strategy Integration:</strong> The prediction pipeline is now strategy-aware end-to-end. The Python script persists all four horizon prices (<code>predicted_price_1w / _1m / _6m / _1y</code>) to the database. The recommendations route, portfolio route, and watchlist route all read the user's <code>investment_timeframe</code> to select the correct horizon column and dynamically patch the GPS breakdown's <code>mlpUpside</code> component via <code>adjustMlpUpsideForHorizon()</code>. The DeepMoney real-time discovery route uses the user's timeframe to set the ML gate threshold and cache bucket. See <a href="#strategy-integration">Strategy Integration</a> and the <a href="strategy_system.html">Strategy System</a> doc for full details.
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════ -->
+    <section id="strategy-integration">
+      <h2><span class="step-num" style="background:#7c3aed;">S</span> Strategy Integration (June 2026)</h2>
+      <div class="step-card">
+        <p>A user's investment strategy has two dimensions: <strong>aggressiveness</strong> (<code>safe</code> / <code>neutral</code> / <code>aggressive</code>) and <strong>investment timeframe</strong> (<code>1_week</code> / <code>1_month</code> / <code>6_month</code> / <code>1_year</code>). Both are stored in the <code>user_investment_strategy</code> database table and fetched via <code>getUserStrategy(userId)</code> which falls back to <code>neutral / 1_month</code> if no row exists.</p>
+
+        <h4>Where strategy affects the prediction pipeline</h4>
+        <table>
+          <thead><tr><th>Touch point</th><th>How strategy affects it</th></tr></thead>
+          <tbody>
+            <tr><td><code>update_predictions.py</code> (batch sync)</td><td>Fetches all user strategies up front. ETF threshold gates (GPS, predChange, confidence) are scaled by the user's <code>envFloorMultiplier</code> and <code>predChangeGate</code>. All four horizon prices are persisted per run.</td></tr>
+            <tr><td><code>POST /api/prediction/[ticker]</code> (live UI)</td><td>For authenticated requests, resolves user's <code>investment_timeframe</code> and passes it as the <code>outlook</code> query param to the Python script. Cache key includes outlook.</td></tr>
+            <tr><td><code>GET /api/prediction/deepmoney</code></td><td>Resolves user's timeframe to set <code>outlook</code> passed to <code>analyzeStocks()</code> and the <code>mlGate</code> (minimum predicted change threshold). Cache bucket is per-outlook.</td></tr>
+            <tr><td><code>GET /api/dashboard/recommendations</code></td><td>Reads user's timeframe to select predicted_price column. Patches GPS breakdown for horizon. Scales GPS thresholds by aggressiveness. Shifts sell threshold by timeframe.</td></tr>
+            <tr><td><code>GET /api/user/portfolio</code></td><td>Reads user's timeframe to select predicted_price column. Patches GPS breakdown's mlpUpside for horizon via <code>adjustMlpUpsideForHorizon()</code>.</td></tr>
+            <tr><td><code>GET /api/user/watchlist</code></td><td>Same as portfolio — horizon-aware GPS patch applied per item.</td></tr>
+          </tbody>
+        </table>
+
+        <h4>GPS horizon patching</h4>
+        <p>The GPS score is computed globally once and stored in <code>stock_gps_scores</code> using the 1-month predicted change as the <code>mlpUpside</code> component. When a user has a different timeframe set, only the <code>mlpUpside</code> component needs to change — the other 7 components (revenue growth, earnings growth, technicals, analyst upside, analyst consensus, 52-week momentum, AI confidence) are horizon-independent. The <code>adjustMlpUpsideForHorizon(breakdown, horizonDeltaPct)</code> function in <code>src/utils/gps.ts</code> swaps out <code>mlpUpside</code> with the new value computed from <code>horizonDeltaPct / GPS_PREDICTION_MAX × 20</code> and recomputes the total, delivering a personalized GPS score without re-running the full GPS formula.</p>
+        <div class="formula">
+// Horizon delta = (predicted_price_horizon - current_price) / current_price * 100
+// adjusted mlpUpside = clamp(horizonDelta / predictionMax, -1, 1) * 20
+// adjusted score = sum of all 8 components with new mlpUpside, clamped [0, 100]</div>
       </div>
     </section>
 
@@ -184,29 +218,23 @@
       <h2><span class="step-num">1</span> User Interaction</h2>
       <div class="step-card">
         <div class="component-tag">Frontend: StockSignalPanel.tsx + StockPrediction.tsx</div>
-        <p>The prediction workflow is initiated from the single-ticker view (<code>/search/[ticker]</code>) via one of two paths:</p>
-        <ul>
-          <li><strong>CTA button</strong> — user clicks "Show prediction details" in <code>StockSignalPanel</code>, which calls <code>onGeneratePrediction</code>, which calls <code>predictionTriggerRef.current()</code>, which calls <code>StockPrediction</code>'s internal <code>generate()</code> via the <code>triggerRef</code> prop.</li>
-          <li><strong>Multi-ticker comparison</strong> — each <code>StockPrediction</code> renders its own "Generate Prediction" button.</li>
-        </ul>
-        <p>Requires 45 trading days of sequence context (SEQ_LEN = 45). Supports 15-minute server-side caching.</p>
+        <p>The prediction workflow is initiated from the single-ticker view (<code>/search/[ticker]</code>). Requires 45 trading days of sequence context. Supports 15-minute server-side caching.</p>
 
         <h4>Prediction Cards (updated v3.3)</h4>
-        <p>Four headline cards are displayed after a successful prediction run:</p>
         <table>
-          <thead><tr><th>Card</th><th>Color scheme</th><th>Field</th><th>Change from v3.2</th></tr></thead>
+          <thead><tr><th>Card</th><th>Color scheme</th><th>Field</th></tr></thead>
           <tbody>
-            <tr><td>1-Week Price Target</td><td>Purple</td><td><code>predicted_price_1w</code> / <code>predicted_change_pct_1w</code> / <code>confidence_score_1w</code></td><td>New card — replaces the 1-Day card</td></tr>
-            <tr><td>1-Month Price Target</td><td>Blue</td><td><code>predicted_price_1m</code></td><td>Unchanged position, now second card</td></tr>
-            <tr><td>6-Month Price Target</td><td>Emerald</td><td><code>predicted_price_6m</code></td><td>Unchanged</td></tr>
-            <tr><td>12-Month Price Target</td><td>White/Green border</td><td><code>predicted_price_1y</code></td><td>Unchanged</td></tr>
+            <tr><td>1-Week Price Target</td><td>Purple</td><td><code>predicted_price_1w</code> / <code>predicted_change_pct_1w</code> / <code>confidence_score_1w</code></td></tr>
+            <tr><td>1-Month Price Target</td><td>Blue</td><td><code>predicted_price_1m</code></td></tr>
+            <tr><td>6-Month Price Target</td><td>Emerald</td><td><code>predicted_price_6m</code></td></tr>
+            <tr><td>12-Month Price Target</td><td>White/Green border</td><td><code>predicted_price_1y</code></td></tr>
           </tbody>
         </table>
 
-        <h4>Recalculate Button (new v3.3)</h4>
-        <p>After a prediction is displayed, a secondary text button labeled "↺ Recalculate (skip cache)" appears. Clicking it calls <code>generate(true)</code> which appends <code>?refresh=true</code> to the prediction API call, bypassing the in-memory <code>predictionCache</code> and forcing the Python script to re-run.</p>
+        <h4>Recalculate Button</h4>
+        <p>After a prediction is displayed, a secondary button "↺ Recalculate (skip cache)" appends <code>?refresh=true</code> to bypass <code>predictionCache</code> and force the Python script to re-run.</p>
 
-        <div class="highlight-box"><strong>Cooldown removed (2026-05-28):</strong> The previous 30-second per-user-per-ticker client cooldown countdown and the associated <code>tickerCooldown</code> Map on the server have been removed. Throttling is now handled solely by the role-based <code>LimitService</code> daily lookup quota and the <code>predictionSemaphore</code> concurrency cap.</div>
+        <div class="highlight-box"><strong>Cooldown removed (2026-05-28):</strong> The previous 30-second per-user-per-ticker client cooldown and the associated <code>tickerCooldown</code> Map on the server have been removed. Throttling is now handled solely by the role-based <code>LimitService</code> daily lookup quota and the <code>predictionSemaphore</code> concurrency cap.</div>
       </div>
     </section>
 
@@ -218,45 +246,16 @@
         <div class="component-tag">GET /api/stock_data/[ticker]/data — route.ts</div>
         <p>Assembles a 5-year multi-dimensional dataset (~1,260 rows) that the Python script consumes as a single JSON payload. The script never makes outbound network calls itself.</p>
         <div class="grid">
-          <div class="mini-card">
-            <h4>Historical OHLCV</h4>
-            <p style="font-size:.82rem;">5 years of daily Open/High/Low/Close/Volume from <code>yahooFinance.chart()</code> with adj-close preference. Minimum 365 days enforced.</p>
-          </div>
-          <div class="mini-card">
-            <h4>Fundamentals &amp; Analyst Targets</h4>
-            <p style="font-size:.82rem;">PE, PB, margins, debt/equity, ROE, analyst target mean/median/high/low, opinion count, recommendation mean. Missing values are imputed from per-sector medians.</p>
-          </div>
-          <div class="mini-card">
-            <h4>Options Market Data</h4>
-            <p style="font-size:.82rem;">IV, IV Rank, Put/Call Ratio fetched via <code>/api/stock_data/[ticker]/options</code> internal call.</p>
-          </div>
-          <div class="mini-card">
-            <h4>Earnings Surprises</h4>
-            <p style="font-size:.82rem;">EPS and revenue surprise % averaged over the last 4 quarters (<code>epsSurpriseAvg4Q</code>, <code>revenueSurpriseAvg4Q</code>). Earnings date history is included for post-earnings drift calculation.</p>
-          </div>
-          <div class="mini-card">
-            <h4>Short Interest</h4>
-            <p style="font-size:.82rem;"><code>shortFloatPct</code> and <code>daysToCover</code> from Yahoo Finance <code>defaultKeyStatistics</code>.</p>
-          </div>
-          <div class="mini-card">
-            <h4>Insider Transactions</h4>
-            <p style="font-size:.82rem;">90-day window computed by <code>extractInsiderMetrics()</code>. Yields <code>insiderNetSellRatio90d</code> (net shares sold / shares outstanding, clipped to [-1,1]) and <code>insiderTxCount90d</code>. Option exercises excluded as directionally ambiguous.</p>
-          </div>
-          <div class="mini-card">
-            <h4>Macro Series (11 symbols)</h4>
-            <p style="font-size:.82rem;">VIX, TNX, sector ETF, HYG, LQD, DXY, SPY, IRX, WTI crude, Copper, Wheat — all fetched in parallel and cached via <code>macroCache</code>.</p>
-          </div>
-          <div class="mini-card">
-            <h4>World Bank Macro</h4>
-            <p style="font-size:.82rem;">GDP growth, inflation, consumption growth — annual, broadcast across all rows as scalar features.</p>
-          </div>
-          <div class="mini-card">
-            <h4>Extended Feature Metrics <span class="new-badge">new v3.3</span></h4>
-            <p style="font-size:.82rem;">EPS revision velocity (7-day), analyst upgrade/downgrade scores, pre/post-market gap percentages, 52-week positive ratio, institution ownership delta, peer relative strength — all included in <code>featureMetrics</code> object.</p>
-          </div>
+          <div class="mini-card"><h4>Historical OHLCV</h4><p style="font-size:.82rem;">5 years daily OHLCV from <code>yahooFinance.chart()</code>. Minimum 365 days enforced.</p></div>
+          <div class="mini-card"><h4>Fundamentals &amp; Analyst Targets</h4><p style="font-size:.82rem;">PE, PB, margins, debt/equity, ROE, analyst target mean/median/high/low. Missing values imputed from sector medians.</p></div>
+          <div class="mini-card"><h4>Options Market Data</h4><p style="font-size:.82rem;">IV, IV Rank, Put/Call Ratio.</p></div>
+          <div class="mini-card"><h4>Earnings Surprises</h4><p style="font-size:.82rem;">EPS and revenue surprise % averaged over last 4 quarters.</p></div>
+          <div class="mini-card"><h4>Short Interest</h4><p style="font-size:.82rem;"><code>shortFloatPct</code> and <code>daysToCover</code>.</p></div>
+          <div class="mini-card"><h4>Insider Transactions</h4><p style="font-size:.82rem;">90-day window: <code>insiderNetSellRatio90d</code> and <code>insiderTxCount90d</code>. Option exercises excluded.</p></div>
+          <div class="mini-card"><h4>Macro Series (11 symbols)</h4><p style="font-size:.82rem;">VIX, TNX, sector ETF, HYG, LQD, DXY, SPY, IRX, WTI crude, Copper, Wheat.</p></div>
+          <div class="mini-card"><h4>World Bank Macro</h4><p style="font-size:.82rem;">GDP growth, inflation, consumption growth — annual scalars broadcast across all rows.</p></div>
+          <div class="mini-card"><h4>Extended Feature Metrics <span class="new-badge">v3.3</span></h4><p style="font-size:.82rem;">EPS revision velocity, analyst upgrade/downgrade scores, pre/post-market gap %, 52-week positive ratio, institution ownership delta, peer relative strength.</p></div>
         </div>
-        <p>All data is returned as a single JSON payload with a <code>dataQuality</code> block tracking imputed fields, missing feature metrics, and history depth in years.</p>
-        <p>The endpoint has a 15-minute server-side cache (max 500 entries) and supports <code>?refresh=true</code> to bypass it.</p>
       </div>
     </section>
 
@@ -266,22 +265,18 @@
       <h2><span class="step-num">3</span> API Gateway &amp; Guards</h2>
       <div class="step-card">
         <div class="component-tag">POST /api/prediction/[ticker] — route.ts</div>
-        <p>Enforces reliability gates before spawning the Python subprocess. The valid <code>outlook</code> values are now: <code>1_week</code>, <code>1_month</code>, <code>6_month</code>, <code>1_year</code>, <code>all</code>. The default is <code>all</code>.</p>
+        <p>Valid <code>outlook</code> values: <code>1_week</code>, <code>1_month</code>, <code>6_month</code>, <code>1_year</code>, <code>all</code>. Default: resolved from user's strategy or <code>all</code> for internal calls.</p>
         <table>
           <thead><tr><th>Guard</th><th>Behavior</th></tr></thead>
           <tbody>
             <tr><td>Origin check / session auth</td><td>Internal <code>x-api-key</code> bypasses session requirement</td></tr>
-            <tr><td>Approval guard</td><td><code>checkApprovalGuard(userId)</code> — rejects suspended accounts</td></tr>
-            <tr><td>LimitService lookup quota</td><td>Returns 403 LIMIT_EXCEEDED if user has exceeded daily lookup count</td></tr>
-            <tr><td><code>predictionCache</code> check</td><td>Returns cached result if available and <code>?refresh=true</code> not set. Cache key: <code>{ticker}_{outlook}</code></td></tr>
-            <tr><td>Historical data validation</td><td>Requires ≥ 365 rows of historical data; returns 422 otherwise</td></tr>
-            <tr><td><code>predictionSemaphore</code></td><td>Limits concurrent Python subprocesses; returns 503 if full</td></tr>
+            <tr><td>Approval guard</td><td>Rejects suspended accounts</td></tr>
+            <tr><td>LimitService lookup quota</td><td>403 LIMIT_EXCEEDED if daily lookup count exceeded</td></tr>
+            <tr><td><code>predictionCache</code> check</td><td>Returns cached result if available. Cache key: <code>{ticker}_{outlook}</code></td></tr>
+            <tr><td>Historical data validation</td><td>422 if fewer than 365 rows</td></tr>
+            <tr><td><code>predictionSemaphore</code></td><td>503 Busy if all slots full</td></tr>
           </tbody>
         </table>
-        <div class="highlight-box">
-          <strong>Outlook key change (v3.3):</strong> The default short-term outlook used for cache key and response population is now <code>1_week</code> instead of <code>1_day</code>. The <code>predicted_price_1w</code> / <code>predicted_change_pct_1w</code> / <code>confidence_score_1w</code> fields are populated on the result object when outlook is <code>1_week</code> or <code>all</code>.
-        </div>
-        <p>The enriched payload is written to a temp JSON file in <code>os.tmpdir()</code>, passed to the Python script via <code>--input_file</code>, and cleaned up in the <code>finally</code> block regardless of outcome.</p>
       </div>
     </section>
 
@@ -291,10 +286,10 @@
       <h2><span class="step-num">4</span> Feature Engine &amp; Regime Detection</h2>
       <div class="step-card">
         <div class="component-tag">scripts/predict_weighted_analysis.py — build_features() / _calculate_features_internal()</div>
-        <p>Transforms the raw JSON into a <strong>118-column base feature tensor</strong> (plus 11 dynamically appended regime columns = 129 total). Features fall into the following groups:</p>
+        <p>Transforms the raw JSON into a <strong>118-column base feature tensor</strong> (plus 11 dynamically appended regime columns = 129 total).</p>
 
         <section id="feature-set">
-          <h4>Complete FEATURE_COLUMNS List (118 base columns)</h4>
+          <h4>FEATURE_COLUMNS by group (118 base columns)</h4>
           <table>
             <thead><tr><th>Group</th><th>Columns</th></tr></thead>
             <tbody>
@@ -337,117 +332,40 @@
           </table>
           <p style="font-size:.83rem;color:#64748b;">Regime columns appended dynamically (not in FEATURE_COLUMNS constant): Regime_0–3, Regime_Prob_0–3, Regime_x_PC_Ratio, Regime_x_HYG_LQD, Regime_x_RS_SPY (11 columns). Total features fed to MLP: 129.</p>
         </section>
-      </div>
 
-      <section id="new-features">
-        <h3>New Feature Groups (v3.3) <span class="new-badge">new</span></h3>
-        <div class="step-card">
-          <h4>Post-Earnings Drift (Item 02) — 3 columns</h4>
+        <section id="insider-features">
+          <h4 style="margin-top:1.5rem;">Insider Activity Features</h4>
           <table>
-            <thead><tr><th>Feature</th><th>Description</th></tr></thead>
+            <thead><tr><th>Feature</th><th>Range</th><th>Description</th></tr></thead>
             <tbody>
-              <tr><td><code>PostEarnings_DayN</code></td><td>Number of trading days elapsed since the most recent earnings date, capped at 21. Zero after 21 days.</td></tr>
-              <tr><td><code>PostEarnings_CumReturn</code></td><td>Cumulative price return from the earnings date close to the current row close. Captures post-earnings drift magnitude.</td></tr>
-              <tr><td><code>PostEarnings_VolRatio</code></td><td>Ratio of average post-earnings volume to the 20-day pre-earnings average. Clipped to [0.1, 10]. Elevated ratios indicate heightened investor attention.</td></tr>
+              <tr><td><code>InsiderNetSellRatio_90d</code></td><td>[-1, 1]</td><td>Net shares sold / shares outstanding over trailing 90 days. Positive = net insider selling. Option exercises excluded.</td></tr>
+              <tr><td><code>InsiderTxCount_90d</code></td><td>[0, ∞)</td><td>Raw count of SEC Form 4 transactions in trailing 90 days.</td></tr>
             </tbody>
           </table>
+          <p>Applied only to the most recent 63 rows; earlier rows receive 0.0 to avoid look-ahead contamination.</p>
+        </section>
 
-          <h4 style="margin-top:1.5rem;">EPS Revision Velocity (Item 03) — 6 columns</h4>
-          <table>
-            <thead><tr><th>Feature</th><th>Source field</th><th>Description</th></tr></thead>
-            <tbody>
-              <tr><td><code>EPS_Revision_7d_0Q</code></td><td><code>epsRevision7d_0Q</code></td><td>7-day EPS estimate revision for the current quarter. Positive = analysts raising estimates.</td></tr>
-              <tr><td><code>EPS_Revision_7d_1Q</code></td><td><code>epsRevision7d_1Q</code></td><td>7-day EPS estimate revision for next quarter.</td></tr>
-              <tr><td><code>Revenue_Est_Growth_0Q</code></td><td><code>revenueEstGrowth_0Q</code></td><td>Consensus revenue growth estimate for the current quarter.</td></tr>
-              <tr><td><code>Revenue_Est_Growth_1Q</code></td><td><code>revenueEstGrowth_1Q</code></td><td>Consensus revenue growth estimate for next quarter.</td></tr>
-              <tr><td><code>EPS_Rev_Up7d</code></td><td><code>epsRevisionsUp7d</code></td><td>Count of analyst upward EPS revisions in the last 7 days.</td></tr>
-              <tr><td><code>EPS_Rev_Down7d</code></td><td><code>epsRevisionsDown7d</code></td><td>Count of analyst downward EPS revisions in the last 7 days.</td></tr>
-            </tbody>
-          </table>
-
-          <h4 style="margin-top:1.5rem;">Analyst Upgrade/Downgrade Recency (Item 04) — 2 columns</h4>
-          <table>
-            <thead><tr><th>Feature</th><th>Source field</th><th>Range</th><th>Description</th></tr></thead>
-            <tbody>
-              <tr><td><code>Upgrade_Score_7d</code></td><td><code>upgradeScore7d</code></td><td>[-1, 1]</td><td>Net score of analyst rating changes in the last 7 days. Positive = net upgrades.</td></tr>
-              <tr><td><code>Upgrade_Score_30d</code></td><td><code>upgradeScore30d</code></td><td>[-1, 1]</td><td>Net score of analyst rating changes in the last 30 days.</td></tr>
-            </tbody>
-          </table>
-
-          <h4 style="margin-top:1.5rem;">Pre/Post-Market Microstructure (Item 05) — 3 columns</h4>
-          <table>
-            <thead><tr><th>Feature</th><th>Source field</th><th>Description</th></tr></thead>
-            <tbody>
-              <tr><td><code>PreMarket_GapPct</code></td><td><code>preMarketChangePct</code></td><td>Pre-market price change % relative to prior close. Captures overnight sentiment.</td></tr>
-              <tr><td><code>PostMarket_GapPct</code></td><td><code>postMarketChangePct</code></td><td>After-hours price change % relative to regular session close.</td></tr>
-              <tr><td><code>FiftyTwoWeek_PosRatio</code></td><td><code>fiftyTwoWeekPosRatio</code></td><td>Fraction of the last 52-week range that is below the current price (0=at 52w low, 1=at 52w high).</td></tr>
-            </tbody>
-          </table>
-
-          <h4 style="margin-top:1.5rem;">Institution Ownership Delta (Item 06) — 2 columns</h4>
-          <table>
-            <thead><tr><th>Feature</th><th>Source field</th><th>Description</th></tr></thead>
-            <tbody>
-              <tr><td><code>Institution_PctHeld</code></td><td><code>instPctHeld</code></td><td>Percentage of float held by institutions (0–1). Higher = stronger institutional backing.</td></tr>
-              <tr><td><code>Institution_PctDelta</code></td><td><code>instPctDelta</code></td><td>Quarter-over-quarter change in institutional ownership %. Positive = institutions accumulating.</td></tr>
-            </tbody>
-          </table>
-
-          <h4 style="margin-top:1.5rem;">Peer Relative Strength (Item 08) — 1 column</h4>
-          <table>
-            <thead><tr><th>Feature</th><th>Source field</th><th>Description</th></tr></thead>
-            <tbody>
-              <tr><td><code>Peer_RS_5d</code></td><td><code>peerRS5d</code></td><td>5-day price return of this stock minus the average 5-day return of its closest peers. Positive = outperforming peers.</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section id="insider-features">
-        <h3>Insider Activity Features</h3>
-        <div class="step-card">
-          <table>
-            <thead><tr><th>Feature</th><th>Source field</th><th>Range</th><th>Description</th></tr></thead>
-            <tbody>
-              <tr><td><code>InsiderNetSellRatio_90d</code></td><td><code>featureMetrics.insiderNetSellRatio90d</code></td><td>[-1, 1]</td><td>Net shares sold (sales minus purchases) divided by shares outstanding over the trailing 90 days. Positive = net insider selling; negative = net insider buying. Option exercises excluded.</td></tr>
-              <tr><td><code>InsiderTxCount_90d</code></td><td><code>featureMetrics.insiderTxCount90d</code></td><td>[0, ∞)</td><td>Raw count of SEC Form 4 transactions in the trailing 90 days. Provides volume context for the net sell ratio.</td></tr>
-            </tbody>
-          </table>
-          <p>Both values are applied only to the most recent 63 rows of the feature matrix (approximately 3 months of trading days). All earlier rows receive a neutral value of 0.0 to avoid contaminating historical training samples with look-ahead data.</p>
-        </div>
-      </section>
-
-      <section id="high-beta-penalty">
-        <h3>High-Beta / Valuation Stretch Penalty</h3>
-        <div class="step-card">
-          <p>Added to <code>metric_analysis()</code> in the heuristic adjustment layer. Applied when a stock has both a high beta (indicating volatility) and is trading near its 52-week high (indicating potential mean-reversion risk):</p>
+        <section id="high-beta-penalty">
+          <h4 style="margin-top:1.5rem;">High-Beta / Valuation Stretch Penalty</h4>
           <div class="formula">
 if beta &gt; 2.5 AND HiRatio_52w &gt; 0.95:
     stretch_penalty = 1.0 - ((beta - 2.5) * 0.015)
-    total_impact += stretch_penalty - 1.0
+    total_impact += stretch_penalty - 1.0</div>
+          <p>At beta = 3.0 near a 52-week high: −0.75%. At beta = 4.0: −2.25%.</p>
+        </section>
+
+        <section id="algorithm-flow">
+          <h4 style="margin-top:1.5rem;">Algorithm Flowchart</h4>
+          <div class="step-card" style="background:#f8fafc;border:1px dashed var(--primary);">
+            <p style="text-align:center;">JSON Input &rarr; <strong>118 Feature Engineering</strong><br>&darr;<br>GMM/KMeans Regime Detection (K=3 or 4) &rarr; 11 regime columns appended &rarr; 129 total features<br>&darr;<br>MinMaxScaler &rarr; SEQ_LEN=45 sliding windows &rarr; <strong>4-output MLP Training</strong><br>Targets: [T+1, T+5, T+126, T+252] scaled close values<br>&darr;<br>Deterministic T+5 / T+126 / T+252 inference<br>1-week = 30% MLP T+5 + 70% trajectory interpolation, capped at ±2×ATR×√5<br>&darr;<br>Monte Carlo Dropout (12 passes) &rarr; spread bands only<br>&darr;<br><strong>Heuristic Weighting</strong> (metric_analysis + consumer multiplier + high-beta penalty)<br>&darr;<br>18-month trajectory + JSON Output</p>
           </div>
-          <p>At beta = 3.0 near a 52-week high, this applies a <strong>-0.75%</strong> impact to the final price target. At beta = 4.0, it applies <strong>-2.25%</strong>. The penalty is absent for beta &lt;= 2.5 or stocks not near their 52-week high.</p>
-        </div>
-      </section>
+        </section>
 
-      <section id="algorithm-flow">
-        <h3>Algorithm Flowchart</h3>
-        <div class="step-card" style="background:#f8fafc;border:1px dashed var(--primary);">
-          <p style="text-align:center;">JSON Input &rarr; <strong>118 Feature Engineering</strong><br>(OHLCV + Lag + ROC + Rolling Stats + Fundamentals + Macro + Credit + Commodities + Options + Insider + Post-Earnings + EPS Revision + Upgrade Scores + Microstructure + Institution + Peer RS)<br>&darr;<br>GMM/KMeans Regime Detection (K=3 or 4) &rarr; 11 regime columns appended &rarr; 129 total features<br>&darr;<br>MinMaxScaler &rarr; SEQ_LEN=45 sliding windows &rarr; <strong>4-output MLP Training</strong> (Adam, early-stop, 20% holdout)<br>Targets: [T+1, T+5, T+126, T+252] scaled close values<br>&darr;<br>Deterministic T+5 / T+126 / T+252 inference (1 pass)<br>1-week = 30% MLP T+5 + 70% trajectory interpolation, capped at ±2×ATR×√5<br>&darr;<br>Monte Carlo Dropout (12 passes, per-feature noise) &rarr; spread bands only<br>&darr;<br><strong>Heuristic Weighting</strong> (metric_analysis + consumer multiplier + high-beta penalty)<br>&darr;<br>18-month trajectory: t=0 (current), t+5 (1w), t+21 (1m), t+42 ... t+378<br>&darr;<br>JSON Output: 1w / 1m / 6m / 1y prices, confidence scores, trajectory</p>
-        </div>
-      </section>
-
-      <section id="regime-analysis">
-        <h3>Market Regime Analysis (Phase 2-3)</h3>
-        <div class="step-card">
-          <p>A Gaussian Mixture Model (GMM) is fitted on a 10-dimension market vector at each run:</p>
-          <div class="formula">regime_vec_cols = ['VIX', 'HistVol_30', 'HYG_LQD_Ratio', 'RS_vs_SPY_20d',
-                       'DXY_Return_20d', 'CurveSlope_10M3M', 'RollingMean_20d',
-                       'RollingStd_20d', 'WorldBank_GDP', 'WorldBank_Inflation']</div>
-          <p>K is selected by <code>select_regime_k()</code> which evaluates K=3 and K=4 against two gates: minimum state population fraction ≥ 15% and temporal flip rate ≤ 30%. The first K that passes both gates is used. If neither passes, evaluation falls through to KMeans as a fallback.</p>
-          <p>The resulting regime labels and GMM posterior probabilities are added as one-hot (<code>Regime_0</code>–<code>Regime_3</code>), soft probability (<code>Regime_Prob_0</code>–<code>Regime_Prob_3</code>), and three interaction columns (<code>Regime_x_PC_Ratio</code>, <code>Regime_x_HYG_LQD</code>, <code>Regime_x_RS_SPY</code>). The four named states are: <em>risk_on_trending</em>, <em>risk_off_stress</em>, <em>high_vol_choppy</em>, <em>low_vol_mean_reverting</em>.</p>
-        </div>
-      </section>
+        <section id="regime-analysis">
+          <h4 style="margin-top:1.5rem;">Market Regime Analysis</h4>
+          <p>GMM on a 10-dimension market vector. K selected by <code>select_regime_k()</code> evaluating K=3 and K=4 against minimum state population fraction ≥15% and temporal flip rate ≤30%. Four named states: <em>risk_on_trending</em>, <em>risk_off_stress</em>, <em>high_vol_choppy</em>, <em>low_vol_mean_reverting</em>.</p>
+        </section>
+      </div>
     </section>
 
     <div class="flow-arrow">&#8595;</div>
@@ -456,32 +374,30 @@ if beta &gt; 2.5 AND HiRatio_52w &gt; 0.95:
       <h2><span class="step-num">5</span> MLP Architecture — 4-Output Head</h2>
       <div class="step-card">
         <div class="component-tag">sklearn MLPRegressor — hidden_layer_sizes=(256, 128, 64, 32)</div>
-        <p>A fresh MLP is trained per request on all available sequences. The model now has a 4-output head, simultaneously predicting scaled close prices at four future horizons.</p>
         <table>
-          <thead><tr><th>Hyperparameter</th><th>Value</th><th>Notes</th></tr></thead>
+          <thead><tr><th>Hyperparameter</th><th>Value</th></tr></thead>
           <tbody>
-            <tr><td>Hidden layers</td><td>(256, 128, 64, 32)</td><td>Widened to handle 129 features (118 base + 11 regime)</td></tr>
-            <tr><td>Activation</td><td>ReLU</td><td></td></tr>
-            <tr><td>Optimizer</td><td>Adam</td><td>lr=0.001</td></tr>
-            <tr><td>Max iterations</td><td>50</td><td>Capped for speed</td></tr>
-            <tr><td>Early stopping</td><td>Yes</td><td>validation_fraction=0.1, n_iter_no_change=8</td></tr>
-            <tr><td>Sequence length</td><td>45 trading days</td><td>SEQ_LEN; sliding window via stride tricks</td></tr>
-            <tr><td>Output head</td><td>4 targets simultaneously</td><td>[T+1, T+5, T+126, T+252] scaled close values</td></tr>
+            <tr><td>Hidden layers</td><td>(256, 128, 64, 32)</td></tr>
+            <tr><td>Activation</td><td>ReLU</td></tr>
+            <tr><td>Optimizer</td><td>Adam, lr=0.001</td></tr>
+            <tr><td>Max iterations</td><td>50</td></tr>
+            <tr><td>Early stopping</td><td>validation_fraction=0.1, n_iter_no_change=8</td></tr>
+            <tr><td>Sequence length</td><td>45 trading days</td></tr>
+            <tr><td>Output head</td><td>4 targets: [T+1, T+5, T+126, T+252] scaled close values</td></tr>
           </tbody>
         </table>
 
         <section id="mlp-targets">
           <h4>Training Targets</h4>
           <table>
-            <thead><tr><th>Output index</th><th>Horizon</th><th>Calendar equivalent</th><th>Usage</th></tr></thead>
+            <thead><tr><th>Output</th><th>Horizon</th><th>Usage</th></tr></thead>
             <tbody>
-              <tr><td>0</td><td>T+1</td><td>Next trading day</td><td>Auxiliary loss; not directly exposed in UI</td></tr>
-              <tr><td>1</td><td>T+5</td><td>1 trading week</td><td>Blended with trajectory to produce <code>predicted_price_1w</code></td></tr>
-              <tr><td>2</td><td>T+126</td><td>~6 months</td><td>Primary deterministic anchor for <code>predicted_price_6m</code></td></tr>
-              <tr><td>3</td><td>T+252</td><td>~12 months</td><td>Primary deterministic anchor for <code>predicted_price_1y</code></td></tr>
+              <tr><td>0 — T+1</td><td>Next trading day</td><td>Auxiliary loss; not directly exposed in UI</td></tr>
+              <tr><td>1 — T+5</td><td>1 trading week</td><td>Blended with trajectory to produce <code>predicted_price_1w</code></td></tr>
+              <tr><td>2 — T+126</td><td>~6 months</td><td>Primary anchor for <code>predicted_price_6m</code></td></tr>
+              <tr><td>3 — T+252</td><td>~12 months</td><td>Primary anchor for <code>predicted_price_1y</code></td></tr>
             </tbody>
           </table>
-          <p>Validation uses a single 80/20 holdout (last 20% of sequences). CV-MAPE from the T+126 output on the holdout set feeds into the confidence score. Monte Carlo uncertainty is generated via 12 forward passes (<code>MC_RUNS=12</code>) applied only to the T+126 and T+252 heads for trajectory uncertainty bands.</p>
         </section>
       </div>
     </section>
@@ -489,119 +405,46 @@ if beta &gt; 2.5 AND HiRatio_52w &gt; 0.95:
     <div class="flow-arrow">&#8595;</div>
 
     <section id="step6">
-      <h2><span class="step-num">6</span> Signal Weighting, 1-Week Blend &amp; Trajectory</h2>
+      <h2><span class="step-num">6</span> Signal Weighting &amp; Trajectory</h2>
       <div class="step-card">
         <div class="component-tag">metric_analysis() + confidence_score()</div>
-        <p>The raw MLP price targets (T+126, T+252) are multiplied by an <code>impact_multiplier</code> built from additive heuristic signals:</p>
-        <table>
-          <thead><tr><th>Signal</th><th>Max impact</th><th>Notes</th></tr></thead>
-          <tbody>
-            <tr><td>RSI overbought/oversold</td><td>±1.5%</td><td>RSI &gt; 75 penalizes; &lt; 25 boosts</td></tr>
-            <tr><td>Trend (is_uptrend)</td><td>+2% / -1%</td><td>20-day price trend direction</td></tr>
-            <tr><td>20d growth rate</td><td>variable</td><td>Scaled × 0.03, capped at ±10% input</td></tr>
-            <tr><td>News sentiment</td><td>±1.5%</td><td>Weighted tanh score × 0.015</td></tr>
-            <tr><td>External technical score</td><td>±2% (reliability-weighted)</td><td>Score × 0.005 × reliability, capped at 2%</td></tr>
-            <tr><td>Analyst consensus (reliability-weighted)</td><td>±5%</td><td>consensus_value × 0.05 × min(aoc/40, 1)</td></tr>
-            <tr><td>Analyst numerical premium</td><td>±7.5%</td><td>analyst_weighted × 0.05 × min(aoc/40, 1.5)</td></tr>
-            <tr><td>Earnings beat streak</td><td>+4%</td><td>1% per consecutive beat, max 4</td></tr>
-            <tr><td>High-beta stretch penalty</td><td>variable</td><td>Only when beta &gt; 2.5 AND HiRatio_52w &gt; 0.95</td></tr>
-            <tr><td>Consumer sector multiplier</td><td>±3%</td><td>World Bank consumption growth × 0.005, clamped</td></tr>
-          </tbody>
-        </table>
-      </div>
+        <p>The raw MLP price targets are multiplied by an <code>impact_multiplier</code> built from additive heuristic signals including RSI, trend, analyst consensus, earnings beat streak, consumer sector multiplier, and high-beta penalty.</p>
 
-      <section id="week-blend">
-        <h3>1-Week Prediction Blend Logic <span class="updated-badge">updated v3.3</span></h3>
-        <div class="step-card">
-          <p>The T+5 MLP output head is subject to high noise (5-day returns are ~90% noise; joint training with 6m/1y targets leaves the T+5 head under-trained relative to longer horizons). The final 1-week price is therefore a blend with a hard cap:</p>
+        <section id="week-blend">
+          <h4>1-Week Prediction Blend Logic</h4>
           <div class="formula">
-# Step 1: MLP T+5 raw output (after impact_multiplier)
-_mlp_1w_raw = inverse_close(pred_scaled[1]) * impact_multiplier
+_blended_1w = 0.30 * mlp_T5_raw + 0.70 * traj_anchor_1w
+              # traj_anchor = current_price + (predicted_6m - current_price) * (5 / 126)
+_atr_cap     = 2.0 * ATR_14 * sqrt(5)
+predicted_1w = clip(_blended_1w, current_price - _atr_cap, current_price + _atr_cap)</div>
+        </section>
 
-# Step 2: Trajectory interpolation anchor (linear from current price toward 6m target)
-_traj_anchor_1w = current_price + (predicted_price_6m - current_price) * (T5 / T6)
-                # T5=5, T6=126 → traj_anchor ≈ current_price + 3.97% of the 6m move
+        <section id="trajectory">
+          <h4>18-Month Trajectory Generation</h4>
+          <p><strong>19 waypoints</strong> at trading-day offsets: [5, 21, 42, 63, 84, 105, 126, …, 378]. The UI prepends a t=0 "Now" dot. MC runs provide spread bands only; midpoints use deterministic MLP outputs.</p>
+        </section>
 
-# Step 3: Blend 30% MLP / 70% trajectory
-_blended_1w = 0.30 * _mlp_1w_raw + 0.70 * _traj_anchor_1w
+        <section id="earnings-dampening">
+          <h4>1-Month Earnings-Window Confidence Dampening</h4>
+          <div class="formula">
+if days_to_earnings &lt;= 14: cs1m = max(0, cs6m - 10)
+else:                        cs1m = min(100, cs6m + 10)
+cs1w = min(100, cs1m + 3)</div>
+        </section>
 
-# Step 4: ATR-based cap — 5-day move cannot exceed 2× daily ATR scaled to 5 days
-_atr_1w = ATR_14 (last row)
-_max_move_1w = 2.0 * _atr_1w * sqrt(5)
-predicted_price_1w = clip(_blended_1w, current_price - _max_move_1w,
-                                       current_price + _max_move_1w)
-          </div>
-        </div>
-      </section>
-
-      <section id="trajectory">
-        <h3>18-Month Trajectory Generation <span class="updated-badge">updated v3.3</span></h3>
-        <div class="step-card">
-          <p>The trajectory contains <strong>19 waypoints</strong>, each with a midpoint price, lower bound, and upper bound. Waypoints are at trading-day offsets:</p>
-          <div class="formula">WAYPOINTS = [T5=5] + list(range(21, 379, 21))
-# → [5, 21, 42, 63, 84, 105, 126, 147, 168, 189, 210, 231, 252, 273, 294, 315, 336, 357, 378]</div>
-          <p>The trajectory always starts at t=0 (current price) as a gray "Now" dot prepended in the UI by <code>TrajectoryChart</code>. The 19 backend waypoints then follow. This means the UI renders pts[0] = Now, pts[1] = t+5 (1 week), pts[2] = t+21 (1 month), pts[7] = t+126 (6 months), pts[13] = t+252 (12 months).</p>
+        <section id="confidence-scoring">
+          <h4>Confidence Score Components</h4>
           <table>
-            <thead><tr><th>Segment</th><th>Midpoint</th><th>Spread</th></tr></thead>
+            <thead><tr><th>Component</th><th>Max pts</th></tr></thead>
             <tbody>
-              <tr><td>t=5 (1 week)</td><td><code>predicted_price_1w</code></td><td><code>spread_6m × (T5/T6)</code></td></tr>
-              <tr><td>t+5 to t+126 (1w → 6m)</td><td>Linear interpolation from 1w to 6m</td><td>Linear interpolation of spread</td></tr>
-              <tr><td>t+126 to t+252 (6m → 12m)</td><td>Linear interpolation using <code>predicted_price_6m</code> and <code>predicted_price_1y</code> anchors (deterministic)</td><td>Linear interpolation spread_6m → spread_12m</td></tr>
-              <tr><td>t+252 to t+378 (12m → 18m)</td><td>Linear extrapolation: 1y + (1y - 6m) × t</td><td>Linear interpolation spread_12m → spread_18m</td></tr>
+              <tr><td>CV-MAPE on holdout (T+126)</td><td>40</td></tr>
+              <tr><td>History depth</td><td>25</td></tr>
+              <tr><td>Feature completeness</td><td>20</td></tr>
+              <tr><td>Analyst coverage</td><td>15</td></tr>
             </tbody>
           </table>
-          <p>MC runs provide the <strong>spread only</strong>. The midpoints use deterministic MLP predictions to avoid MC mean regression toward the training distribution median.</p>
-
-          <h4>Trajectory Chart Interaction (StockPrediction.tsx)</h4>
-          <p>Hover tooltips appear on all named dots showing: time frame label / predicted price / % change from current. The tooltip auto-flips to the left when a dot is near the right edge of the SVG viewport.</p>
-          <table>
-            <thead><tr><th>Dot color</th><th>Point</th><th>Index in pts array</th></tr></thead>
-            <tbody>
-              <tr><td>Gray (<code>#6B7280</code>)</td><td>Current Price (Now)</td><td>pts[0] — prepended by UI</td></tr>
-              <tr><td>Blue (<code>#2563EB</code>)</td><td>1 Week (t+5)</td><td>pts[1]</td></tr>
-              <tr><td>Blue</td><td>1 Month (t+21)</td><td>pts[2]</td></tr>
-              <tr><td>Blue</td><td>6 Months (t+126)</td><td>pts[7]</td></tr>
-              <tr><td>Blue</td><td>12 Months (t+252)</td><td>pts[13]</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section id="earnings-dampening">
-        <h3>1-Month Earnings-Window Confidence Dampening</h3>
-        <div class="step-card">
-          <p>The 1-month confidence score is adjusted based on proximity to the next earnings date:</p>
-          <div class="formula">if days_to_earnings &lt;= 14:
-    cs1m = max(0, cs6m - 10)   # near earnings: binary event risk, lower confidence
-else:
-    cs1m = min(100, cs6m + 10)  # standard: tighter horizon = slight boost
-
-cs1w = min(100, cs1m + 3)      # 1-week: tighter than 1-month</div>
-          <p>The <code>nextEarningsDate</code> field from <code>stockMetrics</code> drives this calculation; if missing, <code>_days_to_earnings</code> defaults to 999 (far away), preserving the standard boost.</p>
-        </div>
-      </section>
-
-      <section id="confidence-scoring">
-        <h3>Confidence Score Formula</h3>
-        <div class="step-card">
-          <p>The base confidence score (<code>cs6m</code>) is built from four components, max 100 points:</p>
-          <table>
-            <thead><tr><th>Component</th><th>Max pts</th><th>Thresholds</th></tr></thead>
-            <tbody>
-              <tr><td>CV-MAPE (holdout accuracy on T+126)</td><td>40</td><td>&lt;5% → 40 pts; &lt;10% → 30 pts; &lt;20% → 15 pts; else 0</td></tr>
-              <tr><td>History depth</td><td>25</td><td>≥5y → 25; ≥4y → 20; ≥3y → 12; ≥2y → 5; else 0</td></tr>
-              <tr><td>Feature completeness</td><td>20</td><td>0 imputed → 20; ≤2 → 14; ≤5 → 8; else 0</td></tr>
-              <tr><td>Analyst coverage</td><td>15</td><td>≥10 analysts → 15; ≥5 → 10; ≥1 → 5; else 0</td></tr>
-            </tbody>
-          </table>
-          <p>Derived confidence scores:</p>
-          <ul>
-            <li><code>cs1y = max(0, cs6m - 15)</code> — longer horizon, wider uncertainty</li>
-            <li><code>cs1m = cs6m ± 10</code> — see earnings-window logic above</li>
-            <li><code>cs1w = min(100, cs1m + 3)</code> — tightest primary horizon</li>
-          </ul>
-        </div>
-      </section>
+        </section>
+      </div>
     </section>
 
     <div class="flow-arrow">&#8595;</div>
@@ -610,63 +453,131 @@ cs1w = min(100, cs1m + 3)      # 1-week: tighter than 1-month</div>
       <h2><span class="step-num">7</span> Persistence Layer</h2>
       <div class="step-card">
         <div class="component-tag">POST /api/prediction/save — route.ts</div>
-        <p>After a successful prediction run, the API route fires an async (fire-and-forget) call to <code>/api/prediction/save</code> that persists the 1-month predicted price and GPS score to <code>user_stock_predictions</code> for the requesting user. The GPS score is computed from <code>calculateGpsScore()</code> using analyst upside, revenue growth, earnings growth, 52-week price change, ML alpha (<code>predicted_change_pct_1m</code>), and AI confidence (<code>confidence_score_1m</code>).</p>
-        <p>The save payload accepts both <code>predicted_price_1w</code> and <code>predicted_price_1m</code> as optional fields alongside the required <code>predicted_price_1m</code>. The DB column <code>predicted_price_1w</code> is populated when provided.</p>
-        <p>Internal (deepmoney sync) calls skip GPS computation and persistence.</p>
-        <div class="highlight-box">
-          <strong>Field naming (v3.3):</strong> The persistence route schema now accepts <code>predicted_price_1w</code> as an optional field. The route internally still requires <code>predicted_price_1m</code> for GPS calculation. No field was removed — <code>predicted_price_1d</code> was never persisted (the 1d prediction was only displayed in the UI).
-        </div>
+        <p>After a successful prediction run, the API fires an async (fire-and-forget) call to <code>/api/prediction/save</code>. GPS score is computed via <code>calculateGpsScore()</code>. The save payload accepts all four horizon columns (<code>predicted_price_1w / _1m / _6m / _1y</code>) as optional fields — the recommendations route then picks the correct column per the user's active timeframe.</p>
       </div>
+    </section>
+
+    <div class="flow-arrow">&#8595;</div>
+
+    <!-- ══════════════════════════════════════════ -->
+    <section id="update-predictions-script">
+      <h2><span class="step-num">8</span> update_predictions.py — Batch Portfolio Sync</h2>
+      <div class="step-card">
+        <div class="component-tag">scripts/update_predictions.py</div>
+        <p>This cron-scheduled Python script is the backbone of the offline prediction pipeline. It runs independently of the Node.js server and produces the data that the recommendations and GPS endpoints serve.</p>
+
+        <h4>What it does (high level)</h4>
+        <ul>
+          <li>Queries active portfolio and watchlist positions for users who logged in within the last 7 days.</li>
+          <li>For each unique ticker, fetches enriched data from <code>GET /api/stock_data/{ticker}/data</code> and runs the Python prediction model via <code>POST /api/prediction/{ticker}?outlook=1_month</code>.</li>
+          <li>Computes GPS v3.0 scores locally using the same formula as <code>src/utils/gps.ts</code> (mirrored Python implementation).</li>
+          <li>Persists all four horizon prices (<code>predicted_price_1w / _1m / _6m / _1y</code>) to <code>user_stock_predictions</code> via <code>POST /api/prediction/save</code>.</li>
+          <li>Scans each user's ETF positions for hot holdings and saves qualifying recommendations to <code>etf_stock_recommendations</code>.</li>
+        </ul>
+
+        <h4>Prediction caching across users</h4>
+        <p>The script maintains a module-level <code>prediction_cache</code> dictionary keyed by ticker. When multiple users share the same stock, the expensive prediction model run happens only once. GPS inputs are stored in the cache entry alongside the raw results so they can be reused without recomputing them.</p>
+
+        <div class="highlight-box"><strong>GPS v3.0 mirror:</strong> The Python implementation of <code>calculate_gps_v3()</code> at the top of <code>update_predictions.py</code> is a direct mirror of <code>calculateGpsScore()</code> in <code>src/utils/gps.ts</code>. Both use the same 8-component model with identical coefficients and clamping logic. When GPS v3.0 changes, both files must be kept in sync.</div>
+
+        <h4>Step-by-step flow</h4>
+        <ol style="margin-left:1.5rem;margin-bottom:1rem;">
+          <li style="margin-bottom:.5rem;">Connect to MySQL. Execute <code>ACTIVE_PORTFOLIO_QUERY</code> — joins <code>users</code>, <code>user_stocks</code>, <code>stocks</code>. Filters <code>last_login &gt;= NOW() - INTERVAL 7 DAY</code>, <code>is_active = 1</code>, <code>user_confirmed = 1</code>, and either <code>is_purchased = 1 AND shares &gt; 0</code> (portfolio) or <code>is_purchased = 0</code> (watchlist).</li>
+          <li style="margin-bottom:.5rem;">Batch-fetch all user strategies via <code>get_all_user_strategies(cursor, user_ids)</code>. This loads each user's <code>aggressiveness</code> and <code>investment_timeframe</code> for later use in ETF gate calculation.</li>
+          <li style="margin-bottom:.5rem;">For each row: check prediction_cache. If miss, call <code>fetch_stock_data(ticker)</code> and <code>run_prediction(ticker, stock_data)</code>. Compute GPS. Store in cache.</li>
+          <li style="margin-bottom:.5rem;">Call <code>save_prediction()</code> with all four horizon prices and GPS data.</li>
+          <li style="margin-bottom:.5rem;">ETF Holdings Scan (see below).</li>
+          <li style="margin-bottom:.5rem;"><code>conn.commit()</code> to flush direct GPS writes. Close DB connections.</li>
+        </ol>
+      </div>
+
+      <section id="etf-holdings-scan">
+        <h3>ETF Holdings Scan</h3>
+        <div class="step-card">
+          <p>After the main portfolio loop, the script iterates over each user's positions to detect ETFs. For each ETF, it calls <code>GET /api/stock_data/{ticker}/holdings?limit=10</code> to get the top 10 holdings. For each holding, it runs a full prediction + GPS calculation (using the shared <code>prediction_cache</code> to avoid redundant model runs).</p>
+          <p>A holding is saved as a recommendation (<code>POST /api/etf/holdings-recommendation</code>) only if it passes all three threshold gates:</p>
+          <ul>
+            <li><code>gps &gt;= gps_threshold</code></li>
+            <li><code>predicted_change_pct &gt;= pred_threshold</code></li>
+            <li><code>confidence_score &gt;= conf_threshold</code></li>
+          </ul>
+          <p>GPS scores for holding tickers are also written directly to <code>stock_gps_scores</code> (global per-stock table) via <code>save_gps_score_to_db()</code>, feeding the <code>GET /api/stock_data/{ticker}/gps</code> endpoint's search path.</p>
+        </div>
+      </section>
+
+      <section id="strategy-gates-etf">
+        <h3>Strategy-Aware ETF Gates <span class="updated-badge">updated 2026-06-09</span></h3>
+        <div class="step-card">
+          <p>ETF holding thresholds are not one-size-fits-all. They are computed per user using three layers:</p>
+          <ol style="margin-left:1.5rem;">
+            <li style="margin-bottom:.5rem;"><strong>Environment baseline:</strong> <code>ETF_HOLDING_GPS_SURFACE_VALUE</code> (default 60), <code>ETF_HOLDING_MIN_PRED_CHANGE</code> (default 1.5%), <code>ETF_HOLDING_MIN_CONFIDENCE</code> (default 60).</li>
+            <li style="margin-bottom:.5rem;"><strong>Aggressiveness multiplier</strong> from <code>resolve_strategy(user_strategy)</code>: <code>safe=1.05</code>, <code>neutral=1.0</code>, <code>aggressive=0.95</code>. Applied to all three baseline thresholds. Safe users require higher scores; aggressive users accept lower scores.</li>
+            <li style="margin-bottom:.5rem;"><strong>Predicted-change floor:</strong> <code>max(env_pred_threshold * mult, gates['predChangeGate'])</code>. This means if the strategy's own absolute gate (safe=3%, neutral=1.5%, aggressive=0.5%) is stricter than the env-scaled baseline, it takes priority.</li>
+          </ol>
+          <div class="formula">
+gps_threshold  = ETF_HOLDING_GPS_SURFACE_VALUE * mult
+pred_threshold = max(ETF_HOLDING_MIN_PRED_CHANGE * mult, gates.predChangeGate)
+conf_threshold = ETF_HOLDING_MIN_CONFIDENCE * mult
+
+# Example: safe user (mult=1.05, predChangeGate=3.0)
+# gps_threshold  = 60 * 1.05 = 63.0
+# pred_threshold = max(1.5 * 1.05, 3.0) = max(1.575, 3.0) = 3.0%
+# conf_threshold = 60 * 1.05 = 63.0
+
+# Example: aggressive user (mult=0.95, predChangeGate=0.5)
+# gps_threshold  = 60 * 0.95 = 57.0
+# pred_threshold = max(1.5 * 0.95, 0.5) = max(1.425, 0.5) = 1.425%
+# conf_threshold = 60 * 0.95 = 57.0</div>
+        </div>
+      </section>
     </section>
 
     <section id="caching">
       <h2>Cache Architecture</h2>
       <div class="step-card">
-        <div class="component-tag">scripts/prediction_cache/ — result cache + feature cache</div>
-        <p>The script maintains two cache layers in <code>scripts/prediction_cache/</code>:</p>
         <ul>
-          <li><strong>Result cache (v2)</strong> — keyed by <code>MD5(ticker + last_date + data_len + "v2")</code>. Full prediction JSON stored as <code>{key}.json</code>. The schema version is embedded in the key string via <code>CACHE_SCHEMA_VERSION = 2</code>. Bumping this constant invalidates all stale v1 caches automatically without manual cleanup.</li>
-          <li><strong>Feature cache</strong> — the full feature DataFrame stored as <code>{ticker}_features_df.pkl</code>. On the next run, if the new data is a forward extension of the cached data, only the new rows are computed using a 252-row lookback buffer. Broadcaster-scalar features (fundamentals, macro, insider) are updated in-place on the cached frame.</li>
+          <li><strong>Result cache (v2):</strong> keyed by <code>MD5(ticker + last_date + data_len + "v2")</code>. Full prediction JSON stored as <code>{key}.json</code>. Bumping <code>CACHE_SCHEMA_VERSION</code> constant invalidates all stale caches automatically.</li>
+          <li><strong>Feature cache:</strong> full feature DataFrame stored as <code>{ticker}_features_df.pkl</code>. Incremental updates only recompute new rows.</li>
+          <li><strong>Server-side in-memory cache:</strong> <code>predictionCache</code> keyed by <code>{ticker}_{outlook}</code>. Bypassed by <code>?refresh=true</code>.</li>
         </ul>
-        <p>Server-side in-memory cache (<code>predictionCache</code>) stores prediction results keyed by <code>{ticker}_{outlook}</code>. Bypassed by <code>?refresh=true</code>.</p>
-        <p>CPU usage is throttled via environment variables (<code>OMP_NUM_THREADS=1</code>, <code>MKL_NUM_THREADS=1</code>, etc.) set before numpy/sklearn import, and the process priority is lowered via <code>os.nice(15)</code>.</p>
+        <p>CPU throttled via environment variables (<code>OMP_NUM_THREADS=1</code>, etc.) and <code>os.nice(15)</code>.</p>
       </div>
     </section>
 
     <section id="changelog">
       <h2>Recent Changes</h2>
       <div class="step-card">
-        <h4>v3.3 (2026-06-03)</h4>
+        <h4>v3.4 / June 2026 — Strategy Integration</h4>
+        <table>
+          <thead><tr><th>File</th><th>Change</th></tr></thead>
+          <tbody>
+            <tr><td><code>scripts/update_predictions.py</code></td><td>Added <code>strategy_config</code> module import. Batch-fetches all user strategies at startup. ETF holding gates now scaled per user via <code>resolve_strategy()</code> aggressiveness multiplier and predChangeGate floor.</td></tr>
+            <tr><td><code>scripts/update_predictions.py</code></td><td>All four horizon prices (<code>predicted_price_1w / _1m / _6m / _1y</code>) now persisted to <code>user_stock_predictions</code> via <code>save_prediction()</code>. Recommendations route can then read the correct column per user's timeframe.</td></tr>
+            <tr><td><code>scripts/update_predictions.py</code></td><td>Added <code>calculate_gps_v3()</code> Python mirror function (GPS v3.0, 8 components, 100 pts) — kept in sync with <code>src/utils/gps.ts</code>.</td></tr>
+            <tr><td><code>src/app/api/user/portfolio/route.ts</code></td><td>Reads <code>getUserStrategy()</code> to select predicted_price horizon column; calls <code>adjustMlpUpsideForHorizon()</code> per item. Returns <code>gpsHorizon</code> field.</td></tr>
+            <tr><td><code>src/app/api/user/watchlist/route.ts</code></td><td>Same horizon-aware GPS patch as portfolio route. Returns <code>gpsHorizon</code> field.</td></tr>
+            <tr><td><code>src/app/api/user/profile/route.ts</code></td><td>GET now returns <code>strategy</code> object. PATCH endpoint added to update aggressiveness and/or investment_timeframe. Both nested and flat request body shapes accepted.</td></tr>
+            <tr><td><code>src/app/api/dashboard/recommendations/route.ts</code></td><td>Full strategy-aware GPS thresholds. Aggressiveness multiplier applied to buy/discovery thresholds. Timeframe shift applied to sell threshold. predChangeGate scaled by timeframe multiplier. mlpUpside patched per horizon.</td></tr>
+            <tr><td><code>src/app/api/dashboard/deepmoney-picks/route.ts</code></td><td>Reads user's timeframe to populate <code>timeframe</code> and <code>timeframe_label</code> fields in response for UI labeling.</td></tr>
+            <tr><td><code>src/app/api/prediction/deepmoney/route.ts</code></td><td>Resolves user's strategy to set <code>outlook</code> and <code>mlGate</code> forwarded to <code>analyzeStocks()</code>. Cache bucket keyed by outlook.</td></tr>
+            <tr><td><code>src/utils/strategy.ts</code></td><td>New file. Single source of truth for <code>AGGRESSIVENESS_GATES</code> and <code>TIMEFRAME_CONFIG</code> tables. Exports <code>getUserStrategy()</code>, <code>resolveStrategy()</code>, <code>isValidAggressiveness()</code>, <code>isValidTimeframe()</code>, <code>DEFAULT_STRATEGY</code>.</td></tr>
+            <tr><td><code>src/utils/gps.ts</code></td><td>Added <code>adjustMlpUpsideForHorizon(breakdown, predictedChangePctForHorizon)</code> function.</td></tr>
+            <tr><td><code>src/types/api.ts</code></td><td>Added <code>ProfileStrategy</code>, <code>InvestmentTimeframe</code>, and updated <code>ProfileResponse</code> to include <code>strategy</code> field.</td></tr>
+            <tr><td><code>src/types/dashboard.ts</code></td><td>Added <code>gpsHorizon</code> field to <code>DashboardRecommendation</code>.</td></tr>
+            <tr><td><code>src/app/components/cards/types.ts</code></td><td>Added <code>gpsHorizon</code> optional field to <code>DeepmoneyCard</code>, <code>PortfolioCard</code>, and <code>WatchlistCard</code>.</td></tr>
+            <tr><td><code>src/app/components/modals/GpsBreakdownModal.tsx</code></td><td>Added <code>horizon</code> prop. ML Prediction row label shows active horizon abbreviation, e.g. "ML Prediction (6m)".</td></tr>
+          </tbody>
+        </table>
+
+        <h4 style="margin-top:2rem;">v3.3 (2026-06-03)</h4>
         <table>
           <thead><tr><th>File</th><th>Change</th></tr></thead>
           <tbody>
             <tr><td><code>predict_weighted_analysis.py</code></td><td>Primary outlook changed from 1-day to 1-week (T+5 MLP output head)</td></tr>
-            <tr><td><code>predict_weighted_analysis.py</code></td><td>MLP target vector expanded from 2-output [T+126, T+252] to 4-output [T+1, T+5, T+126, T+252]</td></tr>
-            <tr><td><code>predict_weighted_analysis.py</code></td><td>1-week prediction now blended: 30% MLP T+5 raw + 70% trajectory interpolation, hard-capped at ±2×ATR×√5</td></tr>
-            <tr><td><code>predict_weighted_analysis.py</code></td><td>Trajectory WAYPOINTS changed from range(21,379,21) to [T5=5] + range(21,379,21); t=0 anchor now added by UI</td></tr>
-            <tr><td><code>predict_weighted_analysis.py</code></td><td>6m and 1y trajectory anchors use deterministic MLP outputs rather than MC means</td></tr>
-            <tr><td><code>predict_weighted_analysis.py</code></td><td>CACHE_SCHEMA_VERSION bumped to 2 to invalidate stale caches</td></tr>
-            <tr><td><code>predict_weighted_analysis.py</code></td><td>13 new FEATURE_COLUMNS added: PostEarnings_DayN/CumReturn/VolRatio, EPS_Revision_7d_0Q/1Q, Revenue_Est_Growth_0Q/1Q, EPS_Rev_Up7d/Down7d, Upgrade_Score_7d/30d, PreMarket_GapPct, PostMarket_GapPct, FiftyTwoWeek_PosRatio, Institution_PctHeld/PctDelta, Peer_RS_5d</td></tr>
-            <tr><td><code>src/app/api/prediction/[ticker]/route.ts</code></td><td>Valid outlook values updated to include <code>1_week</code>; default outlook for result population changed from <code>1_day</code> to <code>1_week</code></td></tr>
-            <tr><td><code>src/app/api/prediction/save/route.ts</code></td><td>Schema now accepts optional <code>predicted_price_1w</code> field alongside <code>predicted_price_1m</code></td></tr>
-            <tr><td><code>src/app/components/StockPrediction.tsx</code></td><td>Four prediction cards updated: 1-Week (purple), 1-Month (blue), 6-Month (emerald), 12-Month (green)</td></tr>
-            <tr><td><code>src/app/components/StockPrediction.tsx</code></td><td>TrajectoryChart: Now dot added at t=0 (gray), dots at pts[1]=1wk, pts[2]=1mo, pts[7]=6mo, pts[13]=12mo</td></tr>
-            <tr><td><code>src/app/components/StockPrediction.tsx</code></td><td>Hover tooltips added to all trajectory dots showing label / price / % change</td></tr>
-            <tr><td><code>src/app/components/StockPrediction.tsx</code></td><td>Added "Recalculate (skip cache)" button that passes <code>?refresh=true</code> to bypass <code>predictionCache</code></td></tr>
-            <tr><td><code>scripts/test_feature_columns.py</code></td><td>New offline validator script for all 118 FEATURE_COLUMNS</td></tr>
-          </tbody>
-        </table>
-
-        <h4 style="margin-top:2rem;">v3.2 (2026-05-28)</h4>
-        <table>
-          <thead><tr><th>File</th><th>Change</th></tr></thead>
-          <tbody>
-            <tr><td><code>predict_weighted_analysis.py</code></td><td>Added InsiderNetSellRatio_90d and InsiderTxCount_90d to FEATURE_COLUMNS</td></tr>
-            <tr><td><code>predict_weighted_analysis.py</code></td><td>Added High-Beta/Valuation Stretch Penalty in metric_analysis()</td></tr>
-            <tr><td><code>predict_weighted_analysis.py</code></td><td>Added earnings-window confidence dampening for 1-month horizon</td></tr>
-            <tr><td><code>src/app/api/stock_data/[ticker]/data/route.ts</code></td><td>Added extractInsiderMetrics() — 90-day SEC Form 4 insider metrics</td></tr>
-            <tr><td><code>src/app/api/prediction/[ticker]/route.ts</code></td><td>Removed per-user 30-second cooldown (tickerCooldown Map, 429 responses)</td></tr>
-            <tr><td><code>src/app/components/StockPrediction.tsx</code></td><td>Removed client-side cooldown countdown UI</td></tr>
+            <tr><td><code>predict_weighted_analysis.py</code></td><td>MLP target vector expanded from 2-output to 4-output [T+1, T+5, T+126, T+252]</td></tr>
+            <tr><td><code>predict_weighted_analysis.py</code></td><td>1-week prediction blended: 30% MLP T+5 + 70% trajectory, capped at ±2×ATR×√5</td></tr>
+            <tr><td><code>predict_weighted_analysis.py</code></td><td>CACHE_SCHEMA_VERSION bumped to 2</td></tr>
+            <tr><td><code>predict_weighted_analysis.py</code></td><td>13 new FEATURE_COLUMNS added across 5 groups</td></tr>
           </tbody>
         </table>
       </div>

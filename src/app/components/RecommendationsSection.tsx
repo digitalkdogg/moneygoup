@@ -128,7 +128,7 @@ const RecommendationsSection: React.FC<RecommendationsSectionProps> = ({ scopes,
                     <div className="flex items-center gap-1">
                       <span>GPS Score: {rec.gpsScore !== null && typeof rec.gpsScore === 'number' ? rec.gpsScore.toFixed(1) : 'N/A'}</span>
                       {rec.gpsScore !== null && (
-                        <GpsTooltip score={rec.gpsScore} breakdown={rec.gpsBreakdown} symbol={rec.symbol} />
+                        <GpsTooltip score={rec.gpsScore} breakdown={rec.gpsBreakdown} symbol={rec.symbol} horizon={rec.gpsHorizon} />
                       )}
                     </div>
                   }

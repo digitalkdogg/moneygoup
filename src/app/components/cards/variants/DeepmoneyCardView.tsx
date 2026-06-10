@@ -24,30 +24,37 @@ export const DeepmoneyCardView: React.FC<DeepmoneyCardViewProps> = ({ card }) =>
     return 'text-amber-600'
   }
 
-  const displayValue = isNumeric 
+  const displayValue = isNumeric
     ? formatPercent(card.prediction as number)
     : (card.prediction || 'N/A')
 
+  // Append the user's timeframe label to the prediction row when present,
+  // e.g. "Predicted Growth in 6 months".
+  const predictionLabel = isNumeric ? 'Predicted Growth' : 'Prediction'
+  const predictionLabelWithTimeframe = card.timeframeLabel
+    ? `${predictionLabel} ${card.timeframeLabel}`
+    : predictionLabel
+
   return (
     <>
-      <CardHeader 
-        symbol={card.symbol} 
-        companyName={card.companyName} 
-        changePercent={card.changePercent} 
+      <CardHeader
+        symbol={card.symbol}
+        companyName={card.companyName}
+        changePercent={card.changePercent}
         changeAmount={card.changeAmount}
       />
       <div className="px-5 py-4">
         <CardMetricRow label="Price" value={formatPrice(card.price)} />
-        <CardMetricRow 
-          label={isNumeric ? "Predicted Growth" : "Prediction"} 
-          value={displayValue} 
+        <CardMetricRow
+          label={predictionLabelWithTimeframe}
+          value={displayValue}
           valueClassName={getPredictionColor(card.prediction)}
         />
         <CardMetricRow 
           label={
             <div className="flex items-center gap-1">
               GPS Score 
-              <GpsTooltip score={card.gpsScore} breakdown={card.gpsBreakdown} symbol={card.symbol} />
+              <GpsTooltip score={card.gpsScore} breakdown={card.gpsBreakdown} symbol={card.symbol} horizon={card.gpsHorizon} />
             </div>
           } 
           value={

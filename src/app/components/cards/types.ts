@@ -20,6 +20,10 @@ export interface DeepmoneyCard extends CardBase {
   prediction: 'Bullish' | 'Bearish' | 'Neutral' | number | null
   gpsScore: number | null
   gpsBreakdown?: any | null
+  /** Free-text label appended to the prediction row, e.g. "in 6 months". */
+  timeframeLabel?: string | null
+  /** Which prediction horizon the breakdown reflects (defaults to 1_month). */
+  gpsHorizon?: '1_week' | '1_month' | '6_month' | '1_year'
 }
 
 export interface PortfolioCard extends CardBase {
@@ -29,6 +33,8 @@ export interface PortfolioCard extends CardBase {
   analysts?: number | null
   gpsScore?: number | null
   gpsBreakdown?: any | null
+  /** Which prediction horizon the breakdown reflects (defaults to 1_month). */
+  gpsHorizon?: '1_week' | '1_month' | '6_month' | '1_year'
   topAccentColor?: string
   predictedPrice1m?: number | null // Added predictedPrice1m
 }
@@ -40,6 +46,8 @@ export interface WatchlistCard extends CardBase {
   ma6m: number | null
   gpsScore?: number | null
   gpsBreakdown?: any | null
+  /** Which prediction horizon the breakdown reflects (defaults to 1_month). */
+  gpsHorizon?: '1_week' | '1_month' | '6_month' | '1_year'
   isCompact?: boolean
   predictedPrice1m?: number | null // Added predictedPrice1m
 }

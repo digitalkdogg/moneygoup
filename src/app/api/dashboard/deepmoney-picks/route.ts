@@ -8,6 +8,7 @@ import { checkApprovalGuard } from '@/utils/approvalStatus';
 import { createLogger } from '@/utils/logger';
 import { createErrorResponse } from '@/utils/errorResponse';
 import { getGpsLabel } from '@/utils/gps';
+import { getUserStrategy, resolveStrategy, DEFAULT_STRATEGY } from '@/utils/strategy';
 import YahooFinance from 'yahoo-finance2';
 
 const ETF_GPS_THRESHOLD = 75;
@@ -46,11 +47,20 @@ export async function GET(request: NextRequest) {
     const stockDate = (stockDateRows as any[])[0]?.d;
     const etfDate = (etfDateRows as any[])[0]?.d;
 
+    // Resolve user's investment timeframe for the UI label. The underlying ML
+    // data comes from the latest sync (currently a 1_month baseline run) — this
+    // is purely for labeling so users see "Predicted +X% in 1 week" etc.
+    const userStrategy = await getUserStrategy(userId).catch(() => DEFAULT_STRATEGY);
+    const timeframeLabel = resolveStrategy(userStrategy).timeframe.displayLabel;
+    const timeframe = userStrategy.investment_timeframe;
+
     if (!stockDate && !etfDate) {
       return NextResponse.json({
         hot_stocks: [],
         hot_etfs: [],
         etf_holdings: [],
+        timeframe,
+        timeframe_label: timeframeLabel,
       });
     }
 
@@ -162,6 +172,8 @@ export async function GET(request: NextRequest) {
       hot_stocks: enrichedHotStocks,
       hot_etfs: enrichedHotEtfs,
       etf_holdings: etfHoldings,
+      timeframe,
+      timeframe_label: timeframeLabel,
     });
 
   } catch (error) {

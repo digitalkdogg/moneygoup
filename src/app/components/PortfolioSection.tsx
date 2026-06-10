@@ -63,6 +63,7 @@ export default function PortfolioSection({ portfolio, onRefresh }: PortfolioSect
       analysts: item.numberOfAnalystOpinions,
       gpsScore: item.gpsScore,
       gpsBreakdown: item.gpsBreakdown,
+      gpsHorizon: (item as any).gpsHorizon,
       topAccentColor: item.brand_color || '#017e3b',
       predictedPrice1m,
     };
