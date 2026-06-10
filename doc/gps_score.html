@@ -34,7 +34,6 @@
 
         code {
             font-family: ui-monospace, monospace;
-            background: #f1f5f9;
             padding: 0.1rem 0.4rem;
             border-radius: 3px;
             font-size: 0.88em;
@@ -238,7 +237,7 @@
         footer { margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem; text-align: center; }
 
         /* ── Top Bar ── */
-        .top-bar { background: #017e3b; color: #fff; padding: 0 2rem; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+        .top-bar { background: #017e3b; color: #fff; padding: 0 2rem; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.25); position: relative;}
         .top-bar-header { display: flex; align-items: center; justify-content: space-between; height: 56px; }
         .top-bar .brand { font-size: 1.2rem; font-weight: 700; letter-spacing: .02em; }
         .top-bar .brand span { color: #bbf7d0; }
@@ -256,7 +255,13 @@
         .sidebar a:hover { background: #f0fdf4; color: #017e3b; border-left-color: #86efac; }
         .sidebar a.active { background: #f0fdf4; color: #017e3b; font-weight: 600; border-left-color: #017e3b; }
         .sidebar .section-divider { border-top: 1px solid #f1f5f9; margin: .5rem 0; }
-    </style>
+    .nav-scroll-controls { position: absolute; top: 50%; transform: translateY(-50%); z-index: 50; padding: 0 4px; display: flex; align-items: center; }
+        .nav-scroll-controls:first-of-type { left: 0; }
+        .nav-scroll-controls:last-of-type { right: 0; }
+        .nav-scroll-btn { background: rgba(0,0,0,0.1); border: none; color: #475569; cursor: pointer; font-size: 1.5rem; padding: 0.5rem 0.25rem; border-radius: 4px; transition: background .15s, color .15s; line-height: 1; }
+        .nav-scroll-btn:hover { background: rgba(0,0,0,0.15); color: #1e293b; }
+        
+        </style>
 </head>
 <body>
 
@@ -267,6 +272,9 @@
       <div class="subtitle">GPS Score</div>
     </div>
     <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-05</div>
+  </div>
+      <div class="nav-scroll-controls">
+    <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
   </div>
   <nav class="top-bar-nav">
     <a href="moneygoup_overview.html">Overview</a>
@@ -281,11 +289,13 @@
     <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
     <a href="technical_indicators_guide.html">Technical Guide</a>
     <a href="gps_score.html" class="active">GPS Score</a>
-    <a href="gps_utility.html">GPS Utility</a>
-    <a href="deepmoney_picks_route.html">DeepMoney Picks Route</a>
+    <a href="strategy_system.html">Strategy System</a>
     <a href="style_guide.html">Style Guide</a>
     <a href="SEO.html">SEO</a>
   </nav>
+  <div class="nav-scroll-controls">
+    <button class="nav-scroll-btn nav-scroll-right" aria-label="Scroll nav right">›</button>
+  </div>
 </div>
 
 <div class="layout">
@@ -729,5 +739,53 @@ bearish_signal = predicted_change_pct &lt; 0</code></pre>
   </main>
 
 </div>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const nav = document.querySelector('.top-bar-nav');
+  const leftBtns = document.querySelectorAll('.nav-scroll-left');
+  const rightBtns = document.querySelectorAll('.nav-scroll-right');
+  
+  if (!nav || leftBtns.length === 0 || rightBtns.length === 0) return;
+  
+  const scrollAmount = 150;
+  
+  function checkScroll() {
+    // Show/hide left button
+    if (nav.scrollLeft > 0) {
+      leftBtns.forEach(btn => btn.style.visibility = 'visible');
+    } else {
+      leftBtns.forEach(btn => btn.style.visibility = 'hidden');
+    }
+    
+    // Show/hide right button
+    const hasRightScroll = nav.scrollLeft < nav.scrollWidth - nav.clientWidth - 10;
+    if (hasRightScroll) {
+      rightBtns.forEach(btn => btn.style.visibility = 'visible');
+    } else {
+      rightBtns.forEach(btn => btn.style.visibility = 'hidden');
+    }
+  }
+  
+  leftBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      nav.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
+      setTimeout(checkScroll, 100);
+    });
+  });
+  
+  rightBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      nav.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+      setTimeout(checkScroll, 100);
+    });
+  });
+  
+  nav.addEventListener('scroll', checkScroll);
+  window.addEventListener('resize', checkScroll);
+  
+  // Initial check
+  setTimeout(checkScroll, 100);
+});
+</script>
 </body>
 </html>
