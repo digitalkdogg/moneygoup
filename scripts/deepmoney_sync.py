@@ -4,6 +4,7 @@ import requests
 import mysql.connector
 from datetime import datetime
 from dotenv import load_dotenv
+from prediction_recorder import record_prediction
 
 # Load environment variables from project root
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -228,9 +229,23 @@ def sync_deepmoney():
             
             market_cap_m = (s.get('marketCap') or 0) / 1e6
             
+            predicted_price_1w = pred_input.get('predicted_price_1w')
             predicted_price_1m = pred_input.get('predicted_price_1m')
             if predicted_price_1m is None:
                 predicted_price_1m = pred_input.get('predicted_price')
+            predicted_price_6m = pred_input.get('predicted_price_6m')
+            predicted_price_1y = pred_input.get('predicted_price_1y')
+
+            # Record to analytics prediction_records table (fire-and-forget)
+            if price and (predicted_price_1w or predicted_price_1m or predicted_price_6m or predicted_price_1y):
+                record_prediction(
+                    symbol=ticker,
+                    price_at_prediction=price,
+                    predicted_price_1w=predicted_price_1w,
+                    predicted_price_1m=predicted_price_1m,
+                    predicted_price_6m=predicted_price_6m,
+                    predicted_price_1y=predicted_price_1y,
+                )
 
             metric_val = predicted_change_pct
             metric_lbl = f"CS: {pred_input.get('confidence_score')}" if pred_input.get('confidence_score') is not None else None

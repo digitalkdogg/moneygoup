@@ -11,6 +11,7 @@ import StockNews from './StockNews'
 import { createLogger } from '@/utils/logger'
 import StockPrediction from './StockPrediction'
 import StockSignalPanel, { GpsData } from './StockSignalPanel'
+import SymbolAccuracyIndicator from './SymbolAccuracyIndicator'
 import { formatNumber, formatCurrency } from '@/utils/formatters' // Added import
 
 const logger = createLogger('components/Stock')
@@ -779,6 +780,10 @@ export default function Stock({
             onPredictionComplete={refreshGps}
             embedded
           />
+
+          <div className="mt-4">
+            <SymbolAccuracyIndicator ticker={primaryTicker} />
+          </div>
         </div>
 
         {/* Analyst Sentiment & Price Targets */}

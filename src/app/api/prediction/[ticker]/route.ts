@@ -20,6 +20,7 @@ import { calculateGpsScore } from '@/utils/gps';
 import { LimitService } from '@/utils/limitService';
 import { checkApprovalGuard } from '@/utils/approvalStatus';
 import { getUserStrategy, resolveStrategy, DEFAULT_STRATEGY } from '@/utils/strategy';
+import { recordPrediction } from '@/utils/predictionRecorder';
 
 const logger = createLogger('api/prediction');
 
@@ -174,7 +175,20 @@ export async function POST(
   try {
     writeFileSync(tempFile, JSON.stringify(body));
     const result: any = await runPythonPrediction(validatedTicker, tempFile, validatedOutlook);
-    
+
+    // Record prediction to analytics database (fire-and-forget)
+    const priceAtPrediction = body.stockMetrics?.regularMarketPrice;
+    if (priceAtPrediction) {
+      recordPrediction({
+        symbol: validatedTicker,
+        priceAtPrediction,
+        predictedPrice1w: result.predicted_price_1w,
+        predictedPrice1m: result.predicted_price_1m,
+        predictedPrice6m: result.predicted_price_6m,
+        predictedPrice1y: result.predicted_price_1y,
+      }).catch(() => {});
+    }
+
     // Ensure generic keys are populated for the requested outlook
     if (validatedOutlook === '1_month') {
       result.predicted_change_pct = result.predicted_change_pct ?? result.predicted_change_pct_1m;

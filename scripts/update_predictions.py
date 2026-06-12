@@ -4,6 +4,7 @@ import requests
 import mysql.connector
 from datetime import datetime
 from dotenv import load_dotenv
+from prediction_recorder import record_prediction
 from strategy_config import (
     DEFAULT_STRATEGY,
     resolve_strategy,
@@ -212,17 +213,33 @@ def fetch_stock_data(ticker: str) -> dict | None:
 # It returns JSON that includes predicted_price_1m (and other horizons).
 # ---------------------------------------------------------------------------
 def run_prediction(ticker: str, stock_data: dict) -> dict | None:
-    url = f"{INTERNAL_API_URL}/api/prediction/{ticker}?outlook=1_month"
+    """Run prediction for all 4 timeframes and merge results."""
     print(f"  [pred] Running prediction model for {ticker}...")
     try:
-        response = post_with_auth(url, stock_data)
-        response.raise_for_status()
-        result = response.json()
+        predictions = {}
+        timeframes = ['1_week', '1_month', '6_month', '1_year']
+
+        for tf in timeframes:
+            url = f"{INTERNAL_API_URL}/api/prediction/{ticker}?outlook={tf}"
+            response = post_with_auth(url, stock_data)
+            response.raise_for_status()
+            result = response.json()
+            predictions[tf] = result
+
+        # Use 1_month as the base result
+        result = predictions['1_month']
         price = result.get('predicted_price_1m')
         if price is None:
             print(f"  [pred] WARNING: predicted_price_1m missing from response for {ticker}")
             return None
-        print(f"  [pred] {ticker} → predicted_price_1m = {price}")
+
+        # Merge all timeframe predictions
+        result['predicted_price_1w'] = predictions['1_week'].get('predicted_price')
+        result['predicted_price_1m'] = predictions['1_month'].get('predicted_price')
+        result['predicted_price_6m'] = predictions['6_month'].get('predicted_price')
+        result['predicted_price_1y'] = predictions['1_year'].get('predicted_price')
+
+        print(f"  [pred] {ticker} → 1w={result['predicted_price_1w']}, 1m={result['predicted_price_1m']}, 6m={result['predicted_price_6m']}, 1y={result['predicted_price_1y']}")
         return result
     except Exception as exc:
         print(f"  [pred] ERROR running prediction for {ticker}: {exc}")
@@ -403,7 +420,10 @@ def run_prediction_for_holding(ticker: str,
         prediction_cache[ticker] = _empty_cache_entry()
         return None
 
-    predicted_price      = float(prediction_result.get('predicted_price_1m', 0))
+    pred_price_1m = prediction_result.get('predicted_price_1m')
+    if pred_price_1m is None:
+        pred_price_1m = prediction_result.get('predicted_price')
+    predicted_price      = float(pred_price_1m) if pred_price_1m is not None else 0.0
     predicted_change_pct = float(prediction_result.get('predicted_change_pct', 0))
     confidence_score_val = float(prediction_result.get('confidence_score', 0))
     predicted_price_1w   = prediction_result.get('predicted_price_1w')
@@ -541,7 +561,10 @@ def sync_portfolio_predictions():
 
             if prediction_result is not None:
                 stats['predicted'] += 1
-                predicted_price      = float(prediction_result.get('predicted_price_1m', 0))
+                pred_price_1m = prediction_result.get('predicted_price_1m')
+                if pred_price_1m is None:
+                    pred_price_1m = prediction_result.get('predicted_price')
+                predicted_price      = float(pred_price_1m) if pred_price_1m is not None else 0.0
                 predicted_change_pct = float(prediction_result.get('predicted_change_pct', 0))
                 confidence_score_val = float(prediction_result.get('confidence_score', 0))
                 # Other-horizon prices — surfaced so the dashboard recommendations
@@ -611,6 +634,19 @@ def sync_portfolio_predictions():
             stats['saved'] += 1
         else:
             stats['errors'] += 1
+
+        # Record to analytics prediction_records table (fire-and-forget)
+        sm = stock_data.get('stockMetrics', {})
+        price_at_prediction = sm.get('regularMarketPrice', predicted_price)
+        if price_at_prediction and (predicted_price_1w or predicted_price or predicted_price_6m or predicted_price_1y):
+            record_prediction(
+                symbol=ticker,
+                price_at_prediction=price_at_prediction,
+                predicted_price_1w=predicted_price_1w,
+                predicted_price_1m=predicted_price,
+                predicted_price_6m=predicted_price_6m,
+                predicted_price_1y=predicted_price_1y,
+            )
  
     # --- ETF Holdings: scan each user's ETF positions for hot holdings --------
     # Env-var thresholds are the baseline; each user's strategy can tighten/loosen

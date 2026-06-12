@@ -9,6 +9,7 @@ import WatchlistSection from './WatchlistSection'; // Updated to use StockCardSe
 import PortfolioSummary from './PortfolioSummary';
 import MajorIndicesStrip from './MajorIndicesStrip';
 import RecommendationsSection from './RecommendationsSection';
+import ModelAccuracyWidget from './ModelAccuracyWidget';
 
 import { formatNumber, formatCurrency as formatUtilityCurrency } from '@/utils/formatters'; // Import formatters
 import { PortfolioItem } from '@/types/portfolio'; // NEW: Import PortfolioItem
@@ -204,6 +205,9 @@ export default function Dashboard() {
           <div className="border-t border-gray-200 pt-10 mt-10">
             <h2 className="section-heading">Discovery & Watchlist</h2>
             <RecommendationsSection />
+            <div className="mt-10 mb-10">
+              <ModelAccuracyWidget />
+            </div>
             <div className="mt-10">
               <WatchlistSection onRefresh={fetchPortfolioData} />
             </div>

@@ -92,16 +92,24 @@ export async function analyzeStocks(
                 // 1. Get complete data payload WITHOUT internal fetch
                 const payload = await getStockDataForPrediction(stock.ticker, sharedContext?.wbData);
 
-                // 2. Run prediction WITHOUT internal fetch — outlook scales with the user's timeframe
-                const predictionResult: any = await runPredictionInternal(stock.ticker, payload, outlook);
+                // 2. Run predictions for ALL four timeframes
+                const predictions: Record<string, any> = {};
+                const timeframes = ['1_week', '1_month', '6_month', '1_year'] as const;
 
-                const predictedChangePct = predictionResult.predicted_change_pct;
+                for (const tf of timeframes) {
+                    const result = await runPredictionInternal(stock.ticker, payload, tf);
+                    predictions[tf] = result;
+                }
+
+                // Use 1_month for the ML gate decision (consistent with prior behavior)
+                const predictionResult = predictions['1_month'];
+                const predictedChangePct = predictionResult?.predicted_change_pct;
 
                 if (predictedChangePct !== undefined) {
                     stock.prediction_1m = predictedChangePct;
                     // Threshold: positive predictions >= mlGate only (timeframe-scaled ML Validation Gate)
                     if (predictedChangePct > 0 && predictedChangePct >= mlGate) {
-                        
+
                         // --- GPS Score Calculation (v2.3) ---
                         const gpsResult = calculateGpsScore(
                           {
@@ -117,7 +125,7 @@ export async function analyzeStocks(
                             confidenceScore:      predictionResult.confidence_score,
                           }
                         );
-                        
+
                         stock.gps_score = gpsResult.score;
                         (stock as any).gps_breakdown = gpsResult.breakdown;
 
@@ -130,7 +138,14 @@ export async function analyzeStocks(
                             stock.classification = 'standard';
                         }
 
-                        stock.prediction_input = predictionResult;
+                        // Merge all four timeframe predictions into the input
+                        stock.prediction_input = {
+                            ...predictionResult,
+                            predicted_price_1w: predictions['1_week']?.predicted_price,
+                            predicted_price_1m: predictions['1_month']?.predicted_price,
+                            predicted_price_6m: predictions['6_month']?.predicted_price,
+                            predicted_price_1y: predictions['1_year']?.predicted_price,
+                        };
                         filteredStocks.push(stock);
                     }
                 }
