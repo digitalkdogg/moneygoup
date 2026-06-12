@@ -102,7 +102,6 @@ export default function ModelAccuracyWidget() {
     return null;
   }
 
-  const directionAccuracy = currentHorizon.direction_accuracy_pct;
   const proximityAccuracy = currentHorizon.proximity_accuracy_pct;
   const resolvedCount = currentHorizon.resolved_count;
 
