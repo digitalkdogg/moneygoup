@@ -28,7 +28,7 @@
             padding: 0;
         }
         main {
-            
+
             padding: 3rem;
             max-width: 1100px;
             width: 100%;
@@ -37,7 +37,7 @@
         h2 { color: var(--primary); margin-top: 3rem; display: flex; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
         h3 { color: #334155; margin-top: 2rem; background: #f1f5f9; padding: 0.5rem 1rem; border-radius: 6px; display: flex; align-items: center; }
         h4 { color: var(--primary-dark); margin-top: 1.5rem; font-size: 1.1rem; }
-        
+
         ul { list-style: disc; margin-left: 1.5rem; padding-left: 0; }
         li { margin-bottom: 0.5rem; }
         p { margin-bottom: 1rem; }
@@ -83,7 +83,7 @@
         @media (max-width: 768px) {
             main { margin-left: 0; padding: 1.5rem; }
         }
-    
+
     /* ── Top Bar ── */
     .top-bar { background: #017e3b; color: #fff; padding: 0 2rem; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.25); position: relative;}
     .top-bar-header { display: flex; align-items: center; justify-content: space-between; height: 56px; }
@@ -108,7 +108,7 @@
         .nav-scroll-controls:last-of-type { right: 0; }
         .nav-scroll-btn { background: rgba(0,0,0,0.1); border: none; color: #475569; cursor: pointer; font-size: 1.5rem; padding: 0.5rem 0.25rem; border-radius: 4px; transition: background .15s, color .15s; line-height: 1; }
         .nav-scroll-btn:hover { background: rgba(0,0,0,0.15); color: #1e293b; }
-        
+
         </style>
 </head>
 <body>
@@ -118,7 +118,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">App Overview</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-05-24</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-12</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -159,6 +159,8 @@
     <a href="#etf-module">Hot ETF Module</a>
     <a href="#prediction-engine">AI Predictions</a>
     <a href="#gps-signal">GPS Signal Panel</a>
+    <a href="#strategy-system">Strategy System</a>
+    <a href="#prediction-tracking">Prediction Tracking</a>
     <a href="#portfolio-mgmt">User Portfolios</a>
     <a href="#portfolio-page">My Portfolio Page</a>
     <a href="#architecture">Architecture</a>
@@ -181,7 +183,7 @@
 
         <section id="intro">
             <h2>1. Introduction</h2>
-            <p>MoneyGoUp is a sophisticated platform that aims to empower investors by providing cutting-edge tools for market analysis and predictive insights. It combines traditional financial metrics with advanced machine learning and natural language processing to identify market opportunities that might otherwise be overlooked.</p>
+            <p>MoneyGoUp is a sophisticated platform that aims to empower investors by providing cutting-edge tools for market analysis and predictive insights. It combines traditional financial metrics with advanced machine learning and natural language processing to identify market opportunities that might otherwise be overlooked. Every personalized signal the platform surfaces is filtered through a user-defined <strong>aggressiveness × investment timeframe strategy</strong>, and every AI forecast is silently logged and graded against reality so that <strong>direction accuracy</strong> can be tracked as the headline quality metric.</p>
         </section>
 
         <section id="discovery">
@@ -193,7 +195,7 @@
             <ul>
                 <li><strong>Recursive News Discovery</strong>: Scrapes global financial RSS feeds and scans for co-mentioned peers.</li>
                 <li><strong>Macro Tailwind Scoring</strong>: Integrates World Bank FDI and Trade indicators to validate thematic strength.</li>
-                <li><strong>ML Validation Gate</strong>: Every candidate must pass a 1-month growth prediction threshold (≥ 1.5%).</li>
+                <li><strong>ML Validation Gate</strong>: Every candidate must pass a per-user minimum growth prediction threshold derived from their <code>investment_timeframe</code> (0.5% for 1-week, 1.5% for 1-month, 5% for 6-month, 10% for 1-year).</li>
                 <li><strong>v2.3 Scoring</strong>: Uses a 100-point GPS scale with 19% weights for fundamentals and ML upside.</li>
             </ul>
         </section>
@@ -202,10 +204,13 @@
             <h3>2.2 Recommendation Engine</h3>
             <p>Direct signals surfaced on the dashboard across three categories:</p>
             <ul>
-                <li><strong>Portfolio</strong>: AI price targets vs user cost basis.</li>
+                <li><strong>Portfolio</strong>: AI price targets vs user cost basis, filtered by the user's strategy gates.</li>
                 <li><strong>Watchlist</strong>: Breakout monitoring for confirmed interests.</li>
                 <li><strong>Discovery</strong>: High-GPS opportunities from the daily sync cycle.</li>
             </ul>
+            <div class="highlight-box">
+                <strong>Latest-snapshot filtering:</strong> ETF holding recommendations in <code>/api/dashboard/recommendations</code> are now scoped to <code>snapshot_date = MAX(snapshot_date)</code> for the user (replacing the previous rolling 7-day window). This mirrors the DeepMoney picks pattern and prevents stale picks from prior runs of <code>update_predictions.py</code> from mixing with the current set.
+            </div>
         </section>
 
         <section id="etf-module">
@@ -219,10 +224,12 @@
 
         <section id="prediction-engine">
             <h3>2.4 AI Prediction Engine (v3.1)</h3>
-            <p>Generates multi-horizon price targets using a 109-column feature tensor.</p>
+            <p>Generates multi-horizon price targets (1w / 1m / 6m / 1y) using a 109-column feature tensor.</p>
             <ul>
-                <li><strong>Regime Detection</strong>: GMM-based clustering using VIX and Credit Spreads.</li>
+                <li><strong>Regime-Aware Inference</strong>: Phases 1-3 of the regime-aware model are complete. A GMM-based regime detector (K=3 / K=4) clusters market state from VIX and credit spreads, and the prediction pipeline switches model heads / dampeners according to the detected regime.</li>
                 <li><strong>Dampeners</strong>: Applies unemployment and global health risk modifiers.</li>
+                <li><strong>Timeframe-Tuned Output</strong>: The <code>outlook</code> parameter passed to <code>predict_weighted_analysis.py</code> is driven by the user's <code>investment_timeframe</code> so confidence and predicted-change figures are aligned with how long the user actually intends to hold.</li>
+                <li><strong>Fire-and-Forget Recording</strong>: Every successful inference inside <code>/api/prediction/[ticker]</code> calls <code>recordPrediction()</code> from <code>src/utils/predictionRecorder.ts</code> to write a row to <code>prediction_records</code> for later accuracy grading. The call is non-blocking — a duplicate-prediction-per-day or DB error never fails the user-facing response.</li>
             </ul>
         </section>
 
@@ -240,8 +247,30 @@
             <p>The panel and the AI prediction form share a single card directly below the price history chart. The CTA wires into the prediction component via a React ref, so clicking it invokes the full MLP prediction flow inline.</p>
         </section>
 
+        <section id="strategy-system">
+            <h3>2.6 User Investment Strategy (Aggressiveness × Timeframe)</h3>
+            <p>Every personalized signal is filtered through a strategy resolved from the <code>user_investment_strategy</code> table by <code>src/utils/strategy.ts</code>. Two orthogonal axes combine into one <code>StrategyConfig</code> that drives recommendation gates, DeepMoney ML thresholds, and which predicted-price column is read from <code>user_stock_predictions</code>.</p>
+            <ul>
+                <li><strong>Aggressiveness</strong> (<code>safe</code> / <code>neutral</code> / <code>aggressive</code>) sets the gating bar: confidence floor, beta cutoff, GPS gate, predicted-change gate, and an <code>envFloorMultiplier</code> that tightens or loosens env-driven buy / discovery / ETF floors (safe = 1.05×, neutral = 1.0×, aggressive = 0.95×).</li>
+                <li><strong>Investment Timeframe</strong> (<code>1_week</code> / <code>1_month</code> / <code>6_month</code> / <code>1_year</code>) sets the outlook passed to the MLP, a <code>predChangeMultiplier</code> stacked on top of the aggressiveness gate, a <code>sellThresholdShift</code> for the sell side, the DeepMoney <code>mlGate</code>, the UI <code>displayLabel</code>, and the <code>predictedPriceColumn</code> to read.</li>
+                <li><strong>Default Strategy</strong>: <code>neutral</code> + <code>1_month</code> for users with no row yet.</li>
+            </ul>
+            <p>See <a href="strategy_system.html">Strategy System</a> for the full gate matrix.</p>
+        </section>
+
+        <section id="prediction-tracking">
+            <h3>2.7 Prediction Tracking &amp; Model Accuracy</h3>
+            <p>The prediction tracking system (Phases 2-5 complete) silently grades every forecast the platform produces. <strong>Direction accuracy</strong> — did the model get the up/down call right? — is the headline metric, with secondary proximity metrics broken out per horizon.</p>
+            <ul>
+                <li><strong>Capture</strong>: <code>recordPrediction()</code> writes one row per (symbol, predicted_at = CURDATE()) into <code>prediction_records</code>. <code>INSERT IGNORE</code> dedupes same-day predictions for the same symbol.</li>
+                <li><strong>Resolution</strong>: A scheduled job walks resolved horizons (1w / 1m / 6m / 1y), pulls the actual close at the resolution date, and writes back <code>actual_price_*</code>, direction-correctness flags, and proximity scores.</li>
+                <li><strong>Surfacing</strong>: <code>GET /api/analytics/model-accuracy</code> returns either global or per-symbol accuracy (<code>?symbol=AAPL</code>), broken out by horizon with a 1-hour in-memory cache and a minimum-sample-size guard (<code>MIN_SAMPLE_SIZE = 30</code>) so sparse data does not produce misleading numbers.</li>
+                <li><strong>UI</strong>: The <code>ModelAccuracyWidget</code> (<code>src/app/components/ModelAccuracyWidget.tsx</code>) renders the per-horizon proximity accuracy and resolved counts on the dashboard, with an <code>insufficient_data</code> fallback when a horizon has not yet accumulated enough resolved samples.</li>
+            </ul>
+        </section>
+
         <section id="portfolio-mgmt">
-            <h3>2.6 User Portfolio & Watchlist</h3>
+            <h3>2.8 User Portfolio & Watchlist</h3>
             <p>Comprehensive management of active stakes and monitored interests.</p>
             <ul>
                 <li><strong>Real-time P&L</strong>: Based on live market quotes.</li>
@@ -250,7 +279,7 @@
         </section>
 
         <section id="portfolio-page">
-            <h3>2.7 My Portfolio Page (<code>/portfolio</code>)</h3>
+            <h3>2.9 My Portfolio Page (<code>/portfolio</code>)</h3>
             <p>A dedicated full-page portfolio analytics view, separate from the main dashboard. It provides performance-focused analysis tools not available on the dashboard widget view.</p>
             <ul>
                 <li><strong>4 KPI Stat Cards</strong>: Portfolio Value, Net Gain/Loss, CAGR (annualized), and Volatility (annualized), all computed from the portfolio's historical value series.</li>
@@ -262,7 +291,7 @@
         </section>
 
         <section id="governance">
-            <h3>2.8 Administrative Controls & Governance</h3>
+            <h3>2.10 Administrative Controls & Governance</h3>
             <p>Comprehensive management of the platform's user base and system guardrails.</p>
             <ul>
                 <li><strong>Registration Approval Flow</strong>: A multi-stage workflow ensuring all new accounts are vetted and approved by an administrator before gaining system access. After registering, new users receive an automated confirmation email (via Resend) and cannot log in until an admin approves their account.</li>
@@ -278,7 +307,7 @@
             <ul>
                 <li><strong>Frontend</strong>: Next.js (React/TypeScript).</li>
                 <li><strong>Backend</strong>: Node.js API routes with Python ML spawning.</li>
-                <li><strong>Database</strong>: MySQL (User data, History, AI results).</li>
+                <li><strong>Database</strong>: MySQL. Key tables include user/account data, holdings, history, AI results, plus the newer <code>prediction_records</code> (forecast capture &amp; grading) and <code>user_investment_strategy</code> (per-user aggressiveness + timeframe).</li>
             </ul>
         </section>
 
@@ -300,19 +329,20 @@
             <ul>
                 <li><code>/api/stock_data/[ticker]</code>: Consolidated stock details (quote, news, history, analyst, earnings, indicators).</li>
                 <li><code>/api/stock_data/[ticker]/gps</code>: GPS score lookup for a ticker; session-aware with three-tier fallback. Always returns HTTP 200.</li>
-                <li><code>/api/prediction/[ticker]</code>: AI forecast workflow (MLP neural network, multi-horizon price targets).</li>
+                <li><code>/api/prediction/[ticker]</code>: AI forecast workflow (MLP neural network, multi-horizon price targets). Resolves the caller's strategy via <code>getUserStrategy()</code> and fires <code>recordPrediction()</code> as a non-blocking side-effect.</li>
+                <li><code>/api/analytics/model-accuracy</code>: Direction-accuracy and per-horizon proximity metrics computed from <code>prediction_records</code>. Optional <code>?symbol=X</code> for per-ticker accuracy, optional <code>?skip_cache=true</code> to bypass the 1-hour in-memory cache. Returns <code>insufficient_data</code> when below the 30-sample floor.</li>
                 <li><code>/api/worldbank</code>: Consolidated macro indicators.</li>
                 <li><code>/api/dashboard</code>: Personalized user aggregation.</li>
-                <li><code>/api/dashboard/recommendations</code>: BUY/SELL signal generation across three buckets. The <code>RecommendationsSection</code> component accepts an optional <code>scopes</code> prop to filter which buckets are rendered.</li>
+                <li><code>/api/dashboard/recommendations</code>: BUY/SELL signal generation across three buckets. ETF holding recommendations are now scoped to the latest <code>snapshot_date</code> per user (see route handler around line 96). The <code>RecommendationsSection</code> component accepts an optional <code>scopes</code> prop to filter which buckets are rendered.</li>
                 <li><code>/api/user/portfolio/compare-series?ticker=X&period=Y</code>: Returns <code>{date, value}[]</code> for a specific holding's value over time, used by the My Portfolio overlay chart.</li>
                 <li><code>/api/prediction/deepmoney</code>: DeepMoney discovery engine (growth stocks, hot ETFs).</li>
                 <li><code>/api/auth/forgot-password</code>: Initiates the password reset email flow.</li>
                 <li><code>/api/auth/reset-password</code>: Validates (GET) and consumes (POST) password reset tokens.</li>
             </ul>
         </section>
-        
+
         <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem; text-align: center;">
-            MoneyGoUp Web Application Overview &copy; 2026 &mdash; Last updated: May 17, 2026
+            MoneyGoUp Web Application Overview &copy; 2026 &mdash; Last updated: June 12, 2026
         </footer>
     </main>
     </div>
@@ -321,11 +351,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const nav = document.querySelector('.top-bar-nav');
   const leftBtns = document.querySelectorAll('.nav-scroll-left');
   const rightBtns = document.querySelectorAll('.nav-scroll-right');
-  
+
   if (!nav || leftBtns.length === 0 || rightBtns.length === 0) return;
-  
+
   const scrollAmount = 150;
-  
+
   function checkScroll() {
     // Show/hide left button
     if (nav.scrollLeft > 0) {
@@ -333,7 +363,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       leftBtns.forEach(btn => btn.style.visibility = 'hidden');
     }
-    
+
     // Show/hide right button
     const hasRightScroll = nav.scrollLeft < nav.scrollWidth - nav.clientWidth - 10;
     if (hasRightScroll) {
@@ -342,24 +372,24 @@ document.addEventListener('DOMContentLoaded', () => {
       rightBtns.forEach(btn => btn.style.visibility = 'hidden');
     }
   }
-  
+
   leftBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       nav.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
       setTimeout(checkScroll, 100);
     });
   });
-  
+
   rightBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       nav.scrollBy({ left: scrollAmount, behavior: 'smooth' });
       setTimeout(checkScroll, 100);
     });
   });
-  
+
   nav.addEventListener('scroll', checkScroll);
   window.addEventListener('resize', checkScroll);
-  
+
   // Initial check
   setTimeout(checkScroll, 100);
 });

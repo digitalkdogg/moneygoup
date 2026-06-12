@@ -85,7 +85,7 @@
         .nav-scroll-controls:last-of-type { right: 0; }
         .nav-scroll-btn { background: rgba(0,0,0,0.1); border: none; color: #475569; cursor: pointer; font-size: 1.5rem; padding: 0.5rem 0.25rem; border-radius: 4px; transition: background .15s, color .15s; line-height: 1; }
         .nav-scroll-btn:hover { background: rgba(0,0,0,0.15); color: #1e293b; }
-        
+
         </style>
 </head>
 <body>
@@ -96,7 +96,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Developer Docs</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Generated 2026-05-28</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-12</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -137,10 +137,11 @@
     <a href="#step1">1. Macro Data Sync</a>
     <a href="#step2">2. DeepMoney Discovery</a>
     <a href="#step3">3. ML Validation Gate</a>
-    <a href="#vol-gate">— Volatility-Adj. Confidence Gate (new)</a>
-    <a href="#ath-warn">— ATH Proximity Warning (new)</a>
+    <a href="#vol-gate">— Volatility-Adj. Confidence Gate</a>
+    <a href="#ath-warn">— ATH Proximity Warning</a>
     <a href="#step4">4. Dashboard Qualification</a>
     <a href="#step5">5. Persistence &amp; Cleanup</a>
+    <a href="#analytics-record">— Analytics Recording</a>
     <a href="#step6">6. API Structure</a>
     <a href="#env-config">Environment Config</a>
     <a href="#changelog">Recent Changes</a>
@@ -158,8 +159,9 @@
     <div class="meta">
       <span>scripts/deepmoney_sync.py</span>
       <span>scripts/get_macro_data.py</span>
+      <span>scripts/prediction_recorder.py</span>
       <span>src/app/api/prediction/deepmoney/</span>
-      <span>Updated 2026-05-28</span>
+      <span>Updated 2026-06-12</span>
     </div>
 
     <section id="overview">
@@ -167,19 +169,21 @@
       <div class="highlight-box">
         <strong>v2.4 changes (2026-05-28):</strong> Added volatility-adjusted confidence gate (blocks high-beta stocks with insufficient confidence score) and ATH proximity warning flag (<code>⚠️ATH</code> label applied when <code>hi_ratio &gt; 0.97</code> and <code>beta &gt; 2.0</code>).
       </div>
+      <div class="highlight-box">
+        <strong>Scope note:</strong> This script writes only to <code>recommended_stocks</code> (both <code>hot_stocks</code> and <code>etf_holding</code> rows), <code>macro_context_snapshots</code>, <code>stocks</code>, <code>stock_gps_scores</code>, <code>user_stock_predictions</code>, and <code>user_stocks</code>. It does <strong>not</strong> write to <code>etf_stock_recommendations</code> — that table is populated by <code>scripts/update_predictions.py</code>.
+      </div>
     </section>
 
     <section id="step1">
       <h2><span class="step-num">1</span> Macro Data Sync</h2>
       <div class="step-card">
-        <div class="component-tag">scripts/get_macro_data.py</div>
-        <p>The foundation of the daily sync. Fetches high-fidelity macroeconomic indicators directly from the World Bank API.</p>
+        <div class="component-tag">scripts/get_macro_data.py + /api/worldbank</div>
+        <p>The foundation of the daily sync. <code>deepmoney_sync.py</code> calls <code>GET /api/worldbank</code> via the internal localhost URL to fetch consolidated World Bank macroeconomic indicators.</p>
         <ul>
-          <li><strong>Indicators:</strong> GDP Growth, Inflation, FDI, Trade Volume, and Tech Adoption (Internet/ICT).</li>
+          <li><strong>Indicators:</strong> GDP Growth, Inflation, FDI, Trade Volume, Tech Adoption (Internet/ICT), Unemployment.</li>
           <li><strong>Countries:</strong> USA, GBR, CHN, IND, DEU.</li>
-          <li><strong>Output:</strong> Populates <code>world_bank_macro_data</code> and triggers a <code>macro_context_snapshots</code> entry to freeze the day's "Global Health Score".</li>
+          <li><strong>Persistence:</strong> When <code>wb_data.success</code> is true, the script issues an <code>INSERT ... ON DUPLICATE KEY UPDATE</code> against <code>macro_context_snapshots</code> using today's date as the key. Stored fields: <code>global_health_score</code>, <code>unemployment_rate</code>, <code>unemployment_signal</code>, <code>inflation_rate</code>, <code>gdp_growth</code>.</li>
         </ul>
-        <p>The sync also calls <code>GET /api/worldbank</code> via the internal URL to warm the World Bank cache before the discovery run begins. The response is persisted to <code>macro_context_snapshots</code> with today's date as the key (upsert on duplicate).</p>
       </div>
     </section>
 
@@ -217,18 +221,18 @@
           <strong>Gate 1: GPS Score</strong><br>
           <code>gps &gt; DEEPMONEY_GPS_VALUE</code> (env, default 10.0)<br>
           &darr;<br>
-          <strong>Gate 2: Volatility-Adjusted Confidence</strong> <span class="new-badge">new</span><br>
+          <strong>Gate 2: Volatility-Adjusted Confidence</strong><br>
           <code>conf_score &ge; 50</code> (or <code>&ge; 65</code> if <code>beta &gt; 2.5</code>)<br>
           &darr;<br>
           <strong>Written to <code>recommended_stocks</code></strong><br>
           &darr;<br>
-          <strong>ATH Warning Flag check</strong> <span class="new-badge">new</span><br>
+          <strong>ATH Warning Flag check</strong><br>
           <code>hi_ratio &gt; 0.97</code> AND <code>beta &gt; 2.0</code> &rarr; append <code>⚠️ATH</code> to <code>metric_label</code>
         </div>
       </div>
 
       <section id="vol-gate">
-        <h3>Volatility-Adjusted Confidence Gate <span class="new-badge">new</span></h3>
+        <h3>Volatility-Adjusted Confidence Gate</h3>
         <div class="step-card">
           <p>After passing the GPS gate, each stock is evaluated against a confidence threshold that scales with market volatility (beta):</p>
           <pre><code>conf_score = pred_input.get('confidence_score') or pred_input.get('confidence_score_1m') or 0
@@ -253,7 +257,7 @@ if not volatility_gate:
       </section>
 
       <section id="ath-warn">
-        <h3>ATH Proximity Warning Flag <span class="new-badge">new</span></h3>
+        <h3>ATH Proximity Warning Flag</h3>
         <div class="step-card">
           <p>Stocks that pass all gates but are near their 52-week high with elevated beta receive a warning appended to the <code>metric_label</code> stored in <code>recommended_stocks</code>:</p>
           <pre><code>hi_ratio = s.get('hiRatio52w') or 0
@@ -277,8 +281,12 @@ if hi_ratio > 0.97 and beta_val > 2.0:
           <li><strong>GPS threshold:</strong> <code>gps &gt; DEEPMONEY_RECOMMENDATION_GPS_VALUE</code> (env, default 25.0)</li>
           <li><strong>Prediction gate:</strong> <code>predicted_change_pct &ge; 1.5%</code></li>
         </ul>
-        <p>Stocks meeting both conditions are upserted into <code>stock_gps_scores</code> (only if the GPS score changed by at least 0.1 points), added to <code>user_stock_predictions</code> for all currently approved users, and added to <code>user_stocks</code> as unconfirmed discovery entries (overwriting only if not already a purchased position).</p>
-        <p>The list of approved user IDs is fetched once at the start of the sync via a single <code>SELECT id FROM users WHERE approval_status = 'approved'</code> query.</p>
+        <p>Before this gate runs, every qualifying stock is upserted into <code>stocks</code> (insert when missing) and its GPS score is upserted into <code>stock_gps_scores</code> via <code>INSERT ... ON DUPLICATE KEY UPDATE</code> — but only if the GPS score has actually changed when rounded to one decimal place. Unchanged scores are skipped to keep <code>as_of</code> timestamps meaningful.</p>
+        <p>When a stock additionally passes both Dashboard thresholds, the script iterates over <strong>every approved user</strong> (fetched once via <code>SELECT id FROM users WHERE approval_status = 'approved'</code>) and upserts:</p>
+        <ul>
+          <li><code>user_stock_predictions</code>: <code>predicted_price_1m</code> + <code>last_requested_at = NOW()</code>.</li>
+          <li><code>user_stocks</code>: <code>is_purchased = 0</code>, <code>user_confirmed = 0</code>, <code>is_active = 1</code>. The <code>ON DUPLICATE KEY UPDATE</code> clause is guarded so confirmed/purchased positions are never overwritten.</li>
+        </ul>
       </div>
     </section>
 
@@ -288,9 +296,24 @@ if hi_ratio > 0.97 and beta_val > 2.0:
       <h2><span class="step-num">5</span> Persistence &amp; Stale Entry Cleanup</h2>
       <div class="step-card">
         <div class="component-tag">deepmoney_sync.py — post-sync cleanup</div>
-        <p>After all stocks are processed, stale discovery entries from previous runs are removed. The approach is exact: only stocks that did not qualify in today's run (i.e., not in <code>qualifying_stock_ids</code>) and are still marked as active unconfirmed discoveries are removed from <code>user_stocks</code> and <code>user_stock_predictions</code>.</p>
+        <p>The sync begins with a hard <code>DELETE FROM recommended_stocks</code> — the table is fully rebuilt every run with today's <code>snapshot_date</code>. Both hot stocks and ETF holdings (<code>type = 'etf_holding'</code>) share this same table.</p>
+        <p>After all stocks and ETF holdings are processed, stale discovery entries from previous runs are removed. The approach is exact: only stocks that did not qualify in today's run (i.e., not in <code>qualifying_stock_ids</code>) and are still marked as active unconfirmed discoveries are removed from <code>user_stocks</code> and <code>user_stock_predictions</code>.</p>
         <p>This post-sync cleanup replaced an earlier pre-clear approach and is safe for concurrent runs because it only touches <code>is_active = 1 AND user_confirmed = 0</code> rows — confirmed (user-purchased) positions are never removed.</p>
-        <p>Macro context is persisted via an upsert to <code>macro_context_snapshots</code> at the start of the sync when World Bank data is available.</p>
+
+        <h3 id="analytics-record" style="background:none;padding:0;color:#334155;margin-top:1.5rem;">Analytics Recording <span class="new-badge">verified 2026-06-12</span></h3>
+        <p>For every qualifying hot stock with a current price and at least one horizon prediction, <code>deepmoney_sync.py</code> fires a per-stock <code>record_prediction()</code> call (imported from <code>scripts/prediction_recorder.py</code>). This writes a row to the <code>prediction_records</code> analytics table using <code>INSERT IGNORE</code> keyed on <code>(symbol, predicted_at = CURDATE())</code>, so duplicate same-day writes are silently skipped. The payload includes all four horizons:</p>
+        <pre><code>record_prediction(
+    symbol=ticker,
+    price_at_prediction=price,
+    predicted_price_1w=predicted_price_1w,
+    predicted_price_1m=predicted_price_1m,
+    predicted_price_6m=predicted_price_6m,
+    predicted_price_1y=predicted_price_1y,
+)</code></pre>
+        <p>This call is independent of the GPS / user-dashboard logic — it runs as soon as the stock passes the ML gate + volatility gate, before the Dashboard Qualification threshold is checked. The result feeds the <code>/api/analytics/model-accuracy</code> endpoint and the <code>ModelAccuracyWidget</code> headline direction-accuracy metric (Prediction Tracking System, Phase 2–5).</p>
+
+        <h3 style="background:none;padding:0;color:#334155;margin-top:1.5rem;">ETF Holdings</h3>
+        <p>For every hot ETF in <code>data.hot_etfs</code>, the script fetches <code>GET /api/stock_data/{etf_ticker}/holdings</code> and, for each holding flagged <code>surfaced: true</code>, inserts a row into <code>recommended_stocks</code> with <code>type = 'etf_holding'</code>, the parent ETF ticker, holding percent, and the cached GPS score. These rows share today's <code>snapshot_date</code>.</p>
       </div>
     </section>
 
@@ -303,7 +326,7 @@ if hi_ratio > 0.97 and beta_val > 2.0:
         <p>Returns a JSON payload with <code>source: 'livedata'</code> or <code>source: 'cache'</code> indicator. The <code>?refresh=true</code> query parameter bypasses the cache and triggers a full re-run of the discovery and AI analysis pipeline.</p>
         <pre><code>{
   "success": true,
-  "timestamp": "2026-05-28T...",
+  "timestamp": "2026-06-12T...",
   "source": "cache",
   "stocks": [
     {
@@ -320,7 +343,10 @@ if hi_ratio > 0.97 and beta_val > 2.0:
       "tradingSignal": "BUY",
       "tradingSignalScore": 7,
       "prediction_input": {
+        "predicted_price_1w": 194.20,
         "predicted_price_1m": 198.10,
+        "predicted_price_6m": 210.00,
+        "predicted_price_1y": 225.40,
         "predicted_change_pct_1m": 2.91,
         "confidence_score_1m": 72
       }
@@ -335,7 +361,8 @@ if hi_ratio > 0.97 and beta_val > 2.0:
       "passedToAnalyzer": 18,
       "rejectedByAI": 6,
       "filteredCount": 12
-    }
+    },
+    "etfHoldingsSurfacedCount": 9
   }
 }</code></pre>
       </div>
@@ -348,9 +375,10 @@ if hi_ratio > 0.97 and beta_val > 2.0:
           <thead><tr><th>Variable</th><th>Default</th><th>Purpose</th></tr></thead>
           <tbody>
             <tr><td><code>DEEPMONEY_INTERNAL_SECRET</code></td><td>—</td><td>Shared secret for internal API calls (<code>x-api-key</code>). Must not have surrounding quotes in the env file.</td></tr>
-            <tr><td><code>DEEPMONEY_GPS_VALUE</code></td><td>10.0</td><td>Minimum GPS score to write a stock to <code>recommended_stocks</code>.</td></tr>
-            <tr><td><code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code></td><td>25.0</td><td>Minimum GPS score to push a stock to user dashboards.</td></tr>
-            <tr><td><code>NEXTAUTH_URL</code></td><td>http://localhost:3001</td><td>Used for World Bank data fetch only. The deepmoney discovery URL is hardcoded to localhost:3001 regardless of this variable.</td></tr>
+            <tr><td><code>DEEPMONEY_GPS_VALUE</code></td><td>10.0</td><td>ML Gate: minimum GPS score to write a stock to <code>recommended_stocks</code>.</td></tr>
+            <tr><td><code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code></td><td>25.0</td><td>Dashboard Threshold: minimum GPS score to push a stock to user dashboards.</td></tr>
+            <tr><td><code>DEEPMONEY_PRED_THRESHOLD</code> (hardcoded <code>pred_threshold</code>)</td><td>1.5%</td><td>Prediction Gate: minimum <code>predicted_change_pct</code> required alongside the Dashboard GPS threshold.</td></tr>
+            <tr><td><code>NEXTAUTH_URL</code></td><td>http://localhost:3001</td><td>Read but not used for prediction calls. The deepmoney discovery URL is hardcoded to localhost:3001 regardless of this variable.</td></tr>
             <tr><td><code>DB_HOST</code>, <code>DB_USER</code>, <code>DB_PASSWORD</code>, <code>DB_DATABASE</code></td><td>—</td><td>MySQL connection for the sync script.</td></tr>
           </tbody>
         </table>
@@ -358,13 +386,15 @@ if hi_ratio > 0.97 and beta_val > 2.0:
     </section>
 
     <section id="changelog">
-      <h2>Recent Changes (2026-05-28)</h2>
+      <h2>Recent Changes</h2>
       <div class="step-card">
         <table>
-          <thead><tr><th>Change</th><th>Detail</th></tr></thead>
+          <thead><tr><th>Date</th><th>Change</th><th>Detail</th></tr></thead>
           <tbody>
-            <tr><td>Volatility-adjusted confidence gate <span class="new-badge">new</span></td><td>Stocks with <code>beta &gt; 2.5</code> now require <code>confidence_score &ge; 65</code> instead of the standard 50. Applied after the GPS gate, before writing to <code>recommended_stocks</code>.</td></tr>
-            <tr><td>ATH proximity warning flag <span class="new-badge">new</span></td><td><code>⚠️ATH</code> appended to <code>metric_label</code> when <code>hiRatio52w &gt; 0.97</code> and <code>beta &gt; 2.0</code>. Informational; does not filter the stock out.</td></tr>
+            <tr><td>2026-06-12</td><td>Documented analytics recording <span class="new-badge">new</span></td><td>Per-stock fire-and-forget <code>record_prediction()</code> call (from <code>scripts/prediction_recorder.py</code>) writes to <code>prediction_records</code> via <code>INSERT IGNORE</code> keyed on <code>(symbol, CURDATE())</code>. Drives Model Accuracy widget.</td></tr>
+            <tr><td>2026-06-12</td><td>Clarified table ownership</td><td>This script writes <code>recommended_stocks</code> (including <code>etf_holding</code> rows). It does <strong>not</strong> write <code>etf_stock_recommendations</code> — that is owned by <code>update_predictions.py</code>.</td></tr>
+            <tr><td>2026-05-28</td><td>Volatility-adjusted confidence gate</td><td>Stocks with <code>beta &gt; 2.5</code> require <code>confidence_score &ge; 65</code> instead of the standard 50. Applied after the GPS gate, before writing to <code>recommended_stocks</code>.</td></tr>
+            <tr><td>2026-05-28</td><td>ATH proximity warning flag</td><td><code>⚠️ATH</code> appended to <code>metric_label</code> when <code>hiRatio52w &gt; 0.97</code> and <code>beta &gt; 2.0</code>. Informational; does not filter the stock out.</td></tr>
           </tbody>
         </table>
       </div>
@@ -379,11 +409,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const nav = document.querySelector('.top-bar-nav');
   const leftBtns = document.querySelectorAll('.nav-scroll-left');
   const rightBtns = document.querySelectorAll('.nav-scroll-right');
-  
+
   if (!nav || leftBtns.length === 0 || rightBtns.length === 0) return;
-  
+
   const scrollAmount = 150;
-  
+
   function checkScroll() {
     // Show/hide left button
     if (nav.scrollLeft > 0) {
@@ -391,7 +421,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       leftBtns.forEach(btn => btn.style.visibility = 'hidden');
     }
-    
+
     // Show/hide right button
     const hasRightScroll = nav.scrollLeft < nav.scrollWidth - nav.clientWidth - 10;
     if (hasRightScroll) {
@@ -400,24 +430,24 @@ document.addEventListener('DOMContentLoaded', () => {
       rightBtns.forEach(btn => btn.style.visibility = 'hidden');
     }
   }
-  
+
   leftBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       nav.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
       setTimeout(checkScroll, 100);
     });
   });
-  
+
   rightBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       nav.scrollBy({ left: scrollAmount, behavior: 'smooth' });
       setTimeout(checkScroll, 100);
     });
   });
-  
+
   nav.addEventListener('scroll', checkScroll);
   window.addEventListener('resize', checkScroll);
-  
+
   // Initial check
   setTimeout(checkScroll, 100);
 });

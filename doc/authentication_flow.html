@@ -7,7 +7,7 @@
     <meta name="description" content="Complete reference for MoneyGoUp authentication flows: registration, login, password reset, and security controls.">
     <meta name="author" content="Technical Documentation Team">
     <meta name="created" content="2026-05-17">
-    <meta name="updated" content="2026-05-17">
+    <meta name="updated" content="2026-06-12">
     <style>
         :root {
             --primary: #15803d;
@@ -29,7 +29,7 @@
             margin: 0;
         }
         main {
-            
+
             padding: 3rem;
             max-width: 1100px;
             width: 100%;
@@ -181,7 +181,7 @@
         @media (max-width: 768px) {
             main { margin-left: 0; padding: 1.5rem; }
         }
-    
+
     /* ── Top Bar ── */
     .top-bar { background: #017e3b; color: #fff; padding: 0 2rem; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.25); position: relative;}
     .top-bar-header { display: flex; align-items: center; justify-content: space-between; height: 56px; }
@@ -206,7 +206,7 @@
         .nav-scroll-controls:last-of-type { right: 0; }
         .nav-scroll-btn { background: rgba(0,0,0,0.1); border: none; color: #475569; cursor: pointer; font-size: 1.5rem; padding: 0.5rem 0.25rem; border-radius: 4px; transition: background .15s, color .15s; line-height: 1; }
         .nav-scroll-btn:hover { background: rgba(0,0,0,0.15); color: #1e293b; }
-        
+
         </style>
 </head>
 <body>
@@ -216,7 +216,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Authentication Flow</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-05-24</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-12</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -278,15 +278,23 @@
 
 <main>
     <h1>MoneyGoUp — Authentication Flow</h1>
-    <p>This document is the single reference for how user authentication works in MoneyGoUp: how accounts are created, how users log in, how passwords are reset, and how the platform enforces security at every step. It reflects the current state of the codebase as of <strong>May 17, 2026</strong>.</p>
+    <p>This document is the single reference for how user authentication works in MoneyGoUp: how accounts are created, how users log in, how passwords are reset, and how the platform enforces security at every step. It reflects the current state of the codebase as of <strong>June 12, 2026</strong>.</p>
 
     <!-- RECENT CHANGES CALLOUT -->
     <div id="recent-changes" class="change-box">
-        <strong style="color: #1d4ed8;">Recent Changes — May 24, 2026</strong>
+        <strong style="color: #1d4ed8;">Recent Changes — June 12, 2026</strong>
+        <ul style="margin: 0.75rem 0 0 1.2rem; padding: 0;">
+            <li><strong>Middleware module renamed</strong> — The Next.js middleware entry point now lives at <code>src/proxy.ts</code> (previously <code>src/middleware.ts</code>). All behaviour (NextAuth <code>withAuth</code> wrapper, per-request nonce-based CSP, <code>x-api-key</code> internal bypass) is unchanged; only the filename moved. Documentation paths in the Middleware section and System Summary table have been updated accordingly.</li>
+            <li><strong>Public paths list expanded</strong> — The middleware's <code>PUBLIC_PATHS</code> array now also covers the marketing/legal/SEO surface so those pages still receive the nonce CSP without requiring a session: <code>/</code>, <code>/contact</code>, <code>/api/contact</code>, <code>/legal/privacy</code>, <code>/legal/terms</code>, <code>/legal/disclaimer</code>, opengraph image routes, <code>/sitemap.xml</code>, and <code>/robots.txt</code>.</li>
+            <li><strong>Internal-bypass minimum secret strength documented</strong> — Both <code>isInternalRequest()</code> (used by route-level rate limiters) and the middleware-level <code>x-api-key</code> short-circuit refuse to honour <code>DEEPMONEY_INTERNAL_SECRET</code> unless it is at least 32 bytes long. If the secret is too short, the bypass is silently disabled and the request falls through to normal session/rate-limit checks.</li>
+            <li><strong>Numeric rate-limit caps added</strong> to the Security Layers table — register: 5 / 15 min per IP (+ username), login: 10 / 15 min per IP. Forgot-password and reset-password caps were already listed.</li>
+        </ul>
+        <hr style="border: none; border-top: 1px solid #bfdbfe; margin: 12px 0;">
+        <strong style="color: #1d4ed8;">Earlier Changes — May 24, 2026</strong>
         <ul style="margin: 0.75rem 0 0 1.2rem; padding: 0;">
             <li><strong>AUTH-1 resolved</strong> — <code>checkApprovalGuard()</code> added to 20 additional API routes. Every authenticated data endpoint now re-verifies the user's approval status against the database on each request. Users whose accounts are suspended or rejected mid-session are immediately denied access across all endpoints.</li>
             <li><strong>AUTH-2 resolved</strong> — <code>SESSION_MAX_AGE_SECS</code> constant introduced in <code>src/lib/auth.ts</code>. Both the JWT <code>session.maxAge</code> and the session cookie <code>options.maxAge</code> now use this single constant, ensuring they always stay in sync. The <code>SESSION_MAX_AGE</code> environment variable now correctly controls both.</li>
-            <li><strong>CSP moved to middleware (CFG-1 partial)</strong> — Nonce-based Content Security Policy moved from a static header in <code>next.config.js</code> to per-request generation in <code>src/middleware.ts</code>. Every HTTP response now receives a fresh cryptographic nonce, making inline script protections dynamic and per-request.</li>
+            <li><strong>CSP moved to middleware (CFG-1 partial)</strong> — Nonce-based Content Security Policy moved from a static header in <code>next.config.js</code> to per-request generation in the middleware. Every HTTP response now receives a fresh cryptographic nonce, making inline script protections dynamic and per-request.</li>
         </ul>
         <hr style="border: none; border-top: 1px solid #bfdbfe; margin: 12px 0;">
         <strong style="color: #1d4ed8;">Earlier Changes — May 17, 2026</strong>
@@ -295,7 +303,7 @@
             <li><strong>Register page UI widened</strong> — card changed from <code>max-w-md / p-4</code> to <code>max-w-xl / p-2</code>. Login page now uses the same wider layout.</li>
             <li><strong>Password hint text added</strong> — both the Register page and the Reset Password page display <em>"At least 8 characters and one number."</em> below the password field.</li>
             <li><strong>Register API response updated</strong> — field names changed to <code>userId</code> and <code>approvalStatus</code>; email is no longer echoed back.</li>
-            <li><strong>Approval email added</strong> <span class="badge-new">NEW</span> — <code>sendApprovalEmail()</code> added to <code>src/lib/email.ts</code>. The admin PATCH route now sends this email automatically when a user's account is approved. Email failures are caught and logged without blocking the admin action.</li>
+            <li><strong>Approval email added</strong> — <code>sendApprovalEmail()</code> added to <code>src/lib/email.ts</code>. The admin PATCH route now sends this email automatically when a user's account is approved. Email failures are caught and logged without blocking the admin action.</li>
             <li><strong>Test suite extended</strong> — no-digit and boundary (exactly 8 chars) cases added to register and reset-password test files; <code>jest.mock('@/lib/email')</code> added to register tests to prevent real email sends during test runs. Admin users test file updated with 3 new cases covering approval email send, no-email skip, and email failure resilience.</li>
         </ul>
     </div>
@@ -312,9 +320,9 @@
             <tr><td>Password hashing</td><td>bcryptjs, cost factor 10</td></tr>
             <tr><td>Input validation</td><td>Zod schemas on all API routes</td></tr>
             <tr><td>Email service</td><td>Resend — registration confirmation, admin approval notification, and password reset</td></tr>
-            <tr><td>Route protection</td><td><code>src/middleware.ts</code> — wraps all non-auth routes</td></tr>
-            <tr><td>Rate limiting</td><td>Per-IP token bucket (<code>src/utils/rateLimiter.ts</code>)</td></tr>
-            <tr><td>Internal API bypass</td><td><code>x-api-key: DEEPMONEY_INTERNAL_SECRET</code> header</td></tr>
+            <tr><td>Route protection</td><td><code>src/proxy.ts</code> (NextAuth <code>withAuth</code> middleware) — wraps all non-auth, non-static routes</td></tr>
+            <tr><td>Rate limiting</td><td>Per-IP Redis-backed limiters (<code>src/utils/rateLimiter.ts</code>) applied via <code>checkRateLimit</code> in <code>src/utils/rateLimitMiddleware.ts</code></td></tr>
+            <tr><td>Internal API bypass</td><td><code>x-api-key: DEEPMONEY_INTERNAL_SECRET</code> header — secret must be ≥32 bytes or the bypass is disabled</td></tr>
         </table>
     </section>
 
@@ -325,7 +333,7 @@
 
         <div class="flow-diagram">Origin Check (checkOrigin)      — Blocks requests from untrusted origins
     ↓
-Rate Limit (checkRateLimit)     — Per-IP token bucket; 429 if exhausted
+Rate Limit (checkRateLimit)     — Per-IP Redis counter; 429 if exhausted
     ↓
 Zod Schema Validation           — Rejects malformed or policy-violating input (400)
     ↓
@@ -334,16 +342,17 @@ Business Logic                  — DB lookup, bcrypt compare, token validation
 Response</div>
 
         <h3>Origin Check</h3>
-        <p>The <code>checkOrigin()</code> utility (<code>src/utils/originCheck.ts</code>) validates that the <code>Origin</code> or <code>Referer</code> header matches the expected application domain. Applied to all state-changing auth routes (register, reset-password POST, forgot-password).</p>
+        <p>The <code>checkOrigin()</code> utility (<code>src/utils/originCheck.ts</code>) validates that the <code>Origin</code> header (or, for mutating requests with a missing/null Origin, the <code>Referer</code> header) matches the configured <code>ALLOWED_ORIGINS</code> (falling back to <code>NEXTAUTH_URL</code>). The policy is fail-closed: if no allowed origins are configured the utility returns a 500 and blocks the request. Safari Private Browsing's <code>Origin: null</code> is treated as missing and falls through to Referer validation. Applied to all state-changing auth routes (register POST, reset-password POST, forgot-password POST).</p>
 
         <h3>Rate Limits</h3>
         <table>
             <tr><th>Route</th><th>Limiter</th><th>Window &amp; Cap</th></tr>
-            <tr><td>POST /api/auth/register</td><td><code>registerLimiter</code></td><td>Per-IP + username</td></tr>
-            <tr><td>POST /api/auth/forgot-password</td><td><code>forgotPasswordLimiter</code></td><td>3 requests / 15 min per IP</td></tr>
-            <tr><td>POST /api/auth/reset-password</td><td><code>resetPasswordLimiter</code></td><td>5 requests / 15 min per IP</td></tr>
-            <tr><td>Login (NextAuth authorize)</td><td><code>loginLimiter</code></td><td>Per-IP inside NextAuth callback</td></tr>
+            <tr><td>POST /api/auth/register</td><td><code>registerLimiter</code></td><td>5 / 15 min per IP (+ username as secondary key)</td></tr>
+            <tr><td>POST /api/auth/forgot-password</td><td><code>forgotPasswordLimiter</code></td><td>3 / 15 min per IP</td></tr>
+            <tr><td>POST /api/auth/reset-password</td><td><code>resetPasswordLimiter</code></td><td>5 / 15 min per IP</td></tr>
+            <tr><td>Login (NextAuth authorize)</td><td><code>loginLimiter</code></td><td>10 / 15 min per IP, checked inside the NextAuth <code>authorize</code> callback</td></tr>
         </table>
+        <p>All limiters are <code>RedisRateLimiter</code> instances so counters are shared across workers. The <code>checkRateLimit</code> helper extracts the client IP via <code>getClientIP()</code> (which only trusts <code>X-Forwarded-For</code> / <code>X-Real-IP</code> / <code>CF-Connecting-IP</code> when the direct request source is in the <code>TRUSTED_PROXIES</code> env list) and skips rate limiting entirely for valid internal requests (see <code>isInternalRequest</code>).</p>
     </section>
 
     <!-- PASSWORD POLICY -->
@@ -400,12 +409,17 @@ Response</div>
 Client-side check: password ≥ 8 chars AND contains digit
     [fails] → inline error displayed, form blocked
     [passes] ↓
-POST /api/auth/register { username, email, password }
+POST /api/auth/register { username, email, password, website }
     ↓
-Origin check → Rate limit → Zod validation
+Origin check → Rate limit (5/15min per IP + username) → Zod validation
     ↓
-SELECT: email already exists?  → 409 "An account with this email address is already registered."
-SELECT: username already taken? → 409 "This username is already taken."
+Honeypot: website field non-empty? → silent fake 201 (bot blocked)
+    ↓
+SELECT: email already exists (non-rejected)?  → 409 "An account with this email address is already registered."
+SELECT: username already taken (non-rejected)? → 409 "This username is already taken."
+    ↓
+Any prior rejected record matching email/username is archived
+(approval_status='archived', conflicting field suffixed with '_archived')
     ↓
 bcrypt.hash(password, 10)
 INSERT users (username, email, password_hash, approval_status='pending')
@@ -425,12 +439,13 @@ Admin reviews account in /admin/users → approves or rejects</div>
                 <tr><th>Check</th><th>Result on failure</th></tr>
                 <tr><td>Origin header mismatch</td><td>Blocked before rate limit</td></tr>
                 <tr><td>Rate limit exceeded</td><td>HTTP 429</td></tr>
+                <tr><td>Honeypot <code>website</code> field non-empty</td><td>Silent fake 201 with <code>userId: 999999</code> — bot does not learn it was rejected</td></tr>
                 <tr><td>Username &lt; 3 or &gt; 50 chars</td><td>HTTP 400 — Zod error</td></tr>
                 <tr><td>Invalid email format</td><td>HTTP 400 — Zod error</td></tr>
                 <tr><td>Password &lt; 8 chars</td><td>HTTP 400 — "Password must be at least 8 characters long"</td></tr>
                 <tr><td>Password has no digit</td><td>HTTP 400 — "Password must contain at least one number"</td></tr>
-                <tr><td>Email already registered</td><td>HTTP 409 — email conflict message</td></tr>
-                <tr><td>Username already taken</td><td>HTTP 409 — username conflict message</td></tr>
+                <tr><td>Email already registered (non-rejected)</td><td>HTTP 409 — email conflict message</td></tr>
+                <tr><td>Username already taken (non-rejected)</td><td>HTTP 409 — username conflict message</td></tr>
                 <tr><td>All checks pass</td><td>HTTP 201 — account created, pending approval</td></tr>
             </table>
 
@@ -448,7 +463,7 @@ Admin reviews account in /admin/users → approves or rejects</div>
     <!-- LOGIN FLOW -->
     <section id="login-flow">
         <h2><span class="num">4</span> Login Flow</h2>
-        <p>Authentication is handled entirely by NextAuth.js. The login page at <code>/login</code> calls <code>signIn('credentials', ...)</code> from the NextAuth client SDK, which invokes the authorize callback in <code>src/lib/auth.ts</code>.</p>
+        <p>Authentication is handled entirely by NextAuth.js. The login page at <code>/login</code> calls <code>signIn('credentials', ...)</code> from the NextAuth client SDK, which invokes the <code>authorize</code> callback in <code>src/lib/auth.ts</code>.</p>
 
         <div class="flow-diagram">User fills Login form (/login)
     ↓
@@ -456,20 +471,24 @@ signIn('credentials', { username, password, redirect: false })
     ↓
 NextAuth authorize callback (src/lib/auth.ts)
     ↓
-Rate limit check by IP (loginLimiter)
+Rate limit check by IP (loginLimiter — 10/15min)
     ↓
 SELECT users WHERE username = ?
-    [not found] → return null → "Invalid username or password"
+    [not found] → bcrypt.compare against dummy hash (timing guard)
+               → return null → "Invalid username or password"
     [found] ↓
 bcrypt.compare(password, password_hash)
     [mismatch] → return null → "Invalid username or password"
     [match] ↓
 evaluateApprovalStatus(approval_status, rejected_reason)
-    [pending]  → throw ACCOUNT_PENDING_APPROVAL  → "Your account is awaiting admin approval."
-    [rejected] → throw ACCOUNT_REJECTED           → "Your account request was rejected."
+    [pending]      → throw ACCOUNT_PENDING_APPROVAL → "Your account is awaiting admin approval."
+    [rejected]     → throw ACCOUNT_REJECTED        → "Your account request was rejected."
+    [unsubscribed] → throw ACCOUNT_REJECTED        → "Your account has been deactivated."
+    [archived]     → throw ACCOUNT_REJECTED        → "This account no longer exists."
     [approved] ↓
 UPDATE users SET last_login = NOW() (async, non-blocking)
 JWT issued → HttpOnly session cookie set
+session.user = { id, name, role, approvalStatus }
     ↓
 window.location.href = '/dashboard'  (hard redirect to pick up fresh session)</div>
 
@@ -487,9 +506,10 @@ window.location.href = '/dashboard'  (hard redirect to pick up fresh session)</d
             <tr><th>Setting</th><th>Value</th></tr>
             <tr><td>Strategy</td><td>JWT</td></tr>
             <tr><td>Default max age</td><td>30 days (overridable via <code>SESSION_MAX_AGE</code> env var)</td></tr>
-            <tr><td>Cookie max age</td><td>Now synced with JWT max age via the shared <code>SESSION_MAX_AGE_SECS</code> constant in <code>src/lib/auth.ts</code>. Previously the cookie was hardcoded to 30 days.</td></tr>
-            <tr><td>Cookie flags</td><td>HttpOnly, SameSite=Lax, Secure on HTTPS origins</td></tr>
-            <tr><td>Token contents</td><td><code>id</code>, <code>name</code> (username), <code>role</code>, <code>approvalStatus</code></td></tr>
+            <tr><td>Cookie max age</td><td>Synced with JWT max age via the shared <code>SESSION_MAX_AGE_SECS</code> constant in <code>src/lib/auth.ts</code>.</td></tr>
+            <tr><td>Cookie name</td><td><code>__Secure-next-auth.session-token</code> on HTTPS deployments, <code>next-auth.session-token</code> otherwise (determined by <code>NEXTAUTH_URL</code>)</td></tr>
+            <tr><td>Cookie flags</td><td>HttpOnly, SameSite=Lax, Secure on HTTPS origins, Path=/</td></tr>
+            <tr><td>JWT/session payload</td><td><code>id</code>, <code>name</code> (username), <code>role</code>, <code>approvalStatus</code> — populated in the <code>jwt</code> callback and exposed on <code>session.user</code> in the <code>session</code> callback</td></tr>
         </table>
         <div class="highlight">
             <strong>AUTH-2 fix:</strong> A <code>SESSION_MAX_AGE_SECS</code> constant was added at the top of <code>src/lib/auth.ts</code> and is used for both the JWT <code>session.maxAge</code> and the cookie <code>options.maxAge</code>. Setting the <code>SESSION_MAX_AGE</code> environment variable now correctly controls both the JWT lifetime and the browser cookie expiry simultaneously.
@@ -556,7 +576,7 @@ SHA-256(token) → lookup in password_reset_tokens
     [valid] ↓
 bcrypt.hash(newPassword, 10)
 UPDATE users SET password_hash = ?, modified_at = NOW() WHERE id = ?
-UPDATE password_reset_tokens SET used_at = NOW() WHERE id = ?
+UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = ? AND used_at IS NULL
     ↓
 HTTP 200 { "message": "Password updated successfully." }
     ↓
@@ -655,38 +675,47 @@ Page shows success banner → redirects to /login after 3 seconds</div>
             </tr>
             <tr>
                 <td><code>/api/auth/cache-stats</code></td>
-                <td><span class="method get">GET</span></td>
-                <td>Cache diagnostics (admin only)</td>
-                <td>Yes — admin role</td>
+                <td><span class="method get">GET</span> <span class="method post">DELETE</span></td>
+                <td>Cache diagnostics / cache clear — both handlers currently return 403 (admin role check is a placeholder that denies all)</td>
+                <td>Yes — session + admin role (currently stubbed to deny)</td>
             </tr>
         </table>
-        <p>All auth routes are excluded from the middleware session guard — they are listed in the <code>matcher</code> negative lookahead so unauthenticated users can reach them freely.</p>
+        <p>All <code>/api/auth/**</code> routes are excluded from the middleware matcher, so unauthenticated users can reach them freely.</p>
     </section>
 
     <!-- MIDDLEWARE -->
     <section id="middleware">
-        <h2><span class="num">8</span> Middleware Route Guard <span class="badge-updated">Updated May 2026</span></h2>
-        <span class="tag">src/middleware.ts</span>
-        <p>All application routes (pages and API routes) that are not explicitly excluded are protected by the NextAuth.js middleware wrapper. A valid JWT session token must be present, or the request must carry the <code>x-api-key</code> internal secret header.</p>
+        <h2><span class="num">8</span> Middleware Route Guard <span class="badge-updated">Updated June 2026</span></h2>
+        <span class="tag">src/proxy.ts</span>
+        <p>All application routes (pages and API routes) that are not explicitly excluded by the matcher are protected by the NextAuth.js <code>withAuth</code> wrapper. A valid JWT session token must be present, the route must be in the public-paths list, or the request must carry the <code>x-api-key</code> internal secret header. The Next.js middleware entry point is exported from <code>src/proxy.ts</code>.</p>
 
         <div class="highlight">
-            <strong>Per-request nonce-based CSP (updated May 2026):</strong> The middleware now generates a unique cryptographic nonce for every request using <code>crypto.getRandomValues()</code>. The nonce is injected into the <code>Content-Security-Policy</code> response header via <code>script-src 'nonce-{nonce}' 'strict-dynamic'</code>, replacing the previous static CSP that was set in <code>next.config.js</code>. The nonce is also passed to the request via the <code>x-nonce</code> header so server components can embed it into inline <code>&lt;script&gt;</code> tags. In development, <code>'unsafe-eval'</code> is added to support Next.js Fast Refresh; it is absent in production.
+            <strong>Per-request nonce-based CSP:</strong> The middleware generates a unique cryptographic nonce for every request using <code>crypto.getRandomValues()</code> over a 16-byte buffer, base64-encoded. The nonce is injected into the <code>Content-Security-Policy</code> response header via <code>script-src 'self' 'nonce-{nonce}' 'strict-dynamic'</code>, and into <code>style-src 'self' 'nonce-{nonce}' 'unsafe-inline'</code>. The nonce is also passed to the request via the <code>x-nonce</code> header so the root <code>src/app/layout.tsx</code> can read it via <code>headers().get('x-nonce')</code> and embed it into inline <code>&lt;script&gt;</code> tags. In development, <code>'unsafe-eval'</code> is added to <code>script-src</code> to support Next.js Fast Refresh; it is absent in production. <code>default-src</code> is set to <code>'self' https:</code>.</p>
         </div>
 
-        <h3>Public paths (no session required, but still receive nonce CSP)</h3>
+        <h3>Public paths (no session required, but still receive the nonce CSP)</h3>
+        <p>The <code>PUBLIC_PATHS</code> array in <code>src/proxy.ts</code> bypasses the session check (but still runs the CSP middleware function):</p>
         <ul>
-            <li><code>/api/auth/**</code> — all NextAuth and custom auth routes</li>
+            <li><code>/</code> — marketing landing</li>
             <li><code>/login</code></li>
             <li><code>/register</code></li>
             <li><code>/forgot-password</code></li>
             <li><code>/reset-password</code></li>
+            <li><code>/contact</code>, <code>/api/contact</code></li>
+            <li><code>/legal/privacy</code>, <code>/legal/terms</code>, <code>/legal/disclaimer</code></li>
             <li><code>/api/unsubscribe</code> — public by design (RFC 8058), protected via HMAC-signed token</li>
-            <li><code>/_next/static/**</code>, <code>/_next/image/**</code> — build assets (excluded from matcher)</li>
-            <li><code>/growmystock_logo.svg</code>, <code>/favicon.ico</code> (excluded from matcher)</li>
+            <li><code>/opengraph-image</code>, <code>/login/opengraph-image</code>, <code>/register/opengraph-image</code></li>
+            <li><code>/sitemap.xml</code>, <code>/robots.txt</code></li>
         </ul>
+        <p>Additionally, the matcher itself excludes <code>/api/auth/**</code> (NextAuth internals and the custom auth routes), <code>/_next/static/**</code>, <code>/_next/image/**</code>, and the logo/favicon assets, so the middleware function does not even run for those paths.</p>
 
         <h3>Internal API bypass</h3>
-        <p>Requests carrying the header <code>x-api-key: &lt;DEEPMONEY_INTERNAL_SECRET&gt;</code> skip session validation entirely. This is used by the Python DeepMoney sync scripts to call protected API endpoints from the server without a user session.</p>
+        <p>Requests carrying the header <code>x-api-key: &lt;DEEPMONEY_INTERNAL_SECRET&gt;</code> skip session validation entirely inside the <code>authorized</code> callback. <strong>Important constraint:</strong> the secret is only honoured if <code>DEEPMONEY_INTERNAL_SECRET.length &gt;= 32</code>; if the env var is shorter (or missing) the bypass is silently disabled and the request falls through to the normal session check. This is the mechanism used by the Python DeepMoney sync scripts (<code>deepmoney_sync.py</code>, <code>update_predictions.py</code>) to call protected API endpoints from the server without a user session.</p>
+        <p>Route handlers that want to recognise the same internal caller (for example to skip rate limiting or per-user quotas) call <code>isInternalRequest()</code> from <code>src/utils/internalAuth.ts</code>, which performs the same check using SHA-256 hashes and <code>timingSafeEqual</code> for constant-time comparison.</p>
+
+        <div class="warning-box">
+            <strong>Known scope (AUTH-3, deferred):</strong> The middleware-level <code>x-api-key</code> bypass grants full access to every protected route — including admin routes — for any request with the secret. This is documented as outstanding security debt; the agreed remediation (move truly-internal endpoints under <code>/api/internal/</code> and replace the shared secret with short-lived server-to-server tokens for dual-use routes) has not yet been implemented.
+        </div>
     </section>
 
     <!-- ROLES -->
@@ -749,18 +778,18 @@ Page shows success banner → redirects to /login after 3 seconds</div>
             </tr>
             <tr>
                 <td><code>archived</code></td>
-                <td>Account archived by admin</td>
+                <td>Account archived by admin (or auto-archived when a rejected record is replaced by a fresh registration)</td>
                 <td>Blocked — "This account no longer exists."</td>
                 <td>Denied — 403 on all protected endpoints</td>
             </tr>
         </table>
 
         <div class="highlight">
-            <strong>Runtime re-verification (AUTH-1 fix, May 2026):</strong> In addition to the login-time check, every authenticated API route now calls <code>checkApprovalGuard(userId)</code> (<code>src/utils/approvalStatus.ts</code>) which re-queries <code>approval_status</code> from the database on every request. This prevents users whose accounts were suspended after login from continuing to access data with a still-valid session token (up to 30 days). The guard fails closed — if the DB query errors, access is denied.
+            <strong>Runtime re-verification (AUTH-1 fix, May 2026):</strong> In addition to the login-time check, every authenticated API route calls <code>checkApprovalGuard(userId)</code> (<code>src/utils/approvalStatus.ts</code>) which re-queries <code>approval_status</code> from the database on every request. This prevents users whose accounts were suspended after login from continuing to access data with a still-valid session token (up to 30 days). The guard fails closed — if the DB query errors, access is denied (returns a <code>PENDING</code> outcome with the message "Error verifying account status."). As of the May 24, 2026 sweep, <code>checkApprovalGuard()</code> is called from roughly 25 server route files spanning dashboard, prediction, stock_data, user/watchlist, user/portfolio, user/profile, user/stocks, market, worldbank, and ETF holdings endpoints.
         </div>
 
         <div class="warning-box">
-            <strong>Password reset restriction:</strong> The forgot-password route only sends a reset email if the target account has <code>approval_status = 'approved'</code>. Pending and rejected accounts cannot reset their passwords via email — the endpoint silently returns success to prevent enumeration.
+            <strong>Password reset restriction:</strong> The forgot-password route only sends a reset email if the target account has <code>approval_status = 'approved'</code>. Pending, rejected, unsubscribed, and archived accounts cannot reset their passwords via email — the endpoint silently returns success to prevent enumeration.
         </div>
     </section>
 
@@ -785,7 +814,7 @@ Page shows success banner → redirects to /login after 3 seconds</div>
                 <td>Caught and logged as warning; registration still succeeds</td>
             </tr>
             <tr>
-                <td><code>sendApprovalEmail()</code> <span class="badge-new">NEW</span></td>
+                <td><code>sendApprovalEmail()</code></td>
                 <td>Admin approves a user account (PATCH /api/admin/users)</td>
                 <td><code>resend_reg_final_api_key</code></td>
                 <td>"Your GrowMyStock Account Has Been Approved!"</td>
@@ -862,12 +891,12 @@ Page shows success banner → redirects to /login after 3 seconds</div>
                 <td>Email enumeration protection, token creation, Resend call.</td>
             </tr>
             <tr>
-                <td><code>api_admin_users.test.ts</code> <span class="badge-updated">Updated</span></td>
+                <td><code>api_admin_users.test.ts</code></td>
                 <td>GET and PATCH /api/admin/users</td>
                 <td>
                     GET: 401 no session, 403 non-admin, 200 user list, filter parameters applied.<br>
                     PATCH: approval status update, role update, prevent demoting last admin.<br>
-                    <strong>New cases (May 2026):</strong> approval email sent on approve action; email skipped when user has no email address; endpoint returns 200 even when email send fails.
+                    Approval email path: sent on approve action; skipped when user has no email address; endpoint returns 200 even when email send fails.
                     <code>sendApprovalEmail</code> is mocked (<code>jest.mock('@/lib/email')</code>).
                 </td>
             </tr>
@@ -876,9 +905,9 @@ Page shows success banner → redirects to /login after 3 seconds</div>
 
     <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem;">
         <strong>MoneyGoUp — Authentication Flow Documentation</strong><br>
-        Created: May 17, 2026 &nbsp;|&nbsp; Last Updated: May 17, 2026<br>
+        Created: May 17, 2026 &nbsp;|&nbsp; Last Updated: June 12, 2026<br>
         Author: Technical Documentation Team<br>
-        Version: 1.1 — adds Email Notification System section documenting <code>sendApprovalEmail()</code>; updates admin test coverage table; updates Recent Changes callout<br>
+        Version: 1.2 — corrects middleware module path to <code>src/proxy.ts</code>; expands the public-paths list to match <code>PUBLIC_PATHS</code>; documents the ≥32-byte <code>DEEPMONEY_INTERNAL_SECRET</code> requirement; adds numeric caps to the rate-limit table; minor accuracy edits throughout<br>
         Copyright &copy; 2026 MoneyGoUp. All rights reserved.
     </footer>
 </main>
@@ -889,11 +918,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const nav = document.querySelector('.top-bar-nav');
   const leftBtns = document.querySelectorAll('.nav-scroll-left');
   const rightBtns = document.querySelectorAll('.nav-scroll-right');
-  
+
   if (!nav || leftBtns.length === 0 || rightBtns.length === 0) return;
-  
+
   const scrollAmount = 150;
-  
+
   function checkScroll() {
     // Show/hide left button
     if (nav.scrollLeft > 0) {
@@ -901,7 +930,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       leftBtns.forEach(btn => btn.style.visibility = 'hidden');
     }
-    
+
     // Show/hide right button
     const hasRightScroll = nav.scrollLeft < nav.scrollWidth - nav.clientWidth - 10;
     if (hasRightScroll) {
@@ -910,24 +939,24 @@ document.addEventListener('DOMContentLoaded', () => {
       rightBtns.forEach(btn => btn.style.visibility = 'hidden');
     }
   }
-  
+
   leftBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       nav.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
       setTimeout(checkScroll, 100);
     });
   });
-  
+
   rightBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       nav.scrollBy({ left: scrollAmount, behavior: 'smooth' });
       setTimeout(checkScroll, 100);
     });
   });
-  
+
   nav.addEventListener('scroll', checkScroll);
   window.addEventListener('resize', checkScroll);
-  
+
   // Initial check
   setTimeout(checkScroll, 100);
 });

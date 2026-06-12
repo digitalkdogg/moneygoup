@@ -128,7 +128,7 @@
         .nav-scroll-controls:last-of-type { right: 0; }
         .nav-scroll-btn { background: rgba(0,0,0,0.1); border: none; color: #475569; cursor: pointer; font-size: 1.5rem; padding: 0.5rem 0.25rem; border-radius: 4px; transition: background .15s, color .15s; line-height: 1; }
         .nav-scroll-btn:hover { background: rgba(0,0,0,0.15); color: #1e293b; }
-        
+
         </style>
 </head>
 <body>
@@ -138,7 +138,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Database Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Generated 2026-06-06</div>
+    <div style="font-size:.78rem;opacity:.75;">Generated 2026-06-12</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -178,6 +178,7 @@
     <a href="#users">users</a>
     <a href="#password_reset_tokens">password_reset_tokens</a>
     <a href="#role_limits">role_limits</a>
+    <a href="#user_investment_strategy">user_investment_strategy</a>
     <a href="#stocks">stocks</a>
     <a href="#user_stocks">user_stocks</a>
     <a href="#user_lookup_events">user_lookup_events</a>
@@ -192,6 +193,7 @@
     <a href="#user_stock_predictions">user_stock_predictions</a>
     <a href="#stock_gps_scores">stock_gps_scores</a>
     <a href="#stock_gps_score_history">stock_gps_score_history</a>
+    <a href="#prediction_records">prediction_records</a>
     <a href="#portfolio-tables">Portfolio Tables</a>
     <a href="#portfolio_transactions">portfolio_transactions</a>
     <a href="#portfolio_daily_snapshots">portfolio_daily_snapshots</a>
@@ -352,6 +354,24 @@
                 </table>
             </div>
 
+            <!-- USER_INVESTMENT_STRATEGY — NEW -->
+            <div id="user_investment_strategy" class="table-card">
+                <div class="table-title">user_investment_strategy <span class="new-badge">NEW</span></div>
+                <p>Per-user investment strategy preferences. Drives the gates and timeframe knobs in <code>src/utils/strategy.ts</code> that scale GPS thresholds, prediction-change cutoffs, beta tolerance, the DeepMoney ML validation gate, and the predicted-price column selected from <code>user_stock_predictions</code>. Read via <code>getUserStrategy()</code>; written via the PATCH handler in <code>src/app/api/user/profile/route.ts</code>. When a row is missing for a user, the resolver falls back to the default <code>{ aggressiveness: 'neutral', investment_timeframe: '1_month' }</code>.</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>Primary Key. FK to users.id ON DELETE CASCADE. One row per user.</td></tr>
+                        <tr><td><code>aggressiveness</code></td><td><code>ENUM</code></td><td>'safe', 'neutral', 'aggressive'. Default 'neutral'. Maps to confidence floor, beta cutoff, GPS gate, and env-floor multiplier in <code>AGGRESSIVENESS_GATES</code>.</td></tr>
+                        <tr><td><code>investment_timeframe</code></td><td><code>ENUM</code></td><td>'1_week', '1_month', '6_month', '1_year'. Default '1_month'. Maps to outlook parameter, predicted-change multiplier, sell-threshold shift, ML gate, and the <code>predicted_price_*</code> column referenced from <code>user_stock_predictions</code>.</td></tr>
+                        <tr><td><code>updated_at</code></td><td><code>TIMESTAMP</code></td><td>Auto-updated via <code>ON UPDATE CURRENT_TIMESTAMP</code> when either preference changes.</td></tr>
+                    </tbody>
+                </table>
+                <div class="highlight-box">
+                    <strong>Upsert pattern:</strong> The Profile PATCH route runs an <code>INSERT INTO user_investment_strategy (user_id, aggressiveness, investment_timeframe) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE aggressiveness = VALUES(aggressiveness), investment_timeframe = VALUES(investment_timeframe)</code>. The request body accepts either field individually (the timeframe pill UX sends only the field that changed) or both inside a <code>{ strategy: {...} }</code> envelope (the dropdown's Save Strategy button). Missing fields are filled from the current row before the upsert so partial updates never null-out the other column.
+                </div>
+            </div>
+
             <!-- STOCKS -->
             <div id="stocks" class="table-card">
                 <div class="table-title">stocks</div>
@@ -442,10 +462,10 @@
                         <tr><td><code>revenue_growth_yoy</code></td><td><code>DECIMAL(10,2)</code></td><td>Year-over-year revenue growth %.</td></tr>
                         <tr><td><code>gross_margin_pct</code></td><td><code>DECIMAL(8,2)</code></td><td>Gross margin %.</td></tr>
                         <tr><td><code>rd_spend_pct</code></td><td><code>DECIMAL(8,2)</code></td><td>R&amp;D spend as % of revenue.</td></tr>
-                        <tr><td><code>trailing_pe</code></td><td><code>DECIMAL(10,2)</code></td><td>Trailing price/earnings ratio.</td></tr>
-                        <tr><td><code>price_to_book</code></td><td><code>DECIMAL(10,2)</code></td><td>Price-to-book ratio.</td></tr>
-                        <tr><td><code>metric_value</code></td><td><code>DECIMAL(12,4)</code></td><td>Primary sort metric (varies by type; GPS score for etf_holding rows).</td></tr>
-                        <tr><td><code>metric_label</code></td><td><code>VARCHAR(100)</code></td><td>Human label for metric_value (e.g. "CS: 75", score_source for etf_holding).</td></tr>
+                        <tr><td><code>trailing_pe</code></td><td><code>DECIMAL(10,2)</code></td><td>Trailing P/E (<code>s.get('pe')</code>) at scoring time. Written by the <code>hot_stocks</code> branch of <code>deepmoney_sync.py</code>; may be NULL for older or non-hot-stock rows.</td></tr>
+                        <tr><td><code>price_to_book</code></td><td><code>DECIMAL(10,2)</code></td><td>Price-to-book ratio (<code>s.get('pb')</code>) at scoring time. Same write path as <code>trailing_pe</code>.</td></tr>
+                        <tr><td><code>metric_value</code></td><td><code>DECIMAL(12,4)</code></td><td>Primary numeric metric for the row. For <code>hot_stocks</code>: predicted 1-month change %. For <code>etf_holding</code>: the GPS score. Sort key in card surfaces.</td></tr>
+                        <tr><td><code>metric_label</code></td><td><code>VARCHAR(100)</code></td><td>Human label for <code>metric_value</code>. For <code>hot_stocks</code>: <code>"CS: {confidence_score}"</code> (may have a trailing <code>"⚠️ATH"</code> when near-ATH + high-beta is detected). For <code>etf_holding</code>: <code>score_source</code> ("fresh" / "cached").</td></tr>
                         <tr><td><code>market_cap_m</code></td><td><code>DECIMAL(16,2)</code></td><td>Market cap in millions.</td></tr>
                         <tr><td><code>mention_count</code></td><td><code>INT</code></td><td>Social/news mention count. Default 0.</td></tr>
                         <tr><td><code>discovery_source</code></td><td><code>VARCHAR(100)</code></td><td>Origin of discovery (e.g. 'v2_engine', 'etf_holdings/QQQ').</td></tr>
@@ -453,7 +473,7 @@
                         <tr><td><code>parent_etf_ticker</code></td><td><code>VARCHAR(20)</code></td><td>For etf_holding rows: the parent ETF that surfaces this stock.</td></tr>
                         <tr><td><code>holding_percent</code></td><td><code>DECIMAL(10,6)</code></td><td>For etf_holding rows: decimal fraction of ETF assets held in this stock.</td></tr>
                         <tr><td><code>prediction_input</code></td><td><code>LONGTEXT</code></td><td>JSON snapshot of the prediction payload used to produce this record.</td></tr>
-                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>Date of the discovery run. NOT NULL. Indexed (composite with type).</td></tr>
+                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>Date of the discovery run. NOT NULL. Indexed (composite with type). Source of truth for "which run produced this row".</td></tr>
                         <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Row creation timestamp (auto).</td></tr>
                     </tbody>
                 </table>
@@ -543,6 +563,35 @@
                 </table>
             </div>
 
+            <!-- PREDICTION_RECORDS — NEW -->
+            <div id="prediction_records" class="table-card">
+                <div class="table-title">prediction_records <span class="new-badge">NEW</span></div>
+                <p>Analytics ledger of multi-horizon model predictions, used to compute the headline accuracy KPIs surfaced by the <code>ModelAccuracyWidget</code>. Written fire-and-forget by <code>recordPrediction()</code> in <code>src/utils/predictionRecorder.ts</code>, called from the prediction API route handler and from the Python sync pipeline. The actuals (<code>actual_price_*</code>) are populated separately by the scheduled resolver job after each horizon elapses. Read by <code>GET /api/analytics/model-accuracy</code> (global and per-symbol).</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>symbol</code></td><td><code>VARCHAR(10)</code></td><td>Stock ticker for the prediction. Part of the dedupe key.</td></tr>
+                        <tr><td><code>predicted_at</code></td><td><code>DATE</code></td><td>Date the prediction was issued. Writer hard-codes <code>CURDATE()</code> in the INSERT so it pins to the local server day. Part of the dedupe key.</td></tr>
+                        <tr><td><code>price_at_prediction</code></td><td><code>DECIMAL(12,4)</code></td><td>Spot price at prediction time. Baseline used by downstream MAPE computations.</td></tr>
+                        <tr><td><code>predicted_price_1w</code></td><td><code>DECIMAL(12,4)</code></td><td>Predicted 1-week target. Nullable.</td></tr>
+                        <tr><td><code>predicted_price_1m</code></td><td><code>DECIMAL(12,4)</code></td><td>Predicted 1-month target. Nullable.</td></tr>
+                        <tr><td><code>predicted_price_6m</code></td><td><code>DECIMAL(12,4)</code></td><td>Predicted 6-month target. Nullable.</td></tr>
+                        <tr><td><code>predicted_price_1y</code></td><td><code>DECIMAL(12,4)</code></td><td>Predicted 1-year target. Nullable.</td></tr>
+                        <tr><td><code>actual_price_1w</code></td><td><code>DECIMAL(12,4)</code></td><td>Spot price one week after <code>predicted_at</code>. NULL until the horizon resolves. The model-accuracy route only scores rows where both predicted and actual are non-null AND actual &gt; 0.</td></tr>
+                        <tr><td><code>actual_price_1m</code></td><td><code>DECIMAL(12,4)</code></td><td>Spot price one month after <code>predicted_at</code>. Same resolution semantics as 1w.</td></tr>
+                        <tr><td><code>actual_price_6m</code></td><td><code>DECIMAL(12,4)</code></td><td>Spot price six months after <code>predicted_at</code>. Same resolution semantics.</td></tr>
+                        <tr><td><code>actual_price_1y</code></td><td><code>DECIMAL(12,4)</code></td><td>Spot price one year after <code>predicted_at</code>. Same resolution semantics.</td></tr>
+                        <tr><td><code>updated_at</code></td><td><code>TIMESTAMP</code></td><td>Auto-updated when the resolver fills in actuals. <code>MAX(updated_at)</code> is surfaced in the API response as <code>last_resolved_at</code>.</td></tr>
+                    </tbody>
+                </table>
+                <div class="highlight-box">
+                    <strong>Dedupe pattern:</strong> The writer uses <code>INSERT IGNORE INTO prediction_records (symbol, predicted_at, price_at_prediction, predicted_price_1w, predicted_price_1m, predicted_price_6m, predicted_price_1y) VALUES (?, CURDATE(), ?, ?, ?, ?, ?)</code>. A UNIQUE index on (<code>symbol</code>, <code>predicted_at</code>) means a second prediction for the same ticker on the same day is silently ignored (the writer logs "Duplicate prediction (ignored)").
+                </div>
+                <div class="highlight-box">
+                    <strong>Accuracy formula:</strong> For each row/horizon the <code>/api/analytics/model-accuracy</code> route computes <code>GREATEST(0, 1 - ABS(predicted - actual) / NULLIF(actual, 0))</code> (a clamped MAPE-style proximity score in [0, 1]). <code>proximity_accuracy_pct</code> is the per-horizon average ×100; <code>total_accuracy_pct</code> is the global average across all four horizons via UNION ALL; <code>high_accuracy_count</code> is the count of rows whose proximity ≥ 0.95. The endpoint requires at least 30 resolved rows summed across the 4 horizons before transitioning out of <code>insufficient_data</code>.
+                </div>
+            </div>
+
             <!-- HOT_ETFS -->
             <div id="hot_etfs" class="table-card">
                 <div class="table-title">hot_etfs</div>
@@ -629,12 +678,12 @@
                         <tr><td><code>confidence_score</code></td><td><code>DECIMAL(8,4)</code></td><td>MLP model confidence score.</td></tr>
                         <tr><td><code>recommendation_reason</code></td><td><code>TEXT</code></td><td>Human-readable explanation, e.g. "AAPL is a top holding of QQQ with GPS 72.5 and +3.2% predicted gain."</td></tr>
                         <tr><td><code>seen</code></td><td><code>TINYINT(1)</code></td><td>0 = unseen (new alert), 1 = dismissed by user via PATCH. Default 0. Reset to 0 on upsert.</td></tr>
-                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>Date the recommendation was generated.</td></tr>
+                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>Date the recommendation was generated. <strong>Source of truth for "this run vs. that run".</strong></td></tr>
                         <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Row creation timestamp (auto).</td></tr>
                     </tbody>
                 </table>
                 <div class="highlight-box">
-                    <strong>Filtering in dashboard:</strong> The recommendations route (<code>GET /api/dashboard/recommendations</code>) queries <code>etf_stock_recommendations</code> for the current user, filtered to rows created within the last 7 days and ordered by <code>gps_score DESC</code>. Stocks already in the user's portfolio, watchlist, or discovery list are excluded from the final output.
+                    <strong>Filtering in dashboard (refreshed 2026-06-12):</strong> The dashboard recommendations route (<code>GET /api/dashboard/recommendations</code>) no longer uses a rolling 7-day window. It now selects the latest snapshot per user — <code>WHERE user_id = ? AND snapshot_date = (SELECT MAX(snapshot_date) FROM etf_stock_recommendations WHERE user_id = ?)</code> — and orders by <code>gps_score DESC</code>. This mirrors the <code>deepmoney-picks</code> pattern: rows accumulate across <code>update_predictions.py</code> runs, but only the most recent snapshot is surfaced so prior-day picks never mix with the current set. Stocks already in the user's portfolio, watchlist, or discovery list are excluded from the final output. The user-facing alert panel (<code>GET /api/etf/holdings-recommendation</code>) retains its own ordering (<code>gps_score DESC, created_at DESC LIMIT 50</code>) with an optional <code>unseen=true</code> filter.
                 </div>
             </div>
 
@@ -816,7 +865,7 @@
         </section>
 
         <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem; text-align: center;">
-            GrowMyStocks Database Documentation &copy; 2026 &mdash; Last updated: June 6, 2026
+            GrowMyStocks Database Documentation &copy; 2026 &mdash; Last updated: June 12, 2026
         </footer>
     </main>
     </div>
@@ -825,11 +874,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const nav = document.querySelector('.top-bar-nav');
   const leftBtns = document.querySelectorAll('.nav-scroll-left');
   const rightBtns = document.querySelectorAll('.nav-scroll-right');
-  
+
   if (!nav || leftBtns.length === 0 || rightBtns.length === 0) return;
-  
+
   const scrollAmount = 150;
-  
+
   function checkScroll() {
     // Show/hide left button
     if (nav.scrollLeft > 0) {
@@ -837,7 +886,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       leftBtns.forEach(btn => btn.style.visibility = 'hidden');
     }
-    
+
     // Show/hide right button
     const hasRightScroll = nav.scrollLeft < nav.scrollWidth - nav.clientWidth - 10;
     if (hasRightScroll) {
@@ -846,24 +895,24 @@ document.addEventListener('DOMContentLoaded', () => {
       rightBtns.forEach(btn => btn.style.visibility = 'hidden');
     }
   }
-  
+
   leftBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       nav.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
       setTimeout(checkScroll, 100);
     });
   });
-  
+
   rightBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       nav.scrollBy({ left: scrollAmount, behavior: 'smooth' });
       setTimeout(checkScroll, 100);
     });
   });
-  
+
   nav.addEventListener('scroll', checkScroll);
   window.addEventListener('resize', checkScroll);
-  
+
   // Initial check
   setTimeout(checkScroll, 100);
 });

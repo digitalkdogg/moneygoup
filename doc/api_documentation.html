@@ -87,7 +87,7 @@
         .nav-scroll-controls:last-of-type { right: 0; }
         .nav-scroll-btn { background: rgba(0,0,0,0.1); border: none; color: #475569; cursor: pointer; font-size: 1.5rem; padding: 0.5rem 0.25rem; border-radius: 4px; transition: background .15s, color .15s; line-height: 1; }
         .nav-scroll-btn:hover { background: rgba(0,0,0,0.15); color: #1e293b; }
-        
+
         </style>
 </head>
 <body>
@@ -97,7 +97,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">API Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-09</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-12</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -140,7 +140,9 @@
     <a href="#user-routes">User Routes</a>
     <a href="#dashboard-routes">Dashboard Routes</a>
     <a href="#prediction-routes">Prediction Routes</a>
+    <a href="#analytics-routes">Analytics Routes</a>
     <a href="#stock-data-routes">Stock Data Routes</a>
+    <a href="#etf-routes">ETF Routes</a>
     <a href="#market-routes">Market Routes</a>
     <a href="#admin-routes">Admin Routes</a>
     <a href="#misc-routes">Misc Routes</a>
@@ -161,17 +163,17 @@
       <span>GrowMyStocks</span>
       <span>Next.js 14 App Router</span>
       <span>35+ routes documented</span>
-      <span>Updated 2026-06-09</span>
+      <span>Updated 2026-06-12</span>
     </div>
 
     <div class="summary-grid">
       <div class="stat-card"><div class="value">35+</div><div class="label">API Routes</div></div>
-      <div class="stat-card"><div class="value">8</div><div class="label">Route Groups</div></div>
+      <div class="stat-card"><div class="value">9</div><div class="label">Route Groups</div></div>
       <div class="stat-card"><div class="value">5</div><div class="label">Rate Limiters</div></div>
       <div class="stat-card"><div class="value">6h</div><div class="label">Max Cache TTL</div></div>
     </div>
 
-    <div class="updated"><strong>June 2026 changes summary:</strong> Several user endpoints now consume <code>getUserStrategy()</code> to read the user's <code>aggressiveness</code> and <code>investment_timeframe</code> from <code>user_investment_strategy</code>. Portfolio, watchlist, and recommendations routes select the appropriate predicted-price column (<code>predicted_price_1w / _1m / _6m / _1y</code>) and dynamically patch the GPS breakdown's <code>mlpUpside</code> component to match that horizon. The profile endpoint now returns a <code>strategy</code> object and accepts PATCH requests to update it. See the <a href="strategy_system.html">Strategy System</a> doc for the full model.</div>
+    <div class="updated"><strong>June 2026 changes summary:</strong> Several user endpoints now consume <code>getUserStrategy()</code> to read the user's <code>aggressiveness</code> and <code>investment_timeframe</code> from <code>user_investment_strategy</code>. Portfolio, watchlist, and recommendations routes select the appropriate predicted-price column (<code>predicted_price_1w / _1m / _6m / _1y</code>) and dynamically patch the GPS breakdown's <code>mlpUpside</code> component to match that horizon. The profile endpoint now returns a <code>strategy</code> object and accepts PATCH requests to update it. A new <code>/api/analytics/model-accuracy</code> endpoint exposes a MAPE-style accuracy headline that powers the dashboard's <code>ModelAccuracyWidget</code>. The prediction route now fires <code>recordPrediction()</code> to log every fresh prediction into <code>prediction_records</code> for later resolution. Dashboard ETF holding recommendations are now scoped to the <em>latest</em> <code>snapshot_date</code> per user instead of a rolling 7-day window. See the <a href="strategy_system.html">Strategy System</a> doc for the full strategy model.</div>
 
     <div class="info">All routes are Next.js App Router Route Handlers (<code>route.ts</code> files). All authenticated routes validate the NextAuth JWT session. The <code>checkOrigin()</code> middleware is applied to most mutation endpoints. An internal bypass using the <code>x-api-key</code> header allows server-to-server calls. All authenticated data endpoints call <code>checkApprovalGuard(userId)</code> to re-verify approval status against the database on every request.</div>
 
@@ -415,11 +417,11 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
           <span class="method method-PATCH">PATCH</span>
           <span class="route-path">/api/user/profile</span>
           <span class="badge badge-auth">Auth required</span>
-          <span class="badge badge-new">Updated 2026-06-09</span>
+          <span class="badge badge-new">Updated 2026-06-12</span>
           <span class="route-file">src/app/api/user/profile/route.ts</span>
         </div>
         <div class="sub-heading">GET — Profile &amp; strategy</div>
-        <div class="route-desc">Returns the current user's profile, activity statistics, and investment strategy. The <code>strategy</code> object is fetched from <code>user_investment_strategy</code> via <code>getUserStrategy()</code>; if no row exists, the default (<code>neutral / 1_month</code>) is returned. Admin accounts receive the same response shape but without the <code>stats</code> block.</div>
+        <div class="route-desc">Returns the current user's profile, activity statistics, and investment strategy. The <code>strategy</code> object is fetched from <code>user_investment_strategy</code> via <code>getUserStrategy()</code>; if no row exists, the default (<code>neutral / 1_month</code>) is returned. The username is read from the <code>users</code> table on every request (not from the session) so display name changes propagate immediately. Admin accounts receive the same response shape but without the <code>stats</code> block.</div>
         <div class="sub-heading">GET Response</div>
         <pre>// Non-admin users:
 {
@@ -441,8 +443,8 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
   "accountType": "admin",
   "strategy": { ... }
 }</pre>
-        <div class="sub-heading">PATCH — Update strategy</div>
-        <div class="route-desc">Updates the user's investment strategy. Both fields are optional in the payload — you can send just <code>aggressiveness</code>, just <code>investment_timeframe</code>, or both. The current strategy is loaded first and the unsent field is preserved (no partial overwrite). The route validates the value against the enum before persisting.</div>
+        <div class="sub-heading">PATCH — Update strategy (writes user_investment_strategy)</div>
+        <div class="route-desc">Updates the user's investment strategy. Both fields are optional in the payload — you can send just <code>aggressiveness</code>, just <code>investment_timeframe</code>, or both. The current strategy is loaded first via <code>getUserStrategy()</code> and the unsent field is preserved (no partial overwrite). Both inputs are validated against their enums (<code>isValidAggressiveness</code>, <code>isValidTimeframe</code>) before being upserted into <code>user_investment_strategy</code> via <code>INSERT ... ON DUPLICATE KEY UPDATE</code>.</div>
         <div class="sub-heading">PATCH Request Body (flexible — two accepted shapes)</div>
         <pre>// Nested shape (preferred — from pill/dropdown UI):
 {
@@ -490,10 +492,11 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
           <span class="method method-GET">GET</span>
           <span class="route-path">/api/dashboard/recommendations</span>
           <span class="badge badge-auth">Auth required</span>
-          <span class="badge badge-new">Updated 2026-06-09</span>
+          <span class="badge badge-new">Updated 2026-06-12</span>
           <span class="route-file">src/app/api/dashboard/recommendations/route.ts</span>
         </div>
         <div class="route-desc">Aggregates GPS-scored predictions across four scopes — <strong>portfolio</strong>, <strong>watchlist</strong>, <strong>discovery</strong>, and <strong>etf_holding</strong> — and returns BUY/SELL recommendations sorted by GPS score descending. BUY/SELL action is determined purely by GPS thresholds and the user's strategy, not by delta percentage alone.</div>
+        <div class="updated"><strong>Latest-snapshot ETF holdings (June 12, 2026):</strong> The ETF holding recommendations sub-query now selects only rows where <code>snapshot_date = (SELECT MAX(snapshot_date) FROM etf_stock_recommendations WHERE user_id = ?)</code>, replacing the prior rolling 7-day window. This mirrors the deepmoney-picks pattern and prevents stale picks from earlier <code>update_predictions.py</code> runs from leaking into the current card list. Per-user strategy, GPS thresholds, macro adjustment, and the <code>etf_holding</code> scope behavior are otherwise unchanged.</div>
         <div class="updated"><strong>Strategy-aware GPS (June 2026):</strong> All GPS thresholds are multiplied by the user's <code>envFloorMultiplier</code> (safe=1.05, neutral=1.0, aggressive=0.95). The sell threshold additionally shifts by <code>sellThresholdShift</code> (longer horizons tolerate more dip before a sell signal). The predicted-change gate is the strategy's <code>predChangeGate</code> multiplied by <code>predChangeMultiplier</code> (longer horizons require a larger absolute move). The GPS breakdown's <code>mlpUpside</code> component is patched to the user's horizon via <code>adjustMlpUpsideForHorizon()</code>, yielding a per-user GPS score rather than the cached 1-month baseline.</div>
         <div class="sub-heading">Effective thresholds per strategy (example with env defaults)</div>
         <table class="props-table">
@@ -512,7 +515,7 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
             <tr><td><code>portfolio</code></td><td>is_purchased=1, user_confirmed=1, shares&gt;0</td><td>adjustedGPS &ge; buyThreshold AND deltaPct &ge; predChangeGate</td><td>adjustedGPS &lt; sellThreshold</td></tr>
             <tr><td><code>watchlist</code></td><td>is_purchased=0, user_confirmed=1</td><td>adjustedGPS &ge; buyThreshold AND deltaPct &ge; predChangeGate</td><td>—</td></tr>
             <tr><td><code>discovery</code></td><td>is_purchased=0, user_confirmed=0</td><td>adjustedGPS &ge; discoveryThreshold AND deltaPct &ge; predChangeGate</td><td>—</td></tr>
-            <tr><td><code>etf_holding</code></td><td>From etf_stock_recommendations (last 7 days)</td><td>Always BUY (pre-filtered by ETF sync)</td><td>—</td></tr>
+            <tr><td><code>etf_holding</code></td><td>From etf_stock_recommendations WHERE snapshot_date = MAX(snapshot_date) per user</td><td>Always BUY (pre-filtered by ETF sync)</td><td>—</td></tr>
           </tbody>
         </table>
         <div class="sub-heading">Macro GPS adjustment</div>
@@ -543,6 +546,7 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
           <span class="dep-tag">fetchYahooQuotesForSymbols</span>
           <span class="dep-tag">GET /api/worldbank</span>
           <span class="dep-tag">checkApprovalGuard</span>
+          <span class="dep-tag">etf_stock_recommendations (DB)</span>
         </div>
       </div>
 
@@ -554,8 +558,8 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
           <span class="badge badge-new">Updated 2026-06-09</span>
           <span class="route-file">src/app/api/dashboard/deepmoney-picks/route.ts</span>
         </div>
-        <div class="route-desc">Returns the latest AI-curated snapshot from the <code>recommended_stocks</code> and <code>hot_etfs</code> database tables. Enriches hot stocks and ETFs with Yahoo Finance <code>previousClose</code> to compute <code>changeAmount</code> and <code>changePercent</code>. ETF holdings (<code>type = 'etf_holding'</code>) are surfaced from the same <code>recommended_stocks</code> table, deduplicated by ticker (highest GPS first).</div>
-        <div class="updated"><strong>Timeframe label (June 2026):</strong> The route now reads the user's <code>investment_timeframe</code> via <code>getUserStrategy()</code> and returns both <code>timeframe</code> (e.g. <code>"6_month"</code>) and <code>timeframe_label</code> (e.g. <code>"in 6 months"</code>) in the response. The underlying ML data is from the latest sync; the timeframe fields are used purely for UI labeling so DeepMoney cards display the correct horizon string.</div>
+        <div class="route-desc">Returns the latest AI-curated snapshot from the <code>recommended_stocks</code> and <code>hot_etfs</code> database tables. Each category is scoped to its own <code>MAX(snapshot_date)</code> to handle sync timing offsets. Enriches hot stocks and ETFs with Yahoo Finance <code>previousClose</code> to compute <code>changeAmount</code> and <code>changePercent</code>. ETF holdings (<code>type = 'etf_holding'</code>) are surfaced from the same <code>recommended_stocks</code> table, deduplicated by ticker (highest GPS first).</div>
+        <div class="updated"><strong>Strategy-aware timeframe label (June 2026):</strong> The route now reads the user's <code>investment_timeframe</code> via <code>getUserStrategy()</code> and returns both <code>timeframe</code> (e.g. <code>"6_month"</code>) and <code>timeframe_label</code> (e.g. <code>"in 6 months"</code> — sourced from <code>resolveStrategy(...).timeframe.displayLabel</code>) in the response. The underlying ML data is from the latest sync (currently a 1-month baseline run); the timeframe fields are used purely for UI labeling so DeepMoney cards display the correct horizon string.</div>
         <div class="sub-heading">GPS Thresholds</div>
         <table class="props-table">
           <thead><tr><th>Category</th><th>Threshold</th><th>Source</th></tr></thead>
@@ -575,6 +579,7 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
 }</pre>
         <div class="dep-list">
           <span class="dep-tag">getUserStrategy</span>
+          <span class="dep-tag">resolveStrategy</span>
           <span class="dep-tag">yahoo-finance2 (quoteSummary)</span>
           <span class="dep-tag">executeRawQuery</span>
           <span class="dep-tag">getGpsLabel</span>
@@ -623,16 +628,17 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
           <span class="route-path">/api/prediction/[ticker]</span>
           <span class="badge badge-auth">Auth or internal API key</span>
           <span class="badge badge-rate">Rate limited (LimitService)</span>
-          <span class="badge badge-new">Updated 2026-06-09</span>
+          <span class="badge badge-new">Updated 2026-06-12</span>
           <span class="route-file">src/app/api/prediction/[ticker]/route.ts</span>
         </div>
         <div class="route-desc">Runs the ML prediction pipeline for a single ticker. Spawns <code>scripts/predict_weighted_analysis.py</code> via Node <code>child_process.spawn</code> inside a semaphore. Results are cached in <code>predictionCache</code> and persisted asynchronously via <code>/api/prediction/save</code>.</div>
-        <div class="updated"><strong>Strategy-aware outlook (June 2026):</strong> For authenticated non-internal requests the route resolves the user's <code>investment_timeframe</code> via <code>getUserStrategy()</code> and uses that to set the <code>outlook</code> query param (if not overridden). This ensures the Python model is asked for the horizon the user actually cares about.</div>
+        <div class="updated"><strong>Analytics recording (June 2026):</strong> Immediately after a successful Python run, the route fires-and-forgets a <code>recordPrediction()</code> call (from <code>src/utils/predictionRecorder.ts</code>) that inserts a row into <code>prediction_records</code> with <code>(symbol, predicted_at = CURDATE(), price_at_prediction, predicted_price_1w/_1m/_6m/_1y)</code>. The insert uses <code>INSERT IGNORE</code> so duplicate predictions for the same symbol on the same day are silently skipped. These rows are later resolved against actual prices and feed the <code>/api/analytics/model-accuracy</code> endpoint.</div>
+        <div class="updated"><strong>Strategy-aware outlook + GPS horizon (June 2026):</strong> For authenticated non-internal requests the route resolves the user's <code>investment_timeframe</code> via <code>getUserStrategy()</code>. The neutral 1m GPS baseline is always computed and persisted to <code>stock_gps_scores</code>, but the response also includes a per-user <code>gps_score</code> / <code>gps_breakdown</code> recomputed against the prediction matching the user's timeframe (<code>predicted_change_pct_1w/_1m/_6m/_1y</code> + matching confidence). The <code>outlook</code> query param defaults to <code>'all'</code> when not provided; clients drive the user-facing horizon by sending the user's <code>investment_timeframe</code>.</div>
         <div class="sub-heading">Query Params</div>
         <table class="props-table">
           <thead><tr><th>Param</th><th>Values</th><th>Notes</th></tr></thead>
           <tbody>
-            <tr><td><code>outlook</code></td><td>'1_week' | '1_month' | '6_month' | '1_year' | 'all'</td><td>Controls prediction horizon. Defaults to the user's <code>investment_timeframe</code> when called from the UI.</td></tr>
+            <tr><td><code>outlook</code></td><td>'1_week' | '1_month' | '6_month' | '1_year' | 'all'</td><td>Controls prediction horizon passed to the Python script. Body's <code>outlook</code> field takes precedence over the query param. Defaults to <code>'all'</code>.</td></tr>
             <tr><td><code>refresh</code></td><td>'true'</td><td>Bypasses <code>predictionCache</code> and forces a new Python run.</td></tr>
           </tbody>
         </table>
@@ -643,7 +649,7 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
             <tr><td>Origin check / session auth</td><td>Internal <code>x-api-key</code> bypasses session requirement</td></tr>
             <tr><td>Approval guard</td><td>Rejects suspended accounts even with valid session</td></tr>
             <tr><td>LimitService lookup quota</td><td>403 LIMIT_EXCEEDED if daily lookup count exceeded</td></tr>
-            <tr><td><code>predictionCache</code> check</td><td>Returns cached prediction if <code>?refresh=true</code> not set</td></tr>
+            <tr><td><code>predictionCache</code> check</td><td>Returns cached prediction if <code>?refresh=true</code> not set (still re-runs GPS for the requester's horizon)</td></tr>
             <tr><td>Historical data validation</td><td>422 if fewer than 365 days of <code>historicalData</code></td></tr>
             <tr><td><code>predictionSemaphore</code></td><td>Caps concurrent Python subprocesses; 503 Busy if full</td></tr>
           </tbody>
@@ -658,14 +664,16 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
   "predicted_price_1y": number,
   "predicted_change_pct": number,
   "confidence_score": number,
-  "gps_score": number,
-  "gps_breakdown": object,
+  "gps_score": number,          // per-user, horizon-patched
+  "gps_breakdown": object,      // per-user, horizon-patched
+  "gps_horizon": string,        // e.g. "6_month"
   "bearishSignal": boolean,
   "source": "livedata" | "cache"
 }</pre>
         <div class="dep-list">
           <span class="dep-tag">scripts/predict_weighted_analysis.py</span>
           <span class="dep-tag">POST /api/prediction/save</span>
+          <span class="dep-tag">recordPrediction (utils/predictionRecorder)</span>
           <span class="dep-tag">@/utils/cache (predictionCache)</span>
           <span class="dep-tag">@/utils/predictionQueue (semaphore)</span>
           <span class="dep-tag">@/utils/gps (calculateGpsScore)</span>
@@ -754,6 +762,101 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
 
     <!-- ══════════════════════════════════════════ -->
     <div class="section">
+      <div class="section-title" id="analytics-routes">Analytics Routes</div>
+
+      <div class="route-card">
+        <div class="route-header">
+          <span class="method method-GET">GET</span>
+          <span class="route-path">/api/analytics/model-accuracy</span>
+          <span class="badge badge-auth">Auth required</span>
+          <span class="badge badge-cache">1-hour in-memory cache</span>
+          <span class="badge badge-new">New 2026-06-12</span>
+          <span class="route-file">src/app/api/analytics/model-accuracy/route.ts</span>
+        </div>
+        <div class="route-desc">Returns the headline model-accuracy metric that powers the dashboard's <code>ModelAccuracyWidget</code>. Operates in two modes: <strong>global</strong> (no symbol provided, aggregates every resolved row in <code>prediction_records</code>) and <strong>per-symbol</strong> (filtered to a single ticker). Accuracy is computed using a MAPE-style proximity formula across each horizon and then averaged across all horizons via a <code>UNION ALL</code> subquery.</div>
+        <div class="sub-heading">MAPE-style proximity formula</div>
+        <pre>accuracy_score = MAX(0, 1 - ABS(predicted - actual) / actual)
+proximity_accuracy_pct = ROUND(100 × AVG(accuracy_score), 2)
+total_accuracy_pct     = ROUND(100 × AVG(accuracy_score across all horizons), 2)</pre>
+        <div class="route-desc">A prediction is considered "high accuracy" when its <code>accuracy_score &ge; 0.95</code> (within 5% of actual).</div>
+
+        <div class="sub-heading">Query Params</div>
+        <table class="props-table">
+          <thead><tr><th>Param</th><th>Type</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><code>symbol</code></td><td>string (optional)</td><td>When supplied, switches to per-symbol mode (filters <code>prediction_records</code> by <code>symbol = ?</code>).</td></tr>
+            <tr><td><code>skip_cache</code></td><td><code>'true'</code></td><td>Bypasses the 1-hour in-memory cache and forces a fresh recompute. A fresh recompute also clears the rest of the cache map.</td></tr>
+          </tbody>
+        </table>
+
+        <div class="sub-heading">Response statuses</div>
+        <table class="props-table">
+          <thead><tr><th>status</th><th>When</th><th>Extra fields</th></tr></thead>
+          <tbody>
+            <tr><td><code>ready</code></td><td>30+ resolved predictions across all horizons (global) or for the symbol (per-symbol)</td><td>Full metrics block — see below</td></tr>
+            <tr><td><code>insufficient_data</code></td><td>Fewer than 30 resolved predictions combined</td><td><code>message</code>, <code>total_records</code> (global) or <code>total_resolved</code> (per-symbol), <code>last_resolved_at</code> (global only)</td></tr>
+            <tr><td><code>no_data</code></td><td>Per-symbol mode only — no rows exist for that <code>symbol</code></td><td><code>symbol</code>, <code>message</code></td></tr>
+          </tbody>
+        </table>
+
+        <div class="sub-heading">Response (status = "ready", global mode)</div>
+        <pre>{
+  "status": "ready",
+  "total_records":      number,         // total rows in prediction_records (all states)
+  "total_accuracy_pct": number | null,  // avg across every resolved horizon row, 0–100
+  "last_resolved_at":   string | null,  // MAX(updated_at)
+  "horizons": {
+    "1_week": {
+      "resolved_count":         number,  // rows with predicted_price_1w + actual_price_1w
+      "proximity_accuracy_pct": number,  // MAPE-style, 0–100
+      "high_accuracy_count":    number   // rows scoring >= 0.95
+    },
+    "1_month": { ... },
+    "6_month": { ... },
+    "1_year":  { ... }
+  }
+}</pre>
+        <div class="sub-heading">Response (status = "ready", per-symbol mode)</div>
+        <pre>{
+  "status": "ready",
+  "symbol":             string,
+  "total_accuracy_pct": number | null,
+  "horizons": {
+    "1_week":  { "resolved_count": number, "proximity_accuracy_pct": number, "high_accuracy_count": number },
+    "1_month": { ... },
+    "6_month": { ... },
+    "1_year":  { ... }
+  }
+}</pre>
+
+        <div class="sub-heading">Response (status = "insufficient_data", global)</div>
+        <pre>{
+  "status": "insufficient_data",
+  "message": "Accuracy tracking is live — check back when we have 30+ resolved predictions across any single horizon",
+  "total_records":    number,
+  "last_resolved_at": string | null
+}</pre>
+
+        <div class="sub-heading">Response (status = "no_data", per-symbol)</div>
+        <pre>{
+  "status":  "no_data",
+  "symbol":  string,
+  "message": "No prediction records found for this symbol"
+}</pre>
+
+        <div class="note"><strong>Cache behavior:</strong> Cache keys are <code>accuracy_global</code> and <code>accuracy_{symbol}</code>. TTL is 1 hour. Passing <code>?skip_cache=true</code> not only bypasses the entry — it clears the entire in-memory cache <code>Map</code> to force a clean rebuild on the next request. Errors return <code>{ error: 'Failed to fetch accuracy metrics' }</code> with HTTP 500.</div>
+
+        <div class="dep-list">
+          <span class="dep-tag">prediction_records (DB)</span>
+          <span class="dep-tag">getDbConnection</span>
+          <span class="dep-tag">recordPrediction (writer)</span>
+          <span class="dep-tag">ModelAccuracyWidget (consumer)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ -->
+    <div class="section">
       <div class="section-title" id="stock-data-routes">Stock Data Routes</div>
 
       <div class="route-card">
@@ -795,6 +898,74 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
           <span class="route-file">src/app/api/stock_data/[ticker]/data/route.ts</span>
         </div>
         <div class="route-desc">Returns an enriched payload specifically formatted as input for the Python prediction model. Used in step 1 of the two-step prediction flow. Calls Yahoo Finance for 5 years of OHLCV data, fundamentals, earnings, options, and 11 macro symbols in parallel.</div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ -->
+    <div class="section">
+      <div class="section-title" id="etf-routes">ETF Routes</div>
+
+      <div class="route-card">
+        <div class="route-header">
+          <span class="method method-GET">GET</span>
+          <span class="method method-POST">POST</span>
+          <span class="method method-PATCH">PATCH</span>
+          <span class="route-path">/api/etf/holdings-recommendation</span>
+          <span class="badge badge-auth">GET/PATCH: auth required</span>
+          <span class="badge badge-internal">POST: internal API key only</span>
+          <span class="badge badge-origin">Origin check</span>
+          <span class="badge badge-new">Updated 2026-06-12</span>
+          <span class="route-file">src/app/api/etf/holdings-recommendation/route.ts</span>
+        </div>
+        <div class="route-desc">CRUD-ish surface over the <code>etf_stock_recommendations</code> table — the persistence layer for ETF-holding picks emitted by the nightly <code>update_predictions.py</code> sync. <code>snapshot_date</code> is the source-of-truth column used by the dashboard recommendations route to scope to the latest snapshot per user.</div>
+
+        <div class="sub-heading">GET — list recommendations for the current user</div>
+        <div class="route-desc">Returns up to 50 recommendations for the authenticated user, sorted by <code>gps_score DESC, created_at DESC</code>. Pass <code>?unseen=true</code> to filter to rows with <code>seen = 0</code>.</div>
+        <div class="sub-heading">GET Response</div>
+        <pre>{
+  "recommendations": [
+    {
+      "id":                 number,
+      "etfTicker":          string,
+      "stockTicker":        string,
+      "gpsScore":           number | null,
+      "predictedChangePct": number | null,
+      "confidenceScore":    number | null,
+      "recommendationReason": string | null,
+      "seen":               boolean,
+      "snapshotDate":       string,
+      "createdAt":          string
+    }
+  ]
+}</pre>
+
+        <div class="sub-heading">POST — insert a recommendation (internal sync script only)</div>
+        <div class="route-desc">Internal-only endpoint, gated by <code>isInternalRequest()</code> (x-api-key header). Non-internal callers receive 401. Upserts on the table's unique key and resets <code>seen = 0</code> when an existing row is updated. Persists the row under today's <code>snapshot_date</code> (<code>CURDATE()</code> equivalent).</div>
+        <div class="sub-heading">POST Request Body</div>
+        <pre>{
+  "user_id":              string,   // required
+  "etf_ticker":           string,   // required, uppercased
+  "stock_ticker":         string,   // required, uppercased
+  "gps_score":            number | null,
+  "predicted_change_pct": number | null,
+  "confidence_score":     number | null,
+  "source":               "etf_holdings_scan" | string   // controls auto-generated reason
+}</pre>
+
+        <div class="sub-heading">PATCH — dismiss (mark seen)</div>
+        <div class="route-desc">Marks one or more recommendations as seen for the current user. Ownership is enforced by scoping the UPDATE to the caller's <code>user_id</code>.</div>
+        <div class="sub-heading">PATCH Request Body</div>
+        <pre>{ "ids": [ number, ... ] }</pre>
+        <div class="sub-heading">PATCH Response</div>
+        <pre>{ "ok": true, "dismissed": number }</pre>
+
+        <div class="dep-list">
+          <span class="dep-tag">etf_stock_recommendations (DB)</span>
+          <span class="dep-tag">isInternalRequest</span>
+          <span class="dep-tag">checkApprovalGuard</span>
+          <span class="dep-tag">update_predictions.py (writer)</span>
+          <span class="dep-tag">dashboard/recommendations (consumer)</span>
+        </div>
       </div>
     </div>
 
@@ -894,11 +1065,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const nav = document.querySelector('.top-bar-nav');
   const leftBtns = document.querySelectorAll('.nav-scroll-left');
   const rightBtns = document.querySelectorAll('.nav-scroll-right');
-  
+
   if (!nav || leftBtns.length === 0 || rightBtns.length === 0) return;
-  
+
   const scrollAmount = 150;
-  
+
   function checkScroll() {
     // Show/hide left button
     if (nav.scrollLeft > 0) {
@@ -906,7 +1077,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       leftBtns.forEach(btn => btn.style.visibility = 'hidden');
     }
-    
+
     // Show/hide right button
     const hasRightScroll = nav.scrollLeft < nav.scrollWidth - nav.clientWidth - 10;
     if (hasRightScroll) {
@@ -915,24 +1086,24 @@ document.addEventListener('DOMContentLoaded', () => {
       rightBtns.forEach(btn => btn.style.visibility = 'hidden');
     }
   }
-  
+
   leftBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       nav.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
       setTimeout(checkScroll, 100);
     });
   });
-  
+
   rightBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       nav.scrollBy({ left: scrollAmount, behavior: 'smooth' });
       setTimeout(checkScroll, 100);
     });
   });
-  
+
   nav.addEventListener('scroll', checkScroll);
   window.addEventListener('resize', checkScroll);
-  
+
   // Initial check
   setTimeout(checkScroll, 100);
 });

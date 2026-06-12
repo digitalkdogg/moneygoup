@@ -93,7 +93,7 @@
         .nav-scroll-controls:last-of-type { right: 0; }
         .nav-scroll-btn { background: rgba(0,0,0,0.1); border: none; color: #475569; cursor: pointer; font-size: 1.5rem; padding: 0.5rem 0.25rem; border-radius: 4px; transition: background .15s, color .15s; line-height: 1; }
         .nav-scroll-btn:hover { background: rgba(0,0,0,0.15); color: #1e293b; }
-        
+
         </style>
 </head>
 <body>
@@ -104,7 +104,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Developer Docs</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-09</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-12</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -162,6 +162,7 @@
     <a href="#earnings-dampening">— Earnings Dampening</a>
     <a href="#confidence-scoring">— Confidence Scoring</a>
     <a href="#step7">7. Persistence Layer</a>
+    <a href="#analytics-recording">— Analytics Recording</a>
     <a href="#update-predictions-script">8. update_predictions.py</a>
     <a href="#etf-holdings-scan">— ETF Holdings Scan</a>
     <a href="#strategy-gates-etf">— Strategy-Aware ETF Gates</a>
@@ -184,8 +185,9 @@
       <span>scripts/update_predictions.py</span>
       <span>src/app/api/prediction/[ticker]/route.ts</span>
       <span>src/app/api/prediction/save/route.ts</span>
+      <span>src/utils/predictionRecorder.ts</span>
       <span>src/app/components/StockPrediction.tsx</span>
-      <span>Updated 2026-06-09</span>
+      <span>Updated 2026-06-12</span>
     </div>
 
     <section id="overview">
@@ -195,6 +197,12 @@
       </div>
       <div class="updated-box">
         <strong>v3.4 / June 2026 — Strategy Integration:</strong> The prediction pipeline is now strategy-aware end-to-end. The Python script persists all four horizon prices (<code>predicted_price_1w / _1m / _6m / _1y</code>) to the database. The recommendations route, portfolio route, and watchlist route all read the user's <code>investment_timeframe</code> to select the correct horizon column and dynamically patch the GPS breakdown's <code>mlpUpside</code> component via <code>adjustMlpUpsideForHorizon()</code>. The DeepMoney real-time discovery route uses the user's timeframe to set the ML gate threshold and cache bucket. See <a href="#strategy-integration">Strategy Integration</a> and the <a href="strategy_system.html">Strategy System</a> doc for full details.
+      </div>
+      <div class="highlight-box">
+        <strong>Regime-Aware Model status (Phases 1–3 complete):</strong> Per-request GMM/KMeans regime detection over a 10-dim market vector (VIX, VIX 20d avg, Treasury 10Y, HYG/LQD credit-spread proxy, sector ETF correlation, etc.). <code>select_regime_k()</code> picks K=3 or K=4 against minimum state population (≥15%) and temporal flip-rate (≤30%) constraints. Regime probabilities are appended as 11 additional feature columns before scaling and feed all four MLP horizons.
+      </div>
+      <div class="highlight-box">
+        <strong>Prediction Tracking System status (Phases 2–5 complete):</strong> Every live UI prediction and every DeepMoney sync stock writes a row to <code>prediction_records</code> via <a href="#analytics-recording"><code>recordPrediction()</code></a> (fire-and-forget). <code>/api/analytics/model-accuracy</code> is the read consumer and <code>ModelAccuracyWidget</code> surfaces the result. <strong>Direction accuracy is the headline metric</strong> (per-symbol percentage of resolved predictions whose direction matched the realized price move).
       </div>
     </section>
 
@@ -209,7 +217,7 @@
           <thead><tr><th>Touch point</th><th>How strategy affects it</th></tr></thead>
           <tbody>
             <tr><td><code>update_predictions.py</code> (batch sync)</td><td>Fetches all user strategies up front. ETF threshold gates (GPS, predChange, confidence) are scaled by the user's <code>envFloorMultiplier</code> and <code>predChangeGate</code>. All four horizon prices are persisted per run.</td></tr>
-            <tr><td><code>POST /api/prediction/[ticker]</code> (live UI)</td><td>For authenticated requests, resolves user's <code>investment_timeframe</code> and passes it as the <code>outlook</code> query param to the Python script. Cache key includes outlook.</td></tr>
+            <tr><td><code>POST /api/prediction/[ticker]</code> (live UI)</td><td>For authenticated requests, resolves <code>getUserStrategy(userId)</code> and uses <code>strategy.investment_timeframe</code> to pick the horizon-matched <code>predicted_change_pct_*</code> and <code>confidence_score_*</code> when computing the per-user GPS breakdown. The neutral 1-month GPS is what gets persisted globally; the per-user horizon GPS is returned only in the response.</td></tr>
             <tr><td><code>GET /api/prediction/deepmoney</code></td><td>Resolves user's timeframe to set <code>outlook</code> passed to <code>analyzeStocks()</code> and the <code>mlGate</code> (minimum predicted change threshold). Cache bucket is per-outlook.</td></tr>
             <tr><td><code>GET /api/dashboard/recommendations</code></td><td>Reads user's timeframe to select predicted_price column. Patches GPS breakdown for horizon. Scales GPS thresholds by aggressiveness. Shifts sell threshold by timeframe.</td></tr>
             <tr><td><code>GET /api/user/portfolio</code></td><td>Reads user's timeframe to select predicted_price column. Patches GPS breakdown's mlpUpside for horizon via <code>adjustMlpUpsideForHorizon()</code>.</td></tr>
@@ -334,12 +342,12 @@
               <tr><td>Put/Call skew proxy</td><td>PC_Skew_Proxy</td></tr>
               <tr><td>Earnings-window flags</td><td>Earnings_In_Window, Days_Since_Last_Earnings, Days_To_Next_Earnings</td></tr>
               <tr><td>World Bank macro</td><td>WorldBank_GDP, WorldBank_Inflation, WorldBank_Consumption, WorldBank_Real_GDP</td></tr>
-              <tr><td>Post-earnings drift <span class="new-badge">new</span></td><td>PostEarnings_DayN, PostEarnings_CumReturn, PostEarnings_VolRatio</td></tr>
-              <tr><td>EPS revision velocity <span class="new-badge">new</span></td><td>EPS_Revision_7d_0Q, EPS_Revision_7d_1Q, Revenue_Est_Growth_0Q, Revenue_Est_Growth_1Q, EPS_Rev_Up7d, EPS_Rev_Down7d</td></tr>
-              <tr><td>Analyst upgrade/downgrade recency <span class="new-badge">new</span></td><td>Upgrade_Score_7d, Upgrade_Score_30d</td></tr>
-              <tr><td>Pre/post-market microstructure <span class="new-badge">new</span></td><td>PreMarket_GapPct, PostMarket_GapPct, FiftyTwoWeek_PosRatio</td></tr>
-              <tr><td>Institution ownership delta <span class="new-badge">new</span></td><td>Institution_PctHeld, Institution_PctDelta</td></tr>
-              <tr><td>Peer relative strength <span class="new-badge">new</span></td><td>Peer_RS_5d</td></tr>
+              <tr><td>Post-earnings drift</td><td>PostEarnings_DayN, PostEarnings_CumReturn, PostEarnings_VolRatio</td></tr>
+              <tr><td>EPS revision velocity</td><td>EPS_Revision_7d_0Q, EPS_Revision_7d_1Q, Revenue_Est_Growth_0Q, Revenue_Est_Growth_1Q, EPS_Rev_Up7d, EPS_Rev_Down7d</td></tr>
+              <tr><td>Analyst upgrade/downgrade recency</td><td>Upgrade_Score_7d, Upgrade_Score_30d</td></tr>
+              <tr><td>Pre/post-market microstructure</td><td>PreMarket_GapPct, PostMarket_GapPct, FiftyTwoWeek_PosRatio</td></tr>
+              <tr><td>Institution ownership delta</td><td>Institution_PctHeld, Institution_PctDelta</td></tr>
+              <tr><td>Peer relative strength</td><td>Peer_RS_5d</td></tr>
             </tbody>
           </table>
           <p style="font-size:.83rem;color:#64748b;">Regime columns appended dynamically (not in FEATURE_COLUMNS constant): Regime_0–3, Regime_Prob_0–3, Regime_x_PC_Ratio, Regime_x_HYG_LQD, Regime_x_RS_SPY (11 columns). Total features fed to MLP: 129.</p>
@@ -374,8 +382,8 @@ if beta &gt; 2.5 AND HiRatio_52w &gt; 0.95:
         </section>
 
         <section id="regime-analysis">
-          <h4 style="margin-top:1.5rem;">Market Regime Analysis</h4>
-          <p>GMM on a 10-dimension market vector. K selected by <code>select_regime_k()</code> evaluating K=3 and K=4 against minimum state population fraction ≥15% and temporal flip rate ≤30%. Four named states: <em>risk_on_trending</em>, <em>risk_off_stress</em>, <em>high_vol_choppy</em>, <em>low_vol_mean_reverting</em>.</p>
+          <h4 style="margin-top:1.5rem;">Market Regime Analysis (Phases 1–3 complete)</h4>
+          <p>GMM on a 10-dimension market vector dominated by <strong>VIX (level + 20d average), HYG/LQD credit-spread proxy, Treasury 10Y, sector-ETF correlation, and rolling return distribution stats</strong>. K selected by <code>select_regime_k()</code> evaluating K=3 and K=4 against a minimum state population fraction ≥15% and a temporal flip rate ≤30%. Four named states: <em>risk_on_trending</em>, <em>risk_off_stress</em>, <em>high_vol_choppy</em>, <em>low_vol_mean_reverting</em>. Regime probabilities are concatenated with the base feature tensor (11 extra columns) so every MLP horizon output sees the current regime context.</p>
         </section>
       </div>
     </section>
@@ -464,8 +472,27 @@ cs1w = min(100, cs1m + 3)</div>
     <section id="step7">
       <h2><span class="step-num">7</span> Persistence Layer</h2>
       <div class="step-card">
-        <div class="component-tag">POST /api/prediction/save — route.ts</div>
-        <p>After a successful prediction run, the API fires an async (fire-and-forget) call to <code>/api/prediction/save</code>. GPS score is computed via <code>calculateGpsScore()</code>. The save payload accepts all four horizon columns (<code>predicted_price_1w / _1m / _6m / _1y</code>) as optional fields — the recommendations route then picks the correct column per the user's active timeframe.</p>
+        <div class="component-tag">POST /api/prediction/save — route.ts + src/utils/predictionRecorder.ts</div>
+        <p>After a successful prediction run, the API fires two independent async (fire-and-forget) writes:</p>
+        <ul>
+          <li><strong>User-facing save:</strong> <code>POST /api/prediction/save</code> with the neutral 1-month GPS baseline payload. The save payload accepts all four horizon columns (<code>predicted_price_1w / _1m / _6m / _1y</code>) as optional fields — downstream routes pick the correct column per the user's active timeframe.</li>
+          <li><strong>Analytics record:</strong> <code>recordPrediction()</code> (see <a href="#analytics-recording">below</a>) writing one row per (symbol, day) into <code>prediction_records</code>.</li>
+        </ul>
+
+        <h3 id="analytics-recording" style="background:none;padding:0;color:#334155;margin-top:1.5rem;">Analytics Recording (<code>recordPrediction</code>) <span class="new-badge">documented 2026-06-12</span></h3>
+        <div class="component-tag">src/utils/predictionRecorder.ts → table <code>prediction_records</code></div>
+        <p>Every successful live prediction run from <code>POST /api/prediction/[ticker]</code> fires a fire-and-forget call to <code>recordPrediction()</code> immediately after the Python script returns and before the response is sent. The function does a single <code>INSERT IGNORE</code> keyed on <code>(symbol, predicted_at = CURDATE())</code>, so the second prediction for the same ticker on the same calendar day is silently dropped — preserving the "one prediction per symbol per day" semantic the analytics layer depends on.</p>
+        <pre><code>INSERT IGNORE INTO prediction_records (
+  symbol, predicted_at, price_at_prediction,
+  predicted_price_1w, predicted_price_1m, predicted_price_6m, predicted_price_1y
+) VALUES (?, CURDATE(), ?, ?, ?, ?, ?)</code></pre>
+        <p>The same writer is used by <code>scripts/deepmoney_sync.py</code> (via the Python sibling <code>scripts/prediction_recorder.py</code>) so the analytics table accumulates predictions from both the live UI path and the nightly DeepMoney sync without double-counting same-day duplicates.</p>
+        <p><strong>Downstream consumers:</strong></p>
+        <ul>
+          <li><code>GET /api/analytics/model-accuracy</code> — joins <code>prediction_records</code> with realized-price snapshots and exposes per-symbol direction accuracy, MAPE, hit rate, and sample size.</li>
+          <li><code>ModelAccuracyWidget</code> — surfaces the headline <strong>direction accuracy</strong> metric (Phases 2–5 of the Prediction Tracking System are complete).</li>
+          <li><code>scripts/resolve_predictions.py</code> — backfills realized prices once each horizon matures.</li>
+        </ul>
       </div>
     </section>
 
@@ -559,7 +586,17 @@ conf_threshold = ETF_HOLDING_MIN_CONFIDENCE * mult
     <section id="changelog">
       <h2>Recent Changes</h2>
       <div class="step-card">
-        <h4>v3.4 / June 2026 — Strategy Integration</h4>
+        <h4>2026-06-12 — Analytics &amp; Tracking documentation refresh</h4>
+        <table>
+          <thead><tr><th>File</th><th>Change</th></tr></thead>
+          <tbody>
+            <tr><td><code>src/utils/predictionRecorder.ts</code></td><td>Documented the per-prediction fire-and-forget <code>recordPrediction()</code> writer. <code>INSERT IGNORE</code> into <code>prediction_records</code> keyed on <code>(symbol, CURDATE())</code>.</td></tr>
+            <tr><td><code>src/app/api/analytics/model-accuracy/route.ts</code> &amp; <code>ModelAccuracyWidget</code></td><td>Surfaced as the consumer pair for <code>prediction_records</code>. <strong>Direction accuracy</strong> noted as the headline metric (Phases 2–5 complete).</td></tr>
+            <tr><td>Regime detection</td><td>Phases 1–3 status added to overview. K=3/4 selected by <code>select_regime_k()</code> using VIX, HYG/LQD credit spreads, and 10-dim market vector.</td></tr>
+          </tbody>
+        </table>
+
+        <h4 style="margin-top:2rem;">v3.4 / June 2026 — Strategy Integration</h4>
         <table>
           <thead><tr><th>File</th><th>Change</th></tr></thead>
           <tbody>
@@ -604,11 +641,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const nav = document.querySelector('.top-bar-nav');
   const leftBtns = document.querySelectorAll('.nav-scroll-left');
   const rightBtns = document.querySelectorAll('.nav-scroll-right');
-  
+
   if (!nav || leftBtns.length === 0 || rightBtns.length === 0) return;
-  
+
   const scrollAmount = 150;
-  
+
   function checkScroll() {
     // Show/hide left button
     if (nav.scrollLeft > 0) {
@@ -616,7 +653,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       leftBtns.forEach(btn => btn.style.visibility = 'hidden');
     }
-    
+
     // Show/hide right button
     const hasRightScroll = nav.scrollLeft < nav.scrollWidth - nav.clientWidth - 10;
     if (hasRightScroll) {
@@ -625,24 +662,24 @@ document.addEventListener('DOMContentLoaded', () => {
       rightBtns.forEach(btn => btn.style.visibility = 'hidden');
     }
   }
-  
+
   leftBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       nav.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
       setTimeout(checkScroll, 100);
     });
   });
-  
+
   rightBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       nav.scrollBy({ left: scrollAmount, behavior: 'smooth' });
       setTimeout(checkScroll, 100);
     });
   });
-  
+
   nav.addEventListener('scroll', checkScroll);
   window.addEventListener('resize', checkScroll);
-  
+
   // Initial check
   setTimeout(checkScroll, 100);
 });

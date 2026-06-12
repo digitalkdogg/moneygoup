@@ -87,7 +87,7 @@
         .nav-scroll-controls:last-of-type { right: 0; }
         .nav-scroll-btn { background: rgba(0,0,0,0.1); border: none; color: #475569; cursor: pointer; font-size: 1.5rem; padding: 0.5rem 0.25rem; border-radius: 4px; transition: background .15s, color .15s; line-height: 1; }
         .nav-scroll-btn:hover { background: rgba(0,0,0,0.15); color: #1e293b; }
-        
+
         </style>
 </head>
 <body>
@@ -97,7 +97,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Components Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-07</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-12</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -161,12 +161,12 @@
       <span>GrowMyStocks</span>
       <span>Next.js 14 App Router</span>
       <span>TypeScript + Tailwind CSS</span>
-      <span>45+ components documented</span>
-      <span>Updated 2026-06-07</span>
+      <span>46+ components documented</span>
+      <span>Updated 2026-06-12</span>
     </div>
 
     <div class="summary-grid">
-      <div class="stat-card"><div class="value">45+</div><div class="label">Components</div></div>
+      <div class="stat-card"><div class="value">46+</div><div class="label">Components</div></div>
       <div class="stat-card"><div class="value">9</div><div class="label">Sections</div></div>
       <div class="stat-card"><div class="value">4</div><div class="label">Card Variants</div></div>
       <div class="stat-card"><div class="value">4</div><div class="label">Modals</div></div>
@@ -245,15 +245,35 @@
           <div><div class="comp-name">Dashboard</div><div class="comp-file">src/app/components/Dashboard.tsx</div></div>
           <span class="badge badge-client">Client</span>
         </div>
-        <div class="comp-desc">Top-level orchestrator for the home page (<code>/</code>). Fetches the user's portfolio via <code>GET /api/user/portfolio</code> on mount. Determines market open/close status (NYSE hours, weekdays only). Composes: <code>MajorIndicesStrip</code>, <code>PortfolioSummary</code>, <code>PortfolioSection</code>, <code>RecommendationsSection</code>, and <code>WatchlistSection</code>. Passes portfolio data and refresh callbacks down to child sections. On the home page, <code>RecommendationsSection</code> is called with <code>scopes={['portfolio', 'watchlist']}</code> — the <code>etf_holding</code> scope is only active on the <code>/portfolio</code> page.</div>
+        <div class="comp-desc">Top-level orchestrator for the home page (<code>/</code>). Fetches the user's portfolio via <code>GET /api/user/portfolio</code> on mount. Determines market open/close status (NYSE hours, weekdays only). Composes: <code>MajorIndicesStrip</code>, <code>PortfolioSummary</code>, <code>PortfolioSection</code>, <code>RecommendationsSection</code>, <code>ModelAccuracyWidget</code>, and <code>WatchlistSection</code>. The <code>ModelAccuracyWidget</code> sits between <code>RecommendationsSection</code> and <code>WatchlistSection</code> inside the "Discovery &amp; Watchlist" block. Passes portfolio data and refresh callbacks down to child sections. On the home page, <code>RecommendationsSection</code> is called with <code>scopes={['portfolio', 'watchlist']}</code> — the <code>etf_holding</code> scope is only active on the <code>/portfolio</code> page.</div>
         <div class="dep-list">
           <span class="dep-tag">MajorIndicesStrip</span>
           <span class="dep-tag">PortfolioSummary</span>
           <span class="dep-tag">PortfolioSection</span>
           <span class="dep-tag">RecommendationsSection</span>
+          <span class="dep-tag">ModelAccuracyWidget</span>
           <span class="dep-tag">WatchlistSection</span>
           <span class="dep-tag">GET /api/user/portfolio</span>
         </div>
+      </div>
+
+      <div class="comp-card">
+        <div class="comp-header">
+          <div><div class="comp-name">ModelAccuracyWidget</div><div class="comp-file">src/app/components/ModelAccuracyWidget.tsx</div></div>
+          <span class="badge badge-client">Client</span>
+        </div>
+        <div class="comp-desc">Headline analytics widget rendered on the home dashboard between the recommendations strip and the watchlist. Fetches <code>GET /api/analytics/model-accuracy?skip_cache=true</code> on mount and renders three KPI tiles for the currently-selected horizon: <strong>Overall Model Accuracy</strong> (a single global figure averaged across all resolved predictions and all 4 horizons, green tile), <strong>Proximity Accuracy</strong> (per-horizon MAPE-style score, blue tile, shown as "{pct}% ({resolved_count} predictions)"), and <strong>High Accuracy ≥95%</strong> (count of resolved predictions whose proximity score was at or above 0.95 for the selected horizon, amber tile, shown as "{n}/{resolved_count}"). Four horizon pills (1 Week / 1 Month / 6 Months / 1 Year) switch which horizon block from the API response is displayed; selected pill is blue (<code>bg-blue-600</code>), default is <code>1_month</code>. When the API returns <code>status: 'insufficient_data'</code> (fewer than 30 resolved samples summed across the four horizons), the widget swaps to a blue info panel showing the server message and the current <code>total_records</code> count.</div>
+        <table class="props-table">
+          <thead><tr><th>Prop</th><th>Type</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td>—</td><td>—</td><td>No props — self-contained, manages its own fetch, loading, error and selected-horizon state.</td></tr>
+          </tbody>
+        </table>
+        <div class="dep-list">
+          <span class="dep-tag">GET /api/analytics/model-accuracy</span>
+          <span class="dep-tag">@/utils/logger</span>
+        </div>
+        <div class="updated"><strong>June 2026:</strong> New component. Reads from the <code>prediction_records</code> analytics table (see Database docs). The endpoint enforces a 30-sample minimum across horizons before transitioning out of <code>insufficient_data</code> mode; the response also includes <code>last_resolved_at</code>, which is rendered in the header as "Updated {date}".</div>
       </div>
 
       <div class="comp-card">
@@ -537,16 +557,18 @@ interface CardActionHandlers {
           <div><div class="comp-name">GpsTooltip</div><div class="comp-file">src/app/components/cards/GpsTooltip.tsx</div></div>
           <span class="badge badge-client">Client</span>
         </div>
-        <div class="comp-desc">Small inline button rendered next to GPS score displays on stock cards. On click, opens <code>GpsBreakdownModal</code> passing the breakdown data. Updated May 2026: the trigger was changed from a circled-i icon (&#9432;) to a text button labeled <strong>"View score"</strong> for improved accessibility and clarity.</div>
+        <div class="comp-desc">Small inline button rendered next to GPS score displays on stock cards. On click, opens <code>GpsBreakdownModal</code> passing the breakdown data. Updated May 2026: the trigger was changed from a circled-i icon (&#9432;) to a text button labeled <strong>"View score"</strong> for improved accessibility and clarity. Forwards the optional <code>horizon</code> prop straight through to the modal so the ML Prediction row label matches the horizon the <code>mlpUpside</code> component was actually computed for.</div>
         <table class="props-table">
           <thead><tr><th>Prop</th><th>Type</th><th>Required</th></tr></thead>
           <tbody>
             <tr><td><code>score</code></td><td>number | null</td><td><span class="required">required</span></td></tr>
             <tr><td><code>breakdown</code></td><td>any | null</td><td><span class="required">required</span></td></tr>
             <tr><td><code>symbol</code></td><td>string</td><td><span class="required">required</span></td></tr>
+            <tr><td><code>horizon</code></td><td>'1_week' | '1_month' | '6_month' | '1_year'</td><td><span class="optional">optional</span></td></tr>
           </tbody>
         </table>
         <div class="dep-list"><span class="dep-tag">GpsBreakdownModal</span></div>
+        <div class="updated"><strong>June 2026:</strong> Added <code>horizon</code> prop. Callers that drive cards from a user's selected investment timeframe (portfolio, watchlist, ETF holdings) now pass it so the modal's ML Prediction row matches the horizon the breakdown was scored against.</div>
       </div>
 
       <div class="comp-card">
@@ -647,18 +669,21 @@ interface CardActionHandlers {
           <div><div class="comp-name">GpsBreakdownModal</div><div class="comp-file">src/app/components/modals/GpsBreakdownModal.tsx</div></div>
           <span class="badge badge-client">Client</span><span class="badge badge-modal">Modal</span>
         </div>
-        <div class="comp-desc">Full-screen overlay (GPS v3.0) that details how a stock's GPS score was calculated. Displays all <strong>8 component scores</strong> in a list format — ML Prediction (1m), AI Confidence, Revenue Growth, Earnings Growth, Technical Signal, Analyst Upside, Analyst Consensus, and 52-Week Momentum — each shown as "X.X / MAX". The Analyst Consensus row also shows the decoded label (e.g., "Strong Buy") derived from the numeric points value. Summary footer is color-coded by score band: green (&ge;65), amber (45–64), red (&lt;45). Backdrop click or the close button dismisses the modal. The ticker heading uses an inline <code>color: '#fff'</code> style to override a global CSS rule.</div>
+        <div class="comp-desc">Full-screen overlay (GPS v3.0) that details how a stock's GPS score was calculated. Displays all <strong>8 component scores</strong> in a list format — ML Prediction (with horizon-aware label, e.g. "ML Prediction (1w)" / "(1m)" / "(6m)" / "(1y)"), AI Confidence, Revenue Growth, Earnings Growth, Technical Signal, Analyst Upside, Analyst Consensus, and 52-Week Momentum — each shown as "X.X / MAX". The Analyst Consensus row also shows the decoded label (e.g., "Strong Buy") derived from the numeric points value. Summary footer is color-coded by score band: green (&ge;65), amber (45–64), red (&lt;45). Backdrop click or the close button dismisses the modal. The ticker heading uses an inline <code>color: '#fff'</code> style to override a global CSS rule.</div>
         <table class="props-table">
           <thead><tr><th>Prop</th><th>Type</th><th>Required</th></tr></thead>
           <tbody>
             <tr><td><code>isOpen</code></td><td>boolean</td><td><span class="required">required</span></td></tr>
             <tr><td><code>onClose</code></td><td>() =&gt; void</td><td><span class="required">required</span></td></tr>
             <tr><td><code>symbol</code></td><td>string</td><td><span class="required">required</span></td></tr>
+            <tr><td><code>company</code></td><td>string</td><td><span class="optional">optional</span></td></tr>
             <tr><td><code>score</code></td><td>number | null</td><td><span class="required">required</span></td></tr>
             <tr><td><code>breakdown</code></td><td>GpsBreakdown | null</td><td><span class="required">required</span></td></tr>
+            <tr><td><code>horizon</code></td><td>'1_week' | '1_month' | '6_month' | '1_year'</td><td><span class="optional">optional</span> — defaults to <code>'1_month'</code></td></tr>
           </tbody>
         </table>
         <div class="note">GPS v3.0 — 8 components, 100 points: mlpUpside (20), mlpConfidence (5), revenueGrowth (12), earningsGrowth (12), technicalSignal (20), analystUpside (12), analystConsensus (9), priceChange52w (10). When breakdown is null, the modal shows only the numeric score.</div>
+        <div class="updated"><strong>June 2026:</strong> Added optional <code>horizon</code> prop. An internal <code>HORIZON_LABEL</code> map translates each horizon key to a short suffix ("1w" / "1m" / "6m" / "1y") that is rendered into the ML Prediction row label. Defaults to <code>'1_month'</code> for backward compatibility with callers that don't pass the prop.</div>
       </div>
 
       <div class="comp-card">
@@ -781,6 +806,7 @@ interface CardActionHandlers {
           <span class="dep-tag">GET /api/stock_data/[ticker]/data</span>
           <span class="dep-tag">POST /api/prediction/[ticker]</span>
         </div>
+        <div class="note">Prediction analytics (writes to <code>prediction_records</code>) are performed fire-and-forget by the <code>POST /api/prediction/[ticker]</code> route handler via <code>recordPrediction()</code> in <code>src/utils/predictionRecorder.ts</code>. The <code>StockPrediction</code> component itself does not call the recorder.</div>
       </div>
 
       <div class="comp-card">
@@ -945,8 +971,18 @@ interface CardActionHandlers {
           <div><div class="comp-name">Profile</div><div class="comp-file">src/app/components/Profile.tsx</div></div>
           <span class="badge badge-client">Client</span><span class="badge badge-auth">Auth-aware</span>
         </div>
-        <div class="comp-desc">User profile page component. Fetches <code>GET /api/user/profile</code> on mount. Displays: avatar with user initials, account type badge, and for non-admin users: daily lookup count, portfolio item count, and watchlist item count.</div>
-        <div class="dep-list"><span class="dep-tag">GET /api/user/profile</span></div>
+        <div class="comp-desc">User profile page component. Fetches <code>GET /api/user/profile</code> on mount. Displays: avatar with user initials, account type badge, and for non-admin users: total lookup count, portfolio item count, and watchlist item count. Now also surfaces two Investment Strategy controls bound to <code>user_investment_strategy</code>:
+          <ul style="margin: .35rem 0 .35rem 1.25rem; list-style: disc;">
+            <li><strong>Aggressiveness</strong> — a <code>&lt;select&gt;</code> with <code>safe</code> / <code>neutral</code> / <code>aggressive</code> options, each with a hint string explaining the effect on confidence floor, beta tolerance, GPS gate, and env-floor multiplier. Saved via a dedicated "Save Strategy" button (transactional PATCH). The Save button is disabled until <code>aggressiveness</code> differs from the originally-loaded value.</li>
+            <li><strong>Investment Timeframe</strong> — four pill buttons (1 Week / 1 Month / 6 Month / 1 Year). Selecting a pill performs an <strong>optimistic PATCH</strong>: local state updates immediately, then a request is fired to <code>PATCH /api/user/profile</code> with only <code>{ investment_timeframe }</code>; on failure the previous pill is restored. A hint string under the pills describes the active timeframe's ML-gate threshold.</li>
+          </ul>
+        </div>
+        <div class="dep-list">
+          <span class="dep-tag">GET /api/user/profile</span>
+          <span class="dep-tag">PATCH /api/user/profile</span>
+          <span class="dep-tag">types/api · ProfileResponse, ProfileStrategy</span>
+        </div>
+        <div class="updated"><strong>June 2026:</strong> Strategy controls added. The pill-based timeframe uses optimistic update with rollback on save failure; the aggressiveness dropdown uses an explicit Save button so the user can preview the hint before committing. The route handler accepts either field individually or both inside a <code>{ strategy: {...} }</code> envelope.</div>
       </div>
     </div>
 
@@ -958,11 +994,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const nav = document.querySelector('.top-bar-nav');
   const leftBtns = document.querySelectorAll('.nav-scroll-left');
   const rightBtns = document.querySelectorAll('.nav-scroll-right');
-  
+
   if (!nav || leftBtns.length === 0 || rightBtns.length === 0) return;
-  
+
   const scrollAmount = 150;
-  
+
   function checkScroll() {
     // Show/hide left button
     if (nav.scrollLeft > 0) {
@@ -970,7 +1006,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       leftBtns.forEach(btn => btn.style.visibility = 'hidden');
     }
-    
+
     // Show/hide right button
     const hasRightScroll = nav.scrollLeft < nav.scrollWidth - nav.clientWidth - 10;
     if (hasRightScroll) {
@@ -979,24 +1015,24 @@ document.addEventListener('DOMContentLoaded', () => {
       rightBtns.forEach(btn => btn.style.visibility = 'hidden');
     }
   }
-  
+
   leftBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       nav.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
       setTimeout(checkScroll, 100);
     });
   });
-  
+
   rightBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       nav.scrollBy({ left: scrollAmount, behavior: 'smooth' });
       setTimeout(checkScroll, 100);
     });
   });
-  
+
   nav.addEventListener('scroll', checkScroll);
   window.addEventListener('resize', checkScroll);
-  
+
   // Initial check
   setTimeout(checkScroll, 100);
 });

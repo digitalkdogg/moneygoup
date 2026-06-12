@@ -23,14 +23,14 @@
             margin: 0;
         }
         main {
-            
+
             padding: 3rem;
             max-width: 1000px;
             width: 100%;
         }
         h1 { color: var(--primary-dark); border-bottom: 2px solid var(--primary); padding-bottom: 0.5rem; }
         h2 { color: var(--primary); margin-top: 3rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
-        
+
         .metric-card {
             background: white;
             border: 1px solid var(--border);
@@ -49,7 +49,7 @@
         }
         .weight-positive { background: #dcfce7; color: #166534; }
         .weight-negative { background: #fee2e2; color: #991b1b; }
-        
+
         .formula {
             background: #f1f5f9;
             padding: 1rem;
@@ -71,7 +71,7 @@
             border-bottom: 1px solid var(--border);
         }
         .summary-table th { background: #f8fafc; color: #64748b; font-size: 0.8rem; text-transform: uppercase; }
-    
+
     /* ── Top Bar ── */
     .top-bar { background: #017e3b; color: #fff; padding: 0 2rem; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.25); position: relative;}
     .top-bar-header { display: flex; align-items: center; justify-content: space-between; height: 56px; }
@@ -96,7 +96,7 @@
         .nav-scroll-controls:last-of-type { right: 0; }
         .nav-scroll-btn { background: rgba(0,0,0,0.1); border: none; color: #475569; cursor: pointer; font-size: 1.5rem; padding: 0.5rem 0.25rem; border-radius: 4px; transition: background .15s, color .15s; line-height: 1; }
         .nav-scroll-btn:hover { background: rgba(0,0,0,0.15); color: #1e293b; }
-        
+
         </style>
 </head>
 <body>
@@ -106,7 +106,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Technical Indicators Guide</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Generated 2026-05-20</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-12</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -303,7 +303,7 @@
             <h2>DeepMoney GPS Score (Individual Stocks)</h2>
             <p>The <strong>GPS Score (Global Performance Score)</strong> is a proprietary metric used in DeepMoney analysis to evaluate a stock's total potential. It is calculated on a scale of 0 to 100 based on fundamental growth and AI price forecasting.</p>
             <p style="font-size: 0.8rem; font-style: italic; color: #64748b; margin-bottom: 1.5rem; border-bottom: 1px dashed var(--border); padding-bottom: 0.5rem;">* These calculation metrics are applied identically in both the <code>deepmoney_sync</code> discovery engine and the <code>update_predictions</code> portfolio maintenance script.</p>
-            
+
             <div class="metric-card">
                 <h3>1. Core Components <span class="score-badge weight-positive">Up to 19 pts each</span></h3>
                 <p>The base score is built from six specific metrics (five at 19 pts, one at 5 pts), each scaled against a target benchmark:</p>
@@ -360,7 +360,7 @@
         <section id="etf-gps">
             <h2>ETF GPS Scoring Methodology</h2>
             <p>Unlike individual stocks, ETFs are scored using a <strong>Growth, Performance, and Sentiment (GPS)</strong> model tuned for fund-level characteristics. The total score is out of 100.</p>
-            
+
             <div class="metric-card">
                 <h3>Core Score Components (Weights)</h3>
                 <ul>
@@ -396,11 +396,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const nav = document.querySelector('.top-bar-nav');
   const leftBtns = document.querySelectorAll('.nav-scroll-left');
   const rightBtns = document.querySelectorAll('.nav-scroll-right');
-  
+
   if (!nav || leftBtns.length === 0 || rightBtns.length === 0) return;
-  
+
   const scrollAmount = 150;
-  
+
   function checkScroll() {
     // Show/hide left button
     if (nav.scrollLeft > 0) {
@@ -408,7 +408,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       leftBtns.forEach(btn => btn.style.visibility = 'hidden');
     }
-    
+
     // Show/hide right button
     const hasRightScroll = nav.scrollLeft < nav.scrollWidth - nav.clientWidth - 10;
     if (hasRightScroll) {
@@ -417,24 +417,24 @@ document.addEventListener('DOMContentLoaded', () => {
       rightBtns.forEach(btn => btn.style.visibility = 'hidden');
     }
   }
-  
+
   leftBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       nav.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
       setTimeout(checkScroll, 100);
     });
   });
-  
+
   rightBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       nav.scrollBy({ left: scrollAmount, behavior: 'smooth' });
       setTimeout(checkScroll, 100);
     });
   });
-  
+
   nav.addEventListener('scroll', checkScroll);
   window.addEventListener('resize', checkScroll);
-  
+
   // Initial check
   setTimeout(checkScroll, 100);
 });
