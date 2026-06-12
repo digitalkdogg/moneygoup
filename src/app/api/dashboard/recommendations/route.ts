@@ -93,13 +93,19 @@ export async function GET(request: NextRequest) {
 
     const predictions = rows as Record<string, unknown>[];
 
-    // 1b. Fetch ETF holding recommendations (last 7 days)
+    // 1b. Fetch ETF holding recommendations from the latest snapshot only.
+    // Mirrors the deepmoney-picks pattern: rows accumulate across update_predictions.py
+    // runs, but we only ever surface the most recent one to avoid mixing stale picks
+    // from prior days with the current set.
     const [etfRecRows] = await executeRawQuery(
       `SELECT stock_ticker, etf_ticker, gps_score, predicted_change_pct, confidence_score, created_at
        FROM etf_stock_recommendations
-       WHERE user_id = ? AND created_at >= NOW() - INTERVAL 7 DAY
+       WHERE user_id = ?
+         AND snapshot_date = (
+           SELECT MAX(snapshot_date) FROM etf_stock_recommendations WHERE user_id = ?
+         )
        ORDER BY gps_score DESC`,
-      [userId]
+      [userId, userId]
     );
     const etfRecs = etfRecRows as Record<string, unknown>[];
 
