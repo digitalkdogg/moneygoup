@@ -37,6 +37,7 @@ export interface PortfolioCard extends CardBase {
   gpsHorizon?: '1_week' | '1_month' | '6_month' | '1_year'
   topAccentColor?: string
   predictedPrice1m?: number | null // Added predictedPrice1m
+  fiftyTwoWeekHigh?: number | null
 }
 
 export interface WatchlistCard extends CardBase {

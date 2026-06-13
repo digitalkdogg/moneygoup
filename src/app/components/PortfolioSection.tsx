@@ -66,6 +66,7 @@ export default function PortfolioSection({ portfolio, onRefresh }: PortfolioSect
       gpsHorizon: (item as any).gpsHorizon,
       topAccentColor: item.brand_color || '#017e3b',
       predictedPrice1m,
+      fiftyTwoWeekHigh: (item as any).fiftyTwoWeekHigh ?? null,
     };
   };
 

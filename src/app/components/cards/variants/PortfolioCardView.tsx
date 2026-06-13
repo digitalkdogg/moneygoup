@@ -12,8 +12,30 @@ interface PortfolioCardViewProps {
   actions?: CardActionHandlers
 }
 
+// Downside-flag tuning. Goal: cut false alarms on mildly-negative predictions,
+// especially near 52-week highs where the model tends to mean-revert.
+const DOWNSIDE_MILD_PCT = -3   // anything >= -3% is treated as noise
+const DOWNSIDE_STRONG_PCT = -6 // <= -6% always flags, regardless of context
+const NEAR_52W_HIGH_RATIO = 0.95 // within 5% of 52w high
+
+const shouldFlagDownside = (
+  predictionChange: number | null,
+  currentPrice: number | null,
+  fiftyTwoWeekHigh: number | null | undefined
+): boolean => {
+  if (predictionChange == null) return false
+  if (predictionChange >= DOWNSIDE_MILD_PCT) return false
+  if (predictionChange <= DOWNSIDE_STRONG_PCT) return true
+  // Moderate range: suppress if stock is near its 52-week high
+  if (currentPrice != null && fiftyTwoWeekHigh != null && fiftyTwoWeekHigh > 0) {
+    if (currentPrice / fiftyTwoWeekHigh >= NEAR_52W_HIGH_RATIO) return false
+  }
+  return true
+}
+
 export const PortfolioCardView: React.FC<PortfolioCardViewProps> = ({ card, actions }) => {
   const predictionChange = calculatePredictionChange(card.price, card.predictedPrice1m ?? null)
+  const showDownsideFlag = shouldFlagDownside(predictionChange, card.price, card.fiftyTwoWeekHigh)
   // Per-share daily dollar change for the header display
   const perShareChange = card.changeAmount != null && card.sharesHeld
     ? card.changeAmount / card.sharesHeld
@@ -91,8 +113,8 @@ export const PortfolioCardView: React.FC<PortfolioCardViewProps> = ({ card, acti
         </div>
       </div>
 
-      <CardActions justify={predictionChange != null && predictionChange < 0 ? 'between' : 'end'} compact>
-        {predictionChange != null && predictionChange < 0 && (
+      <CardActions justify={showDownsideFlag ? 'between' : 'end'} compact>
+        {showDownsideFlag && (
           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-red-50 border border-red-200 text-red-600 text-[11px] font-semibold leading-tight whitespace-nowrap">
             <svg className="w-3 h-3 shrink-0" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
               <path d="M6 1L1 10h10L6 1z" fillOpacity="0" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>

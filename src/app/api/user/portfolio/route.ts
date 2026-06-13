@@ -161,7 +161,8 @@ export async function GET(request: NextRequest) {
             gpsBreakdown: perUserGpsBreakdown,
             gpsHorizon: userStrategy.investment_timeframe,
             sector: (summary as any)?.assetProfile?.sector || null,
-            is_etf: (quoteResult as any)?.quoteType?.toUpperCase() === 'ETF'
+            is_etf: (quoteResult as any)?.quoteType?.toUpperCase() === 'ETF',
+            fiftyTwoWeekHigh: (quoteResult as any)?.fiftyTwoWeekHigh ?? null
           };
         } catch (dataError) {
           logger.error(`Error fetching data for ${item.symbol}:`, { error: dataError as Error });
