@@ -13,9 +13,10 @@ interface WatchlistItem {
 interface PurchaseFromWatchlistModalProps {
   stock: WatchlistItem;
   onClose: () => void;
+  onPurchased?: (stockId: number) => void;
 }
 
-export default function PurchaseFromWatchlistModal({ stock, onClose }: PurchaseFromWatchlistModalProps) {
+export default function PurchaseFromWatchlistModal({ stock, onClose, onPurchased }: PurchaseFromWatchlistModalProps) {
   const [shares, setShares] = useState<string>('1');
   const [price, setPrice] = useState<string>('');
   const [loading, setLoading] = useState(false);
@@ -56,6 +57,7 @@ export default function PurchaseFromWatchlistModal({ stock, onClose }: PurchaseF
         throw new Error(data.message || 'Failed to purchase stock');
       }
 
+      onPurchased?.(stock.stock_id);
       onClose();
     } catch (err: any) {
       setError(err.message);

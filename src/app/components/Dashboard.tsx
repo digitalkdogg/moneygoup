@@ -90,9 +90,10 @@ export default function Dashboard() {
   const router = useRouter();
 
 
-  // NEW: Fetch portfolio data
-  const fetchPortfolioData = useCallback(async () => {
-    setLoadingPortfolio(true);
+  // NEW: Fetch portfolio data. `silent` skips the loading spinner so background
+  // refreshes (e.g. brand-color polling after a purchase) don't unmount children.
+  const fetchPortfolioData = useCallback(async (opts?: { silent?: boolean }): Promise<PortfolioItem[] | null> => {
+    if (!opts?.silent) setLoadingPortfolio(true);
     setPortfolioError(null);
     try {
       const res = await fetch(`/api/user/portfolio?_=${new Date().getTime()}`);
@@ -108,12 +109,29 @@ export default function Dashboard() {
         prev_close: typeof item.prev_close === 'number' ? item.prev_close : null,
       }));
       setPortfolio(fetchedPortfolio);
+      return fetchedPortfolio;
     } catch (err) {
       setPortfolioError(err instanceof Error ? err.message : 'An unknown error occurred while fetching portfolio');
+      return null;
     } finally {
-      setLoadingPortfolio(false);
+      if (!opts?.silent) setLoadingPortfolio(false);
     }
   }, []); // Empty dependency array as it doesn't depend on any props or state from Dashboard directly
+
+  // After a purchase, the brand-color script runs in the background on the
+  // server. Poll silently until brand_color is present for the new stock,
+  // then stop. Runs from Dashboard so it survives WatchlistSection remounts.
+  const pollForBrandUpdate = useCallback(async (stockId: number) => {
+    const maxAttempts = 8;
+    const delayMs = 2000;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      await new Promise(r => setTimeout(r, delayMs));
+      const fresh = await fetchPortfolioData({ silent: true });
+      if (!fresh) continue;
+      const stock = fresh.find(p => p.stock_id === stockId);
+      if (stock?.brand_color) return;
+    }
+  }, [fetchPortfolioData]);
 
   useEffect(() => {
     fetchPortfolioData(); // Fetch portfolio data when component mounts
@@ -209,7 +227,7 @@ export default function Dashboard() {
               <ModelAccuracyWidget />
             </div>
             <div className="mt-10">
-              <WatchlistSection onRefresh={fetchPortfolioData} />
+              <WatchlistSection onRefresh={fetchPortfolioData} onPurchased={pollForBrandUpdate} />
             </div>
           </div>
         </div>

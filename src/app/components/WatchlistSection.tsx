@@ -29,9 +29,10 @@ interface WatchlistItem {
 
 interface WatchlistSectionProps {
   onRefresh?: () => void;
+  onPurchased?: (stockId: number) => void;
 }
 
-export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
+export default function WatchlistSection({ onRefresh, onPurchased }: WatchlistSectionProps) {
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -121,6 +122,7 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
     onRefresh?.();
   };
 
+
   const mapWatchlistToCardModel = (item: WatchlistItem): WatchlistCard => {
     const { regularMarketPrice, prev_close, ma6_month } = item;
     const pctChange = prev_close ? ((regularMarketPrice - prev_close) / prev_close) * 100 : null;
@@ -195,7 +197,11 @@ export default function WatchlistSection({ onRefresh }: WatchlistSectionProps) {
       />
 
       {showPurchaseModal && selectedStock && (
-        <PurchaseFromWatchlistModal stock={selectedStock} onClose={handleModalClose} />
+        <PurchaseFromWatchlistModal
+          stock={selectedStock}
+          onClose={handleModalClose}
+          onPurchased={onPurchased}
+        />
       )}
 
       {pendingDeleteTicker && (

@@ -139,14 +139,15 @@ export const POST = validate(purchaseStockSchema)(
         [userId, stock_id, shares, purchase_price, shares * purchase_price]
       );
 
-      const brandEnrichment = await enrichStockBrand(stock_id);
+      // Fire-and-forget: the brand-color script can take several seconds to
+      // hit the website + Wikidata, and the client doesn't read its result
+      // from this response. Run it without blocking the HTTP reply.
+      void enrichStockBrand(stock_id).catch((error) => {
+        logger.warn('Background brand enrichment failed', { stockId: stock_id, error });
+      });
 
       return NextResponse.json(
-        {
-          message: 'Stock purchased successfully',
-          brandColor: brandEnrichment?.brandColor ?? null,
-          brandColorSource: brandEnrichment?.source ?? null,
-        },
+        { message: 'Stock purchased successfully' },
         { status: 201 },
       );
     } catch (error: any) {
