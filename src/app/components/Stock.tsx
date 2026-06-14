@@ -14,6 +14,7 @@ import StockSignalPanel, { GpsData } from './StockSignalPanel'
 import SymbolAccuracyIndicator from './SymbolAccuracyIndicator'
 import BuyMoreModal from './modals/BuyMoreModal'
 import SellModal from './modals/SellModal'
+import PurchaseFromWatchlistModal from './modals/PurchaseFromWatchlistModal'
 import { formatNumber, formatCurrency } from '@/utils/formatters' // Added import
 
 const logger = createLogger('components/Stock')
@@ -127,7 +128,9 @@ export default function Stock({
   const [watchlistStatus, setWatchlistStatus] = useState<Record<string, boolean>>({})
   const [portfolioStatus, setPortfolioStatus] = useState<Record<string, boolean>>({})
   const [portfolioData, setPortfolioData] = useState<Record<string, { stockId: number | null; shares: number; purchaseDate: string | null; purchasePrice: number }>>({})
+  const [watchlistData, setWatchlistData] = useState<Record<string, { addedDate: string | null; priceAdded: number }>>({})
   const [manageAction, setManageAction] = useState<'buy' | 'sell' | null>(null)
+  const [showBuyFromWatchlist, setShowBuyFromWatchlist] = useState(false)
   const [earningsData, setEarningsData] = useState<EarningsData | null>(null);
   const [showFullSummary, setShowFullSummary] = useState(false); // State for showing full summary
   const TRUNCATE_LENGTH = 300; // Define truncation length
@@ -196,17 +199,19 @@ export default function Stock({
       if (isSingleTicker) {
         const watchlistRes = await fetch(`/api/dashboard/on?ticker=${primaryTicker}`);
         if (watchlistRes.ok) {
-          const { stockId, onWatchlist, onPortfolio, shares, purchaseDate, purchasePrice } = await watchlistRes.json();
+          const { stockId, onWatchlist, onPortfolio, shares, purchaseDate, purchasePrice, watchlistAddedDate, watchlistPriceAdded } = await watchlistRes.json();
           // If stock is in portfolio, treat it as on watchlist
           const effectiveWatchlistStatus = onWatchlist || onPortfolio;
           setWatchlistStatus({ [primaryTicker]: effectiveWatchlistStatus });
           setPortfolioStatus({ [primaryTicker]: onPortfolio });
           setPortfolioData({ [primaryTicker]: { stockId: stockId ?? null, shares, purchaseDate, purchasePrice } });
+          setWatchlistData({ [primaryTicker]: { addedDate: watchlistAddedDate ?? null, priceAdded: Number(watchlistPriceAdded) || 0 } });
         } else {
           logger.error('Failed to fetch single stock watchlist status');
           setWatchlistStatus({ [primaryTicker]: false });
           setPortfolioStatus({ [primaryTicker]: false });
           setPortfolioData({ [primaryTicker]: { stockId: null, shares: 0, purchaseDate: null, purchasePrice: 0 } });
+          setWatchlistData({ [primaryTicker]: { addedDate: null, priceAdded: 0 } });
         }
       } else {
         const watchlistCheckRes = await fetch('/api/user/watchlist');
@@ -503,8 +508,11 @@ export default function Stock({
 
     return (
       <div className="container mx-auto px-0 py-8 max-w-6xl">
+        {/* Title card — sector tag + name. When the ticker is neither in
+            portfolio nor on watchlist, the add-to-watchlist button sits here.
+            Portfolio/watchlist state is conveyed by their own dedicated
+            sections below. */}
         <div className="relative bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8 pt-10">
-          {/* Industry / ETF corner tag */}
           {(() => {
             const isEtf = stockData.quoteType?.toUpperCase() === 'ETF'
             const label = isEtf ? 'ETF' : stockData.industry || stockData.sector || null
@@ -515,41 +523,32 @@ export default function Stock({
               </span>
             )
           })()}
-          {/* Company Title */}
           <div className="flex flex-col mb-4 text-center items-center gap-4">
             <h1 className="text-3xl font-bold text-gray-800">
               {stockData.name} ({stockData.symbol})
             </h1>
-            {/* Watchlist Status/Button and Portfolio Badge */}
-            <div className="flex gap-3 items-center">
-              {portfolioStatus[primaryTicker] ? (
-                <div className="px-3 py-2 bg-gray-100 border border-gray-300 rounded-md text-gray-700 font-medium flex items-center gap-2">
-                  <span>📊</span>
-                  <span>In Portfolio</span>
-                </div>
-              ) : watchlistStatus[primaryTicker] ? (
-                <button
-                  onClick={() => handleWatchlistToggle(primaryTicker)}
-                  disabled={addingToWatchlist}
-                  className="px-4 py-2 rounded-md text-white hover:opacity-90 disabled:opacity-50 border bg-[#017e3b] border-[#017e3b]"
-                >
-                  {addingToWatchlist ? 'Updating...' : 'Remove from Watchlist'}
-                </button>
-              ) : (
-                <button
-                  onClick={() => handleWatchlistToggle(primaryTicker)}
-                  disabled={addingToWatchlist}
-                  className="px-4 py-2 rounded-md text-white hover:opacity-90 disabled:opacity-50 bg-[#017e3b]"
-                >
-                  {addingToWatchlist ? 'Adding...' : 'Add to Watchlist'}
-                </button>
-              )}
-            </div>
+            {!portfolioStatus[primaryTicker] && !watchlistStatus[primaryTicker] && (
+              <button
+                onClick={() => handleWatchlistToggle(primaryTicker)}
+                disabled={addingToWatchlist}
+                className="px-4 py-2 rounded-md text-white hover:opacity-90 disabled:opacity-50 bg-[#017e3b]"
+              >
+                {addingToWatchlist ? 'Adding...' : 'Add to Watchlist'}
+              </button>
+            )}
           </div>
+          {watchlistSuccess && (
+            <p className="mt-2 text-center text-[#005a00]">{watchlistSuccess}</p>
+          )}
+          {watchlistError && (
+            <p className="text-red-600 mt-2 text-center">{watchlistError}</p>
+          )}
+        </div>
 
-          {/* Company Description */}
+        {/* Overview card — company summary + key stats */}
+        <div className="relative bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8 pt-10">
           {stockData.longBusinessSummary && (
-            <div className="mb-6"> {/* Added mb-6 for spacing */}
+            <div className="mb-6">
               <h2 className="section-heading">Company Overview</h2>
               <div className="text-gray-700 leading-relaxed">
                 {showFullSummary || stockData.longBusinessSummary.length <= TRUNCATE_LENGTH
@@ -567,7 +566,6 @@ export default function Stock({
             </div>
           )}
 
-          {/* Stock Info Grid */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
             <div className="p-4 bg-[#f7f8f6] rounded-lg border border-[#e9ede8]">
               <p className="text-sm text-gray-500">Last Price</p>
@@ -616,13 +614,7 @@ export default function Stock({
               <p className="text-2xl font-bold text-gray-800">{stockData.marketCap ? formatNumber(stockData.marketCap / 1_000_000_000) + 'B' : 'N/A'}</p>
             </div>
           </div>
-          {watchlistSuccess && (
-            <p className="mt-2 text-center text-[#005a00]">{watchlistSuccess}</p>
-          )}
-          {watchlistError && (
-            <p className="text-red-600 mt-2 text-center">{watchlistError}</p>
-          )}
-          </div>
+        </div>
 
           {/* Portfolio Position Section */}
           {portfolioStatus[primaryTicker] && portfolioData[primaryTicker] && portfolioData[primaryTicker].shares > 0 && (() => {
@@ -736,6 +728,136 @@ export default function Stock({
               </div>
             )
           })()}
+
+          {/* Your Watchlist Section — shown when ticker is on watchlist but NOT yet in portfolio */}
+          {!portfolioStatus[primaryTicker] && watchlistStatus[primaryTicker] && (() => {
+            const wl = watchlistData[primaryTicker] ?? { addedDate: null, priceAdded: 0 }
+            const stockId = portfolioData[primaryTicker]?.stockId ?? null
+            const hasPriceAdded = wl.priceAdded > 0
+            const changeDollar = hasPriceAdded ? currentPrice - wl.priceAdded : null
+            const changePct = hasPriceAdded && wl.priceAdded > 0
+              ? ((currentPrice - wl.priceAdded) / wl.priceAdded) * 100
+              : null
+            const changePositive = changeDollar != null && changeDollar >= 0
+            const changeColor = changeDollar == null
+              ? 'text-gray-400'
+              : changePositive ? 'text-green-700' : 'text-red-600'
+
+            const daysSince = wl.addedDate
+              ? Math.max(0, Math.floor((Date.now() - new Date(wl.addedDate).getTime()) / 86_400_000))
+              : null
+
+            return (
+              <div className="bg-white rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] border border-gray-100 mb-8 p-8 pb-7">
+                <h2 className="section-heading">Your Watchlist</h2>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
+                  <div className="bg-[#f7f8f6] rounded-lg px-4 pt-3.5 pb-4">
+                    <p className="text-[10px] font-bold tracking-[0.09em] text-gray-500 uppercase mb-2">Added to Watchlist</p>
+                    <p className="text-xl font-bold text-gray-900 leading-tight mb-1">
+                      {wl.addedDate ? formatDate(wl.addedDate) : '—'}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {daysSince != null
+                        ? daysSince === 0 ? 'Today' : daysSince === 1 ? '1 day ago' : `${daysSince} days ago`
+                        : ' '}
+                    </p>
+                  </div>
+
+                  <div className="bg-[#f7f8f6] rounded-lg px-4 pt-3.5 pb-4">
+                    <p className="text-[10px] font-bold tracking-[0.09em] text-gray-500 uppercase mb-2">Price When Added</p>
+                    {hasPriceAdded ? (
+                      <>
+                        <p className="text-xl font-bold text-gray-900 leading-tight mb-1">{formatCurrency(wl.priceAdded)}</p>
+                        {changeDollar != null && (
+                          <p className={`text-xs ${changeColor}`}>
+                            {changePositive ? '+' : ''}{formatCurrency(changeDollar)} since added
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-xl font-bold text-gray-400 leading-tight mb-1">—</p>
+                        <p className="text-xs text-gray-500">Not recorded</p>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="bg-[#f7f8f6] rounded-lg px-4 pt-3.5 pb-4">
+                    <p className="text-[10px] font-bold tracking-[0.09em] text-gray-500 uppercase mb-2">Change Since Added</p>
+                    {changePct != null ? (
+                      <>
+                        <p className={`text-xl font-bold leading-tight mb-1 ${changeColor}`}>
+                          {changePositive ? '+' : ''}{changePct.toFixed(2)}%
+                        </p>
+                        <p className={`text-xs ${changeColor}`}>
+                          {changePositive ? 'Unrealized gain' : 'Unrealized loss'}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-xl font-bold text-gray-400 leading-tight">—</p>
+                        <p className="text-xs text-gray-500">Needs entry price</p>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="h-px bg-gray-200 mb-5" />
+
+                <div className="flex flex-col sm:flex-row sm:items-center sm:flex-wrap gap-2.5">
+                  <span className="text-xs text-gray-500 font-medium sm:mr-1">Manage watchlist</span>
+                  <div className="flex items-center gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setShowBuyFromWatchlist(true)}
+                      disabled={stockId == null}
+                      className="inline-flex items-center gap-1.5 px-3 sm:px-5 py-2 rounded-md text-[13px] font-semibold whitespace-nowrap bg-green-700 text-white border-[1.5px] border-green-700 hover:bg-green-800 hover:border-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+                        <line x1="12" y1="5" x2="12" y2="19" strokeLinecap="round" />
+                        <line x1="5" y1="12" x2="19" y2="12" strokeLinecap="round" />
+                      </svg>
+                      Buy shares
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleWatchlistToggle(primaryTicker)}
+                      disabled={addingToWatchlist}
+                      className="inline-flex items-center gap-1.5 px-3 sm:px-5 py-2 rounded-md text-[13px] font-semibold whitespace-nowrap bg-white text-red-700 border-[1.5px] border-red-300 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+                        <polyline points="3 6 5 6 21 6" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M19 6l-1 14H6L5 6" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M10 11v6M14 11v6" strokeLinecap="round" />
+                        <path d="M9 6V4h6v2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      Remove
+                    </button>
+                  </div>
+                  {wl.addedDate && (
+                    <span className="text-[11px] text-gray-400 sm:ml-auto">
+                      Watching since {formatDate(wl.addedDate)}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )
+          })()}
+
+          {showBuyFromWatchlist && portfolioData[primaryTicker]?.stockId != null && (
+            <PurchaseFromWatchlistModal
+              stock={{
+                stock_id: portfolioData[primaryTicker]!.stockId as number,
+                symbol: primaryTicker,
+                company_name: stockDataMap[primaryTicker]?.stock?.name ?? primaryTicker,
+              }}
+              onClose={() => {
+                setShowBuyFromWatchlist(false)
+                fetchStockData(primaryTicker)
+              }}
+            />
+          )}
 
           {manageAction && portfolioData[primaryTicker]?.stockId != null && (
             (() => {

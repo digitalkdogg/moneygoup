@@ -42,11 +42,13 @@ export async function GET(request: NextRequest) {
     const query = `
       SELECT
         s.id AS stockId,
-        MAX(CASE WHEN us.is_purchased = 0 AND us.user_confirmed = 1 AND us.shares > 0 AND us.is_active = 1 THEN 1 ELSE 0 END) AS onWatchlist,
+        MAX(CASE WHEN us.is_purchased = 0 AND us.user_confirmed = 1 AND us.is_active = 1 THEN 1 ELSE 0 END) AS onWatchlist,
         MAX(CASE WHEN us.is_purchased = 1 AND us.shares > 0 AND us.is_active = 1 THEN 1 ELSE 0 END) AS onPortfolio,
         SUM(CASE WHEN us.is_purchased = 1 AND us.is_active = 1 THEN us.shares ELSE 0 END) AS shares,
         MIN(CASE WHEN us.is_purchased = 1 AND us.is_active = 1 THEN us.initial_purchase_date ELSE NULL END) AS purchaseDate,
-        MAX(CASE WHEN us.is_purchased = 1 AND us.is_active = 1 THEN us.purchase_price ELSE 0 END) AS purchasePrice
+        MAX(CASE WHEN us.is_purchased = 1 AND us.is_active = 1 THEN us.purchase_price ELSE 0 END) AS purchasePrice,
+        MIN(CASE WHEN us.is_purchased = 0 AND us.is_active = 1 THEN us.created_at ELSE NULL END) AS watchlistAddedDate,
+        MAX(CASE WHEN us.is_purchased = 0 AND us.is_active = 1 THEN us.purchase_price ELSE 0 END) AS watchlistPriceAdded
       FROM user_stocks us
       JOIN stocks s ON us.stock_id = s.id
       WHERE us.user_id = ? AND s.symbol = ?
@@ -54,7 +56,7 @@ export async function GET(request: NextRequest) {
     `;
     const [rows] = await executeRawQuery(query, [userId, normalizedTicker]);
 
-    const result = (rows as any[])[0] || { stockId: null, onWatchlist: 0, onPortfolio: 0, shares: 0, purchaseDate: null, purchasePrice: 0 };
+    const result = (rows as any[])[0] || { stockId: null, onWatchlist: 0, onPortfolio: 0, shares: 0, purchaseDate: null, purchasePrice: 0, watchlistAddedDate: null, watchlistPriceAdded: 0 };
     const onWatchlist = result.onWatchlist === 1;
     const onPortfolio = result.onPortfolio === 1;
 
@@ -65,7 +67,9 @@ export async function GET(request: NextRequest) {
       onPortfolio,
       shares: result.shares || 0,
       purchaseDate: result.purchaseDate,
-      purchasePrice: result.purchasePrice || 0
+      purchasePrice: result.purchasePrice || 0,
+      watchlistAddedDate: result.watchlistAddedDate,
+      watchlistPriceAdded: Number(result.watchlistPriceAdded) || 0,
     });
 
   } catch (error) {

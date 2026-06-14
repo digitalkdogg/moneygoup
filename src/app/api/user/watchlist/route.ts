@@ -198,13 +198,27 @@ export const POST = validate(addStockSchema)(
         });
       }
 
+      // Capture the current market price so the search page can show
+      // "Price When Added" + "Change Since Added" for this watchlist entry.
+      // Failure here is non-fatal — we fall back to 0 and just hide those stats.
+      let priceWhenAdded = 0;
+      try {
+        const yahooFinanceModule = await import('yahoo-finance2');
+        const YahooFinance = yahooFinanceModule.default;
+        const yahooFinanceInstance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
+        const quote = await yahooFinanceInstance.quote(ticker.toUpperCase());
+        priceWhenAdded = Number((quote as any)?.regularMarketPrice) || 0;
+      } catch (priceError) {
+        logger.warn('Could not capture price-when-added for watchlist entry', { ticker, error: priceError });
+      }
+
       // 2. Add to user_stocks as a watchlist item (is_purchased = 0)
       await upsert('user_stocks', {
         user_id: userId,
         stock_id: stockId,
         is_purchased: 0, // Mark as watchlist item
         shares: 1, // Set 1 share to indicate watchlist interest (shares > 0)
-        purchase_price: 0, 
+        purchase_price: priceWhenAdded,
         user_confirmed: 1, // Mark as confirmed by user
         is_active: 1
       }, ['user_id', 'stock_id']); // Use upsert behavior for user_stocks
