@@ -1,16 +1,12 @@
 // src/app/components/PortfolioSection.tsx
 'use client';
 
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import BuyMoreModal from './modals/BuyMoreModal';
-import SellModal from './modals/SellModal';
 import StockCard from './cards/StockCard';
-import PortfolioSummary from './PortfolioSummary'; // Import here
 import { PortfolioCard } from './cards/types';
 import StockCardSection from './StockCardSection';
-import { formatNumber, formatCurrency, normalizeRecommendation } from '@/utils/formatters';
+import { normalizeRecommendation } from '@/utils/formatters';
 import { PortfolioItem } from '@/types/portfolio';
 
 interface PortfolioSectionProps {
@@ -18,26 +14,8 @@ interface PortfolioSectionProps {
   onRefresh: () => void;
 }
 
-export default function PortfolioSection({ portfolio, onRefresh }: PortfolioSectionProps) {
-  const [selectedStock, setSelectedStock] = useState<PortfolioItem | null>(null);
-  const [modalType, setModalType] = useState<'buy' | 'sell' | null>(null);
+export default function PortfolioSection({ portfolio }: PortfolioSectionProps) {
   const router = useRouter();
-
-  const handleBuyMore = (stock: PortfolioItem) => {
-    setSelectedStock(stock);
-    setModalType('buy');
-  };
-
-  const handleSell = (stock: PortfolioItem) => {
-    setSelectedStock(stock);
-    setModalType('sell');
-  };
-
-  const handleModalClose = () => {
-    setSelectedStock(null);
-    setModalType(null);
-    onRefresh();
-  };
 
   const mapPortfolioToCardModel = (item: PortfolioItem): PortfolioCard => {
     const { regularMarketPrice, prev_close, shares } = item;
@@ -67,45 +45,34 @@ export default function PortfolioSection({ portfolio, onRefresh }: PortfolioSect
       topAccentColor: item.brand_color || '#017e3b',
       predictedPrice1m,
       fiftyTwoWeekHigh: (item as any).fiftyTwoWeekHigh ?? null,
+      logo: (item as any).logo ?? null,
     };
   };
 
   return (
-    <>
-        <StockCardSection<PortfolioItem>
-            title=""
-            data={portfolio}
-            columns={3}
-            renderCard={(item) => (
-            <StockCard
-                card={mapPortfolioToCardModel(item)}
-                actions={{
-                onBuyMore: () => handleBuyMore(item),
-                onSell: () => handleSell(item),
-                onCardClick: (symbol) => router.push(`/search/${symbol}`)
-                }}
-            />
-            )}
-            loading={false}
-            error={null}
-            emptyMessage={
-              <span>
-                No stocks in your portfolio yet.{' '}
-                <Link href="/search" className="text-green-700 font-semibold underline hover:text-green-900">
-                  Search for stocks
-                </Link>
-                {' '}to get started!
-              </span>
-            }
+    <StockCardSection<PortfolioItem>
+      title=""
+      data={portfolio}
+      columns={3}
+      renderCard={(item) => (
+        <StockCard
+          card={mapPortfolioToCardModel(item)}
+          actions={{
+            onCardClick: (symbol) => router.push(`/search/${symbol}`),
+          }}
         />
-
-      {modalType === 'buy' && selectedStock && (
-        <BuyMoreModal stock={selectedStock} onClose={handleModalClose} />
       )}
-
-      {modalType === 'sell' && selectedStock && (
-        <SellModal stock={selectedStock} onClose={handleModalClose} />
-      )}
-    </>
+      loading={false}
+      error={null}
+      emptyMessage={
+        <span>
+          No stocks in your portfolio yet.{' '}
+          <Link href="/search" className="text-green-700 font-semibold underline hover:text-green-900">
+            Search for stocks
+          </Link>
+          {' '}to get started!
+        </span>
+      }
+    />
   );
 }

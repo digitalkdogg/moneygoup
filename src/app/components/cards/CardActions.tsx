@@ -61,7 +61,7 @@ export const CardActions: React.FC<CardActionsProps> = ({ children, compact, jus
   const justifyClass = justify === 'end' ? 'justify-end' : justify === 'between' ? 'justify-between' : ''
   return (
     <div
-      className={`flex items-center gap-2 mt-auto border-t border-gray-50 ${compact ? 'p-3' : 'p-5'} ${justifyClass}`}
+      className={`flex items-center gap-2 mt-auto border-t border-gray-50 ${compact ? 'px-3 pt-1 pb-3' : 'p-5'} ${justifyClass}`}
       onClick={(e) => e.stopPropagation()}
     >
       {children}

@@ -38,6 +38,7 @@ export interface PortfolioCard extends CardBase {
   topAccentColor?: string
   predictedPrice1m?: number | null // Added predictedPrice1m
   fiftyTwoWeekHigh?: number | null
+  logo?: string | null
 }
 
 export interface WatchlistCard extends CardBase {

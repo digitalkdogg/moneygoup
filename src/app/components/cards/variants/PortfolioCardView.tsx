@@ -2,10 +2,17 @@
 
 import React from 'react'
 import { PortfolioCard, CardActionHandlers } from '../types'
-import { CardHeader } from '../CardHeader'
-import { CardActions, ActionButton } from '../CardActions'
-import { formatPrice, formatShares, formatPercent, getPredictionColor, calculatePredictionChange } from '../formatters'
+import {
+  formatPrice,
+  formatShares,
+  formatPercent,
+  formatPriceChange,
+  getChangeColor,
+  getPredictionColor,
+  calculatePredictionChange,
+} from '../formatters'
 import { GpsTooltip } from '../GpsTooltip'
+import { BrandLogo } from '../BrandLogo'
 
 interface PortfolioCardViewProps {
   card: PortfolioCard
@@ -33,10 +40,9 @@ const shouldFlagDownside = (
   return true
 }
 
-export const PortfolioCardView: React.FC<PortfolioCardViewProps> = ({ card, actions }) => {
+export const PortfolioCardView: React.FC<PortfolioCardViewProps> = ({ card }) => {
   const predictionChange = calculatePredictionChange(card.price, card.predictedPrice1m ?? null)
   const showDownsideFlag = shouldFlagDownside(predictionChange, card.price, card.fiftyTwoWeekHigh)
-  // Per-share daily dollar change for the header display
   const perShareChange = card.changeAmount != null && card.sharesHeld
     ? card.changeAmount / card.sharesHeld
     : null
@@ -52,19 +58,37 @@ export const PortfolioCardView: React.FC<PortfolioCardViewProps> = ({ card, acti
       {card.topAccentColor && (
         <div style={{ backgroundColor: card.topAccentColor }} className="h-1 rounded-t-2xl" />
       )}
-      <CardHeader
-        symbol={card.symbol}
-        companyName={card.companyName}
-        changePercent={card.changePercent}
-        changeAmount={perShareChange}
-        price={card.price}
-        variant="portfolio"
-      />
 
-      <div className="mx-5 border-t border-gray-100" />
+      {/* Header: logo | symbol + name | price + change */}
+      <div className="flex items-start gap-3 px-4 pt-3 pb-2">
+        <BrandLogo
+          ticker={card.symbol}
+          logoSvg={card.logo}
+          brandColor={card.topAccentColor}
+          size={40}
+        />
+        <div className="flex-1 min-w-0">
+          <div className="text-xl font-bold text-gray-900 leading-none">{card.symbol}</div>
+          <div className="text-xs text-gray-500 font-medium mt-1 truncate">
+            {card.companyName}
+          </div>
+        </div>
+        <div className="flex flex-col items-end gap-0.5">
+          {card.price != null && (
+            <div className="text-lg font-bold text-gray-900 leading-none">{formatPrice(card.price)}</div>
+          )}
+          {card.changePercent != null && (
+            <div className={`text-[11px] font-semibold ${getChangeColor(card.changePercent)}`}>
+              {perShareChange != null
+                ? `${formatPriceChange(perShareChange)} (${formatPercent(card.changePercent)})`
+                : formatPercent(card.changePercent)}
+            </div>
+          )}
+        </div>
+      </div>
 
-      {/* Horizontal metrics: SHARES | GPS SCORE | ANALYST */}
-      <div className="px-5 py-2 grid grid-cols-3 gap-3">
+      {/* Metrics: SHARES | GPS SCORE | ANALYST */}
+      <div className="px-4 pb-3 grid grid-cols-3 gap-3">
         <div>
           <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Shares</div>
           <div className="text-sm font-bold text-gray-900">{formatShares(card.sharesHeld)}</div>
@@ -87,61 +111,39 @@ export const PortfolioCardView: React.FC<PortfolioCardViewProps> = ({ card, acti
           <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold border ${card.analystFeedback ? analystBadgeClass : 'bg-gray-100 text-gray-400 border-gray-200'}`}>
             {card.analystFeedback ?? 'None'}
           </span>
-          <div className="text-[11px] text-gray-500 mt-0.5">
-            {card.analysts ? `${card.analysts} analysts` : ' '}
-          </div>
         </div>
       </div>
 
-      {/* Predicted 1M row — always rendered to keep all cards the same height */}
-      <div className="mx-5 border-t border-gray-100" />
-      <div className="px-5 py-1.5 flex items-center gap-3">
-        <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Predicted 1M</div>
-        <div className="flex items-center gap-2">
-          {card.predictedPrice1m != null ? (
-            <>
-              <span className="text-sm font-bold text-gray-900">{formatPrice(card.predictedPrice1m)}</span>
-              {predictionChange != null && (
-                <span className={`text-[13px] font-semibold ${getPredictionColor(predictionChange)}`}>
-                  ({predictionChange > 0 ? '+' : ''}{predictionChange.toFixed(1)}%)
-                </span>
-              )}
-            </>
-          ) : (
-            <span className="text-sm text-gray-400">—</span>
+      {/* Footer: 1M pred line + chevron (or downside warning) */}
+      <div className="mt-auto border-t border-gray-100 px-4 py-2 flex items-center justify-between">
+        <div className="text-xs text-gray-600">
+          <span className="font-medium">1M pred </span>
+          <span className="font-bold text-gray-900">
+            {card.predictedPrice1m != null ? formatPrice(card.predictedPrice1m) : '—'}
+          </span>
+          {predictionChange != null && (
+            <span className={`ml-1 font-semibold ${getPredictionColor(predictionChange)}`}>
+              {predictionChange > 0 ? '+' : ''}{predictionChange.toFixed(1)}%
+            </span>
           )}
         </div>
-      </div>
-
-      <CardActions justify={showDownsideFlag ? 'between' : 'end'} compact>
-        {showDownsideFlag && (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-red-50 border border-red-200 text-red-600 text-[11px] font-semibold leading-tight whitespace-nowrap">
-            <svg className="w-3 h-3 shrink-0" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
-              <path d="M6 1L1 10h10L6 1z" fillOpacity="0" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
-              <path d="M6 4.5v3M6 9h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
+        {showDownsideFlag ? (
+          <span
+            className="inline-flex items-center text-red-600"
+            aria-label="AI model predicts downside"
+            title="AI model predicts downside"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
+              <path d="M6 1L1 10h10L6 1z" fillOpacity="0" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+              <path d="M6 4.5v3M6 9h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
             </svg>
-            AI model predicts downside
           </span>
+        ) : (
+          <svg className="w-4 h-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fillRule="evenodd" d="M7.293 4.293a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L11.586 10 7.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+          </svg>
         )}
-        <div className="flex gap-2">
-          <ActionButton
-            label="Buy More"
-            ariaLabel={`Buy more shares of ${card.symbol}`}
-            variant="primary"
-            size="sm"
-            grow={false}
-            onClick={(e) => actions?.onBuyMore?.(card.symbol)}
-          />
-          <ActionButton
-            label="Sell"
-            ariaLabel={`Sell shares of ${card.symbol}`}
-            variant="secondary"
-            size="sm"
-            grow={false}
-            onClick={(e) => actions?.onSell?.(card.symbol)}
-          />
-        </div>
-      </CardActions>
+      </div>
     </>
   )
 }

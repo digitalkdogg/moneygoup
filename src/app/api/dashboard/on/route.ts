@@ -40,7 +40,8 @@ export async function GET(request: NextRequest) {
 
   try {
     const query = `
-      SELECT 
+      SELECT
+        s.id AS stockId,
         MAX(CASE WHEN us.is_purchased = 0 AND us.user_confirmed = 1 AND us.shares > 0 AND us.is_active = 1 THEN 1 ELSE 0 END) AS onWatchlist,
         MAX(CASE WHEN us.is_purchased = 1 AND us.shares > 0 AND us.is_active = 1 THEN 1 ELSE 0 END) AS onPortfolio,
         SUM(CASE WHEN us.is_purchased = 1 AND us.is_active = 1 THEN us.shares ELSE 0 END) AS shares,
@@ -48,17 +49,19 @@ export async function GET(request: NextRequest) {
         MAX(CASE WHEN us.is_purchased = 1 AND us.is_active = 1 THEN us.purchase_price ELSE 0 END) AS purchasePrice
       FROM user_stocks us
       JOIN stocks s ON us.stock_id = s.id
-      WHERE us.user_id = ? AND s.symbol = ?;
+      WHERE us.user_id = ? AND s.symbol = ?
+      GROUP BY s.id;
     `;
     const [rows] = await executeRawQuery(query, [userId, normalizedTicker]);
-    
-    const result = (rows as any[])[0] || { onWatchlist: 0, onPortfolio: 0, shares: 0, purchaseDate: null, purchasePrice: 0 };
+
+    const result = (rows as any[])[0] || { stockId: null, onWatchlist: 0, onPortfolio: 0, shares: 0, purchaseDate: null, purchasePrice: 0 };
     const onWatchlist = result.onWatchlist === 1;
     const onPortfolio = result.onPortfolio === 1;
 
-    return NextResponse.json({ 
-      ticker: normalizedTicker, 
-      onWatchlist, 
+    return NextResponse.json({
+      ticker: normalizedTicker,
+      stockId: result.stockId ?? null,
+      onWatchlist,
       onPortfolio,
       shares: result.shares || 0,
       purchaseDate: result.purchaseDate,

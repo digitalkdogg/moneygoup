@@ -47,7 +47,7 @@ export const CardHeader: React.FC<CardHeaderProps> = ({ symbol, companyName, cha
   }
 
   return (
-    <div className="flex items-start justify-between px-5 py-3">
+    <div className="flex items-start justify-between px-5 py-1">
       <div>
         <div className="text-2xl font-bold text-gray-900 leading-none">
           {symbol}

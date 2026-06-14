@@ -59,7 +59,8 @@ export async function GET(request: NextRequest) {
         COALESCE(usp.${priceColumn}, usp.predicted_price_1m) AS predicted_price_horizon,
         sgs.gps_score,
         sgs.gps_breakdown,
-        sb.primary_color
+        sb.primary_color,
+        sb.logo
       FROM user_stocks us
       JOIN stocks s ON us.stock_id = s.id
       LEFT JOIN user_stock_predictions usp
@@ -162,7 +163,8 @@ export async function GET(request: NextRequest) {
             gpsHorizon: userStrategy.investment_timeframe,
             sector: (summary as any)?.assetProfile?.sector || null,
             is_etf: (quoteResult as any)?.quoteType?.toUpperCase() === 'ETF',
-            fiftyTwoWeekHigh: (quoteResult as any)?.fiftyTwoWeekHigh ?? null
+            fiftyTwoWeekHigh: (quoteResult as any)?.fiftyTwoWeekHigh ?? null,
+            logo: item.logo ?? null
           };
         } catch (dataError) {
           logger.error(`Error fetching data for ${item.symbol}:`, { error: dataError as Error });
