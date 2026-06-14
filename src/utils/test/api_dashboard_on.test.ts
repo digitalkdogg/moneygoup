@@ -35,12 +35,13 @@ describe('GET /api/dashboard/on', () => {
 
   test('returns portfolio and watchlist status with shares and purchase details', async () => {
     (executeRawQuery as jest.Mock).mockResolvedValue([
-      [{ 
-        onWatchlist: 0, 
-        onPortfolio: 1, 
-        shares: 10.5, 
-        purchaseDate: '2023-01-01T12:00:00Z', 
-        purchasePrice: 150.25 
+      [{
+        stockId: 42,
+        onWatchlist: 0,
+        onPortfolio: 1,
+        shares: 10.5,
+        purchaseDate: '2023-01-01T12:00:00Z',
+        purchasePrice: 150.25
       }]
     ]);
 
@@ -50,6 +51,7 @@ describe('GET /api/dashboard/on', () => {
 
     expect(data).toEqual({
       ticker: 'AAPL',
+      stockId: 42,
       onWatchlist: false,
       onPortfolio: true,
       shares: 10.5,
@@ -67,6 +69,7 @@ describe('GET /api/dashboard/on', () => {
 
     expect(data).toEqual({
       ticker: 'AAPL',
+      stockId: null,
       onWatchlist: false,
       onPortfolio: false,
       shares: 0,
