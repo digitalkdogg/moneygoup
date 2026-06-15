@@ -21,6 +21,13 @@ const StockCard: React.FC<StockCardProps> = ({ card, actions, className }) => {
     }
   }
 
+  // The watchlist variant owns its own outer container (compact 10px-radius
+  // tile per the design mockup) instead of using BaseCardShell's larger
+  // rounded-2xl/shadow-md shell.
+  if (card.variant === 'watchlist') {
+    return <WatchlistCardView card={card} actions={actions} onClick={handleCardClick} />
+  }
+
   const renderContent = () => {
     switch (card.variant) {
       case 'search-trending':
@@ -29,8 +36,6 @@ const StockCard: React.FC<StockCardProps> = ({ card, actions, className }) => {
         return <DeepmoneyCardView card={card} />
       case 'portfolio':
         return <PortfolioCardView card={card} actions={actions} />
-      case 'watchlist':
-        return <WatchlistCardView card={card} actions={actions} />
       default:
         return null
     }

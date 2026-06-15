@@ -41,7 +41,9 @@ describe('GET /api/dashboard/on', () => {
         onPortfolio: 1,
         shares: 10.5,
         purchaseDate: '2023-01-01T12:00:00Z',
-        purchasePrice: 150.25
+        purchasePrice: 150.25,
+        watchlistAddedDate: null,
+        watchlistPriceAdded: 0
       }]
     ]);
 
@@ -56,7 +58,9 @@ describe('GET /api/dashboard/on', () => {
       onPortfolio: true,
       shares: 10.5,
       purchaseDate: '2023-01-01T12:00:00Z',
-      purchasePrice: 150.25
+      purchasePrice: 150.25,
+      watchlistAddedDate: null,
+      watchlistPriceAdded: 0
     });
   });
 
@@ -74,7 +78,9 @@ describe('GET /api/dashboard/on', () => {
       onPortfolio: false,
       shares: 0,
       purchaseDate: null,
-      purchasePrice: 0
+      purchasePrice: 0,
+      watchlistAddedDate: null,
+      watchlistPriceAdded: 0
     });
   });
 
