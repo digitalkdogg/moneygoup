@@ -637,12 +637,7 @@ export default function Stock({
 
             return (
               <div className="bg-white rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] border border-gray-100 mb-8 p-8 pb-7">
-                <div className="flex items-center gap-2.5 mb-5">
-                  <div className="w-[3px] h-[22px] bg-[#017e3b] rounded-sm" />
-                  <span className="text-[13px] font-bold tracking-[0.09em] text-[#017e3b] uppercase">
-                    Your Portfolio Position
-                  </span>
-                </div>
+                <h2 className="section-heading">Your Portfolio Position</h2>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
                   <div className="bg-[#f7f8f6] rounded-lg px-4 pt-3.5 pb-4">
@@ -694,33 +689,35 @@ export default function Stock({
 
                 <div className="h-px bg-gray-200 mb-5" />
 
-                <div className="flex items-center gap-2.5 flex-wrap">
-                  <span className="text-xs text-gray-500 font-medium mr-1">Manage position</span>
-                  <button
-                    type="button"
-                    onClick={() => setManageAction('buy')}
-                    disabled={pos.stockId == null}
-                    className="inline-flex items-center gap-1.5 px-5 py-2 rounded-md text-[13px] font-semibold bg-green-700 text-white hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
-                      <line x1="12" y1="5" x2="12" y2="19" strokeLinecap="round" />
-                      <line x1="5" y1="12" x2="19" y2="12" strokeLinecap="round" />
-                    </svg>
-                    Buy more
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setManageAction('sell')}
-                    disabled={pos.stockId == null}
-                    className="inline-flex items-center gap-1.5 px-5 py-2 rounded-md text-[13px] font-semibold bg-white text-green-700 border-[1.5px] border-green-700 hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
-                      <line x1="5" y1="12" x2="19" y2="12" strokeLinecap="round" />
-                    </svg>
-                    Sell shares
-                  </button>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:flex-wrap gap-2.5">
+                  <span className="text-xs text-gray-500 font-medium sm:mr-1">Manage position</span>
+                  <div className="flex items-center gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setManageAction('buy')}
+                      disabled={pos.stockId == null}
+                      className="inline-flex items-center gap-1.5 px-3 sm:px-5 py-2 rounded-md text-[13px] font-semibold whitespace-nowrap bg-green-700 text-white border-[1.5px] border-green-700 hover:bg-green-800 hover:border-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+                        <line x1="12" y1="5" x2="12" y2="19" strokeLinecap="round" />
+                        <line x1="5" y1="12" x2="19" y2="12" strokeLinecap="round" />
+                      </svg>
+                      Buy more
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setManageAction('sell')}
+                      disabled={pos.stockId == null}
+                      className="inline-flex items-center gap-1.5 px-3 sm:px-5 py-2 rounded-md text-[13px] font-semibold whitespace-nowrap bg-white text-green-700 border-[1.5px] border-green-700 hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+                        <line x1="5" y1="12" x2="19" y2="12" strokeLinecap="round" />
+                      </svg>
+                      Sell shares
+                    </button>
+                  </div>
                   {pos.purchaseDate && (
-                    <span className="text-[11px] text-gray-400 ml-auto">
+                    <span className="text-xs text-gray-500 font-medium sm:ml-auto">
                       Position opened {formatDate(pos.purchaseDate)}
                     </span>
                   )}
