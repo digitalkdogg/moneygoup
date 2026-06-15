@@ -42,7 +42,7 @@ const MiniDataCard: React.FC<MiniDataCardProps> = ({
   return (
     <div className="border border-gray-100 bg-gray-50 rounded-lg p-3 hover:border-gray-200 transition-colors">
       <div className="flex justify-between items-start mb-1">
-        <div className="text-[10px] uppercase font-bold text-gray-500 tracking-wider overflow-hidden text-ellipsis whitespace-nowrap mr-2">
+        <div className="text-[12px] uppercase font-bold text-gray-700 tracking-wider overflow-hidden text-ellipsis whitespace-nowrap mr-2">
           {label}
         </div>
         {badge && (
@@ -60,7 +60,7 @@ const MiniDataCard: React.FC<MiniDataCardProps> = ({
           {secondaryText}
         </span>
         {subLabel && (
-          <span className="text-[9px] text-gray-400 mt-1 font-medium italic">
+          <span className="text-[11px] text-gray-600 mt-1 font-medium italic">
             {subLabel}
           </span>
         )}

@@ -151,11 +151,6 @@ const RecommendationsSection: React.FC<RecommendationsSectionProps> = ({ scopes,
         );
         })()}
 
-        {data?.asOf && (
-          <p className="text-[10px] text-gray-400 mt-4 text-right italic">
-            Refreshed {new Date(data.asOf).toLocaleTimeString()}
-          </p>
-        )}
       </div>
     </section>
   );
