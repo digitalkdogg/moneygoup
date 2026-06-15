@@ -36,7 +36,10 @@ export interface PortfolioCard extends CardBase {
   /** Which prediction horizon the breakdown reflects (defaults to 1_month). */
   gpsHorizon?: '1_week' | '1_month' | '6_month' | '1_year'
   topAccentColor?: string
-  predictedPrice1m?: number | null // Added predictedPrice1m
+  /** Predicted price for the user's chosen horizon (1W/1M/6M/1Y). */
+  predictedPriceHorizon?: number | null
+  /** Compact horizon label rendered on the card, e.g. "1M" or "6M". */
+  horizonLabel?: string
   fiftyTwoWeekHigh?: number | null
   logo?: string | null
 }
@@ -51,7 +54,10 @@ export interface WatchlistCard extends CardBase {
   /** Which prediction horizon the breakdown reflects (defaults to 1_month). */
   gpsHorizon?: '1_week' | '1_month' | '6_month' | '1_year'
   isCompact?: boolean
-  predictedPrice1m?: number | null // Added predictedPrice1m
+  /** Predicted price for the user's chosen horizon (1W/1M/6M/1Y). */
+  predictedPriceHorizon?: number | null
+  /** Compact horizon label rendered on the card, e.g. "1M" or "6M". */
+  horizonLabel?: string
 }
 
 export type StockCardModel =

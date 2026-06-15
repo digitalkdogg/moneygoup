@@ -41,7 +41,9 @@ export async function GET(request: NextRequest) {
     // Resolve user's investment timeframe so we can return a horizon-aware
     // predicted_price and patch the GPS breakdown's mlpUpside accordingly.
     const userStrategy = await getUserStrategy(userId).catch(() => DEFAULT_STRATEGY);
-    const priceColumn = resolveStrategy(userStrategy).timeframe.predictedPriceColumn;
+    const timeframeConfig = resolveStrategy(userStrategy).timeframe;
+    const priceColumn = timeframeConfig.predictedPriceColumn;
+    const horizonLabel = timeframeConfig.shortLabel;
 
     const [portfolioItems] = await executeRawQuery(`
       SELECT
@@ -239,6 +241,7 @@ export async function GET(request: NextRequest) {
 
     const result = {
       portfolio: portfolioWithData || [],
+      horizonLabel,
       totals: {
         costBasis,
         marketValue,

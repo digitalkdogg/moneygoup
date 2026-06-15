@@ -82,6 +82,7 @@ type ColumnDefinition<T> = {
 export default function Dashboard() {
   // NEW: Portfolio state and market status
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
+  const [portfolioHorizonLabel, setPortfolioHorizonLabel] = useState<string>('1M');
   const [marketStatus, setMarketStatus] = useState<'open' | 'closed'>('closed');
   const [todayDate, setTodayDate] = useState<string>('');
   const [loadingPortfolio, setLoadingPortfolio] = useState(true);
@@ -109,6 +110,9 @@ export default function Dashboard() {
         prev_close: typeof item.prev_close === 'number' ? item.prev_close : null,
       }));
       setPortfolio(fetchedPortfolio);
+      if (typeof data?.horizonLabel === 'string') {
+        setPortfolioHorizonLabel(data.horizonLabel);
+      }
       return fetchedPortfolio;
     } catch (err) {
       setPortfolioError(err instanceof Error ? err.message : 'An unknown error occurred while fetching portfolio');
@@ -213,6 +217,7 @@ export default function Dashboard() {
               <div className="mb-10">
                 <PortfolioSection
                     portfolio={portfolio}
+                    horizonLabel={portfolioHorizonLabel}
                     onRefresh={fetchPortfolioData}
                 />
               </div>

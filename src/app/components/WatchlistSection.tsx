@@ -21,7 +21,8 @@ interface WatchlistItem {
   regularMarketPrice: number;
   prev_close?: number;
   ma6_month: number;
-  predicted_price_1m?:number | string | null;
+  predicted_price_1m?: number | string | null;
+  predicted_price_horizon?: number | string | null;
   recommendationKey?: string | null;
   numberOfAnalystOpinions?: number | null;
   [key: string]: any;
@@ -34,6 +35,7 @@ interface WatchlistSectionProps {
 
 export default function WatchlistSection({ onRefresh, onPurchased }: WatchlistSectionProps) {
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
+  const [horizonLabel, setHorizonLabel] = useState<string>('1M');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendingDeleteTicker, setPendingDeleteTicker] = useState<string | null>(null);
@@ -66,6 +68,10 @@ export default function WatchlistSection({ onRefresh, onPurchased }: WatchlistSe
       const data = await response.json();
       const rawWatchlist = Array.isArray(data?.watchlist) ? data.watchlist : [];
 
+      if (typeof data?.horizonLabel === 'string') {
+        setHorizonLabel(data.horizonLabel);
+      }
+
       setWatchlist(
         rawWatchlist
           .filter((item: any) => item && typeof item === 'object')
@@ -75,6 +81,7 @@ export default function WatchlistSection({ onRefresh, onPurchased }: WatchlistSe
             regularMarketPrice: toNullableNumber(item.regularMarketPrice) ?? 0,
             ma6_month: toNullableNumber(item.ma6_month) ?? 0,
             predicted_price_1m: toNullableNumber(item.predicted_price_1m),
+            predicted_price_horizon: toNullableNumber(item.predicted_price_horizon),
           }))
       );
     } catch (err: any) {
@@ -127,8 +134,8 @@ export default function WatchlistSection({ onRefresh, onPurchased }: WatchlistSe
     const { regularMarketPrice, prev_close, ma6_month } = item;
     const pctChange = prev_close ? ((regularMarketPrice - prev_close) / prev_close) * 100 : null;
 
-    const rawPredicted = item.predicted_price_1m;
-    const predictedPrice1m = typeof rawPredicted === 'number'
+    const rawPredicted = item.predicted_price_horizon ?? item.predicted_price_1m;
+    const predictedPriceHorizon = typeof rawPredicted === 'number'
       ? rawPredicted
       : typeof rawPredicted === 'string'
       ? parseFloat(rawPredicted) || null
@@ -147,7 +154,8 @@ export default function WatchlistSection({ onRefresh, onPurchased }: WatchlistSe
       gpsScore: item.gpsScore,
       gpsBreakdown: item.gpsBreakdown,
       gpsHorizon: (item as any).gpsHorizon,
-      predictedPrice1m,
+      predictedPriceHorizon,
+      horizonLabel,
     };
   };
 

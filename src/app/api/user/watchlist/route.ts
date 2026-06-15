@@ -41,7 +41,9 @@ export async function GET(request: NextRequest) {
   try {
     // Pick the user's timeframe-specific predicted_price column for horizon-aware GPS.
     const userStrategy = await getUserStrategy(userId).catch(() => DEFAULT_STRATEGY);
-    const priceColumn = resolveStrategy(userStrategy).timeframe.predictedPriceColumn;
+    const timeframeConfig = resolveStrategy(userStrategy).timeframe;
+    const priceColumn = timeframeConfig.predictedPriceColumn;
+    const horizonLabel = timeframeConfig.shortLabel;
 
     const [watchlistItems]: any[] = await executeRawQuery(`
       SELECT
@@ -136,7 +138,7 @@ export async function GET(request: NextRequest) {
       }
     }));
 
-    return NextResponse.json({ watchlist: watchlistWithData }, { status: 200 });
+    return NextResponse.json({ watchlist: watchlistWithData, horizonLabel }, { status: 200 });
   } catch (error: any) {
     logger.error('Error fetching user watchlist:', { error });
     return createErrorResponse(error, 'Error fetching user watchlist', { status: 500 });

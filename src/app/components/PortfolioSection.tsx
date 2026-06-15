@@ -11,10 +11,11 @@ import { PortfolioItem } from '@/types/portfolio';
 
 interface PortfolioSectionProps {
   portfolio: PortfolioItem[];
+  horizonLabel?: string;
   onRefresh: () => void;
 }
 
-export default function PortfolioSection({ portfolio }: PortfolioSectionProps) {
+export default function PortfolioSection({ portfolio, horizonLabel = '1M' }: PortfolioSectionProps) {
   const router = useRouter();
 
   const mapPortfolioToCardModel = (item: PortfolioItem): PortfolioCard => {
@@ -22,8 +23,8 @@ export default function PortfolioSection({ portfolio }: PortfolioSectionProps) {
     const pctChange = prev_close ? ((regularMarketPrice - prev_close) / prev_close) * 100 : null;
     const dollarChange = prev_close ? (regularMarketPrice - prev_close) * shares : null;
 
-    const rawPredicted = item.predicted_price_1m;
-    const predictedPrice1m = typeof rawPredicted === 'number'
+    const rawPredicted = item.predicted_price_horizon ?? item.predicted_price_1m;
+    const predictedPriceHorizon = typeof rawPredicted === 'number'
       ? rawPredicted
       : typeof rawPredicted === 'string'
       ? parseFloat(rawPredicted) || null
@@ -43,7 +44,8 @@ export default function PortfolioSection({ portfolio }: PortfolioSectionProps) {
       gpsBreakdown: item.gpsBreakdown,
       gpsHorizon: (item as any).gpsHorizon,
       topAccentColor: item.brand_color || '#017e3b',
-      predictedPrice1m,
+      predictedPriceHorizon,
+      horizonLabel,
       fiftyTwoWeekHigh: (item as any).fiftyTwoWeekHigh ?? null,
       logo: (item as any).logo ?? null,
     };

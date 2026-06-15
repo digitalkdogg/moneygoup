@@ -55,6 +55,7 @@ export default function StockCardSection<T>({
           {data.map((item, index) => (
             <div
               key={(item as any).symbol || (item as any).id || index}
+              className="h-full"
               style={{
                 animation: `slideUp 0.4s ease-out ${index * 0.05}s backwards`,
               }}

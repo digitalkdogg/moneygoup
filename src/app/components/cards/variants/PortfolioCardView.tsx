@@ -41,11 +41,12 @@ const shouldFlagDownside = (
 }
 
 export const PortfolioCardView: React.FC<PortfolioCardViewProps> = ({ card }) => {
-  const predictionChange = calculatePredictionChange(card.price, card.predictedPrice1m ?? null)
+  const predictionChange = calculatePredictionChange(card.price, card.predictedPriceHorizon ?? null)
   const showDownsideFlag = shouldFlagDownside(predictionChange, card.price, card.fiftyTwoWeekHigh)
   const perShareChange = card.changeAmount != null && card.sharesHeld
     ? card.changeAmount / card.sharesHeld
     : null
+  const horizonLabel = card.horizonLabel ?? '1M'
 
   const analystBadgeClass = card.analystFeedback?.toLowerCase().includes('strong buy')
     ? 'bg-green-100 text-green-700 border-green-200'
@@ -114,12 +115,12 @@ export const PortfolioCardView: React.FC<PortfolioCardViewProps> = ({ card }) =>
         </div>
       </div>
 
-      {/* Footer: 1M pred line + chevron (or downside warning) */}
+      {/* Footer: horizon pred line + chevron (or downside warning) */}
       <div className="mt-auto border-t border-gray-100 px-4 py-2 flex items-center justify-between">
         <div className="text-xs text-gray-600">
-          <span className="font-medium">1M pred </span>
+          <span className="font-medium">{horizonLabel} pred </span>
           <span className="font-bold text-gray-900">
-            {card.predictedPrice1m != null ? formatPrice(card.predictedPrice1m) : '—'}
+            {card.predictedPriceHorizon != null ? formatPrice(card.predictedPriceHorizon) : '—'}
           </span>
           {predictionChange != null && (
             <span className={`ml-1 font-semibold ${getPredictionColor(predictionChange)}`}>

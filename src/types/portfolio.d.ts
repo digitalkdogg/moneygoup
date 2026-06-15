@@ -10,6 +10,7 @@ export interface PortfolioItem {
   average_cost_basis?: number | null;
   first_purchase_date?: string | null;
   predicted_price_1m?: number | string | null;
+  predicted_price_horizon?: number | string | null;
   initial_purchase_date?: string;
   last_transaction_date?: string;
   regularMarketPrice: number;

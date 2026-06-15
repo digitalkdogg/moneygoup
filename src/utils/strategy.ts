@@ -39,6 +39,8 @@ export interface TimeframeConfig {
   mlGate: number;
   /** Short label for UI display, e.g. "in 6 months". */
   displayLabel: string;
+  /** Compact label used on cards, e.g. "6M". */
+  shortLabel: '1W' | '1M' | '6M' | '1Y';
   /** Which predicted_price column to read from user_stock_predictions. */
   predictedPriceColumn: 'predicted_price_1w' | 'predicted_price_1m' | 'predicted_price_6m' | 'predicted_price_1y';
 }
@@ -86,6 +88,7 @@ const TIMEFRAME_CONFIG: Record<InvestmentTimeframe, TimeframeConfig> = {
     sellThresholdShift:   -2,
     mlGate:               0.5,
     displayLabel:         'in 1 week',
+    shortLabel:           '1W',
     predictedPriceColumn: 'predicted_price_1w',
   },
   '1_month': {
@@ -94,6 +97,7 @@ const TIMEFRAME_CONFIG: Record<InvestmentTimeframe, TimeframeConfig> = {
     sellThresholdShift:   0,
     mlGate:               1.5,
     displayLabel:         'in 1 month',
+    shortLabel:           '1M',
     predictedPriceColumn: 'predicted_price_1m',
   },
   '6_month': {
@@ -102,6 +106,7 @@ const TIMEFRAME_CONFIG: Record<InvestmentTimeframe, TimeframeConfig> = {
     sellThresholdShift:   3,
     mlGate:               5,
     displayLabel:         'in 6 months',
+    shortLabel:           '6M',
     predictedPriceColumn: 'predicted_price_6m',
   },
   '1_year': {
@@ -110,6 +115,7 @@ const TIMEFRAME_CONFIG: Record<InvestmentTimeframe, TimeframeConfig> = {
     sellThresholdShift:   5,
     mlGate:               10,
     displayLabel:         'in 1 year',
+    shortLabel:           '1Y',
     predictedPriceColumn: 'predicted_price_1y',
   },
 };
