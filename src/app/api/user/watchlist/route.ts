@@ -11,7 +11,7 @@ import { fetchYahooStockSummary } from '@/utils/yahooFinanceHelper';
 import { LimitService } from '@/utils/limitService';
 import { checkApprovalGuard } from '@/utils/approvalStatus';
 import { getUserStrategy, resolveStrategy, DEFAULT_STRATEGY } from '@/utils/strategy';
-import { adjustMlpUpsideForHorizon } from '@/utils/gps';
+import { adjustGpsForHorizon } from '@/utils/gps';
 
 const logger = createLogger('api/user/watchlist');
 
@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
     const userStrategy = await getUserStrategy(userId).catch(() => DEFAULT_STRATEGY);
     const timeframeConfig = resolveStrategy(userStrategy).timeframe;
     const priceColumn = timeframeConfig.predictedPriceColumn;
+    const sfx = priceColumn.replace('predicted_price_', ''); // '1w' | '1m' | '6m' | '1y'
     const horizonLabel = timeframeConfig.shortLabel;
 
     const [watchlistItems]: any[] = await executeRawQuery(`
@@ -56,6 +57,8 @@ export async function GET(request: NextRequest) {
         s.price AS db_price,
         usp.predicted_price_1m,
         COALESCE(usp.${priceColumn}, usp.predicted_price_1m) AS predicted_price_horizon,
+        usp.predicted_change_pct_${sfx} AS predicted_change_pct_horizon,
+        usp.confidence_score_${sfx} AS confidence_score_horizon,
         sgs.gps_score,
         sgs.gps_breakdown
       FROM user_stocks us
@@ -100,18 +103,29 @@ export async function GET(request: NextRequest) {
         const regularMarketPrice = (quoteResult as any)?.regularMarketPrice || item.db_price || 0;
         const prev_close = (quoteResult as any)?.regularMarketPreviousClose || null;
 
-        // Patch the cached 1m-baseline breakdown using the user's timeframe delta.
+        // Patch the cached 1m-baseline breakdown using the user's timeframe. We
+        // prefer the model's own per-horizon change% + confidence (persisted at
+        // prediction time) so the score matches /api/prediction/[ticker] exactly.
+        // For legacy rows where those columns are NULL we fall back to a
+        // price-derived delta, which only approximates the model's output.
         const baselineBreakdown = item.gps_breakdown
           ? (typeof item.gps_breakdown === 'string' ? JSON.parse(item.gps_breakdown) : item.gps_breakdown)
           : null;
         let perUserGpsScore = item.gps_score !== null ? parseFloat(item.gps_score) : null;
         let perUserGpsBreakdown = baselineBreakdown;
+        const storedChangePct = item.predicted_change_pct_horizon != null ? parseFloat(item.predicted_change_pct_horizon) : null;
+        const storedConfidence = item.confidence_score_horizon != null ? parseFloat(item.confidence_score_horizon) : undefined;
         const horizonPrice = item.predicted_price_horizon != null ? parseFloat(item.predicted_price_horizon) : null;
-        if (baselineBreakdown && regularMarketPrice > 0 && horizonPrice) {
-          const horizonDeltaPct = ((horizonPrice - regularMarketPrice) / regularMarketPrice) * 100;
-          const adjusted = adjustMlpUpsideForHorizon(baselineBreakdown, horizonDeltaPct);
-          perUserGpsScore = adjusted.score;
-          perUserGpsBreakdown = adjusted.breakdown;
+        if (baselineBreakdown) {
+          let changePct: number | null = storedChangePct;
+          if (changePct == null && regularMarketPrice > 0 && horizonPrice) {
+            changePct = ((horizonPrice - regularMarketPrice) / regularMarketPrice) * 100;
+          }
+          if (changePct != null) {
+            const adjusted = adjustGpsForHorizon(baselineBreakdown, changePct, storedConfidence);
+            perUserGpsScore = adjusted.score;
+            perUserGpsBreakdown = adjusted.breakdown;
+          }
         }
 
         return {

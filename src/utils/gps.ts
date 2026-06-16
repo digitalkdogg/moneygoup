@@ -53,25 +53,32 @@ export function getGpsLabel(score: number): string {
 }
 
 /**
- * Patch the `mlpUpside` component of an existing breakdown using a different
- * predicted-change %. Used to make a globally-cached GPS breakdown horizon-aware
- * per user without needing the full set of original GPS metrics.
+ * Patch the two horizon-dependent components (`mlpUpside`, `mlpConfidence`) of
+ * a cached breakdown using the model's own per-horizon outputs. The other 6
+ * components (revenue, earnings, technical, analyst signals, 52w momentum) are
+ * horizon-independent and pass through unchanged. Pass `confidenceScoreForHorizon`
+ * as undefined to leave mlpConfidence at the baseline value (back-compat with
+ * rows persisted before per-horizon confidence was captured).
  *
- * Other 7 components don't depend on prediction horizon (revenue/earnings growth,
- * technicals, analyst signals, 52w momentum), so they pass through unchanged.
- * mlpConfidence stays at the baseline value too — confidence per horizon isn't
- * persisted yet, and 5 pts out of 100 has small downstream effect.
+ * Match guarantee: when called with the same values calculateGpsScore receives,
+ * the resulting score exactly matches a full recompute — because the 6 other
+ * components are identical regardless of horizon.
  */
-export function adjustMlpUpsideForHorizon(
+export function adjustGpsForHorizon(
   breakdown: GpsBreakdown,
   predictedChangePctForHorizon: number,
+  confidenceScoreForHorizon?: number,
 ): { breakdown: GpsBreakdown; score: number } {
   const predictionMax = process.env.GPS_PREDICTION_MAX ? parseFloat(process.env.GPS_PREDICTION_MAX) : 3
   const newMlpUpside = Math.min(Math.max(predictedChangePctForHorizon / predictionMax, -1), 1) * 20
+  const newMlpConfidence = confidenceScoreForHorizon != null
+    ? (Math.min(Math.max(confidenceScoreForHorizon, 0), 100) / 100) * 5
+    : breakdown.mlpConfidence
 
   const adjusted: GpsBreakdown = {
     ...breakdown,
     mlpUpside: parseFloat(newMlpUpside.toFixed(1)),
+    mlpConfidence: parseFloat(newMlpConfidence.toFixed(1)),
   }
   const total =
     adjusted.mlpUpside + adjusted.mlpConfidence + adjusted.revenueGrowth +

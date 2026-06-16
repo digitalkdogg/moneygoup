@@ -9,7 +9,7 @@ import { checkApprovalGuard } from '@/utils/approvalStatus';
 import { fetchYahooQuotesForSymbols } from '@/utils/yahooFinanceHelper';
 import { DashboardRecommendation, DashboardRecommendationsResponse } from '@/types/dashboard';
 import { getUserStrategy, resolveStrategy, DEFAULT_STRATEGY } from '@/utils/strategy';
-import { adjustMlpUpsideForHorizon } from '@/utils/gps';
+import { adjustGpsForHorizon } from '@/utils/gps';
 
 const logger = createLogger('api/dashboard/recommendations');
 
@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
     // populated yet. predictedPriceColumn comes from a controlled enum — safe
     // to interpolate into SQL.
     const priceColumn = resolveStrategy(userStrategy).timeframe.predictedPriceColumn;
+    const sfx = priceColumn.replace('predicted_price_', ''); // '1w' | '1m' | '6m' | '1y'
 
     // 1. Fetch predictions with GPS scores. GPS is strategy-independent — we
     // always read the canonical value from stock_gps_scores (with a fallback
@@ -69,6 +70,8 @@ export async function GET(request: NextRequest) {
         s.symbol,
         COALESCE(usp.${priceColumn}, usp.predicted_price_1m) as predicted_price,
         usp.predicted_price_1m,
+        usp.predicted_change_pct_${sfx} AS predicted_change_pct_horizon,
+        usp.confidence_score_${sfx} AS confidence_score_horizon,
         COALESCE(sgs.gps_score, rs.gps_score) as gps_score,
         COALESCE(sgs.gps_breakdown, rs.gps_breakdown) as gps_breakdown,
         usp.last_requested_at,
@@ -181,19 +184,25 @@ export async function GET(request: NextRequest) {
       const predictedPrice1m = parseFloat(String(pred.predicted_price_1m));
       const deltaPct        = ((predictedPrice - currentPrice) / currentPrice) * 100;
 
-      // Patch the cached 1m baseline breakdown to reflect the user's timeframe's
-      // predicted-change %. Other 7 components don't depend on horizon, so they
-      // pass through unchanged. Score is recomputed off the patched breakdown.
+      // Patch the cached 1m baseline using the user's timeframe. Prefer the
+      // model's persisted per-horizon change% + confidence so the score matches
+      // /api/prediction/[ticker] exactly; fall back to the price-derived delta
+      // when those columns are NULL (legacy rows).
       const baselineBreakdown = pred.gps_breakdown
         ? (typeof pred.gps_breakdown === 'string' ? JSON.parse(pred.gps_breakdown) : pred.gps_breakdown)
         : null;
 
       let perUserBreakdown = baselineBreakdown;
       let perUserScore = pred.gps_score != null ? parseFloat(String(pred.gps_score)) : null;
-      if (baselineBreakdown && Number.isFinite(deltaPct)) {
-        const adjusted = adjustMlpUpsideForHorizon(baselineBreakdown, deltaPct);
-        perUserBreakdown = adjusted.breakdown;
-        perUserScore = adjusted.score;
+      const storedChangePct = pred.predicted_change_pct_horizon != null ? parseFloat(String(pred.predicted_change_pct_horizon)) : null;
+      const storedConfidence = pred.confidence_score_horizon != null ? parseFloat(String(pred.confidence_score_horizon)) : undefined;
+      if (baselineBreakdown) {
+        const changePct = storedChangePct != null ? storedChangePct : (Number.isFinite(deltaPct) ? deltaPct : null);
+        if (changePct != null) {
+          const adjusted = adjustGpsForHorizon(baselineBreakdown, changePct, storedConfidence);
+          perUserBreakdown = adjusted.breakdown;
+          perUserScore = adjusted.score;
+        }
       }
 
       const rawGps       = perUserScore;

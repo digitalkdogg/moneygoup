@@ -261,11 +261,21 @@ def save_prediction(
     predicted_price_1w: float = None,
     predicted_price_6m: float = None,
     predicted_price_1y: float = None,
+    predicted_change_pct_1w: float = None,
+    predicted_change_pct_1m: float = None,
+    predicted_change_pct_6m: float = None,
+    predicted_change_pct_1y: float = None,
+    confidence_score_1w: float = None,
+    confidence_score_1m: float = None,
+    confidence_score_6m: float = None,
+    confidence_score_1y: float = None,
 ) -> bool:
     """Persist a prediction. GPS goes to stock_gps_scores (one row per stock).
     All four horizon prices (1w/1m/6m/1y) are persisted to user_stock_predictions
     so the dashboard recommendations route can pick the right column based on
-    the user's investment_timeframe setting."""
+    the user's investment_timeframe setting. Per-horizon change% and confidence
+    are also persisted so the dashboard can recompute GPS identically to the
+    prediction page without re-deriving deltas from possibly-stale prices."""
     url = f"{INTERNAL_API_URL}/api/prediction/save"
     payload = {
         'ticker':              ticker,
@@ -285,6 +295,22 @@ def save_prediction(
         payload['predicted_price_6m'] = predicted_price_6m
     if predicted_price_1y is not None and predicted_price_1y > 0:
         payload['predicted_price_1y'] = predicted_price_1y
+    if predicted_change_pct_1w is not None:
+        payload['predicted_change_pct_1w'] = predicted_change_pct_1w
+    if predicted_change_pct_1m is not None:
+        payload['predicted_change_pct_1m'] = predicted_change_pct_1m
+    if predicted_change_pct_6m is not None:
+        payload['predicted_change_pct_6m'] = predicted_change_pct_6m
+    if predicted_change_pct_1y is not None:
+        payload['predicted_change_pct_1y'] = predicted_change_pct_1y
+    if confidence_score_1w is not None:
+        payload['confidence_score_1w'] = confidence_score_1w
+    if confidence_score_1m is not None:
+        payload['confidence_score_1m'] = confidence_score_1m
+    if confidence_score_6m is not None:
+        payload['confidence_score_6m'] = confidence_score_6m
+    if confidence_score_1y is not None:
+        payload['confidence_score_1y'] = confidence_score_1y
     
     try:
         response = post_with_auth(url, payload)
@@ -317,6 +343,14 @@ def _empty_cache_entry() -> dict:
         'predicted_price_1y':   None,
         'predicted_change_pct': None,
         'confidence_score':     None,
+        'predicted_change_pct_1w': None,
+        'predicted_change_pct_1m': None,
+        'predicted_change_pct_6m': None,
+        'predicted_change_pct_1y': None,
+        'confidence_score_1w':     None,
+        'confidence_score_1m':     None,
+        'confidence_score_6m':     None,
+        'confidence_score_1y':     None,
         'gps_score':            None,
         'gps_breakdown':        None,
         'gps_inputs':           None,
@@ -525,6 +559,14 @@ def sync_portfolio_predictions():
             predicted_price_1w = cached.get('predicted_price_1w')
             predicted_price_6m = cached.get('predicted_price_6m')
             predicted_price_1y = cached.get('predicted_price_1y')
+            predicted_change_pct_1w = cached.get('predicted_change_pct_1w')
+            predicted_change_pct_1m = cached.get('predicted_change_pct_1m')
+            predicted_change_pct_6m = cached.get('predicted_change_pct_6m')
+            predicted_change_pct_1y = cached.get('predicted_change_pct_1y')
+            confidence_score_1w = cached.get('confidence_score_1w')
+            confidence_score_1m = cached.get('confidence_score_1m')
+            confidence_score_6m = cached.get('confidence_score_6m')
+            confidence_score_1y = cached.get('confidence_score_1y')
             print(f"  [cache] Using cached prediction for {ticker}: {predicted_price} (GPS: {gps_score})")
             stats['cached'] += 1
         else:
@@ -556,6 +598,14 @@ def sync_portfolio_predictions():
             predicted_price_1w   = None
             predicted_price_6m   = None
             predicted_price_1y   = None
+            predicted_change_pct_1w = None
+            predicted_change_pct_1m = None
+            predicted_change_pct_6m = None
+            predicted_change_pct_1y = None
+            confidence_score_1w = None
+            confidence_score_1m = None
+            confidence_score_6m = None
+            confidence_score_1y = None
 
             gps_inputs = None
 
@@ -572,6 +622,19 @@ def sync_portfolio_predictions():
                 predicted_price_1w = prediction_result.get('predicted_price_1w')
                 predicted_price_6m = prediction_result.get('predicted_price_6m')
                 predicted_price_1y = prediction_result.get('predicted_price_1y')
+                # Per-horizon change% and confidence — persisted so the dashboard
+                # can recompute horizon-aware GPS identically to /api/prediction/[ticker]
+                # instead of re-deriving from possibly-stale prices.
+                def _f(v):
+                    return float(v) if v is not None else None
+                predicted_change_pct_1w = _f(prediction_result.get('predicted_change_pct_1w'))
+                predicted_change_pct_1m = _f(prediction_result.get('predicted_change_pct_1m'))
+                predicted_change_pct_6m = _f(prediction_result.get('predicted_change_pct_6m'))
+                predicted_change_pct_1y = _f(prediction_result.get('predicted_change_pct_1y'))
+                confidence_score_1w = _f(prediction_result.get('confidence_score_1w'))
+                confidence_score_1m = _f(prediction_result.get('confidence_score_1m'))
+                confidence_score_6m = _f(prediction_result.get('confidence_score_6m'))
+                confidence_score_1y = _f(prediction_result.get('confidence_score_1y'))
 
                 # GPS v3.0 — matches src/utils/gps.ts exactly
                 sm = stock_data.get('stockMetrics', {})
@@ -609,6 +672,14 @@ def sync_portfolio_predictions():
                 'predicted_price_1y':   predicted_price_1y,
                 'predicted_change_pct': predicted_change_pct,
                 'confidence_score':     confidence_score_val,
+                'predicted_change_pct_1w': predicted_change_pct_1w,
+                'predicted_change_pct_1m': predicted_change_pct_1m,
+                'predicted_change_pct_6m': predicted_change_pct_6m,
+                'predicted_change_pct_1y': predicted_change_pct_1y,
+                'confidence_score_1w':     confidence_score_1w,
+                'confidence_score_1m':     confidence_score_1m,
+                'confidence_score_6m':     confidence_score_6m,
+                'confidence_score_1y':     confidence_score_1y,
                 'gps_score':            gps_score,
                 'gps_breakdown':        gps_breakdown,
                 'gps_inputs':           gps_inputs,
@@ -629,6 +700,14 @@ def sync_portfolio_predictions():
             predicted_price_1w=predicted_price_1w,
             predicted_price_6m=predicted_price_6m,
             predicted_price_1y=predicted_price_1y,
+            predicted_change_pct_1w=predicted_change_pct_1w,
+            predicted_change_pct_1m=predicted_change_pct_1m,
+            predicted_change_pct_6m=predicted_change_pct_6m,
+            predicted_change_pct_1y=predicted_change_pct_1y,
+            confidence_score_1w=confidence_score_1w,
+            confidence_score_1m=confidence_score_1m,
+            confidence_score_6m=confidence_score_6m,
+            confidence_score_1y=confidence_score_1y,
         )
         if saved:
             stats['saved'] += 1

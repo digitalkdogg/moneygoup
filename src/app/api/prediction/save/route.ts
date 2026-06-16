@@ -21,6 +21,17 @@ const savePredictionSchema = z.object({
   predicted_price_1m: z.coerce.number().positive('predicted_price_1m must be a positive number'),
   predicted_price_6m: z.number().positive().optional(),
   predicted_price_1y: z.number().positive().optional(),
+  // Per-horizon model outputs. Persisted so the dashboard can recompute
+  // horizon-aware GPS identically to /api/prediction/[ticker] instead of
+  // re-deriving the delta from possibly-stale prices.
+  predicted_change_pct_1w: z.number().optional(),
+  predicted_change_pct_1m: z.number().optional(),
+  predicted_change_pct_6m: z.number().optional(),
+  predicted_change_pct_1y: z.number().optional(),
+  confidence_score_1w: z.number().min(0).max(100).optional(),
+  confidence_score_1m: z.number().min(0).max(100).optional(),
+  confidence_score_6m: z.number().min(0).max(100).optional(),
+  confidence_score_1y: z.number().min(0).max(100).optional(),
   gps_score: z.coerce.number().min(0).max(100).nullable().optional(),
   gps_breakdown: z.any().optional(),
   macro_features_used: z.array(z.string()).optional(),
@@ -109,6 +120,15 @@ export async function POST(request: NextRequest) {
     if (payload.predicted_price_1m !== undefined) predictionData.predicted_price_1m = payload.predicted_price_1m;
     if (payload.predicted_price_6m !== undefined) predictionData.predicted_price_6m = payload.predicted_price_6m;
     if (payload.predicted_price_1y !== undefined) predictionData.predicted_price_1y = payload.predicted_price_1y;
+
+    if (payload.predicted_change_pct_1w !== undefined) predictionData.predicted_change_pct_1w = payload.predicted_change_pct_1w;
+    if (payload.predicted_change_pct_1m !== undefined) predictionData.predicted_change_pct_1m = payload.predicted_change_pct_1m;
+    if (payload.predicted_change_pct_6m !== undefined) predictionData.predicted_change_pct_6m = payload.predicted_change_pct_6m;
+    if (payload.predicted_change_pct_1y !== undefined) predictionData.predicted_change_pct_1y = payload.predicted_change_pct_1y;
+    if (payload.confidence_score_1w !== undefined) predictionData.confidence_score_1w = payload.confidence_score_1w;
+    if (payload.confidence_score_1m !== undefined) predictionData.confidence_score_1m = payload.confidence_score_1m;
+    if (payload.confidence_score_6m !== undefined) predictionData.confidence_score_6m = payload.confidence_score_6m;
+    if (payload.confidence_score_1y !== undefined) predictionData.confidence_score_1y = payload.confidence_score_1y;
     
     if (payload.macro_features_used !== undefined) {
       predictionData.macro_features_used = payload.macro_features_used ? JSON.stringify(payload.macro_features_used) : null;

@@ -139,7 +139,7 @@ export async function POST(
       if (source === 'livedata') {
         savePredictionAsync(
           validatedTicker,
-          result.predicted_price_1m,
+          result,
           userId,
           baselineGps.score,
           baselineGps.breakdown,
@@ -247,7 +247,7 @@ function runPythonPrediction(ticker: string, inputFile: string, outlook: string)
 
 async function savePredictionAsync(
   ticker: string,
-  price: number,
+  result: any,
   userId: string,
   gpsScore?: number,
   gpsBreakdown?: any,
@@ -255,6 +255,14 @@ async function savePredictionAsync(
   try {
     const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
     const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
+    const num = (v: unknown): number | undefined => {
+      const n = typeof v === 'number' ? v : v != null ? parseFloat(String(v)) : NaN;
+      return Number.isFinite(n) ? n : undefined;
+    };
+    const positive = (v: unknown): number | undefined => {
+      const n = num(v);
+      return n != null && n > 0 ? n : undefined;
+    };
     await fetch(`${baseUrl}/api/prediction/save`, {
       method: 'POST',
       headers: {
@@ -264,7 +272,18 @@ async function savePredictionAsync(
       },
       body: JSON.stringify({
         ticker,
-        predicted_price_1m: price,
+        predicted_price_1m: result.predicted_price_1m,
+        predicted_price_1w: positive(result.predicted_price_1w),
+        predicted_price_6m: positive(result.predicted_price_6m),
+        predicted_price_1y: positive(result.predicted_price_1y),
+        predicted_change_pct_1w: num(result.predicted_change_pct_1w),
+        predicted_change_pct_1m: num(result.predicted_change_pct_1m),
+        predicted_change_pct_6m: num(result.predicted_change_pct_6m),
+        predicted_change_pct_1y: num(result.predicted_change_pct_1y),
+        confidence_score_1w: num(result.confidence_score_1w),
+        confidence_score_1m: num(result.confidence_score_1m),
+        confidence_score_6m: num(result.confidence_score_6m),
+        confidence_score_1y: num(result.confidence_score_1y),
         user_id: userId,
         gps_score: gpsScore,
         gps_breakdown: gpsBreakdown,
