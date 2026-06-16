@@ -96,7 +96,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Developer Docs</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-12</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-15</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -134,18 +134,25 @@
     <div class="section-divider"></div>
     <h3>On this page</h3>
     <a href="#overview">Overview</a>
+    <a href="#entrypoint">Entrypoint &amp; Env Loading</a>
     <a href="#step1">1. Macro Data Sync</a>
     <a href="#step2">2. DeepMoney Discovery</a>
-    <a href="#step3">3. ML Validation Gate</a>
+    <a href="#strategy-link">— Strategy-Driven ML Gate</a>
+    <a href="#step3">3. ML Validation Gate (Python)</a>
     <a href="#vol-gate">— Volatility-Adj. Confidence Gate</a>
     <a href="#ath-warn">— ATH Proximity Warning</a>
     <a href="#step4">4. Dashboard Qualification</a>
-    <a href="#step5">5. Persistence &amp; Cleanup</a>
+    <a href="#step5">5. ETF Holdings</a>
+    <a href="#step6">6. Persistence &amp; Cleanup</a>
     <a href="#analytics-record">— Analytics Recording</a>
-    <a href="#step6">6. API Structure</a>
+    <a href="#step7">7. API Response Shape</a>
+    <a href="#tables">Tables Written</a>
+    <a href="#scheduling">Scheduling</a>
     <a href="#env-config">Environment Config</a>
     <a href="#changelog">Recent Changes</a>
     <div class="section-divider"></div>
+    <a href="strategy_system.html">Strategy System</a>
+    <a href="gps_score.html">GPS Score</a>
     <a href="authentication_flow.html">Auth Flow</a>
     <a href="database_documentation.html">Database</a>
     <a href="prediction_workflow.html">Prediction Workflow</a>
@@ -155,34 +162,60 @@
 
   <main>
     <p style="font-size:.8rem;color:#94a3b8;margin-bottom:.25rem;">doc / deepmoney_sync_workflow.html</p>
-    <h1>DeepMoney Analysis Workflow (v2.4)</h1>
+    <h1>DeepMoney Analysis Workflow (v2.5)</h1>
     <div class="meta">
       <span>scripts/deepmoney_sync.py</span>
       <span>scripts/get_macro_data.py</span>
       <span>scripts/prediction_recorder.py</span>
       <span>src/app/api/prediction/deepmoney/</span>
-      <span>Updated 2026-06-12</span>
+      <span>Updated 2026-06-15</span>
     </div>
 
     <section id="overview">
       <p>The DeepMoney sync is a background batch process (typically run as a cron job) that discovers, validates, and persists AI-curated stock recommendations and ETF picks to the database. The results power the dashboard's "AI Picks" panel, the discovery recommendations feed, and the macro context snapshot visible to all approved users.</p>
       <div class="highlight-box">
-        <strong>v2.4 changes (2026-05-28):</strong> Added volatility-adjusted confidence gate (blocks high-beta stocks with insufficient confidence score) and ATH proximity warning flag (<code>⚠️ATH</code> label applied when <code>hi_ratio &gt; 0.97</code> and <code>beta &gt; 2.0</code>).
+        <strong>v2.5 changes (2026-06-15):</strong> Documented strategy-driven <code>mlGate</code> wiring in the API route (timeframe-aware prediction floor), in-process <code>_indices_cache</code> helper, outlook-bucketed cache key, and corrected <code>record_prediction</code> semantics to <code>ON DUPLICATE KEY UPDATE</code> (not <code>INSERT IGNORE</code>).
       </div>
       <div class="highlight-box">
-        <strong>Scope note:</strong> This script writes only to <code>recommended_stocks</code> (both <code>hot_stocks</code> and <code>etf_holding</code> rows), <code>macro_context_snapshots</code>, <code>stocks</code>, <code>stock_gps_scores</code>, <code>user_stock_predictions</code>, and <code>user_stocks</code>. It does <strong>not</strong> write to <code>etf_stock_recommendations</code> — that table is populated by <code>scripts/update_predictions.py</code>.
+        <strong>Scope note:</strong> This script writes only to <code>recommended_stocks</code> (both <code>hot_stocks</code> and <code>etf_holding</code> rows), <code>macro_context_snapshots</code>, <code>stocks</code>, <code>stock_gps_scores</code>, <code>user_stock_predictions</code>, and <code>user_stocks</code>. Analytics inserts also touch <code>prediction_records</code> via <code>scripts/prediction_recorder.py</code>. It does <strong>not</strong> write to <code>etf_stock_recommendations</code> — that table is populated by <code>scripts/update_predictions.py</code>.
+      </div>
+      <div class="highlight-box">
+        <strong>Cross-references:</strong>
+        <ul style="margin-top:.4rem;margin-bottom:0;">
+          <li>Aggressiveness gates, timeframe config and the <code>mlGate</code> / <code>envFloorMultiplier</code> tables live in the <a href="strategy_system.html">Strategy System</a> doc. This page links to those values rather than restating them.</li>
+          <li>GPS scoring details (the components and weights that produce <code>gps_score</code>) live in the <a href="gps_score.html">GPS Score</a> doc. The Python mirror is <code>calculate_gps_v3()</code> in <code>scripts/update_predictions.py</code>.</li>
+        </ul>
       </div>
     </section>
+
+    <section id="entrypoint">
+      <h2><span class="step-num">0</span> Entrypoint &amp; Environment Loading</h2>
+      <div class="step-card">
+        <div class="component-tag">scripts/deepmoney_sync.py — module scope + __main__</div>
+        <p>The file is a single-module script; <code>if __name__ == "__main__": sync_deepmoney()</code> is the only entrypoint. There is no CLI argument parsing — all configuration is environment-driven.</p>
+        <p>Environment loading order (later wins; <code>load_dotenv</code> does <em>not</em> overwrite by default, so the first file with a key wins):</p>
+        <ol style="margin-left:1.5rem;">
+          <li><code>.env.production</code> (if present)</li>
+          <li><code>.env.local</code> (if present)</li>
+          <li><code>.env</code></li>
+        </ol>
+        <p>Required env vars: <code>DB_HOST</code>, <code>DB_USER</code>, <code>DB_PASSWORD</code>, <code>DB_DATABASE</code>, <code>DEEPMONEY_INTERNAL_SECRET</code>. Optional knobs: <code>DEEPMONEY_GPS_VALUE</code>, <code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code>, <code>NEXTAUTH_URL</code> (read but not used for the discovery call).</p>
+        <p><strong>Module-level cache:</strong> <code>_indices_cache</code> is a process-local variable used by <code>get_market_indices()</code>. The first call hits <code>/api/market/indices</code>; subsequent calls inside the same run return the memoized payload. The function is currently <em>defined but not called</em> inside <code>sync_deepmoney()</code> — it is exported infrastructure for future use or for callers that import the module.</p>
+      </div>
+    </section>
+
+    <div class="flow-arrow">&#8595;</div>
 
     <section id="step1">
       <h2><span class="step-num">1</span> Macro Data Sync</h2>
       <div class="step-card">
         <div class="component-tag">scripts/get_macro_data.py + /api/worldbank</div>
-        <p>The foundation of the daily sync. <code>deepmoney_sync.py</code> calls <code>GET /api/worldbank</code> via the internal localhost URL to fetch consolidated World Bank macroeconomic indicators.</p>
+        <p>The foundation of the daily sync. <code>fetch_world_bank_data()</code> calls <code>GET /api/worldbank</code> via the internal localhost URL to fetch consolidated World Bank macroeconomic indicators.</p>
         <ul>
           <li><strong>Indicators:</strong> GDP Growth, Inflation, FDI, Trade Volume, Tech Adoption (Internet/ICT), Unemployment.</li>
           <li><strong>Countries:</strong> USA, GBR, CHN, IND, DEU.</li>
           <li><strong>Persistence:</strong> When <code>wb_data.success</code> is true, the script issues an <code>INSERT ... ON DUPLICATE KEY UPDATE</code> against <code>macro_context_snapshots</code> using today's date as the key. Stored fields: <code>global_health_score</code>, <code>unemployment_rate</code>, <code>unemployment_signal</code>, <code>inflation_rate</code>, <code>gdp_growth</code>.</li>
+          <li><strong>Failure mode:</strong> the helper returns <code>None</code> on any network error and the script proceeds without writing a macro snapshot for that day — the stock sync still runs.</li>
         </ul>
       </div>
     </section>
@@ -195,25 +228,39 @@
         <div class="component-tag">scripts/deepmoney_sync.py — sync_deepmoney()</div>
         <p>Initiates the core stock discovery cycle by calling the internal API endpoint.</p>
         <ul>
-          <li><strong>Authorization:</strong> Uses <code>DEEPMONEY_INTERNAL_SECRET</code> via the <code>x-api-key</code> header. The secret is stripped of surrounding quotes before use to handle environment variable formatting quirks.</li>
+          <li><strong>Authorization:</strong> Uses <code>DEEPMONEY_INTERNAL_SECRET</code> via the <code>x-api-key</code> header. The secret is stripped of surrounding quotes before use to handle environment variable formatting quirks (<code>secret = INTERNAL_SECRET.strip('"')</code>).</li>
           <li><strong>Internal URL:</strong> All calls use <code>INTERNAL_API_URL = 'http://localhost:3001'</code> (hardcoded). This bypasses nginx and its 60-second proxy timeout — the discovery route can take over 2 minutes.</li>
           <li><strong>Endpoint called:</strong> <code>GET /api/prediction/deepmoney?refresh=true</code></li>
-          <li><strong>Discovery methods:</strong> Recursive news discovery + co-mention analysis for stocks; thematic mapping + macro tailwind scoring for ETFs.</li>
+          <li><strong>Discovery methods (server-side):</strong> Multi-source RSS / screener feeds (Yahoo, MarketBeat, TheStreet, Motley Fool, CNBC, MarketWatch, Seeking Alpha, SEC EDGAR 8-K/Form 4, ApeWisdom, sector verticals) feed primary tickers, which are then expanded into a secondary set. Enriched stocks pass through technical-indicator scoring and an AI analyzer; ETFs are surfaced via <code>performETFDiscovery()</code>.</li>
         </ul>
         <div class="warning-box">
-          <strong>Maintenance note:</strong> If the Next.js server port ever changes from 3001, <code>INTERNAL_API_URL</code> must be updated manually in each Python script — it is not controlled by environment variables.
+          <strong>Maintenance note:</strong> If the Next.js server port ever changes from 3001, <code>INTERNAL_API_URL</code> must be updated manually in each Python script — it is not controlled by an environment variable. The same hardcoded constant exists in <code>scripts/get_macro_data.py</code> and other sync scripts.
         </div>
-        <p>The response includes a <code>meta.debug</code> object logged during the sync showing pipeline stage counts: stocks rejected by enrichment, by signal score, by insufficient history, passed to the AI analyzer, rejected by the AI (&lt;1.5% prediction), and final filtered count.</p>
+        <p>The response includes a <code>meta.debug</code> object logged during the sync showing pipeline stage counts: stocks rejected by enrichment, by signal score, by insufficient history (&lt;100 trading days), passed to the AI analyzer, rejected by the AI (&lt; <code>mlGate</code>%), and final filtered count.</p>
       </div>
+
+      <section id="strategy-link">
+        <h3>Strategy-Driven ML Gate (Server Side)</h3>
+        <div class="step-card">
+          <p>Inside <code>src/app/api/prediction/deepmoney/route.ts</code>, the API resolves the caller's strategy via <code>getUserStrategy()</code> &rarr; <code>resolveStrategy()</code> to obtain a <code>TimeframeConfig</code>. Two values flow downstream:</p>
+          <ul>
+            <li><code>outlook</code> — passed to the analyzer so prediction calls run against the requested horizon (<code>1_week</code> / <code>1_month</code> / <code>6_month</code> / <code>1_year</code>).</li>
+            <li><code>mlGate</code> — the minimum positive <code>predicted_change_pct</code> a candidate must show to survive the analyzer filter. Per-horizon values are defined in <code>TIMEFRAME_CONFIG</code> in <code>src/utils/strategy.ts</code>; see the <a href="strategy_system.html">Strategy System</a> doc.</li>
+          </ul>
+          <p>The response cache key is bucketed by outlook (<code>hot-tickers-enriched:${outlook}</code>) so each timeframe maintains its own 5-minute snapshot. <code>?refresh=true</code> bypasses the cache.</p>
+          <p><strong>When called by <code>deepmoney_sync.py</code></strong> the request has no session cookie — only the <code>x-api-key</code> header — so <code>sessionUserId</code> is <code>undefined</code> and the route falls back to <code>DEFAULT_STRATEGY</code> (<code>neutral</code> / <code>1_month</code>), giving <code>mlGate = 1.5</code> and <code>outlook = '1_month'</code>. That is why the Python pipeline's hardcoded <code>pred_threshold = 1.5</code> matches the server-side default — the two stay in sync as long as the Python script remains unauthenticated.</p>
+          <p>The aggressiveness gates (<code>confidenceFloor</code>, <code>betaCutoff</code>, <code>gpsGate</code>, <code>predChangeGate</code>, <code>envFloorMultiplier</code>) live in <code>AGGRESSIVENESS_GATES</code> in the same file and apply to interactive recommendation surfaces; the <em>sync script</em> itself does not consume them — it uses its own env-driven GPS gates and a fixed prediction threshold.</p>
+        </div>
+      </section>
     </section>
 
     <div class="flow-arrow">&#8595;</div>
 
     <section id="step3">
-      <h2><span class="step-num">3</span> ML Validation Gate</h2>
+      <h2><span class="step-num">3</span> ML Validation Gate (Python)</h2>
       <div class="step-card">
         <div class="component-tag">deepmoney_sync.py — stock filtering loop</div>
-        <p>Every candidate stock from the discovery response must pass a multi-stage gate before being written to <code>recommended_stocks</code>:</p>
+        <p>Every candidate stock returned in <code>data.stocks</code> is run through a multi-stage Python-side gate before being written to <code>recommended_stocks</code>:</p>
 
         <div class="gate-flow">
           Candidate stock<br>
@@ -223,6 +270,8 @@
           &darr;<br>
           <strong>Gate 2: Volatility-Adjusted Confidence</strong><br>
           <code>conf_score &ge; 50</code> (or <code>&ge; 65</code> if <code>beta &gt; 2.5</code>)<br>
+          &darr;<br>
+          <strong>Analytics fire-and-forget: <code>record_prediction()</code></strong><br>
           &darr;<br>
           <strong>Written to <code>recommended_stocks</code></strong><br>
           &darr;<br>
@@ -238,9 +287,9 @@
           <pre><code>conf_score = pred_input.get('confidence_score') or pred_input.get('confidence_score_1m') or 0
 beta_val = s.get('beta') or 1.0
 
-volatility_gate = conf_score >= 50
-if beta_val > 2.5:
-    volatility_gate = conf_score >= 65
+volatility_gate = conf_score &gt;= 50
+if beta_val &gt; 2.5:
+    volatility_gate = conf_score &gt;= 65
 
 if not volatility_gate:
     print(f"  [vol-gate] SKIP {ticker}: CS {conf_score} insufficient for beta {beta_val:.2f}")
@@ -261,7 +310,7 @@ if not volatility_gate:
         <div class="step-card">
           <p>Stocks that pass all gates but are near their 52-week high with elevated beta receive a warning appended to the <code>metric_label</code> stored in <code>recommended_stocks</code>:</p>
           <pre><code>hi_ratio = s.get('hiRatio52w') or 0
-if hi_ratio > 0.97 and beta_val > 2.0:
+if hi_ratio &gt; 0.97 and beta_val &gt; 2.0:
     print(f"  [ath-warn] {ticker}: Near ATH ({hi_ratio:.2%}) with high beta ({beta_val:.2f})")
     metric_lbl = f"{metric_lbl} ⚠️ATH" if metric_lbl else "⚠️ATH"</code></pre>
           <p>The <code>⚠️ATH</code> label is visible in the admin dashboard view and any UI component that renders <code>metric_label</code>. It does not cause the stock to be filtered out — it is informational only, surfacing the same mean-reversion risk that the High-Beta Penalty in the prediction model already penalizes in the price target itself.</p>
@@ -279,29 +328,58 @@ if hi_ratio > 0.97 and beta_val > 2.0:
         <p>Stocks that passed the ML gate are then evaluated against a second, stricter threshold for inclusion in individual user dashboards:</p>
         <ul>
           <li><strong>GPS threshold:</strong> <code>gps &gt; DEEPMONEY_RECOMMENDATION_GPS_VALUE</code> (env, default 25.0)</li>
-          <li><strong>Prediction gate:</strong> <code>predicted_change_pct &ge; 1.5%</code></li>
+          <li><strong>Prediction gate:</strong> <code>predicted_change_pct &ge; 1.5%</code> (hardcoded as <code>pred_threshold = 1.5</code>; this matches the neutral / 1-month <code>mlGate</code> in <code>TIMEFRAME_CONFIG</code>).</li>
         </ul>
-        <p>Before this gate runs, every qualifying stock is upserted into <code>stocks</code> (insert when missing) and its GPS score is upserted into <code>stock_gps_scores</code> via <code>INSERT ... ON DUPLICATE KEY UPDATE</code> — but only if the GPS score has actually changed when rounded to one decimal place. Unchanged scores are skipped to keep <code>as_of</code> timestamps meaningful.</p>
+        <p>Before this gate runs, every qualifying stock is upserted into <code>stocks</code> (insert when missing) and its GPS score is upserted into <code>stock_gps_scores</code> via <code>INSERT ... ON DUPLICATE KEY UPDATE</code> — but only if the GPS score has actually changed when rounded to one decimal place. Unchanged scores are skipped to keep <code>as_of</code> timestamps meaningful. The write uses <code>source = 'deepmoney_sync'</code>.</p>
         <p>When a stock additionally passes both Dashboard thresholds, the script iterates over <strong>every approved user</strong> (fetched once via <code>SELECT id FROM users WHERE approval_status = 'approved'</code>) and upserts:</p>
         <ul>
-          <li><code>user_stock_predictions</code>: <code>predicted_price_1m</code> + <code>last_requested_at = NOW()</code>.</li>
-          <li><code>user_stocks</code>: <code>is_purchased = 0</code>, <code>user_confirmed = 0</code>, <code>is_active = 1</code>. The <code>ON DUPLICATE KEY UPDATE</code> clause is guarded so confirmed/purchased positions are never overwritten.</li>
+          <li><code>user_stock_predictions</code>: <code>predicted_price_1m</code> + <code>last_requested_at = NOW()</code>. (GPS columns were removed from this table — they now live in <code>stock_gps_scores</code>.)</li>
+          <li><code>user_stocks</code>: <code>is_purchased = 0</code>, <code>user_confirmed = 0</code>, <code>is_active = 1</code>. The <code>ON DUPLICATE KEY UPDATE</code> clause is guarded so confirmed/purchased positions are never overwritten (<code>user_confirmed = IF(is_purchased = 0, 0, user_confirmed)</code>, <code>is_active = IF(is_purchased = 0, 1, is_active)</code>).</li>
         </ul>
+        <p>Qualifying <code>stock_id</code>s are also collected into a <code>qualifying_stock_ids</code> set used by the post-sync cleanup (Step 6).</p>
       </div>
     </section>
 
     <div class="flow-arrow">&#8595;</div>
 
     <section id="step5">
-      <h2><span class="step-num">5</span> Persistence &amp; Stale Entry Cleanup</h2>
+      <h2><span class="step-num">5</span> ETF Holdings</h2>
+      <div class="step-card">
+        <div class="component-tag">deepmoney_sync.py — hot_etfs loop</div>
+        <p>For every hot ETF returned in <code>data.hot_etfs</code>, the script fetches <code>GET /api/stock_data/{etf_ticker}/holdings</code> (30-second timeout) and reads the cached holding-level GPS scores that the discovery pass already wrote to <code>etf_holding_scores</code>.</p>
+        <p>For each holding flagged <code>surfaced: true</code>, a row is inserted into <code>recommended_stocks</code> with:</p>
+        <ul>
+          <li><code>type = 'etf_holding'</code></li>
+          <li><code>parent_etf_ticker</code>, <code>holding_percent</code>, the cached <code>gps_score</code> and <code>gps_breakdown</code></li>
+          <li><code>bearish_signal = 0</code> (surfaced = non-bearish by definition)</li>
+          <li><code>classification = 'ETF Holding'</code></li>
+          <li><code>discovery_source = "etf_holdings/{etf_ticker}"</code></li>
+          <li><code>metric_label = score_source</code> (e.g. <code>cached</code> / <code>live</code>) for traceability</li>
+          <li><code>snapshot_date</code> = today</li>
+        </ul>
+        <p>A counter (<code>holdings_written</code>) is printed at the end of the loop. Holding rows share the same <code>recommended_stocks</code> table as hot stocks and are distinguished only by <code>type</code>.</p>
+      </div>
+    </section>
+
+    <div class="flow-arrow">&#8595;</div>
+
+    <section id="step6">
+      <h2><span class="step-num">6</span> Persistence &amp; Stale Entry Cleanup</h2>
       <div class="step-card">
         <div class="component-tag">deepmoney_sync.py — post-sync cleanup</div>
         <p>The sync begins with a hard <code>DELETE FROM recommended_stocks</code> — the table is fully rebuilt every run with today's <code>snapshot_date</code>. Both hot stocks and ETF holdings (<code>type = 'etf_holding'</code>) share this same table.</p>
         <p>After all stocks and ETF holdings are processed, stale discovery entries from previous runs are removed. The approach is exact: only stocks that did not qualify in today's run (i.e., not in <code>qualifying_stock_ids</code>) and are still marked as active unconfirmed discoveries are removed from <code>user_stocks</code> and <code>user_stock_predictions</code>.</p>
+        <p>If <code>qualifying_stock_ids</code> is empty (degenerate case), <em>all</em> active unconfirmed discoveries are eligible for removal — purchased positions remain untouched because of the <code>user_confirmed = 0</code> filter.</p>
         <p>This post-sync cleanup replaced an earlier pre-clear approach and is safe for concurrent runs because it only touches <code>is_active = 1 AND user_confirmed = 0</code> rows — confirmed (user-purchased) positions are never removed.</p>
+        <p>The entire DB block is wrapped in <code>try / except</code>; on any error the transaction is rolled back and the cursor/connection are closed in <code>finally</code>.</p>
 
-        <h3 id="analytics-record" style="background:none;padding:0;color:#334155;margin-top:1.5rem;">Analytics Recording <span class="new-badge">verified 2026-06-12</span></h3>
-        <p>For every qualifying hot stock with a current price and at least one horizon prediction, <code>deepmoney_sync.py</code> fires a per-stock <code>record_prediction()</code> call (imported from <code>scripts/prediction_recorder.py</code>). This writes a row to the <code>prediction_records</code> analytics table using <code>INSERT IGNORE</code> keyed on <code>(symbol, predicted_at = CURDATE())</code>, so duplicate same-day writes are silently skipped. The payload includes all four horizons:</p>
+        <h3 id="analytics-record" style="background:none;padding:0;color:#334155;margin-top:1.5rem;">Analytics Recording <span class="new-badge">corrected 2026-06-15</span></h3>
+        <p>For every qualifying hot stock with a current price and at least one horizon prediction, <code>deepmoney_sync.py</code> fires a per-stock <code>record_prediction()</code> call (imported from <code>scripts/prediction_recorder.py</code>). This writes a row to the <code>prediction_records</code> analytics table using <code>INSERT ... ON DUPLICATE KEY UPDATE</code> keyed on <code>(symbol, predicted_at = CURDATE())</code>:</p>
+        <ul>
+          <li>If no row exists for the symbol today, it is inserted and the recorder prints <code>[analytics] Prediction recorded for &lt;ticker&gt;</code>.</li>
+          <li>If a row already exists, the recorder uses <code>COALESCE(VALUES(col), col)</code> to fill in any horizon columns that were previously null, refreshes <code>price_at_prediction</code> and <code>updated_at</code>, and prints <code>[analytics] Duplicate prediction (ignored) for &lt;ticker&gt; on same day</code>.</li>
+        </ul>
+        <p>Each call opens its own MySQL connection — the recorder is independent of the sync script's connection. The payload includes all four horizons:</p>
         <pre><code>record_prediction(
     symbol=ticker,
     price_at_prediction=price,
@@ -311,23 +389,22 @@ if hi_ratio > 0.97 and beta_val > 2.0:
     predicted_price_1y=predicted_price_1y,
 )</code></pre>
         <p>This call is independent of the GPS / user-dashboard logic — it runs as soon as the stock passes the ML gate + volatility gate, before the Dashboard Qualification threshold is checked. The result feeds the <code>/api/analytics/model-accuracy</code> endpoint and the <code>ModelAccuracyWidget</code> headline direction-accuracy metric (Prediction Tracking System, Phase 2–5).</p>
-
-        <h3 style="background:none;padding:0;color:#334155;margin-top:1.5rem;">ETF Holdings</h3>
-        <p>For every hot ETF in <code>data.hot_etfs</code>, the script fetches <code>GET /api/stock_data/{etf_ticker}/holdings</code> and, for each holding flagged <code>surfaced: true</code>, inserts a row into <code>recommended_stocks</code> with <code>type = 'etf_holding'</code>, the parent ETF ticker, holding percent, and the cached GPS score. These rows share today's <code>snapshot_date</code>.</p>
       </div>
     </section>
 
     <div class="flow-arrow">&#8595;</div>
 
-    <section id="step6">
-      <h2><span class="step-num">6</span> API Structure</h2>
+    <section id="step7">
+      <h2><span class="step-num">7</span> API Response Shape</h2>
       <div class="step-card">
         <div class="component-tag">GET /api/prediction/deepmoney</div>
-        <p>Returns a JSON payload with <code>source: 'livedata'</code> or <code>source: 'cache'</code> indicator. The <code>?refresh=true</code> query parameter bypasses the cache and triggers a full re-run of the discovery and AI analysis pipeline.</p>
+        <p>Returns a JSON payload with <code>source: 'livedata'</code> or <code>source: 'cache'</code> indicator. The <code>?refresh=true</code> query parameter bypasses the cache and triggers a full re-run of the discovery and AI analysis pipeline. The response also includes <code>outlook</code> and <code>timeframe_label</code> so the UI can render copy like "Predicted +8.2% in 6 months".</p>
         <pre><code>{
   "success": true,
-  "timestamp": "2026-06-12T...",
-  "source": "cache",
+  "timestamp": "2026-06-15T...",
+  "count": 12,
+  "outlook": "1_month",
+  "timeframe_label": "in 1 month",
   "stocks": [
     {
       "ticker": "AAPL",
@@ -354,17 +431,55 @@ if hi_ratio > 0.97 and beta_val > 2.0:
   ],
   "hot_etfs": [ ... ],
   "meta": {
+    "totalDiscovered": 380,
+    "enrichedCount": 57,
+    "filteredCount": 12,
+    "hotEtfsCount": 4,
     "debug": {
       "rejectedEnrichment": 14,
       "rejectedSignalScore": 22,
       "rejectedHistory": 3,
       "passedToAnalyzer": 18,
       "rejectedByAI": 6,
-      "filteredCount": 12
-    },
-    "etfHoldingsSurfacedCount": 9
+      "filteredCount": 12,
+      "predictionThreshold": "1.5%",
+      "predictionSample": [ ... ]
+    }
   }
 }</code></pre>
+      </div>
+    </section>
+
+    <section id="tables">
+      <h2>Tables Written</h2>
+      <div class="step-card">
+        <table>
+          <thead><tr><th>Table</th><th>Operation</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><code>recommended_stocks</code></td><td><code>DELETE</code> + bulk <code>INSERT</code></td><td>Fully rebuilt each run. Holds both <code>hot_stocks</code> and <code>etf_holding</code> rows for today's <code>snapshot_date</code>.</td></tr>
+            <tr><td><code>macro_context_snapshots</code></td><td><code>INSERT ... ON DUPLICATE KEY UPDATE</code></td><td>Keyed on <code>snapshot_date</code>. Only written when <code>wb_data.success</code> is true.</td></tr>
+            <tr><td><code>stocks</code></td><td><code>SELECT</code> then <code>INSERT</code> if missing</td><td>Ensures a <code>stock_id</code> exists for every qualifying ticker before downstream upserts.</td></tr>
+            <tr><td><code>stock_gps_scores</code></td><td><code>INSERT ... ON DUPLICATE KEY UPDATE</code></td><td>Only when the rounded value actually changed. <code>source = 'deepmoney_sync'</code>.</td></tr>
+            <tr><td><code>user_stock_predictions</code></td><td><code>INSERT ... ON DUPLICATE KEY UPDATE</code> + targeted <code>DELETE</code></td><td>One row per (user, qualifying stock). Cleanup removes rows for stocks not in today's qualifying set.</td></tr>
+            <tr><td><code>user_stocks</code></td><td><code>INSERT ... ON DUPLICATE KEY UPDATE</code> + targeted <code>DELETE</code></td><td>Guard clause preserves <code>is_purchased = 1</code> rows; cleanup only touches <code>is_active = 1 AND user_confirmed = 0</code>.</td></tr>
+            <tr><td><code>prediction_records</code></td><td><code>INSERT ... ON DUPLICATE KEY UPDATE</code> via <code>prediction_recorder.py</code></td><td>One row per (symbol, <code>CURDATE()</code>). Powers Model Accuracy widget.</td></tr>
+          </tbody>
+        </table>
+        <p style="margin-top:.75rem;"><strong>Not written by this script:</strong> <code>etf_stock_recommendations</code>, <code>etf_holding_scores</code> (the latter is populated by the server-side discovery route during the API call, not by the Python script).</p>
+      </div>
+    </section>
+
+    <section id="scheduling">
+      <h2>Scheduling Considerations</h2>
+      <div class="step-card">
+        <p>The script is designed to be invoked by cron on the same host as the Next.js server. Recommended cadence is once per market day, after the close.</p>
+        <ul>
+          <li><strong>Runtime budget:</strong> a full discovery pass can take 2+ minutes (RSS aggregation, enrichment, AI analysis). The hardcoded <code>http://localhost:3001</code> URL exists specifically to bypass nginx's 60-second proxy timeout.</li>
+          <li><strong>Idempotency:</strong> safe to re-run on the same day. <code>recommended_stocks</code> is fully rebuilt, <code>stock_gps_scores</code> skips unchanged writes, <code>prediction_records</code> upserts via <code>(symbol, CURDATE())</code>, and the stale-entry cleanup is set-based on <code>qualifying_stock_ids</code>.</li>
+          <li><strong>Concurrency:</strong> the post-sync cleanup is exact rather than pre-clearing, so an overlapping run can complete without wiping in-flight discovery entries. That said, two simultaneous runs are not recommended — both will issue <code>DELETE FROM recommended_stocks</code> at the top and race each other's bulk inserts.</li>
+          <li><strong>Failure modes:</strong> a failed World Bank fetch leaves the macro snapshot untouched but the stock sync proceeds. A failed discovery API call aborts the run entirely. A DB exception triggers <code>conn.rollback()</code>; the cursor and connection are always closed in <code>finally</code>.</li>
+          <li><strong>Logging:</strong> all output is plain <code>print()</code> to stdout. Operators should capture stdout/stderr in a cron log file. Key lines to watch for: <code>[config]</code>, <code>[debug]</code>, <code>[vol-gate]</code>, <code>[ath-warn]</code>, <code>[analytics]</code>, <code>ETF holdings persisted</code>, and <code>Sync completed successfully</code>.</li>
+        </ul>
       </div>
     </section>
 
@@ -374,12 +489,12 @@ if hi_ratio > 0.97 and beta_val > 2.0:
         <table>
           <thead><tr><th>Variable</th><th>Default</th><th>Purpose</th></tr></thead>
           <tbody>
-            <tr><td><code>DEEPMONEY_INTERNAL_SECRET</code></td><td>—</td><td>Shared secret for internal API calls (<code>x-api-key</code>). Must not have surrounding quotes in the env file.</td></tr>
+            <tr><td><code>DEEPMONEY_INTERNAL_SECRET</code></td><td>—</td><td>Shared secret for internal API calls (<code>x-api-key</code>). Surrounding quotes are stripped at use time, so either quoted or unquoted forms in the env file work.</td></tr>
             <tr><td><code>DEEPMONEY_GPS_VALUE</code></td><td>10.0</td><td>ML Gate: minimum GPS score to write a stock to <code>recommended_stocks</code>.</td></tr>
             <tr><td><code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code></td><td>25.0</td><td>Dashboard Threshold: minimum GPS score to push a stock to user dashboards.</td></tr>
-            <tr><td><code>DEEPMONEY_PRED_THRESHOLD</code> (hardcoded <code>pred_threshold</code>)</td><td>1.5%</td><td>Prediction Gate: minimum <code>predicted_change_pct</code> required alongside the Dashboard GPS threshold.</td></tr>
-            <tr><td><code>NEXTAUTH_URL</code></td><td>http://localhost:3001</td><td>Read but not used for prediction calls. The deepmoney discovery URL is hardcoded to localhost:3001 regardless of this variable.</td></tr>
-            <tr><td><code>DB_HOST</code>, <code>DB_USER</code>, <code>DB_PASSWORD</code>, <code>DB_DATABASE</code></td><td>—</td><td>MySQL connection for the sync script.</td></tr>
+            <tr><td><code>pred_threshold</code> (hardcoded)</td><td>1.5%</td><td>Prediction Gate: minimum <code>predicted_change_pct</code> required alongside the Dashboard GPS threshold. Matches the neutral / 1-month <code>mlGate</code> in <code>TIMEFRAME_CONFIG</code>.</td></tr>
+            <tr><td><code>NEXTAUTH_URL</code></td><td>http://localhost:3001</td><td>Read but not used for the discovery call. The deepmoney URL is hardcoded to <code>localhost:3001</code> regardless of this variable.</td></tr>
+            <tr><td><code>DB_HOST</code>, <code>DB_USER</code>, <code>DB_PASSWORD</code>, <code>DB_DATABASE</code></td><td>—</td><td>MySQL connection for the sync script and for <code>prediction_recorder.py</code>.</td></tr>
           </tbody>
         </table>
       </div>
@@ -391,7 +506,11 @@ if hi_ratio > 0.97 and beta_val > 2.0:
         <table>
           <thead><tr><th>Date</th><th>Change</th><th>Detail</th></tr></thead>
           <tbody>
-            <tr><td>2026-06-12</td><td>Documented analytics recording <span class="new-badge">new</span></td><td>Per-stock fire-and-forget <code>record_prediction()</code> call (from <code>scripts/prediction_recorder.py</code>) writes to <code>prediction_records</code> via <code>INSERT IGNORE</code> keyed on <code>(symbol, CURDATE())</code>. Drives Model Accuracy widget.</td></tr>
+            <tr><td>2026-06-15</td><td>Documented strategy-driven server-side <code>mlGate</code> <span class="new-badge">new</span></td><td>API route resolves <code>getUserStrategy()</code> &rarr; <code>resolveStrategy().timeframe</code> for <code>outlook</code> + <code>mlGate</code>. Cache is bucketed by outlook. Linked to <a href="strategy_system.html">Strategy System</a> for gate / timeframe tables.</td></tr>
+            <tr><td>2026-06-15</td><td>Corrected analytics recorder semantics</td><td><code>record_prediction()</code> uses <code>ON DUPLICATE KEY UPDATE</code> with <code>COALESCE</code> to backfill horizon columns, not <code>INSERT IGNORE</code>. The doc previously stated <code>INSERT IGNORE</code>; updated to match <code>scripts/prediction_recorder.py</code>.</td></tr>
+            <tr><td>2026-06-15</td><td>Added entrypoint &amp; scheduling sections</td><td>Documented <code>.env</code> load order, the module-level <code>_indices_cache</code> helper, cron cadence, runtime budget, idempotency and failure modes.</td></tr>
+            <tr><td>2026-06-15</td><td>Added "Tables Written" summary</td><td>Single-table reference for ops/debugging — lists each table this script touches, operation, and any guards.</td></tr>
+            <tr><td>2026-06-12</td><td>Documented analytics recording</td><td>Per-stock fire-and-forget <code>record_prediction()</code> call writes to <code>prediction_records</code> keyed on <code>(symbol, CURDATE())</code>. Drives Model Accuracy widget.</td></tr>
             <tr><td>2026-06-12</td><td>Clarified table ownership</td><td>This script writes <code>recommended_stocks</code> (including <code>etf_holding</code> rows). It does <strong>not</strong> write <code>etf_stock_recommendations</code> — that is owned by <code>update_predictions.py</code>.</td></tr>
             <tr><td>2026-05-28</td><td>Volatility-adjusted confidence gate</td><td>Stocks with <code>beta &gt; 2.5</code> require <code>confidence_score &ge; 65</code> instead of the standard 50. Applied after the GPS gate, before writing to <code>recommended_stocks</code>.</td></tr>
             <tr><td>2026-05-28</td><td>ATH proximity warning flag</td><td><code>⚠️ATH</code> appended to <code>metric_label</code> when <code>hiRatio52w &gt; 0.97</code> and <code>beta &gt; 2.0</code>. Informational; does not filter the stock out.</td></tr>

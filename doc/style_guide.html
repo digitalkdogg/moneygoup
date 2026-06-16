@@ -103,10 +103,10 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Style Guide</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-12</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-15</div>
   </div>
       <div class="nav-scroll-controls">
-    <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
+    <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">&lsaquo;</button>
   </div>
   <nav class="top-bar-nav">
     <a href="moneygoup_overview.html">Overview</a>
@@ -126,7 +126,7 @@
     <a href="SEO.html">SEO</a>
   </nav>
   <div class="nav-scroll-controls">
-    <button class="nav-scroll-btn nav-scroll-right" aria-label="Scroll nav right">›</button>
+    <button class="nav-scroll-btn nav-scroll-right" aria-label="Scroll nav right">&rsaquo;</button>
   </div>
 </div>
     <div class="layout">
@@ -144,7 +144,10 @@
     <a href="#buttons">Buttons &amp; Bubbles</a>
     <a href="#button-typography">Button Typography</a>
     <a href="#cards">Cards &amp; Layout</a>
+    <a href="#card-grid">Card Grid Pattern</a>
+    <a href="#card-variants">Card Variants</a>
     <a href="#badges">Badges &amp; Indicators</a>
+    <a href="#utilities">Utility Patterns</a>
     <a href="#accessibility">Accessibility (AA)</a>
     <div class="section-divider"></div>
     <a href="authentication_flow.html">Auth Flow</a>
@@ -158,20 +161,24 @@
 
     <main>
         <h1>MoneyGoUp Design System</h1>
-        <p>A comprehensive guide to the visual language and user interface standards for the MoneyGoUp application. This system ensures consistency, accessibility, and a modern financial aesthetic across all platforms.</p>
+        <p>A comprehensive guide to the visual language and UI standards for the GrowMyStocks (MoneyGoUp) application. The system is built on Tailwind CSS v4 with brand tokens defined in <code>src/app/globals.css</code> and a small Tailwind config at <code>tailwind.config.js</code>. The goal is consistency, accessibility (WCAG 2.1 AA), and a clean financial aesthetic that puts data first.</p>
+
+        <div class="highlight-box" style="background:#f0fdf4;border-left-color:#017e3b;">
+            <strong>Single source of truth:</strong> brand colors, button typography, and heading sizes are defined globally in <code>globals.css</code>. Components consume them via Tailwind utility classes — do not redefine these values per component.
+        </div>
 
         <section id="colors">
             <h2>Color Palette</h2>
-            <p>Our primary palette is anchored in trust-building greens, balanced with a clean neutral background for maximum data readability.</p>
+            <p>Our primary palette is anchored in trust-building greens, balanced with a clean neutral background for maximum data readability. The brand greens are tuned for AA contrast on white.</p>
 
-            <h3>Primary Brand Colors</h3>
+            <h3>Brand Greens (defined in <code>globals.css</code> / <code>@theme</code>)</h3>
             <div class="swatch-grid">
                 <div class="swatch">
                     <div class="swatch-color" style="background: #017e3b;"></div>
                     <div class="swatch-info">
                         <strong>Brand Green 700</strong>
                         <code>#017e3b</code>
-                        <small>AA Compliant on White</small>
+                        <small>Primary action, top bar, focus accents. 5.0:1 on white (AA).</small>
                     </div>
                 </div>
                 <div class="swatch">
@@ -179,15 +186,55 @@
                     <div class="swatch-info">
                         <strong>Brand Green 800</strong>
                         <code>#016a32</code>
-                        <small>Deep Navigation/Dark Mode</small>
+                        <small>Hover state for primary buttons. 6.8:1 on white (AA).</small>
+                    </div>
+                </div>
+                <div class="swatch">
+                    <div class="swatch-color" style="background: #005a00;"></div>
+                    <div class="swatch-info">
+                        <strong>Brand Green 600</strong>
+                        <code>#005a00</code>
+                        <small>Deepest brand green / CSS var <code>--color-green-600</code>.</small>
+                    </div>
+                </div>
+                <div class="swatch">
+                    <div class="swatch-color" style="background: #377d13;"></div>
+                    <div class="swatch-info">
+                        <strong>Brand Green Accent</strong>
+                        <code>#377d13</code>
+                        <small>Adjusted accent green. 4.5:1 on white (AA).</small>
+                    </div>
+                </div>
+                <div class="swatch">
+                    <div class="swatch-color" style="background: #f0fdf4;"></div>
+                    <div class="swatch-info">
+                        <strong>Green Surface 50</strong>
+                        <code>#f0fdf4</code>
+                        <small>Sidebar hover / active background.</small>
                     </div>
                 </div>
                 <div class="swatch">
                     <div class="swatch-color" style="background: #dcfce7;"></div>
                     <div class="swatch-info">
-                        <strong>Green Accent Light</strong>
+                        <strong>Green Surface 100</strong>
                         <code>#dcfce7</code>
-                        <small>UI Accents/Highlights</small>
+                        <small>Analyst "Strong Buy" badge background.</small>
+                    </div>
+                </div>
+                <div class="swatch">
+                    <div class="swatch-color" style="background: #bbf7d0;"></div>
+                    <div class="swatch-info">
+                        <strong>Green Accent 200</strong>
+                        <code>#bbf7d0</code>
+                        <small>Brand text accent inside the top bar.</small>
+                    </div>
+                </div>
+                <div class="swatch">
+                    <div class="swatch-color" style="background: #86efac;"></div>
+                    <div class="swatch-info">
+                        <strong>Green Accent 300</strong>
+                        <code>#86efac</code>
+                        <small>Active nav underline / sidebar hover border.</small>
                     </div>
                 </div>
             </div>
@@ -195,72 +242,173 @@
             <h3>Semantic Colors</h3>
             <div class="swatch-grid">
                 <div class="swatch">
-                    <div class="swatch-color" style="background: #15803d;"></div>
+                    <div class="swatch-color" style="background: #16a34a;"></div>
                     <div class="swatch-info">
-                        <strong>Success / Buy</strong>
-                        <code>#15803d</code>
+                        <strong>Up / Positive</strong>
+                        <code>text-green-600</code>
+                        <small>Price up, positive prediction, gains.</small>
                     </div>
                 </div>
                 <div class="swatch">
-                    <div class="swatch-color" style="background: #b91c1c;"></div>
+                    <div class="swatch-color" style="background: #dc2626;"></div>
                     <div class="swatch-info">
-                        <strong>Error / Sell</strong>
-                        <code>#b91c1c</code>
+                        <strong>Down / Negative</strong>
+                        <code>text-red-600</code>
+                        <small>Price down, downside flag, losses.</small>
                     </div>
                 </div>
                 <div class="swatch">
-                    <div class="swatch-color" style="background: #b45309;"></div>
+                    <div class="swatch-color" style="background: #d97706;"></div>
                     <div class="swatch-info">
-                        <strong>Warning / Alert</strong>
-                        <code>#b45309</code>
+                        <strong>Warning / Hold</strong>
+                        <code>text-amber-600 / amber-800</code>
+                        <small>Hold ratings, neutral predictions.</small>
                     </div>
                 </div>
                 <div class="swatch">
                     <div class="swatch-color" style="background: #2563eb;"></div>
                     <div class="swatch-info">
-                        <strong>Focus / Primary Action</strong>
+                        <strong>Focus Ring</strong>
                         <code>#2563eb</code>
+                        <small><code>--focus-ring-color</code> — 2px outline + 2px white offset.</small>
                     </div>
+                </div>
+                <div class="swatch">
+                    <div class="swatch-color" style="background: #9333ea;"></div>
+                    <div class="swatch-info">
+                        <strong>GPS Score Accent</strong>
+                        <code>text-purple-600</code>
+                        <small>Highlight color for GPS score values in DeepMoney cards.</small>
+                    </div>
+                </div>
+            </div>
+
+            <h3>Neutral Surfaces &amp; Text</h3>
+            <div class="swatch-grid">
+                <div class="swatch">
+                    <div class="swatch-color" style="background: #ffffff;border-bottom:1px solid #e2e8f0;"></div>
+                    <div class="swatch-info"><strong>Card / Surface</strong><code>#ffffff</code></div>
+                </div>
+                <div class="swatch">
+                    <div class="swatch-color" style="background: #f8fafc;"></div>
+                    <div class="swatch-info"><strong>Page Background</strong><code>bg-slate-50</code></div>
+                </div>
+                <div class="swatch">
+                    <div class="swatch-color" style="background: #f1f5f9;"></div>
+                    <div class="swatch-info"><strong>Soft Divider</strong><code>border-gray-100</code></div>
+                </div>
+                <div class="swatch">
+                    <div class="swatch-color" style="background: #e2e8f0;"></div>
+                    <div class="swatch-info"><strong>Default Border</strong><code>border-gray-200</code></div>
+                </div>
+                <div class="swatch">
+                    <div class="swatch-color" style="background: #1e293b;"></div>
+                    <div class="swatch-info"><strong>Primary Text</strong><code>text-gray-900</code></div>
+                </div>
+                <div class="swatch">
+                    <div class="swatch-color" style="background: #64748b;"></div>
+                    <div class="swatch-info"><strong>Secondary Text</strong><code>text-gray-500/600</code></div>
                 </div>
             </div>
         </section>
 
         <section id="typography">
             <h2>Typography</h2>
-            <p>We use a modern sans-serif system stack (Inter, SF Pro, Segoe UI) for maximum performance and native platform feel.</p>
+            <p>System sans-serif stack (Inter, SF Pro, Segoe UI). All headings use <code>font-weight: 500</code> — bold and strong are globally remapped to 500 to keep a calm, modern feel. <code>letter-spacing: 0.35px</code> is applied globally via <code>:root</code>.</p>
+
+            <h3>Heading Scale</h3>
             <div class="type-sample">
-                <h1>Heading 1 (36px / 2.25rem)</h1>
-                <h2>Heading 2 (28px / 1.75rem)</h2>
-                <h3>Heading 3 (22px / 1.375rem)</h3>
-                <h4>Heading 4 (18px / 1.125rem)</h4>
-                <p>Body copy (16px / 1rem) with a line-height of 1.6 for comfortable reading of financial reports and technical data. <strong>Bold weights</strong> are used for emphasis and data labels.</p>
+                <h1 style="margin:0 0 1rem;color:#333;font-weight:500;border:0;padding:0;">Heading 1 — 36px / 2.25rem</h1>
+                <h2 style="margin:0 0 1rem;color:#333;font-weight:500;border:0;padding:0;font-size:1.75rem;">Heading 2 — 28px / 1.75rem</h2>
+                <h3 style="margin:0 0 1rem;color:#333;font-weight:500;font-size:1.375rem;">Heading 3 — 22px / 1.375rem</h3>
+                <h4 style="margin:0 0 1rem;color:#333;font-weight:500;font-size:1.125rem;">Heading 4 — 18px / 1.125rem</h4>
+                <h5 style="margin:0 0 1rem;color:#333;font-weight:500;font-size:0.9375rem;">Heading 5 — 15px / 0.9375rem</h5>
+                <h6 style="margin:0 0 1rem;color:#333;font-weight:500;font-size:0.8125rem;">Heading 6 — 13px / 0.8125rem</h6>
+                <p>Body copy (16px / 1rem) with a line-height of 1.6 for comfortable reading of financial reports and technical data.</p>
+            </div>
+
+            <h3>Section Heading (<code>.section-heading</code>)</h3>
+            <div class="component-section">
+                <div class="demo-box">
+                    <div style="font-size:1.75rem;color:#333;text-transform:uppercase;letter-spacing:0.1em;padding-left:0.75rem;border-left:2px solid #017e3b;line-height:1.2;font-weight:500;">
+                        Portfolio Overview
+                    </div>
+                </div>
+                <p>Used for major page sections. Uppercase, 1.75rem, with a 2px brand-green left border and 0.1em tracking.</p>
+                <div class="type-sample">
+                    <code>&lt;h2 class="section-heading"&gt;Portfolio Overview&lt;/h2&gt;</code>
+                </div>
+            </div>
+
+            <h3>Card Text Hierarchy</h3>
+            <div class="component-section">
+                <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
+                    <thead>
+                        <tr style="background:#f8fafc;">
+                            <th style="text-align:left;padding:0.75rem;border-bottom:2px solid #e2e8f0;color:#64748b;font-size:0.75rem;text-transform:uppercase;">Role</th>
+                            <th style="text-align:left;padding:0.75rem;border-bottom:2px solid #e2e8f0;color:#64748b;font-size:0.75rem;text-transform:uppercase;">Size</th>
+                            <th style="text-align:left;padding:0.75rem;border-bottom:2px solid #e2e8f0;color:#64748b;font-size:0.75rem;text-transform:uppercase;">Classes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;">Symbol / ticker</td><td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;">18-24px</td><td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;"><code>text-xl/2xl font-bold text-gray-900</code></td></tr>
+                        <tr><td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;">Company name</td><td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;">12-13px</td><td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;"><code>text-xs/[13px] text-gray-500/600 font-semibold truncate</code></td></tr>
+                        <tr><td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;">Price</td><td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;">18-20px</td><td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;"><code>text-lg/xl font-bold text-gray-900</code></td></tr>
+                        <tr><td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;">Change %</td><td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;">11-13px</td><td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;"><code>text-[11px]/[13px] font-semibold {getChangeColor()}</code></td></tr>
+                        <tr><td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;">Metric label</td><td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;">11px</td><td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;"><code>text-[11px] font-semibold uppercase tracking-wide text-gray-500</code></td></tr>
+                        <tr><td style="padding:0.6rem;">Metric value</td><td style="padding:0.6rem;">14px</td><td style="padding:0.6rem;"><code>text-sm font-bold text-gray-900</code></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="spacing">
+            <h2>Spacing &amp; Layout</h2>
+            <p>The app standardizes on Tailwind's default spacing scale. Common values you'll see across the cards layer:</p>
+            <div class="component-section">
+                <ul>
+                    <li><code>gap-6</code> (24px) — primary grid gutter for the card grid.</li>
+                    <li><code>gap-2 / gap-3</code> (8/12px) — internal card content gaps.</li>
+                    <li><code>px-4 py-2</code> / <code>px-5 py-4</code> — card header / body padding.</li>
+                    <li><code>p-5</code> — full-size <code>CardActions</code> footer padding; <code>px-3 pt-1 pb-3</code> when <code>compact</code>.</li>
+                    <li><code>rounded-lg</code> (8px) — buttons.</li>
+                    <li><code>rounded-2xl</code> (16px) — <code>BaseCardShell</code> outer container.</li>
+                    <li><code>rounded-[10px]</code> — Watchlist tile (custom 10px radius per mockup).</li>
+                    <li><code>rounded-full</code> (9999px) — bubbles &amp; status pills.</li>
+                </ul>
             </div>
         </section>
 
         <section id="buttons">
-            <h2>Buttons & Bubbles</h2>
+            <h2>Buttons &amp; Bubbles</h2>
 
             <h3>Standard Buttons</h3>
             <div class="component-section">
                 <div class="demo-box">
                     <button class="btn-primary">Primary Action</button>
-                    <button style="background: white; border: 1px solid #e2e8f0; color: #64748b; padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 600;">Secondary Action</button>
+                    <button style="background:white;border:1px solid #e2e8f0;color:#64748b;padding:0.5rem 1rem;border-radius:0.5rem;font-weight:600;">Secondary Action</button>
                 </div>
-                <p>Standard buttons use a <code>0.5rem</code> (8px) border radius and high-contrast text.</p>
+                <p>Primary buttons use brand green 700 (<code>bg-green-700 hover:bg-green-800</code>) with white text, an <code>0.5rem</code> (8px) radius, and the global focus-ring treatment. Tailwind <code>green-700</code> is remapped via <code>@theme</code> to <code>#017e3b</code> in <code>globals.css</code>.</p>
+            </div>
+
+            <h3>Card Action Buttons (<code>ActionButton</code>)</h3>
+            <div class="component-section">
+                <div class="demo-box">
+                    <button style="background:#017e3b;color:white;padding:0.375rem 0.5rem;border-radius:0.5rem;border:none;font-size:12px;font-weight:500;">Buy</button>
+                    <button style="background:white;border:1px solid #b91c1c;color:#b91c1c;padding:0.375rem 0.5rem;border-radius:0.5rem;font-size:12px;font-weight:500;margin-left:8px;">Sell</button>
+                    <button style="background:white;border:1px solid #017e3b;color:#017e3b;padding:0.375rem 0.5rem;border-radius:0.5rem;font-size:12px;font-weight:500;margin-left:8px;">Watch</button>
+                    <button style="background:#d1d5db;color:#374151;padding:0.375rem 0.5rem;border-radius:0.5rem;border:none;font-size:12px;font-weight:500;margin-left:8px;">Remove</button>
+                </div>
+                <p><code>ActionButton</code> in <code>CardActions.tsx</code> provides four variants — <code>primary | secondary | danger | neutral</code> — each with an optional <code>outline</code> mode. All card action buttons add the <code>sm</code> class, so they render at 12px / weight 500.</p>
             </div>
 
             <h3>Info Bubbles</h3>
             <div class="component-section">
                 <div class="demo-box">
-                    <div class="bubble">
-                        <span class="status-dot dot-open"></span>
-                        Market Open
-                    </div>
-                    <div class="bubble" style="margin-left: 10px;">
-                        Apr 23, 2026
-                    </div>
+                    <div class="bubble"><span class="status-dot dot-open"></span>Market Open</div>
+                    <div class="bubble" style="margin-left:10px;">Apr 23, 2026</div>
                 </div>
-                <p>Used for status indicators and metadata in headers. Bubbles use <code>rounded-full</code> (9999px) and a subtle shadow.</p>
+                <p>Used for status indicators and metadata in headers. Bubbles use <code>rounded-full</code> and a subtle shadow.</p>
                 <div class="type-sample">
                     <code>bg-white border border-gray-200 rounded-full px-4 py-1.5 text-sm font-semibold text-gray-700 shadow-sm</code>
                 </div>
@@ -269,114 +417,272 @@
 
         <section id="button-typography">
             <h2>Button Typography</h2>
-            <p>All button font sizes and weights are controlled by a 3-tier global CSS system defined in <code>src/app/globals.css</code>. Explicit Tailwind font-size/font-weight classes are not used on buttons — the global rules are the single source of truth.</p>
+            <p>All button font sizes and weights are controlled by a 3-tier global CSS system defined in <code>src/app/globals.css</code>. Explicit Tailwind font-size/font-weight classes are not used on buttons — the global rules are the single source of truth. The same tier classes apply to anchors (<code>a.sm</code>, <code>a.xs</code>) so links can be sized to match.</p>
 
             <h3>Tier 1 — Base (<code>button</code>)</h3>
             <div class="component-section">
                 <div class="demo-box">
-                    <button style="background: #017e3b; color: white; padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer; font-size: 14px; font-weight: normal;">Base Button (14px)</button>
+                    <button style="background:#017e3b;color:white;padding:0.5rem 1rem;border-radius:0.5rem;border:none;font-size:14px;font-weight:normal;">Base Button (14px)</button>
                 </div>
-                <p>Applied to every <code>&lt;button&gt;</code> element by default. Sets the baseline appearance for all buttons across the app.</p>
                 <div class="type-sample">
                     <code>button { font-size: 14px; font-weight: normal; cursor: pointer; }</code>
                 </div>
-                <p><strong>Used for:</strong> General-purpose action buttons that do not carry a size class.</p>
             </div>
 
-            <h3>Tier 2 — Small (<code>button.sm</code>)</h3>
+            <h3>Tier 2 — Small (<code>button.sm</code>, <code>a.sm</code>)</h3>
             <div class="component-section">
                 <div class="demo-box">
-                    <button style="background: #017e3b; color: white; padding: 0.375rem 0.5rem; border-radius: 0.5rem; border: none; cursor: pointer; font-size: 12px; font-weight: 500;">Buy (12px / 500)</button>
-                    <button style="background: white; border: 1px solid #b91c1c; color: #b91c1c; padding: 0.375rem 0.5rem; border-radius: 0.5rem; cursor: pointer; font-size: 12px; font-weight: 500; margin-left: 8px;">Sell (12px / 500)</button>
+                    <button style="background:#017e3b;color:white;padding:0.375rem 0.5rem;border-radius:0.5rem;border:none;font-size:12px;font-weight:500;">Buy (12px / 500)</button>
+                    <button style="background:white;border:1px solid #b91c1c;color:#b91c1c;padding:0.375rem 0.5rem;border-radius:0.5rem;font-size:12px;font-weight:500;margin-left:8px;">Sell (12px / 500)</button>
                 </div>
-                <p>Applied to card action buttons by adding the <code>sm</code> class. Renders slightly smaller text with medium weight for compact card layouts.</p>
                 <div class="type-sample">
-                    <code>button.sm { font-size: 12px; font-weight: 500; }</code>
+                    <code>button.sm, a.sm { font-size: 12px; font-weight: 500; }</code>
                 </div>
-                <p><strong>Used for:</strong> Portfolio card and Watchlist card action buttons. <code>ActionButton</code> in <code>CardActions.tsx</code> always adds the <code>sm</code> class (<code>className="... sm ..."</code>), so all card action buttons automatically receive this tier.</p>
+                <p><strong>Used for:</strong> all card <code>ActionButton</code>s (Portfolio &amp; Watchlist), which always include <code>sm</code> in their className.</p>
             </div>
 
-            <h3>Tier 3 — Extra Small (<code>button.xs</code>)</h3>
+            <h3>Tier 3 — Extra Small (<code>button.xs</code>, <code>a.xs</code>)</h3>
             <div class="component-section">
                 <div class="demo-box">
-                    <button style="background: #f1f5f9; color: #374151; padding: 0.2rem 0.5rem; border-radius: 0.375rem; border: 1px solid #e2e8f0; cursor: pointer; font-size: 11px; font-weight: normal;">1W</button>
-                    <button style="background: #f1f5f9; color: #374151; padding: 0.2rem 0.5rem; border-radius: 0.375rem; border: 1px solid #e2e8f0; cursor: pointer; font-size: 11px; font-weight: normal; margin-left: 4px;">1M</button>
-                    <button style="background: #f1f5f9; color: #374151; padding: 0.2rem 0.5rem; border-radius: 0.375rem; border: 1px solid #e2e8f0; cursor: pointer; font-size: 11px; font-weight: normal; margin-left: 4px;">6M</button>
-                    <button style="background: #f1f5f9; color: #374151; padding: 0.2rem 0.5rem; border-radius: 0.375rem; border: 1px solid #e2e8f0; cursor: pointer; font-size: 11px; font-weight: normal; margin-left: 4px;">1Y</button>
+                    <button style="background:#f1f5f9;color:#374151;padding:0.2rem 0.5rem;border-radius:0.375rem;border:1px solid #e2e8f0;font-size:11px;">1W</button>
+                    <button style="background:#f1f5f9;color:#374151;padding:0.2rem 0.5rem;border-radius:0.375rem;border:1px solid #e2e8f0;font-size:11px;margin-left:4px;">1M</button>
+                    <button style="background:#f1f5f9;color:#374151;padding:0.2rem 0.5rem;border-radius:0.375rem;border:1px solid #e2e8f0;font-size:11px;margin-left:4px;">6M</button>
+                    <button style="background:#f1f5f9;color:#374151;padding:0.2rem 0.5rem;border-radius:0.375rem;border:1px solid #e2e8f0;font-size:11px;margin-left:4px;">1Y</button>
                 </div>
-                <p>Applied to compact period-selector buttons by adding the <code>xs</code> class. Used where minimum footprint is required, such as inline chart controls.</p>
                 <div class="type-sample">
-                    <code>button.xs { font-size: 11px; font-weight: normal; }</code>
+                    <code>button.xs, a.xs { font-size: 11px; font-weight: normal; }</code>
                 </div>
-                <p><strong>Used for:</strong> Chart period buttons (1W / 1M / 6M / 1Y) in <code>StockChart.tsx</code>, <code>PortfolioHistoryChart.tsx</code>, and the period tabs (1M / 6M / 1Y / All) in <code>PortfolioCompareChart.tsx</code>.</p>
+                <p><strong>Used for:</strong> chart period selectors in <code>StockChart.tsx</code>, <code>PortfolioHistoryChart.tsx</code>, and <code>PortfolioCompareChart.tsx</code>.</p>
             </div>
 
-            <h3>Summary Table</h3>
-            <div class="component-section">
-                <table style="width:100%; border-collapse: collapse; font-size: 0.9rem;">
-                    <thead>
-                        <tr style="background: #f8fafc;">
-                            <th style="text-align:left; padding: 0.75rem; border-bottom: 2px solid #e2e8f0; color: #64748b; font-size: 0.75rem; text-transform: uppercase;">CSS Class</th>
-                            <th style="text-align:left; padding: 0.75rem; border-bottom: 2px solid #e2e8f0; color: #64748b; font-size: 0.75rem; text-transform: uppercase;">font-size</th>
-                            <th style="text-align:left; padding: 0.75rem; border-bottom: 2px solid #e2e8f0; color: #64748b; font-size: 0.75rem; text-transform: uppercase;">font-weight</th>
-                            <th style="text-align:left; padding: 0.75rem; border-bottom: 2px solid #e2e8f0; color: #64748b; font-size: 0.75rem; text-transform: uppercase;">Where Applied</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;"><code>button</code></td>
-                            <td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">14px</td>
-                            <td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">normal</td>
-                            <td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">All buttons (base default)</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;"><code>button.sm</code></td>
-                            <td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">12px</td>
-                            <td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">500</td>
-                            <td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">Portfolio &amp; Watchlist card action buttons (<code>ActionButton</code> in <code>CardActions.tsx</code>)</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 0.75rem;"><code>button.xs</code></td>
-                            <td style="padding: 0.75rem;">11px</td>
-                            <td style="padding: 0.75rem;">normal</td>
-                            <td style="padding: 0.75rem;">Chart period selectors in <code>StockChart.tsx</code>, <code>PortfolioHistoryChart.tsx</code>, and <code>PortfolioCompareChart.tsx</code></td>
-                        </tr>
-                    </tbody>
-                </table>
-                <div class="highlight-box" style="background: #eff6ff; border-left-color: #2563eb; margin-top: 1rem;">
-                    <strong>Important:</strong> Do not add Tailwind <code>text-*</code> or <code>font-*</code> classes directly to <code>&lt;button&gt;</code> elements. The global CSS rules take precedence as the single source of truth for button typography.
-                </div>
+            <div class="highlight-box" style="background:#eff6ff;border-left-color:#2563eb;">
+                <strong>Important:</strong> do not add Tailwind <code>text-*</code> or <code>font-*</code> classes directly to <code>&lt;button&gt;</code> elements. The global CSS rules take precedence as the single source of truth for button typography.
             </div>
         </section>
 
         <section id="cards">
-            <h2>Cards & Layout</h2>
+            <h2>Cards &amp; Layout</h2>
+            <p>The card system is composed of a shared shell, a few atomic sub-components, and per-variant views. The visual conventions below are enforced across Portfolio, Watchlist, DeepMoney, and Search/Trending surfaces.</p>
+
+            <h3><code>BaseCardShell</code> (Portfolio / DeepMoney / Search-Trending)</h3>
             <div class="component-section">
                 <div class="demo-box">
-                    <div class="card">
-                        <h4 style="margin-top:0; color: #64748b; font-size: 0.8rem; text-transform: uppercase;">Portfolio Card</h4>
-                        <div style="font-size: 1.5rem; font-weight: bold;">$296,833.47</div>
-                        <div style="color: #15803d; font-size: 0.9rem; font-weight: 600;">+1.5% Today</div>
+                    <div style="background:white;border:1px solid #f3f4f6;border-radius:1rem;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1);padding:1rem;max-width:380px;">
+                        <h4 style="margin:0;color:#64748b;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.06em;">Portfolio Card</h4>
+                        <div style="font-size:1.5rem;font-weight:700;color:#111827;">AAPL</div>
+                        <div style="color:#15803d;font-size:0.9rem;font-weight:600;">+1.5% Today</div>
                     </div>
                 </div>
-                <p>Cards are the primary container for data widgets. They feature a <code>1rem</code> (16px) border radius, white background, and a faint border.</p>
+                <p>The shared outer container. Renders as <code>role="button"</code> and is keyboard-activatable when <code>onClick</code> is passed.</p>
+                <div class="type-sample">
+                    <code>w-full h-full bg-white border border-gray-100 rounded-2xl shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer flex flex-col overflow-hidden focus-ring</code>
+                </div>
+                <ul>
+                    <li><strong>Radius:</strong> <code>rounded-2xl</code> (16px).</li>
+                    <li><strong>Shadow:</strong> <code>shadow-md</code> &rarr; <code>hover:shadow-lg</code>.</li>
+                    <li><strong>Border:</strong> 1px <code>border-gray-100</code>.</li>
+                    <li><strong>Layout:</strong> <code>flex flex-col</code> + <code>h-full</code> so the footer can pin to the bottom via <code>mt-auto</code>.</li>
+                    <li><strong>Focus:</strong> uses the global <code>.focus-ring</code> (2px blue outline + 2px white offset).</li>
+                </ul>
+            </div>
+
+            <h3><code>WatchlistCardView</code> — Compact Tile</h3>
+            <div class="component-section">
+                <div class="demo-box">
+                    <div style="background:white;border:1px solid #e5e7eb;border-radius:10px;padding:16px 18px 14px;max-width:380px;">
+                        <div style="display:flex;justify-content:space-between;">
+                            <div>
+                                <div style="font-size:18px;font-weight:700;color:#111827;">NVDA</div>
+                                <div style="font-size:13px;font-weight:600;color:#64748b;">NVIDIA Corp</div>
+                            </div>
+                            <div style="text-align:right;">
+                                <div style="font-size:18px;font-weight:700;color:#111827;">$118.42</div>
+                                <div style="font-size:13px;font-weight:600;color:#16a34a;">+$1.83 (+1.57%)</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <p>The Watchlist variant owns its own outer container instead of using <code>BaseCardShell</code> — it ships as a compact tile with a 10px radius and a lighter hover shadow.</p>
+                <div class="type-sample">
+                    <code>w-full h-full bg-white border border-gray-200 rounded-[10px] px-[18px] pt-4 pb-3.5 hover:shadow-[0_4px_16px_rgba(0,0,0,0.09)] hover:border-gray-300 transition-all duration-150 flex flex-col gap-2.5 focus-ring</code>
+                </div>
+            </div>
+
+            <h3>Top Accent Strip (Portfolio)</h3>
+            <div class="component-section">
+                <div class="demo-box">
+                    <div style="background:white;border:1px solid #f3f4f6;border-radius:1rem;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1);overflow:hidden;max-width:380px;">
+                        <div style="background:#017e3b;height:4px;"></div>
+                        <div style="padding:0.75rem 1rem;">
+                            <div style="font-size:1.25rem;font-weight:700;color:#111827;">AAPL</div>
+                            <div style="font-size:0.75rem;color:#6b7280;">Apple Inc.</div>
+                        </div>
+                    </div>
+                </div>
+                <p>When a brand color is available, the Portfolio card renders a 4px (<code>h-1</code>) accent strip at the top using <code>card.topAccentColor</code>. The color is fetched asynchronously via the brand-logo service.</p>
+            </div>
+
+            <h3>Card Footer Conventions</h3>
+            <div class="component-section">
+                <ul>
+                    <li><strong>Pin-to-bottom:</strong> the footer (or the divider above the footer) uses <code>mt-auto</code> so the bottom row stays anchored when the wrapper stretches to fill the row.</li>
+                    <li><strong>Divider:</strong> <code>border-t border-gray-100</code> for Portfolio/DeepMoney, or a 1px <code>bg-gray-100</code> spacer for Watchlist.</li>
+                    <li><strong>Horizon prediction label:</strong> dynamic — driven by the user's <code>investment_timeframe</code>. The card renders <code>{horizonLabel} Pred</code> (Watchlist) or <code>{horizonLabel} pred</code> (Portfolio). Falls back to <code>'1M'</code> only if no horizon is provided. <strong>Never hardcode "1M"</strong>.</li>
+                    <li><strong>Chevron:</strong> a right-pointing chevron sits at the far right of the footer. The Portfolio variant swaps it for a red warning triangle when the model flags downside (using the <code>shouldFlagDownside</code> tuning in <code>PortfolioCardView.tsx</code>).</li>
+                </ul>
+            </div>
+        </section>
+
+        <section id="card-grid">
+            <h2>Card Grid Pattern</h2>
+            <p>To make sibling cards in a row stretch to equal height, the grid uses two cooperating utilities: <code>auto-rows-max</code> on the grid + <code>h-full</code> on each wrapper. Each card shell also sets <code>h-full</code> internally so the inner flex column actually fills the wrapper.</p>
+
+            <div class="component-section">
+                <div class="type-sample">
+<code>// StockCardSection.tsx
+&lt;div className={`${gridClass} gap-6 auto-rows-max`}&gt;
+  {data.map((item, index) =&gt; (
+    &lt;div key={item.symbol} className="h-full" style={...}&gt;
+      {renderCard(item, index)}
+    &lt;/div&gt;
+  ))}
+&lt;/div&gt;</code>
+                </div>
+                <p>Combined with <code>flex flex-col</code> + <code>mt-auto</code> on the footer (see <code>BaseCardShell</code> and the per-variant views), this yields an even, magazine-style grid where every card in a row lines up at the bottom.</p>
+            </div>
+        </section>
+
+        <section id="card-variants">
+            <h2>Card Variants</h2>
+
+            <h3>Variant Matrix</h3>
+            <div class="component-section">
+                <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
+                    <thead>
+                        <tr style="background:#f8fafc;">
+                            <th style="text-align:left;padding:0.75rem;border-bottom:2px solid #e2e8f0;color:#64748b;font-size:0.75rem;text-transform:uppercase;">Variant</th>
+                            <th style="text-align:left;padding:0.75rem;border-bottom:2px solid #e2e8f0;color:#64748b;font-size:0.75rem;text-transform:uppercase;">Shell</th>
+                            <th style="text-align:left;padding:0.75rem;border-bottom:2px solid #e2e8f0;color:#64748b;font-size:0.75rem;text-transform:uppercase;">Key Content</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;"><code>portfolio</code></td>
+                            <td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;"><code>BaseCardShell</code> + top accent strip</td>
+                            <td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;">Logo, symbol, price, 3-column metrics (Shares / GPS / Analyst), horizon prediction footer with optional downside-flag triangle.</td>
+                        </tr>
+                        <tr>
+                            <td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;"><code>watchlist</code></td>
+                            <td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;">Custom 10px tile (no <code>BaseCardShell</code>)</td>
+                            <td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;">Symbol/name, price, 3-column stats (GPS / Analyst / MA 6M), horizon prediction + chevron.</td>
+                        </tr>
+                        <tr>
+                            <td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;"><code>deepmoney</code></td>
+                            <td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;"><code>BaseCardShell</code></td>
+                            <td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;">Shared <code>CardHeader</code> + stacked <code>CardMetricRow</code>s: Price, "Predicted Growth {timeframeLabel}", GPS Score (purple accent).</td>
+                        </tr>
+                        <tr>
+                            <td style="padding:0.6rem;"><code>search-trending</code></td>
+                            <td style="padding:0.6rem;"><code>BaseCardShell</code></td>
+                            <td style="padding:0.6rem;">Shared <code>CardHeader</code> + Price + Hot Rating (blue accent).</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h3>Sub-components</h3>
+            <div class="component-section">
+                <ul>
+                    <li><code>CardHeader</code> — symbol / company / price / change. Has <code>variant="watchlist"</code> and <code>variant="portfolio"</code> spacings.</li>
+                    <li><code>CardMetricRow</code> — label/value row used by DeepMoney + Search-Trending. Label is uppercase 12px gray-500; value is 14px bold.</li>
+                    <li><code>CardActions</code> — footer with <code>mt-auto</code>, top border, and stacked <code>ActionButton</code>s. Supports <code>compact</code> and <code>justify</code>.</li>
+                    <li><code>BrandLogo</code> — 40px logo (Portfolio header), falls back to a colored tile when no SVG is available.</li>
+                    <li><code>GpsTooltip</code> — info icon trigger that opens a breakdown panel for the GPS score.</li>
+                </ul>
+            </div>
+        </section>
+
+        <section id="badges">
+            <h2>Badges &amp; Indicators</h2>
+
+            <h3>Analyst Badge</h3>
+            <div class="component-section">
+                <div class="demo-box" style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                    <span style="background:#dcfce7;color:#15803d;padding:0.125rem 0.5rem;border-radius:4px;font-size:12px;font-weight:700;border:1px solid #bbf7d0;">Strong Buy</span>
+                    <span style="background:#dbeafe;color:#1d4ed8;padding:0.125rem 0.5rem;border-radius:4px;font-size:12px;font-weight:700;">Buy</span>
+                    <span style="background:#fef9c3;color:#92400e;padding:0.125rem 0.5rem;border-radius:4px;font-size:12px;font-weight:700;">Hold</span>
+                    <span style="background:#fee2e2;color:#b91c1c;padding:0.125rem 0.5rem;border-radius:4px;font-size:12px;font-weight:700;">Strong Sell</span>
+                    <span style="background:#fef2f2;color:#dc2626;padding:0.125rem 0.5rem;border-radius:4px;font-size:12px;font-weight:700;">Sell</span>
+                    <span style="background:#f3f4f6;color:#6b7280;padding:0.125rem 0.5rem;border-radius:4px;font-size:12px;font-weight:700;">None</span>
+                </div>
+                <p>Color mapping is centralized in each card variant. Watchlist uses solid background classes (<code>bg-green-100 text-green-700</code>, etc.); Portfolio uses tinted background + matching border (e.g. <code>bg-green-100 text-green-700 border-green-200</code>) for "Strong Buy".</p>
+            </div>
+
+            <h3>Change / Prediction Color Helpers</h3>
+            <div class="component-section">
+                <div class="type-sample">
+<code>// formatters.ts
+getChangeColor(value)      // null=text-gray-500, >=0=text-green-600, &lt;0=text-red-600
+getPredictionColor(value)  // null|0=text-black, &gt;0=text-green-600, &lt;0=text-red-600</code>
+                </div>
+                <p>Always use these helpers when displaying signed financial values — they guarantee consistent semantic coloring across the app.</p>
+            </div>
+
+            <h3>Status Pills</h3>
+            <div class="component-section">
+                <div class="demo-box">
+                    <div class="bubble"><span class="status-dot dot-open"></span>Market Open</div>
+                    <div class="bubble" style="margin-left:10px;"><span class="status-dot dot-closed"></span>Market Closed</div>
+                </div>
+                <p>Small colored dot (<code>#22c55e</code> open / <code>#ef4444</code> closed) followed by a label inside a white pill.</p>
+            </div>
+        </section>
+
+        <section id="utilities">
+            <h2>Common Utility Patterns</h2>
+            <div class="component-section">
+                <h3>Layout</h3>
+                <ul>
+                    <li><code>flex items-start justify-between</code> — card header row (symbol on the left, price on the right).</li>
+                    <li><code>grid grid-cols-3 gap-3</code> — three-column metric grid inside cards.</li>
+                    <li><code>truncate max-w-[160-200px]</code> — company-name overflow handling.</li>
+                    <li><code>min-w-0 flex-1</code> — required on flex children that contain <code>truncate</code> content.</li>
+                </ul>
+
+                <h3>Borders &amp; Dividers</h3>
+                <ul>
+                    <li><code>border-t border-gray-50/100</code> — soft footer divider.</li>
+                    <li><code>h-px bg-gray-100</code> — inline horizontal rule used in Watchlist.</li>
+                </ul>
+
+                <h3>Transitions</h3>
+                <ul>
+                    <li><code>transition-all duration-200</code> — card hover (shadow).</li>
+                    <li><code>transition-colors duration-200</code> — button hover.</li>
+                    <li><code>transition-all duration-150</code> — Watchlist tile hover (border + shadow).</li>
+                </ul>
+
+                <h3>Animation</h3>
+                <p>The card grid animates each card in with a staggered <code>slideUp</code> keyframe (<code>0.4s ease-out</code> with a <code>0.05s</code> delay per index) — defined inline in <code>StockCardSection.tsx</code>.</p>
             </div>
         </section>
 
         <section id="accessibility">
             <h2>Accessibility Standards</h2>
-            <div class="component-section" style="border-left: 6px solid #2563eb;">
+            <div class="component-section" style="border-left:6px solid #2563eb;">
                 <p>MoneyGoUp is committed to <strong>WCAG 2.1 Level AA</strong> compliance.</p>
                 <ul>
-                    <li><strong>Contrast:</strong> All primary text and interactive elements maintain a minimum 4.5:1 contrast ratio.</li>
-                    <li><strong>Focus States:</strong> Interactive elements use a high-visibility <code>2px blue</code> focus ring with offset.</li>
-                    <li><strong>Skip Links:</strong> A "Skip to main content" link is available for keyboard/screen reader users.</li>
-                    <li><strong>Semantics:</strong> Strict heading hierarchy (exactly one H1 per page) and ARIA roles for dynamic content.</li>
+                    <li><strong>Contrast:</strong> brand greens are tuned to AA on white (Brand 700 = 5.0:1, Brand 800 = 6.8:1). All primary text and interactive elements maintain a minimum 4.5:1 contrast ratio.</li>
+                    <li><strong>Focus States:</strong> a 2px <code>#2563eb</code> outline with a 2px offset and an additional white "halo" via <code>box-shadow</code> — provided globally by <code>.focus-ring</code> and the <code>:focus-visible</code> rules in <code>globals.css</code>.</li>
+                    <li><strong>Skip Links:</strong> a "Skip to main content" link (<code>.skip-link</code>) is positioned off-screen and slides in on focus.</li>
+                    <li><strong>Keyboard:</strong> <code>BaseCardShell</code> and <code>WatchlistCardView</code> set <code>role="button"</code> + <code>tabIndex={0}</code> and handle Enter / Space.</li>
+                    <li><strong>ARIA:</strong> change-percent values include <code>aria-label="Price up/down by N%"</code>; downside-flag icons include both <code>aria-label</code> and a <code>title</code>; decorative icons set <code>aria-hidden="true"</code>.</li>
+                    <li><strong>Semantics:</strong> strict heading hierarchy (one H1 per page) and consistent uppercase-tracked "section heading" treatment for major landmarks.</li>
                 </ul>
             </div>
         </section>
 
-        <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem; text-align: center;">
+        <footer style="margin-top:5rem;padding-top:2rem;border-top:1px solid var(--border);color:#94a3b8;font-size:0.85rem;text-align:center;">
             MoneyGoUp Design System &copy; 2026
         </footer>
     </main>

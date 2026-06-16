@@ -49,6 +49,7 @@
         }
         .weight-positive { background: #dcfce7; color: #166534; }
         .weight-negative { background: #fee2e2; color: #991b1b; }
+        .weight-neutral  { background: #e0f2fe; color: #075985; }
 
         .formula {
             background: #f1f5f9;
@@ -71,6 +72,16 @@
             border-bottom: 1px solid var(--border);
         }
         .summary-table th { background: #f8fafc; color: #64748b; font-size: 0.8rem; text-transform: uppercase; }
+        .callout {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 8px;
+            padding: 1rem 1.25rem;
+            margin: 1.5rem 0;
+            font-size: 0.92rem;
+        }
+        .callout strong { color: var(--primary-dark); }
+        code { background: #f1f5f9; padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.9em; }
 
     /* ── Top Bar ── */
     .top-bar { background: #017e3b; color: #fff; padding: 0 2rem; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.25); position: relative;}
@@ -106,7 +117,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Technical Indicators Guide</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-12</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-15</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -142,30 +153,39 @@
     <div class="section-divider"></div>
     <h3>On this page</h3>
     <a href="#overview">Scoring Overview</a>
+    <a href="#js-pipeline">JS Signal Pipeline</a>
     <a href="#sma">Moving Averages (SMA)</a>
     <a href="#rsi">Relative Strength Index</a>
-    <a href="#momentum">Momentum &amp; Trends</a>
+    <a href="#momentum">Momentum &amp; Price Trend</a>
+    <a href="#volatility">Volatility Rating</a>
+    <a href="#news">News Sentiment</a>
     <a href="#fundamentals">Fundamental Valuation</a>
-    <a href="#news">Sentiment Analysis</a>
-    <a href="#stock-gps">DeepMoney GPS Score</a>
-    <a href="#etf-gps">ETF GPS Scoring</a>
+    <a href="#rollup">Score Aggregation (-14..+14)</a>
+    <a href="#py-pipeline">Python Indicator Set</a>
+    <a href="#metric-analysis">metric_analysis() Impact</a>
+    <a href="#gps-link">Feeding the GPS Score</a>
     <div class="section-divider"></div>
-    <a href="authentication_flow.html">Auth Flow</a>
-    <a href="database_documentation.html">Database</a>
+    <a href="gps_score.html">GPS Score (deep-dive)</a>
     <a href="prediction_workflow.html">Prediction Workflow</a>
     <a href="recommendation_buckets.html">Recommendation Buckets</a>
-    <a href="admin_user_management.html">Admin User Mgmt</a>
+    <a href="strategy_system.html">Strategy System</a>
+    <a href="database_documentation.html">Database</a>
     <a href="style_guide.html">Style Guide</a>
-    <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
   </nav>
 
     <main>
-        <h1>Technical Indicators & Signals</h1>
-        <p>This guide explains how the "Trading Signal" and "GPS Score" are calculated. These metrics combine technical, fundamental, and AI-driven sentiment analysis to evaluate investment opportunities.</p>
+        <h1>Technical Indicators &amp; Signal Aggregation</h1>
+        <p>This guide explains how raw OHLCV price data and a handful of fundamentals are turned into a single integer <code>technical_score</code> on a <strong>-14 to +14</strong> scale. That score is the input to the <code>technicalSignal</code> component of the GPS score (20 of 100 points — see <a href="gps_score.html">GPS Score</a>).</p>
+
+        <p>There are two technical pipelines in the codebase:</p>
+        <ul>
+            <li><strong>JS pipeline</strong> — <code>src/utils/technicalIndicators.ts</code>. Produces the canonical <code>totalScore</code> (-14..+14) that gets stored as <code>technicalScore</code> and passed to GPS.</li>
+            <li><strong>Python pipeline</strong> — <code>scripts/predict_weighted_analysis.py</code>. Computes a richer indicator set (MACD, Bollinger, Stochastic, ATR, EMA50, etc.) as <em>features</em> for the MLP regressor, and also receives the JS <code>technicalScore</code> back as <code>external_tech_score</code> to nudge the predicted-price impact.</li>
+        </ul>
 
         <section id="overview">
-            <h2>Scoring Methodology</h2>
-            <p>The total score typically ranges from <strong>-14 to +14</strong>. This score is then mapped to a recommendation:</p>
+            <h2>Scoring Overview</h2>
+            <p>The JS aggregator sums eight weighted sub-signals. The raw total has a theoretical range of <strong>-14 to +14</strong> and is interpreted as follows:</p>
             <table class="summary-table">
                 <thead>
                     <tr>
@@ -192,19 +212,48 @@
                     </tr>
                 </tbody>
             </table>
+            <p>Signal strength (0-100) is derived as <code>min(100, |totalScore| * 10)</code>.</p>
+        </section>
+
+        <section id="js-pipeline">
+            <h2>JS Signal Pipeline</h2>
+            <p>Entry point: <code>calculateTechnicalIndicators(historicalData, newsData, peRatio, pbRatio, marketCap)</code> in <code>src/utils/technicalIndicators.ts</code>.</p>
+            <p>It expects an array of <code>{ date, open, high, low, close, volume }</code> bars plus a sentiment-scored news array and three fundamentals. It returns:</p>
+            <div class="formula">
+TechnicalIndicators {
+  sma20, sma50, rsi14, momentum,
+  signal: 'BUY' | 'SELL' | 'HOLD',
+  signalStrength: 0..100,
+  signalReason: string,         // human-readable AI summary
+  scoreBreakdown: { ...per-metric scores and reasons, totalScore },
+  volatility: 'Low' | 'Medium' | 'High' | 'N/A' | null
+}
+            </div>
+            <p>Internally it calls four pure helpers — <code>calculateSMA</code>, <code>calculateRSI</code>, <code>calculateMomentum</code>, and the volatility helpers from <code>src/utils/volatility.ts</code> — and then runs <code>generateSignal</code> to roll everything up.</p>
         </section>
 
         <section id="sma">
             <h2>Moving Averages (SMA)</h2>
+
             <div class="metric-card">
-                <h3>SMA 20/50 Crossover <span class="score-badge weight-positive">+3 / -3</span></h3>
-                <p>Measures the relationship between short-term and medium-term price trends.</p>
+                <h3>SMA20 / SMA50 Crossover <span class="score-badge weight-positive">+3 / -3</span></h3>
+                <p>The largest single component. Compares short-term trend to medium-term trend.</p>
                 <div class="formula">
-                    SMA(n) = (Price_1 + Price_2 + ... + Price_n) / n
+SMA(n) = mean( close[-n:] )
                 </div>
                 <ul>
-                    <li><strong>Bullish (+3):</strong> SMA20 > SMA50.</li>
-                    <li><strong>Bearish (-3):</strong> SMA20 < SMA50.</li>
+                    <li><strong>Bullish (+3):</strong> <code>SMA20 &gt; SMA50</code>.</li>
+                    <li><strong>Bearish (-3):</strong> <code>SMA20 &lt; SMA50</code>.</li>
+                    <li><strong>Neutral (0):</strong> equal, or insufficient data (&lt; 50 bars).</li>
+                </ul>
+            </div>
+
+            <div class="metric-card">
+                <h3>Price vs SMA50 <span class="score-badge weight-positive">+1 / -1</span></h3>
+                <p>Confirms whether the latest close sits on the bullish side of the 50-day trend line.</p>
+                <ul>
+                    <li><strong>Above (+1):</strong> <code>close &gt; SMA50</code>.</li>
+                    <li><strong>Below (-1):</strong> <code>close &lt; SMA50</code>.</li>
                 </ul>
             </div>
         </section>
@@ -212,182 +261,292 @@
         <section id="rsi">
             <h2>Relative Strength Index (RSI)</h2>
             <div class="metric-card">
-                <h3>RSI (14-Day) <span class="score-badge weight-positive">+2 / -2</span></h3>
-                <p>A momentum oscillator that measures the speed and change of price movements.</p>
+                <h3>RSI (14-period) <span class="score-badge weight-positive">+2 / -2</span></h3>
+                <p>Momentum oscillator using a simple-average gain/loss formulation (not Wilder's smoothing).</p>
                 <div class="formula">
-                    RSI = 100 - [100 / (1 + (Avg Gain / Avg Loss))]
+gains  = max(close[i] - close[i-1], 0)
+losses = max(close[i-1] - close[i], 0)
+avgGain = mean(gains[-14:])
+avgLoss = mean(losses[-14:])
+RSI = 100 - 100 / (1 + avgGain / avgLoss)
                 </div>
                 <ul>
-                    <li><strong>Oversold (+2):</strong> RSI < 30.</li>
-                    <li><strong>Overbought (-2):</strong> RSI > 70.</li>
+                    <li><strong>Oversold (+2):</strong> <code>RSI &lt; 30</code> — contrarian buy signal.</li>
+                    <li><strong>Overbought (-2):</strong> <code>RSI &gt; 70</code> — selling pressure.</li>
+                    <li><strong>Neutral (0):</strong> 30 &le; RSI &le; 70.</li>
                 </ul>
+                <p style="font-size:.85rem;color:#64748b;">Edge case: if <code>avgLoss == 0</code> the function returns <code>100</code>.</p>
             </div>
         </section>
 
         <section id="momentum">
-            <h2>Momentum & Trends</h2>
+            <h2>Momentum &amp; Price Trend</h2>
             <div class="metric-card">
-                <h3>Price Momentum <span class="score-badge weight-positive">+2 / -2</span></h3>
-                <p>Calculates whether the price is higher or lower than 10 periods ago.</p>
+                <h3>10-Period Momentum <span class="score-badge weight-positive">+2 / -2</span></h3>
+                <p>Absolute price difference vs the close from 10 bars ago.</p>
                 <div class="formula">
-                    Momentum = Current Price - Price 10 Days Ago
+momentum = close[-1] - close[-11]
                 </div>
                 <ul>
-                    <li><strong>Positive (+2):</strong> Momentum > 0.</li>
-                    <li><strong>Negative (-2):</strong> Momentum < 0.</li>
+                    <li><strong>Bullish (+2):</strong> momentum &gt; 0.</li>
+                    <li><strong>Bearish (-2):</strong> momentum &lt; 0.</li>
                 </ul>
             </div>
+        </section>
 
+        <section id="volatility">
+            <h2>Volatility Rating</h2>
             <div class="metric-card">
-                <h3>Price vs SMA50 <span class="score-badge weight-positive">+1 / -1</span></h3>
-                <p>Confirms if the current price is above its 50-day average trend.</p>
+                <h3>Annualized Volatility <span class="score-badge weight-positive">+1 / -1</span></h3>
+                <p>Computed in <code>src/utils/volatility.ts</code> from daily log returns scaled by &radic;tradingDays, then bucketed by <code>getVolatilityRating</code>:</p>
                 <ul>
-                    <li><strong>Bullish (+1):</strong> Price > SMA50.</li>
-                    <li><strong>Bearish (-1):</strong> Price < SMA50.</li>
+                    <li><strong>Low (+1):</strong> annualized vol <strong>&lt; 20%</strong> — stability reward.</li>
+                    <li><strong>Medium (0):</strong> 20% &le; vol &lt; 50%.</li>
+                    <li><strong>High (-1):</strong> vol &ge; 50% — risk penalty.</li>
+                </ul>
+            </div>
+        </section>
+
+        <section id="news">
+            <h2>News Sentiment</h2>
+            <div class="metric-card">
+                <h3>Average Article Sentiment <span class="score-badge weight-positive">+2 / -2</span></h3>
+                <p>Mean of <code>sentiment_score</code> across the supplied news array (already normalized upstream by the financial-lexicon scorer).</p>
+                <ul>
+                    <li><strong>Positive (+2):</strong> avg sentiment &gt; <code>0.1</code>.</li>
+                    <li><strong>Negative (-2):</strong> avg sentiment &lt; <code>-0.1</code>.</li>
+                    <li><strong>Neutral (0):</strong> -0.1 &le; avg &le; 0.1, or no news.</li>
                 </ul>
             </div>
         </section>
 
         <section id="fundamentals">
             <h2>Fundamental Valuation</h2>
+            <p>Three optional fundamentals roll into a <code>coreMetricsScore</code> (the sum of the three sub-scores below). They are added to the technical total so the final aggregate is still a single -14..+14 integer.</p>
+
             <div class="metric-card">
                 <h3>P/E Ratio <span class="score-badge weight-positive">+1 / -1</span></h3>
-                <p>Evaluates the stock's valuation based on earnings.</p>
                 <ul>
-                    <li><strong>Value (+1):</strong> P/E < 15.</li>
-                    <li><strong>Expensive (-1):</strong> P/E > 25.</li>
+                    <li><strong>Attractive (+1):</strong> P/E &lt; 15.</li>
+                    <li><strong>Expensive (-1):</strong> P/E &gt; 25.</li>
+                    <li>Neutral or no data: 0.</li>
                 </ul>
             </div>
 
             <div class="metric-card">
                 <h3>P/B Ratio <span class="score-badge weight-positive">+1 / -1</span></h3>
-                <p>Evaluates the stock's valuation relative to its book value.</p>
                 <ul>
-                    <li><strong>Value (+1):</strong> P/B < 2.</li>
-                    <li><strong>Expensive (-1):</strong> P/B > 5.</li>
+                    <li><strong>Attractive (+1):</strong> P/B &lt; 2.</li>
+                    <li><strong>Expensive (-1):</strong> P/B &gt; 5.</li>
                 </ul>
             </div>
 
             <div class="metric-card">
                 <h3>Market Cap <span class="score-badge weight-positive">+1 / -1</span></h3>
-                <p>Rewards large-cap stability and identifies small-cap risk.</p>
                 <ul>
-                    <li><strong>Large Cap (+1):</strong> Market Cap > $200B.</li>
-                    <li><strong>Small Cap (-1):</strong> Market Cap < $2B.</li>
+                    <li><strong>Large-cap (+1):</strong> Market Cap &gt; $200B (stability premium).</li>
+                    <li><strong>Small-cap (-1):</strong> Market Cap &lt; $2B (risk discount).</li>
                 </ul>
             </div>
         </section>
 
-        <section id="news">
-            <h2>Sentiment Analysis</h2>
-            <div class="metric-card">
-                <h3>News Sentiment <span class="score-badge weight-positive">+2 / -2</span></h3>
-                <p>Analyzes the tone of the latest headlines using a financial lexicon.</p>
-                <ul>
-                    <li><strong>Bullish News (+2):</strong> Sentiment Score > 0.1.</li>
-                    <li><strong>Bearish News (-2):</strong> Sentiment Score < -0.1.</li>
-                </ul>
+        <section id="rollup">
+            <h2>Score Aggregation (-14..+14)</h2>
+            <p>The eight sub-signals are summed with no further weighting:</p>
+            <div class="formula">
+totalScore = maScore        (-3..+3)
+           + rsiScore       (-2..+2)
+           + momentumScore  (-2..+2)
+           + priceScore     (-1..+1)
+           + volatilityScore(-1..+1)
+           + newsScore      (-2..+2)
+           + coreMetricsScore (= peRatioScore + pbRatioScore + marketCapScore, each -1..+1)
+
+Theoretical range: -14..+14
             </div>
 
-            <div class="metric-card">
-                <h3>Volatility Rating <span class="score-badge weight-positive">+1 / -1</span></h3>
-                <p>Adjusts score based on historical annualized price volatility.</p>
-                <ul>
-                    <li><strong>Low Volatility (+1):</strong> Increased stability.</li>
-                    <li><strong>High Volatility (-1):</strong> Increased risk.</li>
-                </ul>
-            </div>
-        </section>
+            <table class="summary-table">
+                <thead>
+                    <tr>
+                        <th>Component</th>
+                        <th>Min</th>
+                        <th>Max</th>
+                        <th>Weight (abs)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>SMA20/SMA50 crossover</td><td>-3</td><td>+3</td><td>3</td></tr>
+                    <tr><td>RSI(14)</td><td>-2</td><td>+2</td><td>2</td></tr>
+                    <tr><td>10-period momentum</td><td>-2</td><td>+2</td><td>2</td></tr>
+                    <tr><td>News sentiment</td><td>-2</td><td>+2</td><td>2</td></tr>
+                    <tr><td>Price vs SMA50</td><td>-1</td><td>+1</td><td>1</td></tr>
+                    <tr><td>Volatility rating</td><td>-1</td><td>+1</td><td>1</td></tr>
+                    <tr><td>P/E ratio</td><td>-1</td><td>+1</td><td>1</td></tr>
+                    <tr><td>P/B ratio</td><td>-1</td><td>+1</td><td>1</td></tr>
+                    <tr><td>Market cap</td><td>-1</td><td>+1</td><td>1</td></tr>
+                    <tr style="font-weight:bold;"><td>Total</td><td>-14</td><td>+14</td><td>14</td></tr>
+                </tbody>
+            </table>
 
-        <section id="stock-gps">
-            <h2>DeepMoney GPS Score (Individual Stocks)</h2>
-            <p>The <strong>GPS Score (Global Performance Score)</strong> is a proprietary metric used in DeepMoney analysis to evaluate a stock's total potential. It is calculated on a scale of 0 to 100 based on fundamental growth and AI price forecasting.</p>
-            <p style="font-size: 0.8rem; font-style: italic; color: #64748b; margin-bottom: 1.5rem; border-bottom: 1px dashed var(--border); padding-bottom: 0.5rem;">* These calculation metrics are applied identically in both the <code>deepmoney_sync</code> discovery engine and the <code>update_predictions</code> portfolio maintenance script.</p>
-
-            <div class="metric-card">
-                <h3>1. Core Components <span class="score-badge weight-positive">Up to 19 pts each</span></h3>
-                <p>The base score is built from six specific metrics (five at 19 pts, one at 5 pts), each scaled against a target benchmark:</p>
-                <ul>
-                    <li><strong>Analyst Upside (19 pts):</strong> Gap between current price and mean analyst target.
-                        <ul>
-                            <li><em>Benchmark:</em> 30% upside = 19 pts.</li>
-                        </ul>
-                    </li>
-                    <li><strong>Revenue Growth (19 pts):</strong> Year-over-year revenue growth.
-                        <ul>
-                            <li><em>Benchmark:</em> 30% growth = 19 pts.</li>
-                        </ul>
-                    </li>
-                    <li><strong>Earnings Growth (19 pts):</strong> Year-over-year earnings growth.
-                        <ul>
-                            <li><em>Benchmark:</em> 25% growth = 19 pts.</li>
-                        </ul>
-                    </li>
-                    <li><strong>52-Week Price Change (19 pts):</strong> Overall price performance over the last year.
-                        <ul>
-                            <li><em>Benchmark:</em> 20% gain = 19 pts.</li>
-                        </ul>
-                    </li>
-                    <li><strong>MLP Predicted Upside (19 pts):</strong> AI-predicted 1-month price movement.
-                        <ul>
-                            <li><em>Benchmark:</em> 3% growth = 19 pts (Configurable via <code>GPS_PREDICTION_MAX</code>).</li>
-                        </ul>
-                    </li>
-                </ul>
-            </div>
-
-            <div class="metric-card">
-                <h3>2. Confidence Component <span class="score-badge weight-positive">Up to 5 pts</span></h3>
-                <ul>
-                    <li><strong>MLP Confidence Score:</strong> Scaling of the AI model's confidence in its forecast.
-                        <ul>
-                            <li><em>Benchmark:</em> 100 confidence = 5 pts.</li>
-                        </ul>
-                    </li>
-                </ul>
-            </div>
-
-            <div class="metric-card">
-                <h3>3. Final Result & Thresholds</h3>
-                <ul>
-                    <li><strong>Cap:</strong> The final score is capped at 100.0.</li>
-                    <li><strong>Selection Criteria:</strong> In the automated sync process, stocks are typically only recommended if they pass the ML Validation Gate (predicted change >= 1.5%). Recommendation buckets apply a GPS threshold (typically > 10.0) for discovery surfacing.</li>
-                </ul>
-                <p><strong>Summary:</strong> A high GPS score indicates a stock with strong analyst backing, high revenue/earnings growth, positive momentum, and a favorable high-confidence AI prediction.</p>
+            <div class="callout">
+                <strong>Note:</strong> <code>generateSignal</code> also returns a per-metric reason string and a higher-level <code>signalReason</code> AI-summary built from the positive/negative/neutral factor lists. Those strings are surfaced on the stock page but never feed back into the numeric score.
             </div>
         </section>
 
-        <section id="etf-gps">
-            <h2>ETF GPS Scoring Methodology</h2>
-            <p>Unlike individual stocks, ETFs are scored using a <strong>Growth, Performance, and Sentiment (GPS)</strong> model tuned for fund-level characteristics. The total score is out of 100.</p>
+        <section id="py-pipeline">
+            <h2>Python Indicator Set (Feature Engineering)</h2>
+            <p>The Python predictor in <code>scripts/predict_weighted_analysis.py</code> (function <code>_calculate_features_internal</code>) computes a deeper indicator set that is used as input features for the MLP regressor, not as a separate score. These are not used for the -14..+14 rollup, but they appear on the stock page's technical panel and in the JSON returned by the predict endpoint.</p>
 
             <div class="metric-card">
-                <h3>Core Score Components (Weights)</h3>
-                <ul>
-                    <li><strong>52-Week Price Return (25.5%):</strong> Rewards long-term upward momentum.</li>
-                    <li><strong>Thematic News Signal (21.25%):</strong> Measures overlap between ETF holdings and trending news tickers.</li>
-                    <li><strong>3-Month Momentum (17%):</strong> Rewards short-term price strength.</li>
-                    <li><strong>Macro Tailwind (15%):</strong> Structural macro confirmation based on FDI and trade trends.</li>
-                    <li><strong>Liquidity Score (12.75%):</strong> Based on average daily trading volume.</li>
-                    <li><strong>Expense Ratio Efficiency (8.5%):</strong> Rewards funds with lower annual management fees.</li>
-                </ul>
+                <h3>MACD <span class="score-badge weight-neutral">12 / 26 / 9</span></h3>
+                <div class="formula">
+exp12 = EMA(close, span=12)
+exp26 = EMA(close, span=26)
+MACD        = exp12 - exp26
+MACD_Signal = EMA(MACD, span=9)
+                </div>
+                <p>Surfaced in <code>metric_analysis()</code> output as <em>bullish</em> when <code>MACD &gt; MACD_Signal</code>, else <em>bearish</em>.</p>
             </div>
 
             <div class="metric-card">
-                <h3>ETF GPS Bonuses</h3>
-                <ul>
-                    <li><strong>Hot Stock Overlap (+8):</strong> Applied if &ge; 3 holdings are in the current Hot Stocks list.</li>
-                    <li><strong>Trending Theme (+5):</strong> Applied if the ETF theme matches a trending AI/Tech sub-sector.</li>
-                    <li><strong>Tech Adoption Validation (Up to +6):</strong> Bonus points for themes like AI/Semis based on internet penetration and ICT exports.</li>
-                    <li><strong>High Momentum (+4):</strong> Applied if 52-week return &ge; 25%.</li>
-                    <li><strong>Under-the-Radar (+3):</strong> Rewards discovery of smaller thematic funds (AUM < $500M).</li>
-                </ul>
-                <p><strong>Minimum Qualifying Score:</strong> 55 / 100</p>
+                <h3>Bollinger Bands (20, 2&sigma;) <span class="score-badge weight-neutral">window 20</span></h3>
+                <div class="formula">
+sma20  = rolling_mean(close, 20)
+std20  = rolling_std(close, 20)
+BB_Upper = sma20 + 2 * std20
+BB_Mid   = sma20
+BB_Lower = sma20 - 2 * std20
+                </div>
             </div>
+
+            <div class="metric-card">
+                <h3>RSI (14) <span class="score-badge weight-neutral">window 14</span></h3>
+                <div class="formula">
+delta = close.diff()
+gain  = rolling_mean( delta.where(delta &gt; 0, 0), 14 )
+loss  = rolling_mean( -delta.where(delta &lt; 0, 0), 14 )
+RSI_14 = 100 - 100 / (1 + gain / (loss + 1e-9))
+                </div>
+                <p>In the Python <code>metric_analysis</code> impact model, <code>RSI &gt; 75</code> dampens predicted upside (-1.5%) while <code>RSI &lt; 25</code> nudges it positive (+1.5%).</p>
+            </div>
+
+            <div class="metric-card">
+                <h3>Stochastic Oscillator <span class="score-badge weight-neutral">%K 14, %D 3</span></h3>
+                <div class="formula">
+lo14 = rolling_min(low, 14)
+hi14 = rolling_max(high, 14)
+STOCH_K = 100 * (close - lo14) / (hi14 - lo14 + 1e-9)
+STOCH_D = rolling_mean(STOCH_K, 3)
+                </div>
+                <p>Reported as <em>overbought</em> when %K &gt; 80, <em>oversold</em> when %K &lt; 20.</p>
+            </div>
+
+            <div class="metric-card">
+                <h3>Average True Range (ATR-14) <span class="score-badge weight-neutral">window 14</span></h3>
+                <div class="formula">
+tr1 = high - low
+tr2 = |high - prev_close|
+tr3 = |low  - prev_close|
+ATR_14 = rolling_mean( max(tr1, tr2, tr3), 14 )
+                </div>
+                <p>Also reused downstream as a 1-week volatility proxy for the prediction interval.</p>
+            </div>
+
+            <div class="metric-card">
+                <h3>Moving Averages</h3>
+                <ul>
+                    <li><code>SMA_20</code> — 20-bar simple moving average</li>
+                    <li><code>EMA_50</code> — 50-bar exponential moving average</li>
+                    <li><code>SMA_200</code> / <code>EMA_200</code> — long-trend filters</li>
+                    <li><code>GoldenCross</code> — boolean feature, <code>SMA50 &gt; SMA200</code></li>
+                </ul>
+                <p>Note: the Python <code>metric_analysis</code> reports the SMA20 vs EMA50 relationship (not SMA20 vs SMA50 as the JS pipeline does), so the on-page Python summary can disagree slightly with the JS score's MA component.</p>
+            </div>
+
+            <div class="metric-card">
+                <h3>52-Week Ratios &amp; ROC</h3>
+                <ul>
+                    <li><code>HiRatio_52w = close / rolling_max(close, 252)</code></li>
+                    <li><code>LoRatio_52w = close / rolling_min(close, 252)</code></li>
+                    <li><code>ROC_6m = pct_change(close, 126)</code></li>
+                    <li><code>ROC_12m = pct_change(close, 252)</code></li>
+                </ul>
+                <p><code>HiRatio_52w</code> drives the high-beta stretch penalty: if <code>beta &gt; 2.5</code> and <code>HiRatio_52w &gt; 0.95</code>, the predicted impact is dampened proportionally to how far beta exceeds 2.5.</p>
+            </div>
+
+            <div class="metric-card">
+                <h3>Historical Volatility (30-day, annualized)</h3>
+                <div class="formula">
+log_ret = ln( close / close.shift(1) )
+HistVol_30 = rolling_std(log_ret, 30) * sqrt(252)
+                </div>
+            </div>
+        </section>
+
+        <section id="metric-analysis">
+            <h2>metric_analysis() — Predicted Price Impact</h2>
+            <p>The Python <code>metric_analysis</code> function returns a JSON block consumed by the stock page (RSI/MACD/Stochastic/ATR/Bollinger panels) <em>and</em> computes a <code>total_metric_impact</code> multiplier that nudges the MLP's predicted price. Key behaviors:</p>
+
+            <table class="summary-table">
+                <thead>
+                    <tr>
+                        <th>Driver</th>
+                        <th>Trigger</th>
+                        <th>Impact</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>RSI extremes</td><td>&gt; 75 / &lt; 25</td><td>-1.5% / +1.5%</td></tr>
+                    <tr><td>20-day trend</td><td>uptrend / downtrend</td><td>+2% / -1%</td></tr>
+                    <tr><td>20-day growth</td><td>capped &plusmn;10%</td><td>(growth/100) &times; 3%</td></tr>
+                    <tr><td>News sentiment</td><td>raw value</td><td>sentiment &times; 1.5%</td></tr>
+                    <tr><td>External tech score (from JS)</td><td>raw <code>technicalScore</code></td><td>min(score &times; 0.5% &times; reliability, 2%)</td></tr>
+                    <tr><td>Analyst consensus</td><td>strong sell..strong buy</td><td>consensus &times; 5% &times; reliability</td></tr>
+                    <tr><td>Analyst target premium</td><td>weighted by coverage</td><td>premium &times; 5% &times; coverage_boost (max 1.5x)</td></tr>
+                    <tr><td>Earnings beat streak</td><td>0-4 quarters</td><td>+1% per beat</td></tr>
+                    <tr><td>High-beta near 52w high</td><td>beta &gt; 2.5 &amp; HiRatio &gt; 0.95</td><td>-(beta - 2.5) &times; 1.5%</td></tr>
+                </tbody>
+            </table>
+
+            <div class="callout">
+                <strong>Reliability scalar:</strong> <code>min(analystOpinionCount / 40, 1.0)</code>. Both the external technical score and analyst consensus are scaled by this so a micro-cap with 4 analysts doesn't get the same uplift as a mega-cap with 40+.
+            </div>
+
+            <p>The final <code>total_impact</code> is bucketed into one of five <code>impact_classification</code> labels:</p>
+            <ul>
+                <li><code>very_bullish</code>: &gt; +0.08</li>
+                <li><code>bullish</code>: &gt; +0.04</li>
+                <li><code>neutral</code>: -0.04 to +0.04</li>
+                <li><code>bearish</code>: &lt; -0.04</li>
+                <li><code>very_bearish</code>: &lt; -0.08</li>
+            </ul>
+        </section>
+
+        <section id="gps-link">
+            <h2>Feeding the GPS Score</h2>
+            <p>The <code>totalScore</code> returned by <code>calculateTechnicalIndicators()</code> is persisted as <code>technicalScore</code> on the prediction record. At GPS-scoring time (<code>src/utils/gps.ts</code>) it gets mapped linearly from its native -14..+14 range into 0..20 GPS points:</p>
+            <div class="formula">
+const rawTech = metrics.technicalScore ?? 0
+const m5 = Math.min(Math.max((rawTech + 14) / 28, 0), 1) * 20
+// technicalSignal contribution to the GPS 0..100 total
+            </div>
+            <table class="summary-table">
+                <thead>
+                    <tr><th>technicalScore</th><th>GPS technicalSignal (of 20)</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>-14 (max bearish)</td><td>0.0</td></tr>
+                    <tr><td>-7</td><td>5.0</td></tr>
+                    <tr><td>0 (neutral)</td><td>10.0</td></tr>
+                    <tr><td>+7</td><td>15.0</td></tr>
+                    <tr><td>+14 (max bullish)</td><td>20.0</td></tr>
+                </tbody>
+            </table>
+            <p>For the full eight-component GPS rollup, weights, bucket thresholds and ETF-specific variations, see <a href="gps_score.html">the GPS Score deep-dive</a>. This page intentionally does <em>not</em> duplicate those formulas.</p>
         </section>
 
         <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem;">
-            MoneyGoUp Financial Engine &copy; 2026
+            GrowMyStocks Technical Engine &copy; 2026 — sources: <code>src/utils/technicalIndicators.ts</code>, <code>src/utils/volatility.ts</code>, <code>src/utils/gps.ts</code>, <code>scripts/predict_weighted_analysis.py</code>
         </footer>
     </main>
 </div>

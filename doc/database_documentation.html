@@ -138,7 +138,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Database Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Generated 2026-06-12</div>
+    <div style="font-size:.78rem;opacity:.75;">Generated 2026-06-15</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -219,7 +219,7 @@
 
     <main>
         <h1>Database Documentation</h1>
-        <p>This document provides a complete overview of the MoneyGoUp MySQL database schema, relationships, and the core business logic governing user data.</p>
+        <p>This document provides a complete overview of the MoneyGoUp MySQL database schema, relationships, and the core business logic governing user data. Column lists are verified against the canonical schema dump at <code>doc/moneygoup_schema.sql</code>.</p>
 
         <section id="core-logic">
             <h2>Core Business Logic</h2>
@@ -266,14 +266,15 @@
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key</td></tr>
-                        <tr><td><code>indicator_code</code></td><td><code>VARCHAR(50)</code></td><td>e.g., NY.GDP.MKTP.KD.ZG (GDP Growth)</td></tr>
-                        <tr><td><code>country_code</code></td><td><code>VARCHAR(3)</code></td><td>USA, GBR, CHN, IND, DEU</td></tr>
-                        <tr><td><code>year</code></td><td><code>INT(4)</code></td><td>The year for the data point.</td></tr>
-                        <tr><td><code>value</code></td><td><code>DECIMAL(15,5)</code></td><td>The numerical value.</td></tr>
-                        <tr><td><code>last_updated</code></td><td><code>TIMESTAMP</code></td><td>Auto-updated on change.</td></tr>
+                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key. Auto-increment. NOT NULL.</td></tr>
+                        <tr><td><code>indicator_code</code></td><td><code>VARCHAR(50)</code></td><td>NOT NULL. e.g., NY.GDP.MKTP.KD.ZG (GDP Growth).</td></tr>
+                        <tr><td><code>country_code</code></td><td><code>VARCHAR(3)</code></td><td>Default 'USA'. USA, GBR, CHN, IND, DEU etc.</td></tr>
+                        <tr><td><code>year</code></td><td><code>INT</code></td><td>NOT NULL. The year for the data point.</td></tr>
+                        <tr><td><code>value</code></td><td><code>DECIMAL(15,5)</code></td><td>Nullable. The numerical value.</td></tr>
+                        <tr><td><code>last_updated</code></td><td><code>TIMESTAMP</code></td><td>NOT NULL. Default CURRENT_TIMESTAMP, ON UPDATE CURRENT_TIMESTAMP.</td></tr>
                     </tbody>
                 </table>
+                <p style="font-size:.8rem;color:#64748b;">Unique key: <code>idx_wb_indicator_year (indicator_code, country_code, year)</code>.</p>
             </div>
 
             <div id="world-bank-etf-gps-factors" class="table-card">
@@ -282,13 +283,16 @@
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key</td></tr>
-                        <tr><td><code>theme_or_sector</code></td><td><code>VARCHAR(100)</code></td><td>Thematic category (AI, Technology).</td></tr>
-                        <tr><td><code>indicator_code</code></td><td><code>VARCHAR(50)</code></td><td>World Bank indicator code.</td></tr>
-                        <tr><td><code>latest_value</code></td><td><code>DECIMAL(15,5)</code></td><td>Most recent raw value.</td></tr>
-                        <tr><td><code>multiplier_effect</code></td><td><code>DECIMAL(5,2)</code></td><td>Weighting applied to this factor.</td></tr>
+                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key. Auto-increment. NOT NULL.</td></tr>
+                        <tr><td><code>theme_or_sector</code></td><td><code>VARCHAR(100)</code></td><td>NOT NULL. Thematic category (AI, Technology).</td></tr>
+                        <tr><td><code>indicator_code</code></td><td><code>VARCHAR(50)</code></td><td>NOT NULL. World Bank indicator code.</td></tr>
+                        <tr><td><code>country_code</code></td><td><code>VARCHAR(3)</code></td><td>Default 'USA'.</td></tr>
+                        <tr><td><code>latest_value</code></td><td><code>DECIMAL(15,5)</code></td><td>Nullable. Most recent raw value.</td></tr>
+                        <tr><td><code>multiplier_effect</code></td><td><code>DECIMAL(5,2)</code></td><td>Default 1.00. Weighting applied to this factor.</td></tr>
+                        <tr><td><code>last_updated</code></td><td><code>TIMESTAMP</code></td><td>NOT NULL. Default CURRENT_TIMESTAMP, ON UPDATE CURRENT_TIMESTAMP.</td></tr>
                     </tbody>
                 </table>
+                <p style="font-size:.8rem;color:#64748b;">Index: <code>idx_wb_theme_indicator (theme_or_sector, indicator_code)</code>.</p>
             </div>
         </section>
 
@@ -302,20 +306,21 @@
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key. Auto-increment.</td></tr>
-                        <tr><td><code>username</code></td><td><code>VARCHAR(255)</code></td><td>Unique.</td></tr>
-                        <tr><td><code>email</code></td><td><code>VARCHAR(255)</code></td><td>Unique, nullable. Required at registration. Used to send password reset emails.</td></tr>
-                        <tr><td><code>password_hash</code></td><td><code>VARCHAR(255)</code></td><td>Bcrypt.</td></tr>
-                        <tr><td><code>role</code></td><td><code>ENUM</code></td><td>'user', 'superuser', 'admin'. Default 'user'.</td></tr>
-                        <tr><td><code>approval_status</code></td><td><code>ENUM</code></td><td>'pending', 'approved', 'rejected', 'unsubscribed', 'archived'. Default 'pending'.</td></tr>
-                        <tr><td><code>approved_by</code></td><td><code>INT</code></td><td>FK to users.id.</td></tr>
-                        <tr><td><code>approved_at</code></td><td><code>DATETIME</code></td><td>Approval timestamp.</td></tr>
-                        <tr><td><code>rejected_reason</code></td><td><code>VARCHAR(255)</code></td><td>Reason for rejection.</td></tr>
-                        <tr><td><code>last_login</code></td><td><code>DATETIME</code></td><td>Updated on login.</td></tr>
-                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Row creation timestamp (auto).</td></tr>
-                        <tr><td><code>modified_at</code></td><td><code>TIMESTAMP</code></td><td>Row modification timestamp (auto).</td></tr>
+                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key. Auto-increment. NOT NULL.</td></tr>
+                        <tr><td><code>username</code></td><td><code>VARCHAR(255)</code></td><td>NOT NULL. Unique.</td></tr>
+                        <tr><td><code>email</code></td><td><code>VARCHAR(255)</code></td><td>Nullable. Unique. Used to send password reset emails.</td></tr>
+                        <tr><td><code>password_hash</code></td><td><code>VARCHAR(255)</code></td><td>NOT NULL. Bcrypt.</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Default CURRENT_TIMESTAMP. Row creation timestamp.</td></tr>
+                        <tr><td><code>modified_at</code></td><td><code>TIMESTAMP</code></td><td>Default CURRENT_TIMESTAMP. Row modification timestamp.</td></tr>
+                        <tr><td><code>role</code></td><td><code>ENUM('user','superuser','admin')</code></td><td>NOT NULL. Default 'user'.</td></tr>
+                        <tr><td><code>approval_status</code></td><td><code>ENUM('pending','approved','rejected','unsubscribed','archived')</code></td><td>NOT NULL. Default 'pending'.</td></tr>
+                        <tr><td><code>approved_by</code></td><td><code>INT</code></td><td>Nullable. FK to users.id ON DELETE SET NULL ON UPDATE CASCADE.</td></tr>
+                        <tr><td><code>approved_at</code></td><td><code>DATETIME</code></td><td>Nullable. Approval timestamp.</td></tr>
+                        <tr><td><code>rejected_reason</code></td><td><code>VARCHAR(255)</code></td><td>Nullable. Reason for rejection.</td></tr>
+                        <tr><td><code>last_login</code></td><td><code>DATETIME</code></td><td>Nullable. Updated on login.</td></tr>
                     </tbody>
                 </table>
+                <p style="font-size:.8rem;color:#64748b;">Unique: <code>username</code>, <code>email</code>. Indexes: <code>idx_users_approval_status</code>, <code>idx_users_role</code>.</p>
             </div>
 
             <!-- PASSWORD_RESET_TOKENS -->
@@ -325,12 +330,12 @@
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key.</td></tr>
-                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>FK to users.id ON DELETE CASCADE. The account the reset applies to.</td></tr>
-                        <tr><td><code>token_hash</code></td><td><code>VARCHAR(255)</code></td><td>SHA-256 hash of the raw token. Unique index (<code>idx_prt_token_hash</code>).</td></tr>
-                        <tr><td><code>expires_at</code></td><td><code>DATETIME</code></td><td>Expiry timestamp (1 hour from creation).</td></tr>
-                        <tr><td><code>used_at</code></td><td><code>DATETIME</code></td><td>NULL until consumed; set to NOW() when the POST /reset-password succeeds. Used tokens are rejected on subsequent attempts.</td></tr>
-                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Row creation timestamp (auto-set by DB default).</td></tr>
+                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key. Auto-increment. NOT NULL.</td></tr>
+                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>NOT NULL. FK to users.id ON DELETE CASCADE. The account the reset applies to.</td></tr>
+                        <tr><td><code>token_hash</code></td><td><code>VARCHAR(255)</code></td><td>NOT NULL. SHA-256 hash of the raw token. Unique index (<code>idx_prt_token_hash</code>).</td></tr>
+                        <tr><td><code>expires_at</code></td><td><code>DATETIME</code></td><td>NOT NULL. Expiry timestamp (1 hour from creation).</td></tr>
+                        <tr><td><code>used_at</code></td><td><code>DATETIME</code></td><td>Nullable. NULL until consumed; set to NOW() when the POST /reset-password succeeds. Used tokens are rejected on subsequent attempts.</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Default CURRENT_TIMESTAMP. Row creation timestamp.</td></tr>
                     </tbody>
                 </table>
                 <div class="highlight-box">
@@ -345,25 +350,26 @@
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>role</code></td><td><code>ENUM</code></td><td>Primary Key ('user', 'superuser', 'admin')</td></tr>
-                        <tr><td><code>max_watchlist_items</code></td><td><code>INT</code></td><td>Quota for monitor list. NULL = unlimited.</td></tr>
-                        <tr><td><code>max_portfolio_items</code></td><td><code>INT</code></td><td>Quota for owned positions. NULL = unlimited.</td></tr>
-                        <tr><td><code>max_lookups_per_24h</code></td><td><code>INT</code></td><td>Daily lookup rate limit. NULL = unlimited.</td></tr>
-                        <tr><td><code>updated_at</code></td><td><code>DATETIME</code></td><td>Last modification. Auto-updated via ON UPDATE CURRENT_TIMESTAMP.</td></tr>
+                        <tr><td><code>role</code></td><td><code>ENUM('user','superuser','admin')</code></td><td>Primary Key. NOT NULL.</td></tr>
+                        <tr><td><code>max_watchlist_items</code></td><td><code>INT</code></td><td>Nullable. Quota for monitor list. NULL = unlimited.</td></tr>
+                        <tr><td><code>max_portfolio_items</code></td><td><code>INT</code></td><td>Nullable. Quota for owned positions. NULL = unlimited.</td></tr>
+                        <tr><td><code>max_lookups_per_24h</code></td><td><code>INT</code></td><td>Nullable. Daily lookup rate limit. NULL = unlimited.</td></tr>
+                        <tr><td><code>updated_at</code></td><td><code>DATETIME</code></td><td>NOT NULL. Default CURRENT_TIMESTAMP, ON UPDATE CURRENT_TIMESTAMP.</td></tr>
                     </tbody>
                 </table>
             </div>
 
-            <!-- USER_INVESTMENT_STRATEGY — NEW -->
+            <!-- USER_INVESTMENT_STRATEGY -->
             <div id="user_investment_strategy" class="table-card">
-                <div class="table-title">user_investment_strategy <span class="new-badge">NEW</span></div>
-                <p>Per-user investment strategy preferences. Drives the gates and timeframe knobs in <code>src/utils/strategy.ts</code> that scale GPS thresholds, prediction-change cutoffs, beta tolerance, the DeepMoney ML validation gate, and the predicted-price column selected from <code>user_stock_predictions</code>. Read via <code>getUserStrategy()</code>; written via the PATCH handler in <code>src/app/api/user/profile/route.ts</code>. When a row is missing for a user, the resolver falls back to the default <code>{ aggressiveness: 'neutral', investment_timeframe: '1_month' }</code>.</p>
+                <div class="table-title">user_investment_strategy</div>
+                <p>Per-user investment strategy preferences. Drives the gates and timeframe knobs in <code>src/utils/strategy.ts</code> that scale GPS thresholds, prediction-change cutoffs, beta tolerance, the DeepMoney ML validation gate, and the per-horizon column selected from <code>user_stock_predictions</code> (e.g. <code>predicted_price_1w</code>, <code>predicted_change_pct_6m</code>, <code>confidence_score_1y</code>). Read via <code>getUserStrategy()</code>; written via the PATCH handler in <code>src/app/api/user/profile/route.ts</code>. When a row is missing for a user, the resolver falls back to the default <code>{ aggressiveness: 'neutral', investment_timeframe: '1_month' }</code>.</p>
+                <p style="font-size:.8rem;color:#64748b;"><em>Note: this table is referenced throughout the application but is not present in the trimmed schema dump at <code>doc/moneygoup_schema.sql</code>; column list below reflects the runtime contract used by the strategy resolver and profile API.</em></p>
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
                         <tr><td><code>user_id</code></td><td><code>INT</code></td><td>Primary Key. FK to users.id ON DELETE CASCADE. One row per user.</td></tr>
-                        <tr><td><code>aggressiveness</code></td><td><code>ENUM</code></td><td>'safe', 'neutral', 'aggressive'. Default 'neutral'. Maps to confidence floor, beta cutoff, GPS gate, and env-floor multiplier in <code>AGGRESSIVENESS_GATES</code>.</td></tr>
-                        <tr><td><code>investment_timeframe</code></td><td><code>ENUM</code></td><td>'1_week', '1_month', '6_month', '1_year'. Default '1_month'. Maps to outlook parameter, predicted-change multiplier, sell-threshold shift, ML gate, and the <code>predicted_price_*</code> column referenced from <code>user_stock_predictions</code>.</td></tr>
+                        <tr><td><code>aggressiveness</code></td><td><code>ENUM('safe','neutral','aggressive')</code></td><td>Default 'neutral'. Maps to confidence floor, beta cutoff, GPS gate, and env-floor multiplier in <code>AGGRESSIVENESS_GATES</code>.</td></tr>
+                        <tr><td><code>investment_timeframe</code></td><td><code>ENUM('1_week','1_month','6_month','1_year')</code></td><td>Default '1_month'. Selects which <code>predicted_*_&lt;sfx&gt;</code> column the dashboard reads from <code>user_stock_predictions</code> when recomputing horizon-aware GPS.</td></tr>
                         <tr><td><code>updated_at</code></td><td><code>TIMESTAMP</code></td><td>Auto-updated via <code>ON UPDATE CURRENT_TIMESTAMP</code> when either preference changes.</td></tr>
                     </tbody>
                 </table>
@@ -379,10 +385,14 @@
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key</td></tr>
-                        <tr><td><code>symbol</code></td><td><code>VARCHAR(10)</code></td><td>Unique Ticker (AAPL).</td></tr>
-                        <tr><td><code>company_name</code></td><td><code>VARCHAR(255)</code></td><td>Legal name.</td></tr>
-                        <tr><td><code>price</code></td><td><code>DECIMAL(10,2)</code></td><td>Last cached price.</td></tr>
+                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key. Auto-increment. NOT NULL.</td></tr>
+                        <tr><td><code>symbol</code></td><td><code>VARCHAR(10)</code></td><td>NOT NULL. Unique ticker (e.g. AAPL).</td></tr>
+                        <tr><td><code>company_name</code></td><td><code>VARCHAR(255)</code></td><td>NOT NULL. Legal name.</td></tr>
+                        <tr><td><code>price</code></td><td><code>DECIMAL(10,2)</code></td><td>Nullable. Last cached price.</td></tr>
+                        <tr><td><code>pe_ratio</code></td><td><code>DECIMAL(10,2)</code></td><td>Nullable. Trailing P/E ratio cache.</td></tr>
+                        <tr><td><code>pb_ratio</code></td><td><code>DECIMAL(10,2)</code></td><td>Nullable. Price-to-book ratio cache.</td></tr>
+                        <tr><td><code>market_cap</code></td><td><code>BIGINT</code></td><td>Nullable. Market cap (raw dollars).</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Default CURRENT_TIMESTAMP.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -394,18 +404,18 @@
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>PK part 1. FK to users ON DELETE CASCADE.</td></tr>
-                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>PK part 2. FK to stocks ON DELETE CASCADE.</td></tr>
-                        <tr><td><code>shares</code></td><td><code>DECIMAL(10,4)</code></td><td>Quantity held. Default 0.</td></tr>
-                        <tr><td><code>purchase_price</code></td><td><code>DECIMAL(10,2)</code></td><td>Average price at time of add. Default 0.</td></tr>
-                        <tr><td><code>is_purchased</code></td><td><code>TINYINT(1)</code></td><td>0 = Watchlist/Discovery, 1 = Portfolio. Default 0.</td></tr>
-                        <tr><td><code>user_confirmed</code></td><td><code>TINYINT(1)</code></td><td>1 = Manual add, 0 = AI Auto-discovery. Default 1.</td></tr>
-                        <tr><td><code>is_active</code></td><td><code>TINYINT(1)</code></td><td>0 when shares = 0 after a sell (closed position). Default 1.</td></tr>
-                        <tr><td><code>average_cost_basis</code></td><td><code>DECIMAL(14,4)</code></td><td>Weighted average cost per share, updated on each transaction. NULL until first purchase.</td></tr>
-                        <tr><td><code>initial_purchase_date</code></td><td><code>DATETIME</code></td><td>Timestamp of the very first buy transaction.</td></tr>
-                        <tr><td><code>last_transaction_date</code></td><td><code>DATETIME</code></td><td>Timestamp of the most recent buy or sell transaction.</td></tr>
-                        <tr><td><code>first_purchase_date</code></td><td><code>DATETIME</code></td><td>Alias column for initial_purchase_date (legacy). May differ in older rows.</td></tr>
-                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Row creation timestamp (auto).</td></tr>
+                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>PK part 1. NOT NULL. FK to users.id ON DELETE CASCADE ON UPDATE CASCADE.</td></tr>
+                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>PK part 2. NOT NULL. FK to stocks.id ON DELETE CASCADE ON UPDATE CASCADE.</td></tr>
+                        <tr><td><code>shares</code></td><td><code>DECIMAL(10,4)</code></td><td>NOT NULL. Default 0.0000. Quantity held.</td></tr>
+                        <tr><td><code>purchase_price</code></td><td><code>DECIMAL(10,2)</code></td><td>NOT NULL. Default 0.00. Average price at time of add.</td></tr>
+                        <tr><td><code>is_purchased</code></td><td><code>TINYINT(1)</code></td><td>NOT NULL. Default 0. 0 = Watchlist/Discovery, 1 = Portfolio.</td></tr>
+                        <tr><td><code>initial_purchase_date</code></td><td><code>DATETIME</code></td><td>Nullable. Timestamp of the very first buy transaction.</td></tr>
+                        <tr><td><code>last_transaction_date</code></td><td><code>DATETIME</code></td><td>Nullable. Timestamp of the most recent buy or sell transaction.</td></tr>
+                        <tr><td><code>is_active</code></td><td><code>TINYINT(1)</code></td><td>NOT NULL. Default 1. 0 when shares = 0 after a sell (closed position).</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Default CURRENT_TIMESTAMP.</td></tr>
+                        <tr><td><code>user_confirmed</code></td><td><code>TINYINT(1)</code></td><td>NOT NULL. Default 1. 1 = Manual add, 0 = AI Auto-discovery.</td></tr>
+                        <tr><td><code>average_cost_basis</code></td><td><code>DECIMAL(14,4)</code></td><td>Nullable. Weighted average cost per share, updated on each transaction.</td></tr>
+                        <tr><td><code>first_purchase_date</code></td><td><code>DATETIME</code></td><td>Nullable. Alias column for <code>initial_purchase_date</code> (legacy).</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -417,68 +427,78 @@
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>id</code></td><td><code>BIGINT</code></td><td>Primary Key</td></tr>
-                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>FK to users.id.</td></tr>
-                        <tr><td><code>ticker</code></td><td><code>VARCHAR(20)</code></td><td>The symbol looked up.</td></tr>
-                        <tr><td><code>looked_up_at</code></td><td><code>DATETIME</code></td><td>Event timestamp.</td></tr>
-                        <tr><td><code>source</code></td><td><code>VARCHAR(50)</code></td><td>API source (web, mobile).</td></tr>
+                        <tr><td><code>id</code></td><td><code>BIGINT</code></td><td>Primary Key. Auto-increment. NOT NULL.</td></tr>
+                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>NOT NULL. FK to users.id ON DELETE CASCADE ON UPDATE CASCADE.</td></tr>
+                        <tr><td><code>ticker</code></td><td><code>VARCHAR(20)</code></td><td>NOT NULL. The symbol looked up.</td></tr>
+                        <tr><td><code>looked_up_at</code></td><td><code>DATETIME</code></td><td>NOT NULL. Default CURRENT_TIMESTAMP.</td></tr>
+                        <tr><td><code>source</code></td><td><code>VARCHAR(50)</code></td><td>Nullable. API source (web, mobile).</td></tr>
                     </tbody>
                 </table>
+                <p style="font-size:.8rem;color:#64748b;">Index: <code>idx_lookup_user_time (user_id, looked_up_at)</code>.</p>
             </div>
 
             <!-- STOCKSDAILYPRICE -->
             <div id="stocksdailyprice" class="table-card">
                 <div class="table-title">stocksdailyprice</div>
-                <p>End-of-day historical price snapshots for tracked stocks, used for portfolio valuation charting.</p>
+                <p>End-of-day historical price snapshots (OHLCV plus adjusted series) for tracked stocks, used for portfolio valuation and chart rendering.</p>
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>FK to stocks.</td></tr>
-                        <tr><td><code>price_date</code></td><td><code>DATE</code></td><td>The trading date.</td></tr>
-                        <tr><td><code>close_price</code></td><td><code>DECIMAL(10,2)</code></td><td>Adjusted closing price.</td></tr>
+                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key. Auto-increment. NOT NULL.</td></tr>
+                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>NOT NULL. FK to stocks.id ON DELETE CASCADE ON UPDATE CASCADE.</td></tr>
+                        <tr><td><code>date</code></td><td><code>DATE</code></td><td>NOT NULL. The trading date.</td></tr>
+                        <tr><td><code>open</code></td><td><code>DECIMAL(10,2)</code></td><td>NOT NULL. Open price.</td></tr>
+                        <tr><td><code>high</code></td><td><code>DECIMAL(10,2)</code></td><td>NOT NULL. Day high.</td></tr>
+                        <tr><td><code>low</code></td><td><code>DECIMAL(10,2)</code></td><td>NOT NULL. Day low.</td></tr>
+                        <tr><td><code>close</code></td><td><code>DECIMAL(10,2)</code></td><td>NOT NULL. Closing price.</td></tr>
+                        <tr><td><code>volume</code></td><td><code>INT</code></td><td>NOT NULL. Share volume.</td></tr>
+                        <tr><td><code>adj_open</code></td><td><code>DECIMAL(10,2)</code></td><td>Nullable. Split/dividend-adjusted open.</td></tr>
+                        <tr><td><code>adj_high</code></td><td><code>DECIMAL(10,2)</code></td><td>Nullable. Adjusted high.</td></tr>
+                        <tr><td><code>adj_low</code></td><td><code>DECIMAL(10,2)</code></td><td>Nullable. Adjusted low.</td></tr>
+                        <tr><td><code>adj_close</code></td><td><code>DECIMAL(10,2)</code></td><td>Nullable. Adjusted close (used by accuracy resolver).</td></tr>
+                        <tr><td><code>adj_volume</code></td><td><code>INT</code></td><td>Nullable. Adjusted volume.</td></tr>
+                        <tr><td><code>daily_change</code></td><td><code>DECIMAL(10,2)</code></td><td>Nullable. Day-over-day delta cache.</td></tr>
                     </tbody>
                 </table>
+                <p style="font-size:.8rem;color:#64748b;">Unique key: <code>(stock_id, date)</code>.</p>
             </div>
 
             <!-- RECOMMENDED_STOCKS -->
             <div id="recommended_stocks" class="table-card">
                 <div class="table-title">recommended_stocks</div>
-                <p>Stores the latest DeepMoney discovery results. Supports multiple record types via the <code>type</code> column: <code>hot_stocks</code> (standard DeepMoney picks), <code>hot_ai_tech_stocks</code>, and <code>etf_holding</code> (surfaced ETF top-holdings written by <code>deepmoney_sync.py</code>). This table is the <strong>third-tier fallback</strong> for <code>GET /api/stock_data/[ticker]/gps</code>.</p>
+                <p>Stores the latest DeepMoney discovery results. Supports multiple record types via the <code>type</code> column: <code>hot_stocks</code> (standard DeepMoney picks) and <code>hot_ai_tech_stocks</code>. This table is the <strong>third-tier fallback</strong> for <code>GET /api/stock_data/[ticker]/gps</code>.</p>
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key. Auto-increment.</td></tr>
-                        <tr><td><code>type</code></td><td><code>VARCHAR(50)</code></td><td>'hot_stocks', 'hot_ai_tech_stocks', 'etf_holding'. NOT NULL. Indexed.</td></tr>
-                        <tr><td><code>ticker</code></td><td><code>VARCHAR(10)</code></td><td>Stock symbol. NOT NULL. Indexed.</td></tr>
-                        <tr><td><code>company_name</code></td><td><code>VARCHAR(255)</code></td><td>Full legal name. NOT NULL.</td></tr>
-                        <tr><td><code>current_price</code></td><td><code>DECIMAL(12,4)</code></td><td>Price at discovery time.</td></tr>
-                        <tr><td><code>gps_score</code></td><td><code>DECIMAL(8,2)</code></td><td>0–100 GPS score.</td></tr>
-                        <tr><td><code>gps_breakdown</code></td><td><code>JSON</code></td><td>Named component scores.</td></tr>
-                        <tr><td><code>bearish_signal</code></td><td><code>TINYINT(1)</code></td><td>1 if a bearish technical pattern was detected at scoring time.</td></tr>
-                        <tr><td><code>trading_signal</code></td><td><code>VARCHAR(20)</code></td><td>BUY / HOLD / SELL signal from technical analysis engine.</td></tr>
-                        <tr><td><code>trading_signal_score</code></td><td><code>INT</code></td><td>Raw signal score from the technical indicators engine.</td></tr>
-                        <tr><td><code>classification</code></td><td><code>VARCHAR(100)</code></td><td>Category label (e.g. Technology, ETF Holding).</td></tr>
-                        <tr><td><code>analyst_upside_pct</code></td><td><code>DECIMAL(8,2)</code></td><td>Analyst consensus price target upside %.</td></tr>
-                        <tr><td><code>revenue_growth_yoy</code></td><td><code>DECIMAL(10,2)</code></td><td>Year-over-year revenue growth %.</td></tr>
-                        <tr><td><code>gross_margin_pct</code></td><td><code>DECIMAL(8,2)</code></td><td>Gross margin %.</td></tr>
-                        <tr><td><code>rd_spend_pct</code></td><td><code>DECIMAL(8,2)</code></td><td>R&amp;D spend as % of revenue.</td></tr>
-                        <tr><td><code>trailing_pe</code></td><td><code>DECIMAL(10,2)</code></td><td>Trailing P/E (<code>s.get('pe')</code>) at scoring time. Written by the <code>hot_stocks</code> branch of <code>deepmoney_sync.py</code>; may be NULL for older or non-hot-stock rows.</td></tr>
-                        <tr><td><code>price_to_book</code></td><td><code>DECIMAL(10,2)</code></td><td>Price-to-book ratio (<code>s.get('pb')</code>) at scoring time. Same write path as <code>trailing_pe</code>.</td></tr>
-                        <tr><td><code>metric_value</code></td><td><code>DECIMAL(12,4)</code></td><td>Primary numeric metric for the row. For <code>hot_stocks</code>: predicted 1-month change %. For <code>etf_holding</code>: the GPS score. Sort key in card surfaces.</td></tr>
-                        <tr><td><code>metric_label</code></td><td><code>VARCHAR(100)</code></td><td>Human label for <code>metric_value</code>. For <code>hot_stocks</code>: <code>"CS: {confidence_score}"</code> (may have a trailing <code>"⚠️ATH"</code> when near-ATH + high-beta is detected). For <code>etf_holding</code>: <code>score_source</code> ("fresh" / "cached").</td></tr>
-                        <tr><td><code>market_cap_m</code></td><td><code>DECIMAL(16,2)</code></td><td>Market cap in millions.</td></tr>
-                        <tr><td><code>mention_count</code></td><td><code>INT</code></td><td>Social/news mention count. Default 0.</td></tr>
-                        <tr><td><code>discovery_source</code></td><td><code>VARCHAR(100)</code></td><td>Origin of discovery (e.g. 'v2_engine', 'etf_holdings/QQQ').</td></tr>
-                        <tr><td><code>upcoming_earnings</code></td><td><code>VARCHAR(50)</code></td><td>Upcoming earnings date string if available.</td></tr>
-                        <tr><td><code>parent_etf_ticker</code></td><td><code>VARCHAR(20)</code></td><td>For etf_holding rows: the parent ETF that surfaces this stock.</td></tr>
-                        <tr><td><code>holding_percent</code></td><td><code>DECIMAL(10,6)</code></td><td>For etf_holding rows: decimal fraction of ETF assets held in this stock.</td></tr>
-                        <tr><td><code>prediction_input</code></td><td><code>LONGTEXT</code></td><td>JSON snapshot of the prediction payload used to produce this record.</td></tr>
-                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>Date of the discovery run. NOT NULL. Indexed (composite with type). Source of truth for "which run produced this row".</td></tr>
-                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Row creation timestamp (auto).</td></tr>
+                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key. Auto-increment. NOT NULL.</td></tr>
+                        <tr><td><code>type</code></td><td><code>VARCHAR(50)</code></td><td>NOT NULL. 'hot_stocks' or 'hot_ai_tech_stocks'. Indexed.</td></tr>
+                        <tr><td><code>ticker</code></td><td><code>VARCHAR(10)</code></td><td>NOT NULL. Stock symbol. Indexed.</td></tr>
+                        <tr><td><code>company_name</code></td><td><code>VARCHAR(255)</code></td><td>NOT NULL. Full legal name.</td></tr>
+                        <tr><td><code>current_price</code></td><td><code>DECIMAL(12,4)</code></td><td>Nullable. Price at discovery time.</td></tr>
+                        <tr><td><code>gps_score</code></td><td><code>DECIMAL(8,2)</code></td><td>Nullable. 0–100 GPS score.</td></tr>
+                        <tr><td><code>gps_breakdown</code></td><td><code>JSON</code></td><td>Nullable. Named component scores.</td></tr>
+                        <tr><td><code>trading_signal</code></td><td><code>VARCHAR(20)</code></td><td>Nullable. BUY / HOLD / SELL from technical analysis engine.</td></tr>
+                        <tr><td><code>trading_signal_score</code></td><td><code>INT</code></td><td>Nullable. Raw signal score from the technical indicators engine.</td></tr>
+                        <tr><td><code>classification</code></td><td><code>VARCHAR(100)</code></td><td>Nullable. Category label (e.g. Technology).</td></tr>
+                        <tr><td><code>analyst_upside_pct</code></td><td><code>DECIMAL(8,2)</code></td><td>Nullable. Analyst consensus price target upside %.</td></tr>
+                        <tr><td><code>revenue_growth_yoy</code></td><td><code>DECIMAL(10,2)</code></td><td>Nullable. Year-over-year revenue growth %.</td></tr>
+                        <tr><td><code>gross_margin_pct</code></td><td><code>DECIMAL(8,2)</code></td><td>Nullable. Gross margin %.</td></tr>
+                        <tr><td><code>rd_spend_pct</code></td><td><code>DECIMAL(8,2)</code></td><td>Nullable. R&amp;D spend as % of revenue.</td></tr>
+                        <tr><td><code>trailing_pe</code></td><td><code>DECIMAL(10,2)</code></td><td>Nullable. Trailing P/E at scoring time. Written by the <code>hot_stocks</code> branch of <code>deepmoney_sync.py</code>.</td></tr>
+                        <tr><td><code>price_to_book</code></td><td><code>DECIMAL(10,2)</code></td><td>Nullable. Price-to-book ratio at scoring time.</td></tr>
+                        <tr><td><code>metric_value</code></td><td><code>DECIMAL(12,4)</code></td><td>Nullable. Primary numeric metric for the row (e.g. predicted 1-month change % for hot_stocks).</td></tr>
+                        <tr><td><code>metric_label</code></td><td><code>VARCHAR(100)</code></td><td>Nullable. Human label for <code>metric_value</code> (e.g. <code>"CS: {confidence_score}"</code>).</td></tr>
+                        <tr><td><code>market_cap_m</code></td><td><code>DECIMAL(16,2)</code></td><td>Nullable. Market cap in millions.</td></tr>
+                        <tr><td><code>mention_count</code></td><td><code>INT</code></td><td>Default 0. Social/news mention count.</td></tr>
+                        <tr><td><code>discovery_source</code></td><td><code>VARCHAR(100)</code></td><td>Nullable. Origin of discovery (e.g. 'v2_engine').</td></tr>
+                        <tr><td><code>upcoming_earnings</code></td><td><code>VARCHAR(50)</code></td><td>Nullable. Upcoming earnings date string if available.</td></tr>
+                        <tr><td><code>prediction_input</code></td><td><code>LONGTEXT</code></td><td>Nullable. JSON snapshot of the prediction payload used to produce this record.</td></tr>
+                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>NOT NULL. Date of the discovery run. Indexed (composite with type).</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Default CURRENT_TIMESTAMP.</td></tr>
                     </tbody>
                 </table>
                 <div class="highlight-box">
-                    <strong>Note on GPS fallback:</strong> The GPS read path checks <code>stock_gps_scores</code> first, then falls back to <code>recommended_stocks</code>. GPS data is kept in sync by <code>deepmoney_sync.py</code> and <code>/api/prediction/save</code>. The <code>predicted_price_1m</code> column from earlier doc versions was removed; all price targets are now in <code>user_stock_predictions</code>.
+                    <strong>Note on GPS fallback:</strong> The GPS read path checks <code>stock_gps_scores</code> first, then falls back to <code>recommended_stocks</code>. GPS data is kept in sync by <code>deepmoney_sync.py</code> and <code>/api/prediction/save</code>. Previously documented columns <code>bearish_signal</code>, <code>parent_etf_ticker</code>, and <code>holding_percent</code> are no longer part of this table — ETF holding recommendations now live in their own table (<code>etf_stock_recommendations</code>).
                 </div>
             </div>
 
@@ -489,15 +509,15 @@
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key. Auto-increment.</td></tr>
-                        <tr><td><code>type</code></td><td><code>VARCHAR(50)</code></td><td>'hot_markets' or 'hot_ai_sectors'. NOT NULL.</td></tr>
-                        <tr><td><code>name</code></td><td><code>VARCHAR(255)</code></td><td>Industry name (for hot_markets) or sub-sector name (for hot_ai_sectors). NOT NULL.</td></tr>
-                        <tr><td><code>average_sentiment</code></td><td><code>DECIMAL(5,2)</code></td><td>Average sentiment score across mentions.</td></tr>
-                        <tr><td><code>count</code></td><td><code>INT</code></td><td>Mention count (hot_markets) or article count (hot_ai_sectors).</td></tr>
-                        <tr><td><code>metric_value</code></td><td><code>DECIMAL(12,4)</code></td><td>Primary numeric metric for this record.</td></tr>
-                        <tr><td><code>metric_label</code></td><td><code>VARCHAR(100)</code></td><td>Human label for metric_value.</td></tr>
-                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>Date of discovery run. NOT NULL.</td></tr>
-                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Row creation timestamp (auto).</td></tr>
+                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key. Auto-increment. NOT NULL.</td></tr>
+                        <tr><td><code>type</code></td><td><code>VARCHAR(50)</code></td><td>NOT NULL. 'hot_markets' or 'hot_ai_sectors'. Indexed.</td></tr>
+                        <tr><td><code>name</code></td><td><code>VARCHAR(255)</code></td><td>NOT NULL. Industry name (hot_markets) or sub-sector name (hot_ai_sectors).</td></tr>
+                        <tr><td><code>average_sentiment</code></td><td><code>DECIMAL(5,2)</code></td><td>Nullable. Average sentiment score across mentions.</td></tr>
+                        <tr><td><code>count</code></td><td><code>INT</code></td><td>Nullable. Mention count (hot_markets) or article count (hot_ai_sectors).</td></tr>
+                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>NOT NULL. Date of discovery run. Indexed.</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Default CURRENT_TIMESTAMP.</td></tr>
+                        <tr><td><code>metric_value</code></td><td><code>DECIMAL(12,4)</code></td><td>Nullable. Primary numeric metric for this record.</td></tr>
+                        <tr><td><code>metric_label</code></td><td><code>VARCHAR(100)</code></td><td>Nullable. Human label for metric_value.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -505,18 +525,38 @@
             <!-- USER_STOCK_PREDICTIONS -->
             <div id="user_stock_predictions" class="table-card">
                 <div class="table-title">user_stock_predictions</div>
-                <p>Persists multi-horizon AI-generated price predictions keyed by user and stock. GPS columns were removed in the May 2026 migration — scores now live in <code>stock_gps_scores</code>.</p>
+                <p>Persists multi-horizon AI-generated price predictions keyed by user and stock. Each row stores the full set of horizon-specific predicted prices, predicted change percentages, and per-horizon model confidence scores — so the dashboard can recompute horizon-aware GPS identically to <code>/api/prediction/[ticker]</code> instead of re-deriving deltas from possibly-stale prices. GPS columns were removed in the May 2026 migration — scores now live in <code>stock_gps_scores</code>.</p>
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>FK to users. Part of unique key (user_id, stock_id).</td></tr>
-                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>FK to stocks. Part of unique key (user_id, stock_id).</td></tr>
-                        <tr><td><code>predicted_price_1m</code></td><td><code>DECIMAL(12,4)</code></td><td>AI 1-month price target.</td></tr>
-                        <tr><td><code>last_requested_at</code></td><td><code>DATETIME</code></td><td>Timestamp of last prediction run.</td></tr>
+                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key. Auto-increment. NOT NULL.</td></tr>
+                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>NOT NULL. FK to users.id ON DELETE CASCADE ON UPDATE CASCADE. Part of unique key (user_id, stock_id).</td></tr>
+                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>NOT NULL. FK to stocks.id ON DELETE CASCADE ON UPDATE CASCADE. Part of unique key (user_id, stock_id).</td></tr>
+                        <tr><td><code>predicted_price_1w</code></td><td><code>DECIMAL(12,4)</code></td><td>Nullable. AI 1-week price target.</td></tr>
+                        <tr><td><code>predicted_price_1m</code></td><td><code>DECIMAL(12,4)</code></td><td>NOT NULL. AI 1-month price target (legacy default horizon).</td></tr>
+                        <tr><td><code>predicted_price_6m</code></td><td><code>DECIMAL(12,4)</code></td><td>Nullable. AI 6-month price target.</td></tr>
+                        <tr><td><code>predicted_price_1y</code></td><td><code>DECIMAL(12,4)</code></td><td>Nullable. AI 1-year price target.</td></tr>
+                        <tr><td><code>predicted_change_pct_1w</code></td><td><code>DECIMAL(8,4)</code></td><td>Nullable. <span class="new-badge">NEW</span> Direct model output: predicted % change at 1-week horizon. Used by the dashboard to bypass spot-price re-derivation.</td></tr>
+                        <tr><td><code>predicted_change_pct_1m</code></td><td><code>DECIMAL(8,4)</code></td><td>Nullable. <span class="new-badge">NEW</span> Direct model output: predicted % change at 1-month horizon.</td></tr>
+                        <tr><td><code>predicted_change_pct_6m</code></td><td><code>DECIMAL(8,4)</code></td><td>Nullable. <span class="new-badge">NEW</span> Direct model output: predicted % change at 6-month horizon.</td></tr>
+                        <tr><td><code>predicted_change_pct_1y</code></td><td><code>DECIMAL(8,4)</code></td><td>Nullable. <span class="new-badge">NEW</span> Direct model output: predicted % change at 1-year horizon.</td></tr>
+                        <tr><td><code>confidence_score_1w</code></td><td><code>DECIMAL(5,2)</code></td><td>Nullable. <span class="new-badge">NEW</span> MLP confidence score for the 1-week prediction.</td></tr>
+                        <tr><td><code>confidence_score_1m</code></td><td><code>DECIMAL(5,2)</code></td><td>Nullable. <span class="new-badge">NEW</span> MLP confidence score for the 1-month prediction.</td></tr>
+                        <tr><td><code>confidence_score_6m</code></td><td><code>DECIMAL(5,2)</code></td><td>Nullable. <span class="new-badge">NEW</span> MLP confidence score for the 6-month prediction.</td></tr>
+                        <tr><td><code>confidence_score_1y</code></td><td><code>DECIMAL(5,2)</code></td><td>Nullable. <span class="new-badge">NEW</span> MLP confidence score for the 1-year prediction.</td></tr>
+                        <tr><td><code>last_requested_at</code></td><td><code>DATETIME</code></td><td>NOT NULL. Timestamp of last prediction run.</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Nullable. Default CURRENT_TIMESTAMP.</td></tr>
+                        <tr><td><code>updated_at</code></td><td><code>TIMESTAMP</code></td><td>Nullable. Default CURRENT_TIMESTAMP, ON UPDATE CURRENT_TIMESTAMP.</td></tr>
+                        <tr><td><code>macro_features_used</code></td><td><code>JSON</code></td><td>Nullable. Snapshot of macro feature inputs (regime probabilities, indicator values) used by the prediction run.</td></tr>
+                        <tr><td><code>consumer_multiplier_applied</code></td><td><code>DECIMAL(5,4)</code></td><td>Nullable. Macro-driven multiplier applied to consumer-sector predictions (if any).</td></tr>
                     </tbody>
                 </table>
+                <p style="font-size:.8rem;color:#64748b;">Unique key: <code>uniq_user_stock_prediction (user_id, stock_id)</code>. Indexes: <code>idx_last_requested</code>, <code>fk_usp_stock</code>.</p>
                 <div class="highlight-box">
-                    <strong>Migration note:</strong> <code>gps_score</code> and <code>gps_breakdown</code> were dropped from this table (Phase 5, May 2026). GPS data is now stored once per stock in <code>stock_gps_scores</code> and read via a <code>LEFT JOIN</code> in all portfolio, watchlist, and recommendation queries.
+                    <strong>Horizon-aware GPS recomputation:</strong> The dashboard reads the appropriate <code>predicted_change_pct_&lt;sfx&gt;</code> and <code>confidence_score_&lt;sfx&gt;</code> for the user's <code>user_investment_strategy.investment_timeframe</code> directly off this row. This avoids subtracting a possibly-stale <code>stocks.price</code> from <code>predicted_price_&lt;sfx&gt;</code> and keeps the dashboard's GPS view aligned with what <code>/api/prediction/[ticker]</code> returned at sync time.
+                </div>
+                <div class="highlight-box">
+                    <strong>Migration note:</strong> <code>gps_score</code> and <code>gps_breakdown</code> were dropped from this table (Phase 5, May 2026). GPS data is now stored once per stock in <code>stock_gps_scores</code> and read via a <code>LEFT JOIN</code> in all portfolio, watchlist, and recommendation queries. There is no <code>strategy_aggressiveness</code> column on this table — the user-level aggressiveness lives on <code>user_investment_strategy</code> instead.
                 </div>
             </div>
 
@@ -527,15 +567,15 @@
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>Primary Key. FK to stocks(id) ON DELETE CASCADE.</td></tr>
-                        <tr><td><code>as_of</code></td><td><code>DATETIME</code></td><td>Timestamp of the prediction run that produced this score. Indexed via <code>idx_stock_gps_as_of</code>.</td></tr>
-                        <tr><td><code>gps_score</code></td><td><code>DECIMAL(5,1)</code></td><td>0–100 GPS score, rounded to 1 decimal place.</td></tr>
-                        <tr><td><code>gps_breakdown</code></td><td><code>JSON</code></td><td>Component scores: analystUpside, revenueGrowth, earningsGrowth, fiftyTwoWeekChange, mlpUpside, mlpConfidence.</td></tr>
-                        <tr><td><code>model_version</code></td><td><code>VARCHAR(40)</code></td><td>Optional model identifier. Currently NULL.</td></tr>
-                        <tr><td><code>regime</code></td><td><code>VARCHAR(50)</code></td><td>Optional GMM market regime label. Currently NULL.</td></tr>
-                        <tr><td><code>source</code></td><td><code>VARCHAR(40)</code></td><td>Write origin: <code>prediction_engine</code>, <code>deepmoney_sync</code>, <code>user_backfill</code>, or <code>recommended_backfill</code>.</td></tr>
-                        <tr><td><code>created_at</code></td><td><code>DATETIME</code></td><td>Row creation timestamp (auto).</td></tr>
-                        <tr><td><code>updated_at</code></td><td><code>DATETIME</code></td><td>Auto-updated on row change via <code>ON UPDATE CURRENT_TIMESTAMP</code>. Does not update if GPS score is unchanged.</td></tr>
+                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>Primary Key. NOT NULL. FK to stocks.id ON DELETE CASCADE.</td></tr>
+                        <tr><td><code>as_of</code></td><td><code>DATETIME</code></td><td>NOT NULL. Timestamp of the prediction run that produced this score. Indexed via <code>idx_stock_gps_as_of</code>.</td></tr>
+                        <tr><td><code>gps_score</code></td><td><code>DECIMAL(5,1)</code></td><td>NOT NULL. 0–100 GPS score, rounded to 1 decimal place.</td></tr>
+                        <tr><td><code>gps_breakdown</code></td><td><code>JSON</code></td><td>Nullable. Component scores: analystUpside, revenueGrowth, earningsGrowth, fiftyTwoWeekChange, mlpUpside, mlpConfidence.</td></tr>
+                        <tr><td><code>model_version</code></td><td><code>VARCHAR(40)</code></td><td>Nullable. Optional model identifier.</td></tr>
+                        <tr><td><code>regime</code></td><td><code>VARCHAR(50)</code></td><td>Nullable. Optional GMM market regime label.</td></tr>
+                        <tr><td><code>source</code></td><td><code>VARCHAR(40)</code></td><td>NOT NULL. Default 'prediction_engine'. Write origin: <code>prediction_engine</code>, <code>deepmoney_sync</code>, <code>user_backfill</code>, or <code>recommended_backfill</code>.</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>DATETIME</code></td><td>NOT NULL. Default CURRENT_TIMESTAMP.</td></tr>
+                        <tr><td><code>updated_at</code></td><td><code>DATETIME</code></td><td>NOT NULL. Default CURRENT_TIMESTAMP, ON UPDATE CURRENT_TIMESTAMP. Does not update if GPS score is unchanged.</td></tr>
                     </tbody>
                 </table>
                 <div class="highlight-box">
@@ -550,45 +590,47 @@
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>id</code></td><td><code>BIGINT</code></td><td>Auto-increment Primary Key.</td></tr>
-                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>FK to stocks(id) ON DELETE CASCADE.</td></tr>
-                        <tr><td><code>as_of</code></td><td><code>DATETIME</code></td><td>Timestamp of the prediction run. Part of unique key with <code>model_version</code>.</td></tr>
-                        <tr><td><code>gps_score</code></td><td><code>DECIMAL(5,1)</code></td><td>Score at this point in time.</td></tr>
-                        <tr><td><code>gps_breakdown</code></td><td><code>JSON</code></td><td>Component scores snapshot.</td></tr>
-                        <tr><td><code>model_version</code></td><td><code>VARCHAR(40)</code></td><td>Nullable. Note: MySQL treats NULL as distinct in UNIQUE keys, so two rows with NULL model_version and the same stock_id + as_of are both permitted.</td></tr>
-                        <tr><td><code>regime</code></td><td><code>VARCHAR(50)</code></td><td>Optional GMM regime at time of scoring.</td></tr>
-                        <tr><td><code>source</code></td><td><code>VARCHAR(40)</code></td><td>Write origin.</td></tr>
-                        <tr><td><code>created_at</code></td><td><code>DATETIME</code></td><td>Row creation timestamp (auto).</td></tr>
+                        <tr><td><code>id</code></td><td><code>BIGINT</code></td><td>Primary Key. Auto-increment. NOT NULL.</td></tr>
+                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>NOT NULL. FK to stocks.id ON DELETE CASCADE.</td></tr>
+                        <tr><td><code>as_of</code></td><td><code>DATETIME</code></td><td>NOT NULL. Timestamp of the prediction run. Part of unique key with <code>model_version</code>.</td></tr>
+                        <tr><td><code>gps_score</code></td><td><code>DECIMAL(5,1)</code></td><td>NOT NULL. Score at this point in time.</td></tr>
+                        <tr><td><code>gps_breakdown</code></td><td><code>JSON</code></td><td>Nullable. Component scores snapshot.</td></tr>
+                        <tr><td><code>model_version</code></td><td><code>VARCHAR(40)</code></td><td>Nullable. MySQL treats NULL as distinct in UNIQUE keys.</td></tr>
+                        <tr><td><code>regime</code></td><td><code>VARCHAR(50)</code></td><td>Nullable. Optional GMM regime at time of scoring.</td></tr>
+                        <tr><td><code>source</code></td><td><code>VARCHAR(40)</code></td><td>NOT NULL. Default 'prediction_engine'. Write origin.</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>DATETIME</code></td><td>NOT NULL. Default CURRENT_TIMESTAMP.</td></tr>
                     </tbody>
                 </table>
+                <p style="font-size:.8rem;color:#64748b;">Unique key: <code>uniq_stock_asof_model (stock_id, as_of, model_version)</code>. Index: <code>idx_stock_history_stock_asof</code>.</p>
             </div>
 
-            <!-- PREDICTION_RECORDS — NEW -->
+            <!-- PREDICTION_RECORDS -->
             <div id="prediction_records" class="table-card">
-                <div class="table-title">prediction_records <span class="new-badge">NEW</span></div>
-                <p>Analytics ledger of multi-horizon model predictions, used to compute the headline accuracy KPIs surfaced by the <code>ModelAccuracyWidget</code>. Written fire-and-forget by <code>recordPrediction()</code> in <code>src/utils/predictionRecorder.ts</code>, called from the prediction API route handler and from the Python sync pipeline. The actuals (<code>actual_price_*</code>) are populated separately by the scheduled resolver job after each horizon elapses. Read by <code>GET /api/analytics/model-accuracy</code> (global and per-symbol).</p>
+                <div class="table-title">prediction_records</div>
+                <p>Analytics ledger of multi-horizon model predictions, used to compute the headline accuracy KPIs surfaced by the <code>ModelAccuracyWidget</code>. Written fire-and-forget by <code>recordPrediction()</code> in <code>src/utils/predictionRecorder.ts</code>. The actuals (<code>actual_price_*</code>) are populated separately by the scheduled resolver job after each horizon elapses.</p>
+                <p style="font-size:.8rem;color:#64748b;"><em>Note: this table is referenced by <code>GET /api/analytics/model-accuracy</code> and the recorder utility but is not present in the trimmed schema dump at <code>doc/moneygoup_schema.sql</code>; column list reflects the runtime contract.</em></p>
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
                         <tr><td><code>symbol</code></td><td><code>VARCHAR(10)</code></td><td>Stock ticker for the prediction. Part of the dedupe key.</td></tr>
-                        <tr><td><code>predicted_at</code></td><td><code>DATE</code></td><td>Date the prediction was issued. Writer hard-codes <code>CURDATE()</code> in the INSERT so it pins to the local server day. Part of the dedupe key.</td></tr>
+                        <tr><td><code>predicted_at</code></td><td><code>DATE</code></td><td>Date the prediction was issued. Writer hard-codes <code>CURDATE()</code>. Part of the dedupe key.</td></tr>
                         <tr><td><code>price_at_prediction</code></td><td><code>DECIMAL(12,4)</code></td><td>Spot price at prediction time. Baseline used by downstream MAPE computations.</td></tr>
                         <tr><td><code>predicted_price_1w</code></td><td><code>DECIMAL(12,4)</code></td><td>Predicted 1-week target. Nullable.</td></tr>
                         <tr><td><code>predicted_price_1m</code></td><td><code>DECIMAL(12,4)</code></td><td>Predicted 1-month target. Nullable.</td></tr>
                         <tr><td><code>predicted_price_6m</code></td><td><code>DECIMAL(12,4)</code></td><td>Predicted 6-month target. Nullable.</td></tr>
                         <tr><td><code>predicted_price_1y</code></td><td><code>DECIMAL(12,4)</code></td><td>Predicted 1-year target. Nullable.</td></tr>
-                        <tr><td><code>actual_price_1w</code></td><td><code>DECIMAL(12,4)</code></td><td>Spot price one week after <code>predicted_at</code>. NULL until the horizon resolves. The model-accuracy route only scores rows where both predicted and actual are non-null AND actual &gt; 0.</td></tr>
+                        <tr><td><code>actual_price_1w</code></td><td><code>DECIMAL(12,4)</code></td><td>Spot price one week after <code>predicted_at</code>. NULL until the horizon resolves.</td></tr>
                         <tr><td><code>actual_price_1m</code></td><td><code>DECIMAL(12,4)</code></td><td>Spot price one month after <code>predicted_at</code>. Same resolution semantics as 1w.</td></tr>
                         <tr><td><code>actual_price_6m</code></td><td><code>DECIMAL(12,4)</code></td><td>Spot price six months after <code>predicted_at</code>. Same resolution semantics.</td></tr>
                         <tr><td><code>actual_price_1y</code></td><td><code>DECIMAL(12,4)</code></td><td>Spot price one year after <code>predicted_at</code>. Same resolution semantics.</td></tr>
-                        <tr><td><code>updated_at</code></td><td><code>TIMESTAMP</code></td><td>Auto-updated when the resolver fills in actuals. <code>MAX(updated_at)</code> is surfaced in the API response as <code>last_resolved_at</code>.</td></tr>
+                        <tr><td><code>updated_at</code></td><td><code>TIMESTAMP</code></td><td>Auto-updated when the resolver fills in actuals. <code>MAX(updated_at)</code> is surfaced as <code>last_resolved_at</code>.</td></tr>
                     </tbody>
                 </table>
                 <div class="highlight-box">
-                    <strong>Dedupe pattern:</strong> The writer uses <code>INSERT IGNORE INTO prediction_records (symbol, predicted_at, price_at_prediction, predicted_price_1w, predicted_price_1m, predicted_price_6m, predicted_price_1y) VALUES (?, CURDATE(), ?, ?, ?, ?, ?)</code>. A UNIQUE index on (<code>symbol</code>, <code>predicted_at</code>) means a second prediction for the same ticker on the same day is silently ignored (the writer logs "Duplicate prediction (ignored)").
+                    <strong>Dedupe pattern:</strong> The writer uses <code>INSERT IGNORE INTO prediction_records (symbol, predicted_at, price_at_prediction, predicted_price_1w, predicted_price_1m, predicted_price_6m, predicted_price_1y) VALUES (?, CURDATE(), ?, ?, ?, ?, ?)</code>. A UNIQUE index on (<code>symbol</code>, <code>predicted_at</code>) means a second prediction for the same ticker on the same day is silently ignored.
                 </div>
                 <div class="highlight-box">
-                    <strong>Accuracy formula:</strong> For each row/horizon the <code>/api/analytics/model-accuracy</code> route computes <code>GREATEST(0, 1 - ABS(predicted - actual) / NULLIF(actual, 0))</code> (a clamped MAPE-style proximity score in [0, 1]). <code>proximity_accuracy_pct</code> is the per-horizon average ×100; <code>total_accuracy_pct</code> is the global average across all four horizons via UNION ALL; <code>high_accuracy_count</code> is the count of rows whose proximity ≥ 0.95. The endpoint requires at least 30 resolved rows summed across the 4 horizons before transitioning out of <code>insufficient_data</code>.
+                    <strong>Accuracy formula:</strong> For each row/horizon the <code>/api/analytics/model-accuracy</code> route computes <code>GREATEST(0, 1 - ABS(predicted - actual) / NULLIF(actual, 0))</code> (a clamped MAPE-style proximity score in [0, 1]). <strong>Direction accuracy</strong> is the headline metric — Phase 2 of the Prediction Tracking System shipped it as the canonical KPI. The endpoint requires at least 30 resolved rows summed across the 4 horizons before transitioning out of <code>insufficient_data</code>.
                 </div>
             </div>
 
@@ -599,25 +641,28 @@
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>ticker</code></td><td><code>VARCHAR(20)</code></td><td>ETF Symbol.</td></tr>
-                        <tr><td><code>etf_name</code></td><td><code>VARCHAR(255)</code></td><td>Full fund name.</td></tr>
-                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>Date of discovery.</td></tr>
-                        <tr><td><code>current_price</code></td><td><code>DECIMAL(10,2)</code></td><td>Price at snapshot.</td></tr>
-                        <tr><td><code>etf_gps_score</code></td><td><code>DECIMAL(5,1)</code></td><td>0–100 ETF GPS score.</td></tr>
-                        <tr><td><code>theme</code></td><td><code>VARCHAR(100)</code></td><td>Thematic category (AI, Technology, etc.).</td></tr>
-                        <tr><td><code>aum_m</code></td><td><code>DECIMAL(12,2)</code></td><td>Assets under management in millions.</td></tr>
-                        <tr><td><code>expense_ratio_pct</code></td><td><code>DECIMAL(5,3)</code></td><td>Annual fee %.</td></tr>
-                        <tr><td><code>52wk_return_pct</code></td><td><code>DECIMAL(7,2)</code></td><td>1-year performance %.</td></tr>
-                        <tr><td><code>3mo_return_pct</code></td><td><code>DECIMAL(7,2)</code></td><td>3-month performance %.</td></tr>
-                        <tr><td><code>avg_daily_volume</code></td><td><code>BIGINT</code></td><td>Average daily share volume.</td></tr>
-                        <tr><td><code>momentum_score</code></td><td><code>DECIMAL(5,1)</code></td><td>Derived 3-month momentum score.</td></tr>
-                        <tr><td><code>news_signal_score</code></td><td><code>DECIMAL(5,1)</code></td><td>Thematic news overlap signal score.</td></tr>
-                        <tr><td><code>macro_tailwind_score</code></td><td><code>DECIMAL(5,1)</code></td><td>Structural macro boost from World Bank indicators.</td></tr>
-                        <tr><td><code>theme_validation_bonus</code></td><td><code>DECIMAL(5,1)</code></td><td>Tech adoption validation bonus points.</td></tr>
-                        <tr><td><code>discovery_source</code></td><td><code>VARCHAR(100)</code></td><td>How this ETF was found (e.g. 'watchlist+news_signal+macro_confirmed').</td></tr>
-                        <tr><td><code>is_leveraged</code></td><td><code>TINYINT(1)</code></td><td>1 if the ETF uses leverage (filtered out by default).</td></tr>
+                        <tr><td><code>id</code></td><td><code>BIGINT</code></td><td>Primary Key. Auto-increment. NOT NULL.</td></tr>
+                        <tr><td><code>ticker</code></td><td><code>VARCHAR(20)</code></td><td>NOT NULL. ETF symbol.</td></tr>
+                        <tr><td><code>etf_name</code></td><td><code>VARCHAR(255)</code></td><td>NOT NULL. Full fund name.</td></tr>
+                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>NOT NULL. Date of discovery.</td></tr>
+                        <tr><td><code>current_price</code></td><td><code>DECIMAL(10,2)</code></td><td>NOT NULL. Price at snapshot.</td></tr>
+                        <tr><td><code>etf_gps_score</code></td><td><code>DECIMAL(5,1)</code></td><td>NOT NULL. 0–100 ETF GPS score.</td></tr>
+                        <tr><td><code>theme</code></td><td><code>VARCHAR(100)</code></td><td>Nullable. Thematic category (AI, Technology, etc.).</td></tr>
+                        <tr><td><code>aum_m</code></td><td><code>DECIMAL(12,2)</code></td><td>Nullable. Assets under management in millions.</td></tr>
+                        <tr><td><code>expense_ratio_pct</code></td><td><code>DECIMAL(5,3)</code></td><td>Nullable. Annual fee %.</td></tr>
+                        <tr><td><code>52wk_return_pct</code></td><td><code>DECIMAL(7,2)</code></td><td>Nullable. 1-year performance %.</td></tr>
+                        <tr><td><code>3mo_return_pct</code></td><td><code>DECIMAL(7,2)</code></td><td>Nullable. 3-month performance %.</td></tr>
+                        <tr><td><code>avg_daily_volume</code></td><td><code>BIGINT</code></td><td>Nullable. Average daily share volume.</td></tr>
+                        <tr><td><code>momentum_score</code></td><td><code>DECIMAL(5,1)</code></td><td>Nullable. Derived 3-month momentum score.</td></tr>
+                        <tr><td><code>news_signal_score</code></td><td><code>DECIMAL(5,1)</code></td><td>Nullable. Thematic news overlap signal score.</td></tr>
+                        <tr><td><code>macro_tailwind_score</code></td><td><code>DECIMAL(5,1)</code></td><td>Nullable. Structural macro boost from World Bank indicators.</td></tr>
+                        <tr><td><code>theme_validation_bonus</code></td><td><code>DECIMAL(5,1)</code></td><td>Nullable. Tech adoption validation bonus points.</td></tr>
+                        <tr><td><code>discovery_source</code></td><td><code>VARCHAR(100)</code></td><td>Nullable. How this ETF was found (e.g. 'watchlist+news_signal+macro_confirmed').</td></tr>
+                        <tr><td><code>is_leveraged</code></td><td><code>TINYINT(1)</code></td><td>NOT NULL. 1 if the ETF uses leverage (filtered out by default).</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>NOT NULL. Default CURRENT_TIMESTAMP.</td></tr>
                     </tbody>
                 </table>
+                <p style="font-size:.8rem;color:#64748b;">Unique key: <code>idx_hot_etfs_ticker_date (ticker, snapshot_date)</code>. Indexes: <code>idx_hot_etfs_snapshot_date</code>, <code>idx_hot_etfs_theme</code>, <code>idx_hot_etfs_gps_score</code>.</p>
             </div>
 
             <!-- ETF_CYCLE_SUMMARY -->
@@ -627,33 +672,36 @@
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>cycle_date</code></td><td><code>DATE</code></td><td>Run date.</td></tr>
-                        <tr><td><code>etfs_evaluated</code></td><td><code>INT</code></td><td>Total candidates evaluated.</td></tr>
-                        <tr><td><code>etfs_qualified</code></td><td><code>INT</code></td><td>Candidates that passed all GPS threshold filters.</td></tr>
-                        <tr><td><code>etfs_persisted</code></td><td><code>INT</code></td><td>Top-N results actually written to hot_etfs.</td></tr>
-                        <tr><td><code>avg_etf_gps_score</code></td><td><code>DECIMAL(5,1)</code></td><td>Mean GPS score of persisted ETFs — cycle quality metric.</td></tr>
-                        <tr><td><code>top_theme</code></td><td><code>VARCHAR(100)</code></td><td>Strongest thematic sector by cumulative GPS score.</td></tr>
-                        <tr><td><code>cycle_duration_ms</code></td><td><code>INT</code></td><td>Wall-clock runtime in milliseconds.</td></tr>
-                        <tr><td><code>errors</code></td><td><code>TEXT</code></td><td>Semicolon-delimited list of per-ETF errors (truncated at 1000 chars).</td></tr>
+                        <tr><td><code>id</code></td><td><code>BIGINT</code></td><td>Primary Key. Auto-increment. NOT NULL.</td></tr>
+                        <tr><td><code>cycle_date</code></td><td><code>DATE</code></td><td>NOT NULL. Run date.</td></tr>
+                        <tr><td><code>etfs_evaluated</code></td><td><code>INT</code></td><td>NOT NULL. Total candidates evaluated.</td></tr>
+                        <tr><td><code>etfs_qualified</code></td><td><code>INT</code></td><td>NOT NULL. Candidates that passed all GPS threshold filters.</td></tr>
+                        <tr><td><code>etfs_persisted</code></td><td><code>INT</code></td><td>NOT NULL. Top-N results actually written to hot_etfs.</td></tr>
+                        <tr><td><code>avg_etf_gps_score</code></td><td><code>DECIMAL(5,1)</code></td><td>Nullable. Mean GPS score of persisted ETFs — cycle quality metric.</td></tr>
+                        <tr><td><code>top_theme</code></td><td><code>VARCHAR(100)</code></td><td>Nullable. Strongest thematic sector by cumulative GPS score.</td></tr>
+                        <tr><td><code>cycle_duration_ms</code></td><td><code>INT</code></td><td>Nullable. Wall-clock runtime in milliseconds.</td></tr>
+                        <tr><td><code>errors</code></td><td><code>TEXT</code></td><td>Nullable. Semicolon-delimited list of per-ETF errors (truncated at 1000 chars).</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>NOT NULL. Default CURRENT_TIMESTAMP.</td></tr>
                     </tbody>
                 </table>
             </div>
 
-            <!-- ETF_HOLDING_SCORES — NEW -->
+            <!-- ETF_HOLDING_SCORES -->
             <div id="etf_holding_scores" class="table-card">
-                <div class="table-title">etf_holding_scores <span class="new-badge">NEW</span></div>
-                <p>GPS score cache for the top stock holdings of qualifying ETFs. One row per (parent ETF ticker, holding ticker, snapshot date). Written by the prediction pipeline when <code>scoreETFHoldings()</code> is called from <code>performETFDiscovery()</code>. Read by <code>GET /api/stock_data/[ticker]/holdings</code> to enrich the holdings list returned to the UI and to <code>deepmoney_sync.py</code> when it surfaces holding candidates.</p>
+                <div class="table-title">etf_holding_scores</div>
+                <p>GPS score cache for the top stock holdings of qualifying ETFs. One row per (parent ETF ticker, holding ticker, snapshot date). Written by the prediction pipeline when <code>scoreETFHoldings()</code> is called from <code>performETFDiscovery()</code>. Read by <code>GET /api/stock_data/[ticker]/holdings</code> and by <code>deepmoney_sync.py</code> when it surfaces holding candidates.</p>
+                <p style="font-size:.8rem;color:#64748b;"><em>Note: this table is referenced by the ETF holdings pipeline but is not present in the trimmed schema dump at <code>doc/moneygoup_schema.sql</code>; column list reflects the runtime contract.</em></p>
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
                         <tr><td><code>ticker</code></td><td><code>VARCHAR(20)</code></td><td>The holding stock symbol.</td></tr>
-                        <tr><td><code>parent_etf_ticker</code></td><td><code>VARCHAR(20)</code></td><td>The ETF that holds this stock. Used to scope lookups — each holding is cached per parent ETF.</td></tr>
+                        <tr><td><code>parent_etf_ticker</code></td><td><code>VARCHAR(20)</code></td><td>The ETF that holds this stock. Used to scope lookups.</td></tr>
                         <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>Date of the scoring run. Used with MAX(snapshot_date) to retrieve most-recent scores per ticker.</td></tr>
                         <tr><td><code>gps_score</code></td><td><code>DECIMAL(8,2)</code></td><td>0–100 GPS score for this holding.</td></tr>
                         <tr><td><code>gps_breakdown</code></td><td><code>JSON</code></td><td>Named component scores (same structure as stock_gps_scores.gps_breakdown).</td></tr>
                         <tr><td><code>predicted_change_pct</code></td><td><code>DECIMAL(8,4)</code></td><td>MLP-predicted 1-month price change % for this holding.</td></tr>
                         <tr><td><code>bearish_signal</code></td><td><code>TINYINT(1)</code></td><td>1 if a bearish indicator was detected for this holding at scoring time.</td></tr>
-                        <tr><td><code>beta</code></td><td><code>DECIMAL(8,4)</code></td><td>Stock beta at time of scoring. Used in the volatility gate (default max 2.0, configurable via ETF_HOLDING_MAX_BETA).</td></tr>
+                        <tr><td><code>beta</code></td><td><code>DECIMAL(8,4)</code></td><td>Stock beta at time of scoring. Used in the volatility gate (default max 2.0).</td></tr>
                         <tr><td><code>score_source</code></td><td><code>VARCHAR(20)</code></td><td>'fresh' if scored live by the MLP, 'cached' if sourced from an existing stock_gps_scores row.</td></tr>
                     </tbody>
                 </table>
@@ -662,28 +710,29 @@
                 </div>
             </div>
 
-            <!-- ETF_STOCK_RECOMMENDATIONS — NEW -->
+            <!-- ETF_STOCK_RECOMMENDATIONS -->
             <div id="etf_stock_recommendations" class="table-card">
-                <div class="table-title">etf_stock_recommendations <span class="new-badge">NEW</span></div>
-                <p>Per-user alert queue for hot stocks surfaced from ETF top-holdings analysis. Written by <code>deepmoney_sync.py</code> (via <code>POST /api/etf/holdings-recommendation</code>) and by the internal API route directly. Read by <code>GET /api/etf/holdings-recommendation</code> (user-facing alert panel) and by <code>GET /api/dashboard/recommendations</code> (recommendation bucket aggregation). Rows are keyed on (user_id, etf_ticker, stock_ticker, snapshot_date) so re-runs upsert existing records and reset the <code>seen</code> flag.</p>
+                <div class="table-title">etf_stock_recommendations</div>
+                <p>Per-user alert queue for hot stocks surfaced from ETF top-holdings analysis. Written by <code>deepmoney_sync.py</code> (via <code>POST /api/etf/holdings-recommendation</code>) and by the internal API route directly. Read by <code>GET /api/etf/holdings-recommendation</code> (user-facing alert panel) and by <code>GET /api/dashboard/recommendations</code> (recommendation bucket aggregation).</p>
+                <p style="font-size:.8rem;color:#64748b;"><em>Note: this table is referenced by the ETF holdings recommendation pipeline but is not present in the trimmed schema dump at <code>doc/moneygoup_schema.sql</code>; column list reflects the runtime contract.</em></p>
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
                         <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key. Auto-increment.</td></tr>
                         <tr><td><code>user_id</code></td><td><code>INT</code></td><td>FK to users.id. The user this recommendation is for.</td></tr>
-                        <tr><td><code>etf_ticker</code></td><td><code>VARCHAR(20)</code></td><td>The parent ETF (e.g. QQQ) that surfaces this holding. NOT NULL.</td></tr>
-                        <tr><td><code>stock_ticker</code></td><td><code>VARCHAR(20)</code></td><td>The recommended holding stock symbol. NOT NULL.</td></tr>
+                        <tr><td><code>etf_ticker</code></td><td><code>VARCHAR(20)</code></td><td>NOT NULL. The parent ETF (e.g. QQQ) that surfaces this holding.</td></tr>
+                        <tr><td><code>stock_ticker</code></td><td><code>VARCHAR(20)</code></td><td>NOT NULL. The recommended holding stock symbol.</td></tr>
                         <tr><td><code>gps_score</code></td><td><code>DECIMAL(8,2)</code></td><td>GPS score at time of surfacing.</td></tr>
                         <tr><td><code>predicted_change_pct</code></td><td><code>DECIMAL(8,4)</code></td><td>Predicted 1-month price change %.</td></tr>
                         <tr><td><code>confidence_score</code></td><td><code>DECIMAL(8,4)</code></td><td>MLP model confidence score.</td></tr>
                         <tr><td><code>recommendation_reason</code></td><td><code>TEXT</code></td><td>Human-readable explanation, e.g. "AAPL is a top holding of QQQ with GPS 72.5 and +3.2% predicted gain."</td></tr>
-                        <tr><td><code>seen</code></td><td><code>TINYINT(1)</code></td><td>0 = unseen (new alert), 1 = dismissed by user via PATCH. Default 0. Reset to 0 on upsert.</td></tr>
-                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>Date the recommendation was generated. <strong>Source of truth for "this run vs. that run".</strong></td></tr>
+                        <tr><td><code>seen</code></td><td><code>TINYINT(1)</code></td><td>Default 0. 0 = unseen (new alert), 1 = dismissed by user via PATCH. Reset to 0 on upsert.</td></tr>
+                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>Date the recommendation was generated. Source of truth for "this run vs. that run".</td></tr>
                         <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Row creation timestamp (auto).</td></tr>
                     </tbody>
                 </table>
                 <div class="highlight-box">
-                    <strong>Filtering in dashboard (refreshed 2026-06-12):</strong> The dashboard recommendations route (<code>GET /api/dashboard/recommendations</code>) no longer uses a rolling 7-day window. It now selects the latest snapshot per user — <code>WHERE user_id = ? AND snapshot_date = (SELECT MAX(snapshot_date) FROM etf_stock_recommendations WHERE user_id = ?)</code> — and orders by <code>gps_score DESC</code>. This mirrors the <code>deepmoney-picks</code> pattern: rows accumulate across <code>update_predictions.py</code> runs, but only the most recent snapshot is surfaced so prior-day picks never mix with the current set. Stocks already in the user's portfolio, watchlist, or discovery list are excluded from the final output. The user-facing alert panel (<code>GET /api/etf/holdings-recommendation</code>) retains its own ordering (<code>gps_score DESC, created_at DESC LIMIT 50</code>) with an optional <code>unseen=true</code> filter.
+                    <strong>Filtering in dashboard:</strong> The dashboard recommendations route (<code>GET /api/dashboard/recommendations</code>) selects the latest snapshot per user — <code>WHERE user_id = ? AND snapshot_date = (SELECT MAX(snapshot_date) FROM etf_stock_recommendations WHERE user_id = ?)</code> — and orders by <code>gps_score DESC</code>. Stocks already in the user's portfolio, watchlist, or discovery list are excluded from the final output. The user-facing alert panel (<code>GET /api/etf/holdings-recommendation</code>) retains its own ordering (<code>gps_score DESC, created_at DESC LIMIT 50</code>) with an optional <code>unseen=true</code> filter.
                 </div>
             </div>
 
@@ -693,12 +742,14 @@
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>Unique Primary Key.</td></tr>
-                        <tr><td><code>global_health_score</code></td><td><code>DECIMAL(5,2)</code></td><td>Multi-country macro score.</td></tr>
-                        <tr><td><code>unemployment_rate</code></td><td><code>DECIMAL(5,2)</code></td><td>USA current rate.</td></tr>
-                        <tr><td><code>unemployment_signal</code></td><td><code>VARCHAR(20)</code></td><td>bullish | bearish | neutral.</td></tr>
-                        <tr><td><code>inflation_rate</code></td><td><code>DECIMAL(5,2)</code></td><td>USA CPI trend.</td></tr>
-                        <tr><td><code>gdp_growth</code></td><td><code>DECIMAL(5,2)</code></td><td>USA GDP trend.</td></tr>
+                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key. Auto-increment. NOT NULL.</td></tr>
+                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>NOT NULL. Unique key <code>idx_snapshot_date</code>.</td></tr>
+                        <tr><td><code>global_health_score</code></td><td><code>DECIMAL(5,2)</code></td><td>Nullable. Multi-country macro score.</td></tr>
+                        <tr><td><code>unemployment_rate</code></td><td><code>DECIMAL(5,2)</code></td><td>Nullable. USA current rate.</td></tr>
+                        <tr><td><code>unemployment_signal</code></td><td><code>VARCHAR(20)</code></td><td>Nullable. bullish | bearish | neutral.</td></tr>
+                        <tr><td><code>inflation_rate</code></td><td><code>DECIMAL(5,2)</code></td><td>Nullable. USA CPI trend.</td></tr>
+                        <tr><td><code>gdp_growth</code></td><td><code>DECIMAL(5,2)</code></td><td>Nullable. USA GDP trend.</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Default CURRENT_TIMESTAMP.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -715,19 +766,20 @@
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>id</code></td><td><code>BIGINT</code></td><td>Primary Key. Auto-increment.</td></tr>
-                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>FK to users.id.</td></tr>
-                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>FK to stocks.id.</td></tr>
-                        <tr><td><code>transaction_type</code></td><td><code>ENUM</code></td><td>'buy', 'sell', 'dividend', 'split', 'deposit', 'withdrawal'.</td></tr>
-                        <tr><td><code>shares</code></td><td><code>DECIMAL(14,6)</code></td><td>Number of shares in this transaction. May be NULL for cash events.</td></tr>
-                        <tr><td><code>price_per_share</code></td><td><code>DECIMAL(14,4)</code></td><td>Price per share at transaction time.</td></tr>
-                        <tr><td><code>total_amount</code></td><td><code>DECIMAL(14,2)</code></td><td>Total dollar amount of the transaction. NOT NULL.</td></tr>
-                        <tr><td><code>fees</code></td><td><code>DECIMAL(10,2)</code></td><td>Brokerage fees. Default 0.00.</td></tr>
-                        <tr><td><code>transaction_date</code></td><td><code>DATETIME</code></td><td>When the trade occurred. NOT NULL. Indexed (user_id, transaction_date) and (stock_id, transaction_date).</td></tr>
-                        <tr><td><code>notes</code></td><td><code>VARCHAR(255)</code></td><td>Optional user note.</td></tr>
-                        <tr><td><code>created_at</code></td><td><code>DATETIME</code></td><td>Row creation timestamp (auto).</td></tr>
+                        <tr><td><code>id</code></td><td><code>BIGINT</code></td><td>Primary Key. Auto-increment. NOT NULL.</td></tr>
+                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>NOT NULL. FK to users.id.</td></tr>
+                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>NOT NULL. FK to stocks.id.</td></tr>
+                        <tr><td><code>transaction_type</code></td><td><code>ENUM('buy','sell','dividend','split','deposit','withdrawal')</code></td><td>NOT NULL.</td></tr>
+                        <tr><td><code>shares</code></td><td><code>DECIMAL(14,6)</code></td><td>Nullable. May be NULL for cash events.</td></tr>
+                        <tr><td><code>price_per_share</code></td><td><code>DECIMAL(14,4)</code></td><td>Nullable. Price per share at transaction time.</td></tr>
+                        <tr><td><code>total_amount</code></td><td><code>DECIMAL(14,2)</code></td><td>NOT NULL. Total dollar amount of the transaction.</td></tr>
+                        <tr><td><code>fees</code></td><td><code>DECIMAL(10,2)</code></td><td>Default 0.00. Brokerage fees.</td></tr>
+                        <tr><td><code>transaction_date</code></td><td><code>DATETIME</code></td><td>NOT NULL. When the trade occurred.</td></tr>
+                        <tr><td><code>notes</code></td><td><code>VARCHAR(255)</code></td><td>Nullable. Optional user note.</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>DATETIME</code></td><td>Default CURRENT_TIMESTAMP.</td></tr>
                     </tbody>
                 </table>
+                <p style="font-size:.8rem;color:#64748b;">Indexes: <code>idx_user_date (user_id, transaction_date)</code>, <code>idx_stock_date (stock_id, transaction_date)</code>.</p>
             </div>
 
             <div id="portfolio_daily_snapshots" class="table-card">
@@ -736,15 +788,15 @@
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>PK part 1. FK to users.id.</td></tr>
-                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>PK part 2. The trading date.</td></tr>
-                        <tr><td><code>portfolio_value</code></td><td><code>DECIMAL(14,2)</code></td><td>Total market value of all positions at close. NOT NULL.</td></tr>
-                        <tr><td><code>total_cost_basis</code></td><td><code>DECIMAL(14,2)</code></td><td>Sum of cost basis across all open positions. NOT NULL.</td></tr>
-                        <tr><td><code>unrealized_gain_loss</code></td><td><code>DECIMAL(14,2)</code></td><td>portfolio_value - total_cost_basis. NOT NULL.</td></tr>
-                        <tr><td><code>realized_gain_loss</code></td><td><code>DECIMAL(14,2)</code></td><td>Cumulative realized P&amp;L from closed positions. NOT NULL.</td></tr>
-                        <tr><td><code>daily_change_amount</code></td><td><code>DECIMAL(14,2)</code></td><td>Dollar change from prior day snapshot.</td></tr>
-                        <tr><td><code>daily_change_percent</code></td><td><code>DECIMAL(8,4)</code></td><td>Percent change from prior day snapshot.</td></tr>
-                        <tr><td><code>created_at</code></td><td><code>DATETIME</code></td><td>Row creation timestamp (auto).</td></tr>
+                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>PK part 1. NOT NULL. FK to users.id.</td></tr>
+                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>PK part 2. NOT NULL. The trading date.</td></tr>
+                        <tr><td><code>portfolio_value</code></td><td><code>DECIMAL(14,2)</code></td><td>NOT NULL. Total market value of all positions at close.</td></tr>
+                        <tr><td><code>total_cost_basis</code></td><td><code>DECIMAL(14,2)</code></td><td>NOT NULL. Sum of cost basis across all open positions.</td></tr>
+                        <tr><td><code>unrealized_gain_loss</code></td><td><code>DECIMAL(14,2)</code></td><td>NOT NULL. portfolio_value - total_cost_basis.</td></tr>
+                        <tr><td><code>realized_gain_loss</code></td><td><code>DECIMAL(14,2)</code></td><td>NOT NULL. Cumulative realized P&amp;L from closed positions.</td></tr>
+                        <tr><td><code>daily_change_amount</code></td><td><code>DECIMAL(14,2)</code></td><td>Nullable. Dollar change from prior day snapshot.</td></tr>
+                        <tr><td><code>daily_change_percent</code></td><td><code>DECIMAL(8,4)</code></td><td>Nullable. Percent change from prior day snapshot.</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>DATETIME</code></td><td>Default CURRENT_TIMESTAMP.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -755,12 +807,12 @@
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>PK part 1.</td></tr>
-                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>PK part 2. FK to stocks.id.</td></tr>
-                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>PK part 3. The trading date.</td></tr>
-                        <tr><td><code>shares</code></td><td><code>DECIMAL(14,6)</code></td><td>Shares held at end of day.</td></tr>
-                        <tr><td><code>market_value</code></td><td><code>DECIMAL(14,2)</code></td><td>Close price * shares.</td></tr>
-                        <tr><td><code>cost_basis</code></td><td><code>DECIMAL(14,2)</code></td><td>Average cost basis * shares.</td></tr>
+                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>PK part 1. NOT NULL.</td></tr>
+                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>PK part 2. NOT NULL. FK to stocks.id.</td></tr>
+                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>PK part 3. NOT NULL. The trading date.</td></tr>
+                        <tr><td><code>shares</code></td><td><code>DECIMAL(14,6)</code></td><td>Nullable. Shares held at end of day.</td></tr>
+                        <tr><td><code>market_value</code></td><td><code>DECIMAL(14,2)</code></td><td>Nullable. Close price * shares.</td></tr>
+                        <tr><td><code>cost_basis</code></td><td><code>DECIMAL(14,2)</code></td><td>Nullable. Average cost basis * shares.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -771,11 +823,11 @@
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>PK part 1. FK to users.</td></tr>
-                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>PK part 2.</td></tr>
-                        <tr><td><code>portfolio_return_pct</code></td><td><code>DECIMAL(8,4)</code></td><td>User's portfolio return % for the day.</td></tr>
-                        <tr><td><code>spy_return_pct</code></td><td><code>DECIMAL(8,4)</code></td><td>SPY return % for the same day.</td></tr>
-                        <tr><td><code>alpha_pct</code></td><td><code>DECIMAL(8,4)</code></td><td>portfolio_return_pct - spy_return_pct.</td></tr>
+                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>PK part 1. NOT NULL. FK to users.</td></tr>
+                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>PK part 2. NOT NULL.</td></tr>
+                        <tr><td><code>portfolio_return_pct</code></td><td><code>DECIMAL(8,4)</code></td><td>Nullable. User's portfolio return % for the day.</td></tr>
+                        <tr><td><code>spy_return_pct</code></td><td><code>DECIMAL(8,4)</code></td><td>Nullable. SPY return % for the same day.</td></tr>
+                        <tr><td><code>alpha_pct</code></td><td><code>DECIMAL(8,4)</code></td><td>Nullable. portfolio_return_pct - spy_return_pct.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -792,13 +844,13 @@
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key. Auto-increment.</td></tr>
-                        <tr><td><code>title</code></td><td><code>VARCHAR(512)</code></td><td>Article headline. NOT NULL.</td></tr>
-                        <tr><td><code>link</code></td><td><code>VARCHAR(1024)</code></td><td>Canonical URL. NOT NULL. Unique — prevents duplicate ingestion.</td></tr>
-                        <tr><td><code>pub_date</code></td><td><code>DATETIME</code></td><td>Publication date from source feed.</td></tr>
-                        <tr><td><code>source</code></td><td><code>VARCHAR(255)</code></td><td>Feed source name.</td></tr>
-                        <tr><td><code>sentiment_score</code></td><td><code>DECIMAL(5,2)</code></td><td>Computed sentiment (-1 to +1 scale).</td></tr>
-                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Ingestion timestamp (auto).</td></tr>
+                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key. Auto-increment. NOT NULL.</td></tr>
+                        <tr><td><code>title</code></td><td><code>VARCHAR(512)</code></td><td>NOT NULL. Article headline.</td></tr>
+                        <tr><td><code>link</code></td><td><code>VARCHAR(1024)</code></td><td>NOT NULL. Canonical URL. Unique — prevents duplicate ingestion.</td></tr>
+                        <tr><td><code>pub_date</code></td><td><code>DATETIME</code></td><td>Nullable. Publication date from source feed.</td></tr>
+                        <tr><td><code>source</code></td><td><code>VARCHAR(255)</code></td><td>Nullable. Feed source name.</td></tr>
+                        <tr><td><code>sentiment_score</code></td><td><code>DECIMAL(5,2)</code></td><td>Nullable. Computed sentiment (-1 to +1 scale).</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Default CURRENT_TIMESTAMP. Ingestion timestamp.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -809,26 +861,28 @@
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>FK to users.id.</td></tr>
-                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>FK to stocks.id.</td></tr>
-                        <tr><td><code>news_id</code></td><td><code>INT</code></td><td>FK to news.id.</td></tr>
-                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Association timestamp (auto).</td></tr>
+                        <tr><td><code>user_id</code></td><td><code>INT</code></td><td>PK part 1. NOT NULL. FK to user_stocks(user_id, stock_id) ON DELETE CASCADE ON UPDATE CASCADE.</td></tr>
+                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>PK part 2. NOT NULL.</td></tr>
+                        <tr><td><code>news_id</code></td><td><code>INT</code></td><td>PK part 3. NOT NULL. FK to news.id ON DELETE CASCADE ON UPDATE CASCADE.</td></tr>
                     </tbody>
                 </table>
             </div>
 
             <div id="stock_brand" class="table-card">
                 <div class="table-title">stock_brand</div>
-                <p>Stores branding assets for stocks (logo URLs, brand colours). Used by the UI to render stock cards with brand identity.</p>
+                <p>Stores brand colour assets for stocks. Used by the UI to render stock cards with brand identity. Logos are sourced separately at runtime; only the primary brand colour is cached here.</p>
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>Primary Key. FK to stocks.id.</td></tr>
-                        <tr><td><code>logo_url</code></td><td><code>VARCHAR(512)</code></td><td>URL to the company logo image.</td></tr>
-                        <tr><td><code>brand_color</code></td><td><code>VARCHAR(20)</code></td><td>Primary hex brand colour (e.g. #00a8e0).</td></tr>
-                        <tr><td><code>updated_at</code></td><td><code>TIMESTAMP</code></td><td>Last update timestamp (auto).</td></tr>
+                        <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key. Auto-increment. NOT NULL.</td></tr>
+                        <tr><td><code>ticker</code></td><td><code>VARCHAR(10)</code></td><td>NOT NULL. Unique. Stock ticker symbol.</td></tr>
+                        <tr><td><code>company_name</code></td><td><code>VARCHAR(255)</code></td><td>NOT NULL. Official company name.</td></tr>
+                        <tr><td><code>primary_color</code></td><td><code>VARCHAR(7)</code></td><td>NOT NULL. Primary brand color in hex format (e.g. <code>#FF0000</code>).</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Default CURRENT_TIMESTAMP.</td></tr>
+                        <tr><td><code>updated_at</code></td><td><code>TIMESTAMP</code></td><td>Default CURRENT_TIMESTAMP, ON UPDATE CURRENT_TIMESTAMP.</td></tr>
                     </tbody>
                 </table>
+                <p style="font-size:.8rem;color:#64748b;">Unique: <code>ticker</code>. Indexes: <code>idx_ticker</code>, <code>idx_created_at</code>. Brand colour is fetched asynchronously by the Stock page (see git log entry <em>"fetch brand color async"</em>).</p>
             </div>
 
             <div id="preview_leads" class="table-card">
@@ -837,14 +891,14 @@
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>id</code></td><td><code>BIGINT UNSIGNED</code></td><td>Primary Key. Auto-increment.</td></tr>
-                        <tr><td><code>name</code></td><td><code>VARCHAR(120)</code></td><td>Contact name. NOT NULL.</td></tr>
-                        <tr><td><code>email</code></td><td><code>VARCHAR(255)</code></td><td>Contact email. NOT NULL. Indexed.</td></tr>
-                        <tr><td><code>company</code></td><td><code>VARCHAR(180)</code></td><td>Company name (optional).</td></tr>
-                        <tr><td><code>message</code></td><td><code>TEXT</code></td><td>Message body. NOT NULL.</td></tr>
-                        <tr><td><code>ip_address</code></td><td><code>VARCHAR(64)</code></td><td>Submitter IP address for spam/abuse tracking.</td></tr>
-                        <tr><td><code>user_agent</code></td><td><code>VARCHAR(500)</code></td><td>Browser user-agent string.</td></tr>
-                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Submission timestamp (auto). Indexed.</td></tr>
+                        <tr><td><code>id</code></td><td><code>BIGINT UNSIGNED</code></td><td>Primary Key. Auto-increment. NOT NULL.</td></tr>
+                        <tr><td><code>name</code></td><td><code>VARCHAR(120)</code></td><td>NOT NULL. Contact name.</td></tr>
+                        <tr><td><code>email</code></td><td><code>VARCHAR(255)</code></td><td>NOT NULL. Contact email. Indexed.</td></tr>
+                        <tr><td><code>company</code></td><td><code>VARCHAR(180)</code></td><td>Nullable. Company name (optional).</td></tr>
+                        <tr><td><code>message</code></td><td><code>TEXT</code></td><td>NOT NULL. Message body.</td></tr>
+                        <tr><td><code>ip_address</code></td><td><code>VARCHAR(64)</code></td><td>Nullable. Submitter IP address for spam/abuse tracking.</td></tr>
+                        <tr><td><code>user_agent</code></td><td><code>VARCHAR(500)</code></td><td>Nullable. Browser user-agent string.</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>NOT NULL. Default CURRENT_TIMESTAMP. Indexed.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -855,17 +909,17 @@
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
-                        <tr><td><code>id</code></td><td><code>BIGINT UNSIGNED</code></td><td>Primary Key. Auto-increment.</td></tr>
-                        <tr><td><code>ip_address</code></td><td><code>VARCHAR(64)</code></td><td>Visitor IP. NOT NULL. Indexed.</td></tr>
-                        <tr><td><code>user_agent</code></td><td><code>VARCHAR(500)</code></td><td>Browser user-agent string.</td></tr>
-                        <tr><td><code>visited_at</code></td><td><code>TIMESTAMP</code></td><td>Visit timestamp (auto). Indexed. NOT NULL.</td></tr>
+                        <tr><td><code>id</code></td><td><code>BIGINT UNSIGNED</code></td><td>Primary Key. Auto-increment. NOT NULL.</td></tr>
+                        <tr><td><code>ip_address</code></td><td><code>VARCHAR(64)</code></td><td>NOT NULL. Visitor IP. Indexed.</td></tr>
+                        <tr><td><code>user_agent</code></td><td><code>VARCHAR(500)</code></td><td>Nullable. Browser user-agent string.</td></tr>
+                        <tr><td><code>visited_at</code></td><td><code>TIMESTAMP</code></td><td>NOT NULL. Default CURRENT_TIMESTAMP. Indexed.</td></tr>
                     </tbody>
                 </table>
             </div>
         </section>
 
         <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem; text-align: center;">
-            GrowMyStocks Database Documentation &copy; 2026 &mdash; Last updated: June 12, 2026
+            GrowMyStocks Database Documentation &copy; 2026 &mdash; Last updated: June 15, 2026
         </footer>
     </main>
     </div>

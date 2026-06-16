@@ -109,6 +109,32 @@
         .nav-scroll-btn { background: rgba(0,0,0,0.1); border: none; color: #475569; cursor: pointer; font-size: 1.5rem; padding: 0.5rem 0.25rem; border-radius: 4px; transition: background .15s, color .15s; line-height: 1; }
         .nav-scroll-btn:hover { background: rgba(0,0,0,0.15); color: #1e293b; }
 
+        /* Local additions for the PM-friendly overview tour */
+        .stack-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.92rem; }
+        .stack-table th, .stack-table td { text-align: left; padding: 0.6rem 0.8rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+        .stack-table th { background: #f1f5f9; color: #334155; font-weight: 600; }
+        .stack-table tr:last-child td { border-bottom: none; }
+        .flow-list { counter-reset: flow; list-style: none; padding-left: 0; margin-left: 0; }
+        .flow-list li { counter-increment: flow; position: relative; padding: 0.75rem 1rem 0.75rem 3rem; background: #fff; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 0.6rem; }
+        .flow-list li::before {
+            content: counter(flow);
+            position: absolute; left: 0.75rem; top: 0.75rem;
+            width: 1.6rem; height: 1.6rem; border-radius: 50%;
+            background: var(--primary); color: #fff;
+            font-weight: 700; font-size: 0.85rem;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .read-next-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 0.75rem; margin: 1rem 0; }
+        .read-next-card { display: block; padding: 0.85rem 1rem; background: #fff; border: 1px solid var(--border); border-left: 4px solid var(--primary); border-radius: 6px; text-decoration: none; color: var(--text); transition: box-shadow .15s, transform .15s; }
+        .read-next-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.08); transform: translateY(-1px); }
+        .read-next-card .title { display: block; font-weight: 600; color: var(--primary-dark); margin-bottom: 0.25rem; }
+        .read-next-card .desc { display: block; font-size: 0.82rem; color: #64748b; line-height: 1.4; }
+        .ascii-diagram { background: var(--code-bg); color: var(--code-text); padding: 1rem 1.2rem; border-radius: 8px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.8rem; line-height: 1.5; overflow-x: auto; white-space: pre; margin: 1rem 0; }
+        .pill { display: inline-block; padding: 0.1rem 0.55rem; border-radius: 999px; font-size: 0.72rem; font-weight: 600; background: #dcfce7; color: #166534; margin-right: 0.25rem; }
+        .pill.gray { background: #e2e8f0; color: #475569; }
+        .pill.purple { background: #ede9fe; color: #6d28d9; }
+        .pill.teal { background: #ccfbf1; color: #0f766e; }
+
         </style>
 </head>
 <body>
@@ -118,7 +144,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">App Overview</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-12</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-15</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -153,19 +179,13 @@
     <a href="api_documentation.html">API Routes</a>
     <div class="section-divider"></div>
     <h3>On this page</h3>
-    <a href="#intro">Introduction</a>
-    <a href="#discovery">AI Discovery (DeepMoney)</a>
-    <a href="#recommendations">3-Bucket Strategy</a>
-    <a href="#etf-module">Hot ETF Module</a>
-    <a href="#prediction-engine">AI Predictions</a>
-    <a href="#gps-signal">GPS Signal Panel</a>
-    <a href="#strategy-system">Strategy System</a>
-    <a href="#prediction-tracking">Prediction Tracking</a>
-    <a href="#portfolio-mgmt">User Portfolios</a>
-    <a href="#portfolio-page">My Portfolio Page</a>
-    <a href="#architecture">Architecture</a>
-    <a href="#sync-workflow">Sync Workflow</a>
-    <a href="#endpoints">API Summary</a>
+    <a href="#what">What is MoneyGoUp</a>
+    <a href="#stack">Tech Stack</a>
+    <a href="#architecture">Top-Level Architecture</a>
+    <a href="#user-flow">Key User Flow</a>
+    <a href="#personalization">Personalization Model</a>
+    <a href="#background-jobs">Background Jobs</a>
+    <a href="#read-next">Where to Read Next</a>
     <div class="section-divider"></div>
     <a href="authentication_flow.html">Auth Flow</a>
     <a href="database_documentation.html">Database</a>
@@ -179,170 +199,200 @@
 
     <main>
         <h1>MoneyGoUp Web Application Overview</h1>
-        <p>This document provides a general overview of the MoneyGoUp web application, detailing its purpose, core features, underlying architecture, and key operational workflows.</p>
+        <p>A brief end-to-end tour of the product, the stack, and how the pieces fit together. This page is the front door for the documentation set — every section ends with a pointer to a deeper doc when one exists.</p>
 
-        <section id="intro">
-            <h2>1. Introduction</h2>
-            <p>MoneyGoUp is a sophisticated platform that aims to empower investors by providing cutting-edge tools for market analysis and predictive insights. It combines traditional financial metrics with advanced machine learning and natural language processing to identify market opportunities that might otherwise be overlooked. Every personalized signal the platform surfaces is filtered through a user-defined <strong>aggressiveness × investment timeframe strategy</strong>, and every AI forecast is silently logged and graded against reality so that <strong>direction accuracy</strong> can be tracked as the headline quality metric.</p>
+        <section id="what">
+            <h2>1. What is MoneyGoUp</h2>
+            <p>MoneyGoUp (brand: <strong>GrowMyStocks</strong>) is a personalized investing dashboard. It combines live market data, an in-house AI prediction model, and a unified <em>GPS score</em> to surface BUY / HOLD / SELL signals against the user's portfolio, watchlist, and a daily discovery feed.</p>
+            <p>The defining product idea is that <strong>every personalized number on screen is filtered through the user's own strategy</strong> — an <code>investment_timeframe</code> (1 week / 1 month / 6 month / 1 year) crossed with an <code>aggressiveness</code> setting (safe / neutral / aggressive). Two users looking at the same ticker on the same day can see different scores, different recommendations, and different price targets.</p>
+            <p>A secondary, but core, capability is that <strong>every AI forecast the platform produces is silently logged and graded against reality</strong>. Direction accuracy (did the model get up/down right?) is the headline quality metric exposed back to users on the dashboard.</p>
         </section>
 
-        <section id="discovery">
-            <h2>2. Core Modules & Features</h2>
-            <h3>2.1 AI-Powered Discovery (DeepMoney)</h3>
-            <p>The DeepMoney engine is the heart of MoneyGoUp's discovery capabilities, identifying trending stocks and ETFs. It operates in two main versions:</p>
-
-            <h4>DeepMoney v2.3 (Next-Gen)</h4>
-            <ul>
-                <li><strong>Recursive News Discovery</strong>: Scrapes global financial RSS feeds and scans for co-mentioned peers.</li>
-                <li><strong>Macro Tailwind Scoring</strong>: Integrates World Bank FDI and Trade indicators to validate thematic strength.</li>
-                <li><strong>ML Validation Gate</strong>: Every candidate must pass a per-user minimum growth prediction threshold derived from their <code>investment_timeframe</code> (0.5% for 1-week, 1.5% for 1-month, 5% for 6-month, 10% for 1-year).</li>
-                <li><strong>v2.3 Scoring</strong>: Uses a 100-point GPS scale with 19% weights for fundamentals and ML upside.</li>
-            </ul>
-        </section>
-
-        <section id="recommendations">
-            <h3>2.2 Recommendation Engine</h3>
-            <p>Direct signals surfaced on the dashboard across three categories:</p>
-            <ul>
-                <li><strong>Portfolio</strong>: AI price targets vs user cost basis, filtered by the user's strategy gates.</li>
-                <li><strong>Watchlist</strong>: Breakout monitoring for confirmed interests.</li>
-                <li><strong>Discovery</strong>: High-GPS opportunities from the daily sync cycle.</li>
-            </ul>
-            <div class="highlight-box">
-                <strong>Latest-snapshot filtering:</strong> ETF holding recommendations in <code>/api/dashboard/recommendations</code> are now scoped to <code>snapshot_date = MAX(snapshot_date)</code> for the user (replacing the previous rolling 7-day window). This mirrors the DeepMoney picks pattern and prevents stale picks from prior runs of <code>update_predictions.py</code> from mixing with the current set.
-            </div>
-        </section>
-
-        <section id="etf-module">
-            <h3>2.3 Hot ETF Discovery Module</h3>
-            <p>Identifies trending ETFs under $400/share with momentum and thematic alignment.</p>
-            <ul>
-                <li><strong>Thematic Mapping</strong>: AI, Semis, Cloud, and Cybersecurity focused.</li>
-                <li><strong>Liquidity Gates</strong>: >50k Volume and >$50M AUM.</li>
-            </ul>
-        </section>
-
-        <section id="prediction-engine">
-            <h3>2.4 AI Prediction Engine (v3.1)</h3>
-            <p>Generates multi-horizon price targets (1w / 1m / 6m / 1y) using a 109-column feature tensor.</p>
-            <ul>
-                <li><strong>Regime-Aware Inference</strong>: Phases 1-3 of the regime-aware model are complete. A GMM-based regime detector (K=3 / K=4) clusters market state from VIX and credit spreads, and the prediction pipeline switches model heads / dampeners according to the detected regime.</li>
-                <li><strong>Dampeners</strong>: Applies unemployment and global health risk modifiers.</li>
-                <li><strong>Timeframe-Tuned Output</strong>: The <code>outlook</code> parameter passed to <code>predict_weighted_analysis.py</code> is driven by the user's <code>investment_timeframe</code> so confidence and predicted-change figures are aligned with how long the user actually intends to hold.</li>
-                <li><strong>Fire-and-Forget Recording</strong>: Every successful inference inside <code>/api/prediction/[ticker]</code> calls <code>recordPrediction()</code> from <code>src/utils/predictionRecorder.ts</code> to write a row to <code>prediction_records</code> for later accuracy grading. The call is non-blocking — a duplicate-prediction-per-day or DB error never fails the user-facing response.</li>
-            </ul>
-        </section>
-
-        <section id="gps-signal">
-            <h3>2.5 GPS Signal Panel (Single-Ticker View)</h3>
-            <p>When a user opens a single ticker at <code>/search/[ticker]</code>, the application fetches a GPS score in parallel via <code>GET /api/stock_data/[ticker]/gps</code>. The result is displayed in a <strong>StockSignalPanel</strong> above the prediction area, showing:</p>
-            <ul>
-                <li>A color-coded GPS score chip and sentiment label (Strong Buy / Buy / Hold / Weak / Avoid).</li>
-                <li>A source badge indicating whether the score came from the user's own prior prediction or from the DeepMoney market snapshot.</li>
-                <li>An as-of timestamp so users can gauge data freshness.</li>
-                <li>A "View score" link that opens the GPS Breakdown Modal with all six component scores (renamed from "View breakdown" in May 2026).</li>
-                <li>The top-3 GPS driver metrics ranked by their component score.</li>
-                <li>A "Show prediction details" CTA button that triggers the embedded AI prediction workflow without the user navigating away.</li>
-            </ul>
-            <p>The panel and the AI prediction form share a single card directly below the price history chart. The CTA wires into the prediction component via a React ref, so clicking it invokes the full MLP prediction flow inline.</p>
-        </section>
-
-        <section id="strategy-system">
-            <h3>2.6 User Investment Strategy (Aggressiveness × Timeframe)</h3>
-            <p>Every personalized signal is filtered through a strategy resolved from the <code>user_investment_strategy</code> table by <code>src/utils/strategy.ts</code>. Two orthogonal axes combine into one <code>StrategyConfig</code> that drives recommendation gates, DeepMoney ML thresholds, and which predicted-price column is read from <code>user_stock_predictions</code>.</p>
-            <ul>
-                <li><strong>Aggressiveness</strong> (<code>safe</code> / <code>neutral</code> / <code>aggressive</code>) sets the gating bar: confidence floor, beta cutoff, GPS gate, predicted-change gate, and an <code>envFloorMultiplier</code> that tightens or loosens env-driven buy / discovery / ETF floors (safe = 1.05×, neutral = 1.0×, aggressive = 0.95×).</li>
-                <li><strong>Investment Timeframe</strong> (<code>1_week</code> / <code>1_month</code> / <code>6_month</code> / <code>1_year</code>) sets the outlook passed to the MLP, a <code>predChangeMultiplier</code> stacked on top of the aggressiveness gate, a <code>sellThresholdShift</code> for the sell side, the DeepMoney <code>mlGate</code>, the UI <code>displayLabel</code>, and the <code>predictedPriceColumn</code> to read.</li>
-                <li><strong>Default Strategy</strong>: <code>neutral</code> + <code>1_month</code> for users with no row yet.</li>
-            </ul>
-            <p>See <a href="strategy_system.html">Strategy System</a> for the full gate matrix.</p>
-        </section>
-
-        <section id="prediction-tracking">
-            <h3>2.7 Prediction Tracking &amp; Model Accuracy</h3>
-            <p>The prediction tracking system (Phases 2-5 complete) silently grades every forecast the platform produces. <strong>Direction accuracy</strong> — did the model get the up/down call right? — is the headline metric, with secondary proximity metrics broken out per horizon.</p>
-            <ul>
-                <li><strong>Capture</strong>: <code>recordPrediction()</code> writes one row per (symbol, predicted_at = CURDATE()) into <code>prediction_records</code>. <code>INSERT IGNORE</code> dedupes same-day predictions for the same symbol.</li>
-                <li><strong>Resolution</strong>: A scheduled job walks resolved horizons (1w / 1m / 6m / 1y), pulls the actual close at the resolution date, and writes back <code>actual_price_*</code>, direction-correctness flags, and proximity scores.</li>
-                <li><strong>Surfacing</strong>: <code>GET /api/analytics/model-accuracy</code> returns either global or per-symbol accuracy (<code>?symbol=AAPL</code>), broken out by horizon with a 1-hour in-memory cache and a minimum-sample-size guard (<code>MIN_SAMPLE_SIZE = 30</code>) so sparse data does not produce misleading numbers.</li>
-                <li><strong>UI</strong>: The <code>ModelAccuracyWidget</code> (<code>src/app/components/ModelAccuracyWidget.tsx</code>) renders the per-horizon proximity accuracy and resolved counts on the dashboard, with an <code>insufficient_data</code> fallback when a horizon has not yet accumulated enough resolved samples.</li>
-            </ul>
-        </section>
-
-        <section id="portfolio-mgmt">
-            <h3>2.8 User Portfolio & Watchlist</h3>
-            <p>Comprehensive management of active stakes and monitored interests.</p>
-            <ul>
-                <li><strong>Real-time P&L</strong>: Based on live market quotes.</li>
-                <li><strong>History</strong>: Trajectory charting for total account value.</li>
-            </ul>
-        </section>
-
-        <section id="portfolio-page">
-            <h3>2.9 My Portfolio Page (<code>/portfolio</code>)</h3>
-            <p>A dedicated full-page portfolio analytics view, separate from the main dashboard. It provides performance-focused analysis tools not available on the dashboard widget view.</p>
-            <ul>
-                <li><strong>4 KPI Stat Cards</strong>: Portfolio Value, Net Gain/Loss, CAGR (annualized), and Volatility (annualized), all computed from the portfolio's historical value series.</li>
-                <li><strong>Performance Chart</strong>: The <code>PortfolioCompareChart</code> component (Recharts) shows the total portfolio value over 1M / 6M / 1Y / All periods. Two view modes are available: <em>$ Absolute</em> (raw dollar value) and <em>% Change</em> (indexed to 100 at period start).</li>
-                <li><strong>Holdings Overlay</strong>: The sidebar lists every holding with Compare and Details buttons. Clicking Compare fetches the holding's individual value series from <code>GET /api/user/portfolio/compare-series?ticker=X&period=Y</code> and overlays it on the chart. Up to 4 holdings can be overlaid simultaneously.</li>
-                <li><strong>Gains Breakdown Card</strong>: A donut chart (reused from the dashboard) showing unrealized gains, losses, and cost basis split.</li>
-                <li><strong>Recommendations</strong>: Filtered to the <code>portfolio</code> and <code>watchlist</code> scopes only (Discovery bucket excluded) using the optional <code>scopes</code> prop on <code>RecommendationsSection</code>.</li>
-            </ul>
-        </section>
-
-        <section id="governance">
-            <h3>2.10 Administrative Controls & Governance</h3>
-            <p>Comprehensive management of the platform's user base and system guardrails.</p>
-            <ul>
-                <li><strong>Registration Approval Flow</strong>: A multi-stage workflow ensuring all new accounts are vetted and approved by an administrator before gaining system access. After registering, new users receive an automated confirmation email (via Resend) and cannot log in until an admin approves their account.</li>
-                <li><strong>Password Policy</strong>: All account creation and password reset flows require a minimum of 8 characters with at least one digit. This is enforced in the Zod validation schemas on the server (<code>POST /api/auth/register</code>, <code>POST /api/auth/reset-password</code>) and mirrored by client-side pre-submit checks on both the Register and Reset Password pages.</li>
-                <li><strong>Role-Based Quotas</strong>: Enforces strict limits on watchlist size, portfolio positions, and daily lookups based on the user's tier (User, Superuser, Admin).</li>
-                <li><strong>Admin Console</strong>: A centralized dashboard for user management, role promotion, and approval auditing.</li>
-            </ul>
+        <section id="stack">
+            <h2>2. Tech Stack</h2>
+            <table class="stack-table">
+                <thead>
+                    <tr><th>Layer</th><th>Choice</th><th>Notes</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Frontend framework</td>
+                        <td>Next.js 15 (app router), React 19</td>
+                        <td>TypeScript strict mode end-to-end.</td>
+                    </tr>
+                    <tr>
+                        <td>Styling</td>
+                        <td>TailwindCSS</td>
+                        <td>Brand palette and tokens documented in the <a href="style_guide.html">Style Guide</a>.</td>
+                    </tr>
+                    <tr>
+                        <td>Database</td>
+                        <td>MySQL via <code>mysql2</code></td>
+                        <td>Pool + helpers in <code>src/utils/databaseHelper.ts</code>. Schema reference: <a href="database_documentation.html">Database doc</a>.</td>
+                    </tr>
+                    <tr>
+                        <td>Prediction model</td>
+                        <td>Python MLP</td>
+                        <td><code>scripts/predict_weighted_analysis.py</code>, spawned by <code>POST /api/prediction/[ticker]</code>.</td>
+                    </tr>
+                    <tr>
+                        <td>User auth</td>
+                        <td>NextAuth (session-based)</td>
+                        <td>Registration is admin-approved. See <a href="authentication_flow.html">Auth Flow</a>.</td>
+                    </tr>
+                    <tr>
+                        <td>Server-to-server auth</td>
+                        <td>Internal API key (<code>x-api-key</code> header)</td>
+                        <td>Implementation: <code>src/utils/internalAuth.ts</code>. Used by scheduled Python jobs hitting the Next.js API.</td>
+                    </tr>
+                    <tr>
+                        <td>Live market data</td>
+                        <td><code>yahoo-finance2</code></td>
+                        <td>Quotes, news, fundamentals, history.</td>
+                    </tr>
+                    <tr>
+                        <td>Tests</td>
+                        <td>Jest</td>
+                        <td>Unit + integration coverage on routes, utils, and components.</td>
+                    </tr>
+                </tbody>
+            </table>
         </section>
 
         <section id="architecture">
-            <h2>3. System Architecture</h2>
-            <p>MoneyGoUp employs a modern, hybrid architecture:</p>
-            <ul>
-                <li><strong>Frontend</strong>: Next.js (React/TypeScript).</li>
-                <li><strong>Backend</strong>: Node.js API routes with Python ML spawning.</li>
-                <li><strong>Database</strong>: MySQL. Key tables include user/account data, holdings, history, AI results, plus the newer <code>prediction_records</code> (forecast capture &amp; grading) and <code>user_investment_strategy</code> (per-user aggressiveness + timeframe).</li>
-            </ul>
+            <h2>3. Top-Level Architecture</h2>
+            <p>Three logical tiers — a Next.js app, a MySQL store, and an offline Python prediction layer — joined by an internal API key for server-to-server calls.</p>
+            <div class="ascii-diagram">          ┌──────────────────────────┐
+          │   Browser (React 19)     │
+          │   Dashboard / Search /   │
+          │   Portfolio / Admin      │
+          └────────────┬─────────────┘
+                       │  NextAuth session cookie
+                       ▼
+          ┌──────────────────────────┐        ┌───────────────────────────┐
+          │  Next.js 15 (app router) │◀──────▶│  MySQL (mysql2 pool)      │
+          │  /api/* route handlers   │        │  users, portfolio,        │
+          │  src/utils/strategy.ts   │        │  watchlist, predictions,  │
+          │  src/utils/gps.ts        │        │  stock_gps_scores,        │
+          └────────────┬─────────────┘        │  user_investment_strategy │
+                       │                      └───────────────────────────┘
+       spawn (stdin/stdout)                                ▲
+                       ▼                                   │
+          ┌──────────────────────────┐                     │
+          │  Python MLP              │                     │
+          │  predict_weighted_       │  writes scores ─────┘
+          │  analysis.py             │
+          └──────────────────────────┘
+                       ▲
+                       │  x-api-key (internalAuth.ts)
+          ┌──────────────────────────┐
+          │  Cron / scheduled jobs   │
+          │  update_predictions.py   │
+          │  deepmoney_sync.py       │
+          └──────────────────────────┘</div>
+            <p>Detailed component map, route inventory, and request paths live in <a href="architecture_documentation.html">Architecture</a> and <a href="api_documentation.html">API Routes</a>.</p>
         </section>
 
-        <section id="sync-workflow">
-            <h2>4. Data Synchronization</h2>
-            <p>Executed via <code>scripts/deepmoney_sync.py</code> and <code>scripts/get_macro_data.py</code>:</p>
-            <ol>
-                <li>Fetch World Bank Macro context.</li>
-                <li>Trigger internal Discovery API with <code>?refresh=true</code>.</li>
-                <li>Commit enriched results to <code>recommended_stocks</code> and <code>hot_etfs</code>.</li>
+        <section id="user-flow">
+            <h2>4. Key User Flow</h2>
+            <ol class="flow-list">
+                <li><strong>Sign in.</strong> NextAuth resolves the session. New accounts must be admin-approved before this step succeeds — see <a href="admin_user_management.html">Admin User Mgmt</a>.</li>
+                <li><strong>Dashboard loads.</strong> Portfolio cards, watchlist cards, and a three-bucket recommendations feed (portfolio / watchlist / discovery) are aggregated from <code>/api/dashboard</code> and <code>/api/dashboard/recommendations</code>.</li>
+                <li><strong>Strategy is resolved.</strong> The user's <code>investment_timeframe</code> and <code>aggressiveness</code> are read from <code>user_investment_strategy</code> via <code>src/utils/strategy.ts</code>. Defaults are <code>neutral</code> + <code>1_month</code>.</li>
+                <li><strong>GPS scores are patched per-horizon.</strong> Cached scores are read from <code>stock_gps_scores</code> and then adjusted with <code>adjustGpsForHorizon</code> (<code>src/utils/gps.ts</code>) so the displayed score matches the user's timeframe exactly — no separate row is stored per horizon.</li>
+                <li><strong>User drills into a ticker.</strong> <code>/search/[ticker]</code> renders the GPS signal panel + AI prediction card. Clicking the prediction CTA spawns the Python MLP inline through <code>POST /api/prediction/[ticker]</code>.</li>
+                <li><strong>Predictions are recorded.</strong> Every successful inference fires <code>recordPrediction()</code> as a non-blocking side-effect, writing one row per (symbol, predicted_at) into <code>prediction_records</code> for later grading.</li>
             </ol>
+            <p>Deeper dives: <a href="prediction_workflow.html">Prediction Workflow</a>, <a href="recommendation_buckets.html">Recommendation Buckets</a>, <a href="gps_score.html">GPS Score</a>.</p>
+        </section>
+
+        <section id="personalization">
+            <h2>5. Personalization Model</h2>
+            <p>The two strategy axes combine into a single <code>StrategyConfig</code> object that every personalized route reads before producing numbers.</p>
+            <ul>
+                <li><span class="pill">Aggressiveness</span> <code>safe</code> / <code>neutral</code> / <code>aggressive</code> — sets the gating bar (confidence floor, beta cutoff, GPS gate, predicted-change gate, and an env-floor multiplier of 1.05× / 1.0× / 0.95×).</li>
+                <li><span class="pill teal">Investment timeframe</span> <code>1_week</code> / <code>1_month</code> / <code>6_month</code> / <code>1_year</code> — selects which predicted-price column to read from <code>user_stock_predictions</code>, sets the outlook passed to the Python MLP, scales the predicted-change gate, shifts the sell-side threshold, and chooses the DeepMoney ML gate and the UI display label.</li>
+                <li><span class="pill purple">Where it is applied</span> Recommendation gates, DeepMoney candidate filtering, single-ticker GPS adjustment, and the prediction outlook are all derived from the same resolved config.</li>
+            </ul>
             <div class="highlight-box">
-                <strong>Internal URL hardcoding:</strong> All scripts use <code>INTERNAL_API_URL = 'http://localhost:3001'</code> (hardcoded, not read from env) to call the Next.js API directly, bypassing nginx and its 60-second proxy timeout. The DeepMoney discovery route can take over 2 minutes to complete.
+                The single source of truth for the gate matrix, default fallback, and every multiplier is <a href="strategy_system.html">Strategy System</a>. If a number on the dashboard looks "wrong" for a given user, the explanation almost always lives in their strategy row.
             </div>
         </section>
 
-        <section id="endpoints">
-            <h2>5. API Endpoints Summary</h2>
+        <section id="background-jobs">
+            <h2>6. Background Jobs</h2>
+            <p>Two Python scripts keep cached predictions and discovery picks fresh. Both authenticate to the Next.js API using the internal <code>x-api-key</code> header (<code>src/utils/internalAuth.ts</code>) and hit <code>http://localhost:3001</code> directly to bypass the nginx 60-second proxy timeout.</p>
             <ul>
-                <li><code>/api/stock_data/[ticker]</code>: Consolidated stock details (quote, news, history, analyst, earnings, indicators).</li>
-                <li><code>/api/stock_data/[ticker]/gps</code>: GPS score lookup for a ticker; session-aware with three-tier fallback. Always returns HTTP 200.</li>
-                <li><code>/api/prediction/[ticker]</code>: AI forecast workflow (MLP neural network, multi-horizon price targets). Resolves the caller's strategy via <code>getUserStrategy()</code> and fires <code>recordPrediction()</code> as a non-blocking side-effect.</li>
-                <li><code>/api/analytics/model-accuracy</code>: Direction-accuracy and per-horizon proximity metrics computed from <code>prediction_records</code>. Optional <code>?symbol=X</code> for per-ticker accuracy, optional <code>?skip_cache=true</code> to bypass the 1-hour in-memory cache. Returns <code>insufficient_data</code> when below the 30-sample floor.</li>
-                <li><code>/api/worldbank</code>: Consolidated macro indicators.</li>
-                <li><code>/api/dashboard</code>: Personalized user aggregation.</li>
-                <li><code>/api/dashboard/recommendations</code>: BUY/SELL signal generation across three buckets. ETF holding recommendations are now scoped to the latest <code>snapshot_date</code> per user (see route handler around line 96). The <code>RecommendationsSection</code> component accepts an optional <code>scopes</code> prop to filter which buckets are rendered.</li>
-                <li><code>/api/user/portfolio/compare-series?ticker=X&period=Y</code>: Returns <code>{date, value}[]</code> for a specific holding's value over time, used by the My Portfolio overlay chart.</li>
-                <li><code>/api/prediction/deepmoney</code>: DeepMoney discovery engine (growth stocks, hot ETFs).</li>
-                <li><code>/api/auth/forgot-password</code>: Initiates the password reset email flow.</li>
-                <li><code>/api/auth/reset-password</code>: Validates (GET) and consumes (POST) password reset tokens.</li>
+                <li><code>scripts/update_predictions.py</code> — Refreshes cached MLP predictions overnight (and on demand) so the dashboard does not have to spawn Python for every render.</li>
+                <li><code>scripts/deepmoney_sync.py</code> — Runs the DeepMoney discovery pipeline: macro context fetch, recursive news discovery, ML validation gate, then commits to <code>recommended_stocks</code> and <code>hot_etfs</code>. Full breakdown in <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>.</li>
             </ul>
         </section>
 
+        <section id="read-next">
+            <h2>7. Where to Read Next</h2>
+            <p>The overview deliberately stays shallow. Pick the door that matches what you need to know:</p>
+            <div class="read-next-grid">
+                <a class="read-next-card" href="architecture_documentation.html">
+                    <span class="title">Architecture</span>
+                    <span class="desc">Module layout, request lifecycle, and where each piece of logic actually lives.</span>
+                </a>
+                <a class="read-next-card" href="api_documentation.html">
+                    <span class="title">API Documentation</span>
+                    <span class="desc">Full inventory of <code>/api/*</code> routes with auth, params, and responses.</span>
+                </a>
+                <a class="read-next-card" href="database_documentation.html">
+                    <span class="title">Database</span>
+                    <span class="desc">Schemas for users, portfolio, predictions, GPS cache, and strategy.</span>
+                </a>
+                <a class="read-next-card" href="authentication_flow.html">
+                    <span class="title">Auth Flow</span>
+                    <span class="desc">NextAuth session model, admin approval gate, password policy.</span>
+                </a>
+                <a class="read-next-card" href="prediction_workflow.html">
+                    <span class="title">Prediction Workflow</span>
+                    <span class="desc">How the MLP is invoked, recorded, resolved, and graded.</span>
+                </a>
+                <a class="read-next-card" href="gps_score.html">
+                    <span class="title">GPS Score</span>
+                    <span class="desc">Six components, per-horizon adjustment, three-tier fallback.</span>
+                </a>
+                <a class="read-next-card" href="strategy_system.html">
+                    <span class="title">Strategy System</span>
+                    <span class="desc">Aggressiveness × timeframe matrix and every gate it controls.</span>
+                </a>
+                <a class="read-next-card" href="recommendation_buckets.html">
+                    <span class="title">Recommendation Buckets</span>
+                    <span class="desc">Portfolio / watchlist / discovery signal generation rules.</span>
+                </a>
+                <a class="read-next-card" href="deepmoney_sync_workflow.html">
+                    <span class="title">DeepMoney Sync</span>
+                    <span class="desc">Discovery pipeline, macro inputs, ML validation gate.</span>
+                </a>
+                <a class="read-next-card" href="technical_indicators_guide.html">
+                    <span class="title">Technical Indicators</span>
+                    <span class="desc">RSI, MACD, moving averages, and how they feed scoring.</span>
+                </a>
+                <a class="read-next-card" href="components_documentation.html">
+                    <span class="title">Components</span>
+                    <span class="desc">Reusable React components and their props.</span>
+                </a>
+                <a class="read-next-card" href="style_guide.html">
+                    <span class="title">Style Guide</span>
+                    <span class="desc">Brand palette, typography, and Tailwind tokens.</span>
+                </a>
+                <a class="read-next-card" href="admin_user_management.html">
+                    <span class="title">Admin User Mgmt</span>
+                    <span class="desc">Registration approval, role tiers, and quotas.</span>
+                </a>
+                <a class="read-next-card" href="SEO.html">
+                    <span class="title">SEO</span>
+                    <span class="desc">Metadata, sitemap, and crawl strategy.</span>
+                </a>
+            </div>
+        </section>
+
         <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem; text-align: center;">
-            MoneyGoUp Web Application Overview &copy; 2026 &mdash; Last updated: June 12, 2026
+            MoneyGoUp Web Application Overview &copy; 2026 &mdash; Last updated: June 15, 2026
         </footer>
     </main>
     </div>

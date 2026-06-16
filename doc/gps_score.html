@@ -260,7 +260,7 @@
         .nav-scroll-controls:last-of-type { right: 0; }
         .nav-scroll-btn { background: rgba(0,0,0,0.1); border: none; color: #475569; cursor: pointer; font-size: 1.5rem; padding: 0.5rem 0.25rem; border-radius: 4px; transition: background .15s, color .15s; line-height: 1; }
         .nav-scroll-btn:hover { background: rgba(0,0,0,0.15); color: #1e293b; }
-        
+
         </style>
 </head>
 <body>
@@ -271,7 +271,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">GPS Score</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-05</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-15</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -313,6 +313,7 @@
     <a href="#score-ranges">Score Ranges</a>
     <a href="#components">Score Components</a>
     <a href="#formula">Full Formula</a>
+    <a href="#horizon-adjust">Horizon Adjustment</a>
     <a href="#bearish-signal">Bearish Signal</a>
     <a href="#data-sources">Data Sources</a>
     <a href="#where-used">Where It Appears</a>
@@ -333,7 +334,7 @@
     <p>The <strong>GPS Score</strong> (GrowMyStocks Prediction Score) is a 0–100 composite metric that expresses how attractive a stock looks right now. Version 3.0 expanded the formula from 6 components to <strong>8 components</strong>, adding a dedicated Technical Signal component (up to 20 pts) and an Analyst Consensus Rating (up to 9 pts) while rebalancing the weights of all other components. The result is a richer, more nuanced signal that no longer relies exclusively on analyst price targets and ML output.</p>
 
     <div class="highlight-box">
-      <strong>GPS v3.0 — 8 components, 100 points.</strong> Combines ML prediction (25 pts), technical signals (20 pts), fundamentals (24 pts), analyst inputs (21 pts), and 52-week momentum (10 pts). TypeScript and Python implementations are kept in exact parity.
+      <strong>GPS v3.0 — 8 components, 100 points.</strong> Combines ML prediction (25 pts), technical signals (20 pts), fundamentals (24 pts), analyst inputs (21 pts), and 52-week momentum (10 pts). TypeScript and Python implementations are kept in exact parity. Horizon-specific dashboards patch the two ML components via <code>adjustGpsForHorizon</code> using the model's per-horizon outputs.
     </div>
 
     <!-- ── What is GPS ─────────────────────────────────────────────────── -->
@@ -358,12 +359,21 @@
             <td>Original formula: Analyst Upside (19), Revenue Growth (19), Earnings Growth (19), 52-Week Change (19), ML Upside (19), ML Confidence (5). All fundamental components capped at 19 pts each.</td>
           </tr>
           <tr>
-            <td><strong>v3.0</strong> (current)</td>
+            <td><strong>v3.0</strong></td>
             <td>8</td>
             <td>Added <strong>Technical Signal</strong> (20 pts) and <strong>Analyst Consensus Rating</strong> (9 pts). Rebalanced all weights — ML Upside raised to 20, fundamentals reduced to 12 each, Analyst Upside cut to 12, 52-Week Momentum cut to 10. Python <code>update_predictions.py</code> now implements <code>calculate_gps_v3()</code> to maintain exact TS parity. The <code>/api/stock_data/[ticker]/data</code> route now computes and returns <code>technicalScore</code> and <code>recommendationKey</code> at payload top level. Added <code>bearishSignal: boolean</code> field to <code>GpsResult</code> return type — set when <code>predictedChangePct1m &lt; 0</code>.</td>
           </tr>
+          <tr>
+            <td><strong>v3.0 + horizon patch</strong> (current)</td>
+            <td>8</td>
+            <td>The horizon-adjustment helper <code>adjustMlpUpsideForHorizon</code> was renamed to <strong><code>adjustGpsForHorizon</code></strong>. New signature: <code>adjustGpsForHorizon(breakdown, predictedChangePctForHorizon, confidenceScoreForHorizon?)</code>. It now patches <strong>both</strong> the <code>mlpUpside</code> and <code>mlpConfidence</code> components (the two horizon-dependent ones); the other six components pass through unchanged. The dashboard recommendations route, portfolio route, and watchlist route now select per-horizon columns (<code>predicted_change_pct_&lt;sfx&gt;</code>, <code>confidence_score_&lt;sfx&gt;</code>) from <code>user_stock_predictions</code> and pass them in. When <code>confidenceScoreForHorizon</code> is undefined, <code>mlpConfidence</code> stays at the cached baseline (back-compat with rows persisted before per-horizon confidence was captured).</td>
+          </tr>
         </tbody>
       </table>
+
+      <div class="highlight-box" style="margin-top:1.5rem;">
+        <strong>Why this matters:</strong> GPS shown on the dashboard cards now matches <code>/api/prediction/[ticker]</code> exactly for re-predicted rows. Previously they could drift due to (a) live-price drift between prediction time and now, and (b) confidence mismatch (1m confidence used in a patched 6m breakdown). Price-derived delta fallback is only used for legacy rows where the stored horizon columns are NULL.
+      </div>
     </section>
 
     <!-- ── Score Ranges ────────────────────────────────────────────────── -->
@@ -407,6 +417,8 @@
         </tbody>
       </table>
 
+      <p style="margin-top:1rem;"><code>getGpsLabel(score)</code> applies these thresholds in descending order: <code>&ge;80</code> returns <strong>Strong Buy</strong>, <code>&ge;65</code> returns <strong>Buy</strong>, <code>&ge;45</code> returns <strong>Hold</strong>, <code>&ge;30</code> returns <strong>Sell</strong>, otherwise <strong>Strong Sell</strong>.</p>
+
       <div class="info-box" style="margin-top:1.5rem;">
         <strong>DeepMoney sync thresholds:</strong> The <code>deepmoney_sync.py</code> script uses two env-var-controlled GPS gates. Stocks must exceed <code>DEEPMONEY_GPS_VALUE</code> (default <strong>10</strong>) to be recorded in <code>recommended_stocks</code>, and must exceed <code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code> (default <strong>25</strong>) to be pushed to active user dashboards. The <code>deepmoney-picks</code> API route applies its own threshold via <code>GPS_DEEPMONEY_MIN_SCORE</code> (default <strong>65</strong>) on read.
       </div>
@@ -420,19 +432,19 @@
       <div class="component-grid">
 
         <div class="component-card ml-card">
-          <div class="component-label">Component 1 — ML / AI</div>
-          <div class="component-name">ML Predicted Change (1m)</div>
+          <div class="component-label">Component 1 — ML / AI (horizon-dependent)</div>
+          <div class="component-name">ML Predicted Change (1m baseline)</div>
           <div class="component-pts">Max 20 pts</div>
           <div class="component-formula">min(max(predictedChangePct1m / GPS_PREDICTION_MAX, -1), 1) × 20</div>
-          <div class="component-desc">1-month percentage price change predicted by the DeepMoney MLP model. Scaled against <code>GPS_PREDICTION_MAX</code> (env var, default <strong>3%</strong>). A 3% predicted gain earns the full 20 pts. A negative prediction can push this component below zero, contributing to a lower overall score. A negative value here also sets <code>bearishSignal = true</code> in the <code>GpsResult</code>.</div>
+          <div class="component-desc">1-month percentage price change predicted by the DeepMoney MLP model. Scaled against <code>GPS_PREDICTION_MAX</code> (env var, default <strong>3</strong>). A 3% predicted gain earns the full 20 pts. A negative prediction pushes this component below zero, contributing to a lower overall score. A negative value here also sets <code>bearishSignal = true</code> in the <code>GpsResult</code>. <strong>This is one of the two components patched by <code>adjustGpsForHorizon</code></strong> when displaying scores for a non-1m horizon.</div>
         </div>
 
         <div class="component-card ml-card">
-          <div class="component-label">Component 2 — ML / AI</div>
+          <div class="component-label">Component 2 — ML / AI (horizon-dependent)</div>
           <div class="component-name">AI Model Confidence</div>
           <div class="component-pts">Max 5 pts</div>
           <div class="component-formula">(confidenceScore / 100) × 5</div>
-          <div class="component-desc">The model's self-reported confidence in its 1-month prediction, on a 0–100 scale. Full confidence earns 5 pts. Acts as a quality weight on the AI signal.</div>
+          <div class="component-desc">The model's self-reported confidence in its prediction, on a 0–100 scale. Full confidence earns 5 pts. Acts as a quality weight on the AI signal. <strong>Also patched by <code>adjustGpsForHorizon</code></strong> — when the dashboard recomputes GPS for a user's <code>investment_timeframe</code>, the per-horizon confidence is used instead of the cached 1m baseline.</div>
         </div>
 
         <div class="component-card">
@@ -440,7 +452,7 @@
           <div class="component-name">Revenue Growth YoY</div>
           <div class="component-pts">Max 12 pts</div>
           <div class="component-formula">min(max(revenueGrowthPct / 0.30, 0), 1) × 12</div>
-          <div class="component-desc">Year-over-year revenue growth rate as a fraction. <strong>30% YoY growth</strong> earns the full 12 pts. Shrinking revenue scores 0.</div>
+          <div class="component-desc">Year-over-year revenue growth rate as a fraction. <strong>30% YoY growth</strong> earns the full 12 pts. Shrinking revenue scores 0. Horizon-independent — passes through unchanged in <code>adjustGpsForHorizon</code>.</div>
         </div>
 
         <div class="component-card">
@@ -448,7 +460,7 @@
           <div class="component-name">Earnings Growth YoY</div>
           <div class="component-pts">Max 12 pts</div>
           <div class="component-formula">min(max(earningsGrowthPct / 0.25, 0), 1) × 12</div>
-          <div class="component-desc">Year-over-year earnings (EPS) growth rate as a fraction. <strong>25% YoY growth</strong> earns the full 12 pts. Uses a slightly lower ceiling than revenue to reflect EPS volatility.</div>
+          <div class="component-desc">Year-over-year earnings (EPS) growth rate as a fraction. <strong>25% YoY growth</strong> earns the full 12 pts. Uses a slightly lower ceiling than revenue to reflect EPS volatility. Horizon-independent.</div>
         </div>
 
         <div class="component-card">
@@ -456,7 +468,7 @@
           <div class="component-name">Technical Signal</div>
           <div class="component-pts">Max 20 pts</div>
           <div class="component-formula">min(max((technicalScore + 14) / 28, 0), 1) × 20</div>
-          <div class="component-desc">Raw technical score from <code>calculateTechnicalIndicators()</code>, ranging from <strong>-14 to +14</strong>. Mapped linearly to 0–20: a score of -14 maps to 0 pts; +14 maps to 20 pts. Computed server-side in <code>/api/stock_data/[ticker]/data</code> and returned as <code>technicalScore</code> at the payload root.</div>
+          <div class="component-desc">Raw technical score from <code>calculateTechnicalIndicators()</code>, ranging from <strong>-14 to +14</strong>. Mapped linearly to 0–20: a score of -14 maps to 0 pts; +14 maps to 20 pts. Computed server-side in <code>/api/stock_data/[ticker]/data</code> and returned as <code>technicalScore</code> at the payload root. Horizon-independent.</div>
         </div>
 
         <div class="component-card">
@@ -464,7 +476,7 @@
           <div class="component-name">Analyst Price Target Upside</div>
           <div class="component-pts">Max 12 pts</div>
           <div class="component-formula">min(max(analystUpside / 0.30, 0), 1) × 12</div>
-          <div class="component-desc">Consensus analyst price target vs. current price as a fraction. <strong>30% upside</strong> earns the full 12 pts. Negative upside scores 0.</div>
+          <div class="component-desc">Consensus analyst price target vs. current price as a fraction. <strong>30% upside</strong> earns the full 12 pts. Negative upside scores 0. Horizon-independent.</div>
         </div>
 
         <div class="component-card">
@@ -472,7 +484,7 @@
           <div class="component-name">Analyst Consensus Rating</div>
           <div class="component-pts">Max 9 pts</div>
           <div class="component-formula">CONSENSUS_POINTS[recommendationKey] (lookup table)</div>
-          <div class="component-desc">Fixed-point lookup based on the analyst consensus key from Yahoo Finance <code>financialData.recommendationKey</code>. Strong Buy = 9, Buy = 7, Hold = 4, Underperform = 2, Sell = 0. Defaults to Hold (4) if the key is missing. The Python script converts <code>recommendationMean</code> (1–5 scale) to a key via <code>_recommendation_mean_to_key()</code>.</div>
+          <div class="component-desc">Fixed-point lookup based on the analyst consensus key from Yahoo Finance <code>financialData.recommendationKey</code>. Strong Buy = 9, Buy = 7, Hold = 4, Underperform = 2, Sell = 0. Defaults to Hold (4) if the key is missing. The Python script converts <code>recommendationMean</code> (1–5 scale) to a key via <code>_recommendation_mean_to_key()</code>. Horizon-independent.</div>
         </div>
 
         <div class="component-card">
@@ -480,7 +492,7 @@
           <div class="component-name">52-Week Momentum</div>
           <div class="component-pts">Max 10 pts</div>
           <div class="component-formula">min(max(priceChange52w / 0.20, 0), 1) × 10</div>
-          <div class="component-desc">Trailing 52-week price return as a fraction. <strong>20% price appreciation</strong> over the past year earns the full 10 pts. Calculated from <code>defaultKeyStatistics.fiftyTwoWeekChange</code>; if missing, the route derives it from 252 trading days of OHLCV history.</div>
+          <div class="component-desc">Trailing 52-week price return as a fraction. <strong>20% price appreciation</strong> over the past year earns the full 10 pts. Calculated from <code>defaultKeyStatistics.fiftyTwoWeekChange</code>; if missing, the route derives it from 252 trading days of OHLCV history. Horizon-independent.</div>
         </div>
 
       </div>
@@ -508,6 +520,7 @@ const m3 = Math.min(Math.max((metrics.revenueGrowthPct || 0) / 0.3, 0), 1) * 12
 // 4. Earnings Growth YoY (12 pts — full at 25%)
 const m4 = Math.min(Math.max((metrics.earningsGrowthPct || 0) / 0.25, 0), 1) * 12
 // 5. Technical Signal (20 pts — raw -14..+14 mapped linearly to 0..20)
+const rawTech = metrics.technicalScore ?? 0
 const m5 = Math.min(Math.max((rawTech + 14) / 28, 0), 1) * 20
 // 6. Analyst Price Target Upside (12 pts — full at 30%)
 const m6 = Math.min(Math.max((metrics.analystUpside || 0) / 0.3, 0), 1) * 12
@@ -557,6 +570,45 @@ bearish_signal = predicted_change_pct &lt; 0</code></pre>
       </table>
     </section>
 
+    <!-- ── Horizon Adjustment ─────────────────────────────────────────── -->
+    <section id="horizon-adjust">
+      <h2>Horizon Adjustment — <code>adjustGpsForHorizon</code></h2>
+      <p>GPS is calculated once per stock against the model's 1-month prediction and cached in <code>stock_gps_scores</code>. Users, however, view stocks through a personalised <strong>investment timeframe</strong> (1w, 1m, 3m, 6m, 1y, 5y). The dashboard recommendations, portfolio, and watchlist routes therefore <em>patch</em> the cached breakdown so the displayed GPS reflects the user's chosen horizon — without invalidating the shared cache.</p>
+
+      <h3>Signature &amp; behaviour</h3>
+<pre style="background:#1e293b;color:#f8fafc;border-radius:8px;padding:1.25rem;font-size:0.82rem;overflow-x:auto;line-height:1.7;"><code>export function adjustGpsForHorizon(
+  breakdown: GpsBreakdown,
+  predictedChangePctForHorizon: number,
+  confidenceScoreForHorizon?: number,
+): { breakdown: GpsBreakdown; score: number }</code></pre>
+      <p>The helper patches <strong>both</strong> of the two horizon-dependent components:</p>
+      <ul>
+        <li><strong><code>mlpUpside</code></strong> — recomputed from <code>predictedChangePctForHorizon</code> using the same formula as <code>calculateGpsScore</code> (<code>min(max(pct / GPS_PREDICTION_MAX, -1), 1) × 20</code>).</li>
+        <li><strong><code>mlpConfidence</code></strong> — when <code>confidenceScoreForHorizon</code> is provided, recomputed as <code>(clamp(confidence, 0, 100) / 100) × 5</code>. When <code>undefined</code>, the cached baseline is preserved (back-compat with rows persisted before per-horizon confidence was captured).</li>
+      </ul>
+      <p>The other six components (revenueGrowth, earningsGrowth, technicalSignal, analystUpside, analystConsensus, priceChange52w) <strong>pass through unchanged</strong> — they are horizon-independent.</p>
+
+      <div class="highlight-box">
+        <strong>Match guarantee:</strong> When called with the same per-horizon values <code>calculateGpsScore</code> would receive, the patched score is identical to a full recompute — because the six other components are identical regardless of horizon.
+      </div>
+
+      <h3>Data flow on the dashboard</h3>
+      <ol>
+        <li>The model now persists per-horizon outputs on <code>user_stock_predictions</code> as <code>predicted_change_pct_&lt;sfx&gt;</code> and <code>confidence_score_&lt;sfx&gt;</code> (sfx = <code>1w</code>, <code>1m</code>, <code>3m</code>, <code>6m</code>, <code>1y</code>, <code>5y</code>).</li>
+        <li>The dashboard recommendations, portfolio, and watchlist queries select these columns directly: <code>usp.predicted_change_pct_${sfx} AS predicted_change_pct_horizon</code> and <code>usp.confidence_score_${sfx} AS confidence_score_horizon</code>.</li>
+        <li>Each route loads the cached baseline breakdown from <code>stock_gps_scores</code> (joined with <code>recommended_stocks</code> as a fallback) and calls <code>adjustGpsForHorizon(baselineBreakdown, storedChangePct, storedConfidence)</code>.</li>
+        <li>For legacy rows where the per-horizon columns are <code>NULL</code>, the route falls back to a price-derived delta (<code>deltaPct</code> computed from <code>predicted_price</code> vs live price).</li>
+      </ol>
+
+      <h3>Why the rename</h3>
+      <p>Previously the helper was named <code>adjustMlpUpsideForHorizon</code> and only touched <code>mlpUpside</code>. This caused two observable drift sources:</p>
+      <ul>
+        <li><strong>Live-price drift</strong> — the price-derived delta diverged from the model's stored prediction as time passed between the prediction run and the dashboard view.</li>
+        <li><strong>Confidence mismatch</strong> — the 1m baseline confidence remained in the patched 6m (or other horizon) breakdown, even when the model reported a very different confidence at the user's horizon.</li>
+      </ul>
+      <p>With the rename and the addition of <code>confidenceScoreForHorizon</code>, GPS shown on the dashboard cards now matches <code>/api/prediction/[ticker]</code> exactly for re-predicted rows.</p>
+    </section>
+
     <!-- ── Bearish Signal ─────────────────────────────────────────────── -->
     <section id="bearish-signal">
       <h2>Bearish Signal</h2>
@@ -582,13 +634,13 @@ bearish_signal = predicted_change_pct &lt; 0</code></pre>
         <li>
           <span class="source-icon">&#x1F916;</span>
           <div>
-            <strong>predictedChangePct1m</strong> — DeepMoney MLP model output from <code>POST /api/prediction/[ticker]</code>. The predicted 1-month percentage price change. Stored in <code>prediction_result.predicted_change_pct</code> on the Python side.
+            <strong>predictedChangePct1m</strong> — DeepMoney MLP model output from <code>POST /api/prediction/[ticker]</code>. The predicted 1-month percentage price change. Stored in <code>prediction_result.predicted_change_pct</code> on the Python side, and as per-horizon columns <code>predicted_change_pct_&lt;sfx&gt;</code> on <code>user_stock_predictions</code>.
           </div>
         </li>
         <li>
           <span class="source-icon">&#x1F3AF;</span>
           <div>
-            <strong>confidenceScore</strong> — Also from the MLP model response. Self-reported model confidence (0–100). Stored alongside the price prediction.
+            <strong>confidenceScore</strong> — Also from the MLP model response. Self-reported model confidence (0–100). Stored alongside the price prediction at 1m baseline, and as per-horizon columns <code>confidence_score_&lt;sfx&gt;</code> on <code>user_stock_predictions</code> for use by <code>adjustGpsForHorizon</code>.
           </div>
         </li>
         <li>
@@ -639,14 +691,14 @@ bearish_signal = predicted_change_pct &lt; 0</code></pre>
       <p>When the <code>mlpUpside</code> breakdown component is negative, the panel also displays a red triangular warning banner alerting the user to the negative AI outlook. The banner reads: "AI model predicts downside — the MLP signal is negative for this stock's 1-month outlook."</p>
       <p>When a prediction completes, the GPS score is included directly in the prediction response payload, so <code>Stock.tsx</code> updates the displayed score <strong>immediately</strong> without a round-trip re-fetch.</p>
 
-      <h3>Watchlist &amp; Portfolio cards</h3>
-      <p>GPS score and breakdown are joined from <code>stock_gps_scores</code> in the watchlist and portfolio queries via a <code>LEFT JOIN</code> and rendered in <code>WatchlistCardView</code> and <code>PortfolioCardView</code> respectively via the <code>GpsTooltip</code> component. The portfolio card also shows a red "AI model predicts downside" badge when <code>predictionChange &lt; 0</code>.</p>
+      <h3>Watchlist &amp; Portfolio cards (horizon-adjusted)</h3>
+      <p>GPS score and breakdown are joined from <code>stock_gps_scores</code> in the watchlist and portfolio queries via a <code>LEFT JOIN</code> (with <code>recommended_stocks</code> as a fallback). The <code>/api/user/watchlist</code> and <code>/api/user/portfolio</code> routes both call <code>adjustGpsForHorizon</code> with the per-horizon model outputs selected from <code>user_stock_predictions</code>, so the rendered score reflects the user's <code>investment_timeframe</code>. The result is displayed in <code>WatchlistCardView</code> and <code>PortfolioCardView</code> via the <code>GpsTooltip</code> component. The portfolio card also shows a red "AI model predicts downside" badge when <code>predictionChange &lt; 0</code>.</p>
 
       <h3>GPS Breakdown Modal</h3>
       <p><code>GpsBreakdownModal</code> (at <code>src/app/components/modals/GpsBreakdownModal.tsx</code>) displays all eight component scores in a clean list format (e.g., "ML Prediction (1m): 14.0 / 20"). The header uses an inline style (<code>color: '#fff'</code>) on the ticker <code>h3</code> to override a global CSS rule from <code>globals.css</code> that otherwise sets <code>h3</code> to a dark foreground. The summary footer colour is determined by score: green (&ge;65), amber (45–64), or red (&lt;45). The modal also decodes the numeric <code>analystConsensus</code> points back to a label string (e.g., 7 = "Buy") and displays it inline.</p>
 
-      <h3>Dashboard recommendations</h3>
-      <p>The recommendations engine (<code>GET /api/dashboard/recommendations</code>) uses GPS via <code>COALESCE(sgs.gps_score, rs.gps_score)</code>. A macro adjustment of up to ±3 pts is applied based on World Bank unemployment signal and global health score before thresholds are evaluated. The GPS score is included in each recommendation object so clients can display it alongside the BUY/SELL signal.</p>
+      <h3>Dashboard recommendations (horizon-adjusted)</h3>
+      <p>The recommendations engine (<code>GET /api/dashboard/recommendations</code>) selects the cached GPS via <code>COALESCE(sgs.gps_score, rs.gps_score)</code> and the baseline breakdown via <code>COALESCE(sgs.gps_breakdown, rs.gps_breakdown)</code>. It then calls <code>adjustGpsForHorizon(baselineBreakdown, storedChangePct, storedConfidence)</code> for every row before applying the macro adjustment (up to ±3 pts based on World Bank unemployment signal and global health score). The GPS score is included in each recommendation object so clients can display it alongside the BUY/SELL signal.</p>
 
       <h3>DeepMoney Picks</h3>
       <p>The <code>GET /api/dashboard/deepmoney-picks</code> route reads GPS directly from <code>recommended_stocks</code> (populated during the sync cycle). It filters by <code>GPS_DEEPMONEY_MIN_SCORE</code> (default 65) and sorts picks descending by GPS score. Each pick also gets a <code>recommendationLabel</code> via <code>getGpsLabel()</code> for display in the UI.</p>
@@ -657,9 +709,10 @@ bearish_signal = predicted_change_pct &lt; 0</code></pre>
       <h2>Storage &amp; Write Path</h2>
       <p>GPS scores are stored in two database tables:</p>
       <ul>
-        <li><code>stock_gps_scores</code> — one row per stock, always reflecting the latest score (primary read source for all consumers).</li>
+        <li><code>stock_gps_scores</code> — one row per stock, always reflecting the latest score (primary read source for all consumers). The baseline reflects the 1-month horizon.</li>
         <li><code>stock_gps_score_history</code> — append-only log; a new row is written only when the score changes.</li>
       </ul>
+      <p>Per-horizon prediction values (used to patch the cache via <code>adjustGpsForHorizon</code> at read time) are stored on <code>user_stock_predictions</code> as <code>predicted_change_pct_&lt;sfx&gt;</code> and <code>confidence_score_&lt;sfx&gt;</code> columns.</p>
 
       <h3>Write optimisation — skip if unchanged</h3>
       <p>Before every GPS write, a single <code>SELECT gps_score FROM stock_gps_scores WHERE stock_id = ?</code> is executed. The incoming score is compared to the stored value at <strong>1 decimal-place precision</strong> (matching the <code>DECIMAL(5,1)</code> column). If they match, all three writes are skipped:</p>
@@ -693,7 +746,7 @@ bearish_signal = predicted_change_pct &lt; 0</code></pre>
           <tr>
             <td><code>GPS_PREDICTION_MAX</code></td>
             <td><code>3</code></td>
-            <td>The predicted 1-month percentage change that earns the full 20 ML Upside points. Read from environment in both TypeScript (<code>src/utils/gps.ts</code>) and Python (<code>scripts/update_predictions.py</code> via <code>os.getenv</code>).</td>
+            <td>The predicted 1-month percentage change that earns the full 20 ML Upside points. Read from environment in TypeScript (<code>src/utils/gps.ts</code> — used by both <code>calculateGpsScore</code> and <code>adjustGpsForHorizon</code>) and Python (<code>scripts/update_predictions.py</code> via <code>os.getenv</code>).</td>
           </tr>
           <tr>
             <td><code>GPS_DEEPMONEY_MIN_SCORE</code></td>
@@ -729,12 +782,12 @@ bearish_signal = predicted_change_pct &lt; 0</code></pre>
       </table>
 
       <div class="highlight-box" style="margin-top:1.5rem;">
-        <strong>Python/TypeScript parity (v3.0):</strong> Both the TypeScript implementation (<code>src/utils/gps.ts</code>) and the Python implementation (<code>scripts/update_predictions.py</code> — <code>calculate_gps_v3()</code>) now read <code>GPS_PREDICTION_MAX</code> from the environment. If you change the formula in one file, update the other to match. The formula comment at the top of each file reads: "GPS v3.0 — mirrors src/utils/gps.ts exactly (8 components, 100 pts). Keep this in sync whenever gps.ts changes."
+        <strong>Python/TypeScript parity (v3.0):</strong> Both the TypeScript implementation (<code>src/utils/gps.ts</code>) and the Python implementation (<code>scripts/update_predictions.py</code> — <code>calculate_gps_v3()</code>) read <code>GPS_PREDICTION_MAX</code> from the environment. If you change the formula in one file, update the other to match. The formula comment at the top of each file reads: "GPS v3.0 — mirrors src/utils/gps.ts exactly (8 components, 100 pts). Keep this in sync whenever gps.ts changes." The horizon adjustment helper <code>adjustGpsForHorizon</code> lives only on the TypeScript side, since horizon patching is a read-path concern executed by the dashboard routes.
       </div>
     </section>
 
     <footer>
-      GrowMyStocks Documentation &copy; 2026 &mdash; GPS Score v3.0 &mdash; Updated 2026-06-05
+      GrowMyStocks Documentation &copy; 2026 &mdash; GPS Score v3.0 &mdash; Updated 2026-06-15
     </footer>
   </main>
 
@@ -744,11 +797,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const nav = document.querySelector('.top-bar-nav');
   const leftBtns = document.querySelectorAll('.nav-scroll-left');
   const rightBtns = document.querySelectorAll('.nav-scroll-right');
-  
+
   if (!nav || leftBtns.length === 0 || rightBtns.length === 0) return;
-  
+
   const scrollAmount = 150;
-  
+
   function checkScroll() {
     // Show/hide left button
     if (nav.scrollLeft > 0) {
@@ -756,7 +809,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       leftBtns.forEach(btn => btn.style.visibility = 'hidden');
     }
-    
+
     // Show/hide right button
     const hasRightScroll = nav.scrollLeft < nav.scrollWidth - nav.clientWidth - 10;
     if (hasRightScroll) {
@@ -765,24 +818,24 @@ document.addEventListener('DOMContentLoaded', () => {
       rightBtns.forEach(btn => btn.style.visibility = 'hidden');
     }
   }
-  
+
   leftBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       nav.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
       setTimeout(checkScroll, 100);
     });
   });
-  
+
   rightBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       nav.scrollBy({ left: scrollAmount, behavior: 'smooth' });
       setTimeout(checkScroll, 100);
     });
   });
-  
+
   nav.addEventListener('scroll', checkScroll);
   window.addEventListener('resize', checkScroll);
-  
+
   // Initial check
   setTimeout(checkScroll, 100);
 });

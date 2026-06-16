@@ -53,6 +53,8 @@ export interface DashboardRecommendation {
 
 export interface DashboardRecommendationsResponse {
   recommendations: DashboardRecommendation[];
+  /** Compact horizon label (e.g. "6M") matching the user's investment_timeframe. */
+  horizonLabel?: string;
   asOf: string;
 }
 

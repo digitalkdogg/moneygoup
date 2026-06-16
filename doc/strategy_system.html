@@ -85,7 +85,7 @@
         .nav-scroll-controls:last-of-type { right: 0; }
         .nav-scroll-btn { background: rgba(0,0,0,0.1); border: none; color: #475569; cursor: pointer; font-size: 1.5rem; padding: 0.5rem 0.25rem; border-radius: 4px; transition: background .15s, color .15s; line-height: 1; }
         .nav-scroll-btn:hover { background: rgba(0,0,0,0.15); color: #1e293b; }
-        
+
         </style>
 </head>
 <body>
@@ -96,7 +96,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Strategy System</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-09</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-15</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -156,16 +156,16 @@
       <span>GrowMyStocks</span>
       <span>src/utils/strategy.ts</span>
       <span>Added June 2026</span>
-      <span>Updated 2026-06-09</span>
+      <span>Updated 2026-06-15</span>
     </div>
 
-    <div class="updated" style="margin-bottom:1.5rem;"><strong>New in June 2026.</strong> The strategy system introduces a two-dimensional user preference model that personalises how recommendations are filtered, how GPS scores are adjusted, and which ML prediction horizon is used — all without changing the underlying model or stored data.</div>
+    <div class="updated" style="margin-bottom:1.5rem;"><strong>Latest revision (June 2026).</strong> <code>TimeframeConfig</code> now carries a <code>shortLabel</code> (<code>'1W' | '1M' | '6M' | '1Y'</code>) that every horizon-aware list endpoint returns as <code>horizonLabel</code> on the JSON response. The frontend uses this to render dynamic copy such as <em>"6M Pred"</em>, <em>"Based on 6M prediction"</em>, etc. without hard-coding a default. <code>resolveStrategy()</code> now also returns the user's <code>aggressiveness</code> and <code>investment_timeframe</code> alongside the resolved gates/timeframe.</div>
 
     <div class="summary-grid">
       <div class="stat-card"><div class="value">2</div><div class="label">Dimensions</div></div>
       <div class="stat-card"><div class="value">3</div><div class="label">Aggressiveness Levels</div></div>
       <div class="stat-card"><div class="value">4</div><div class="label">Timeframe Horizons</div></div>
-      <div class="stat-card"><div class="value">1</div><div class="label">Source of Truth (strategy.ts)</div></div>
+      <div class="stat-card"><div class="value">12</div><div class="label">Combined Configs</div></div>
     </div>
 
     <!-- ═══════════════════════════════════════════════════════ -->
@@ -173,7 +173,8 @@
       <div class="section-title" id="overview">Overview</div>
       <div class="card">
         <p>Every authenticated user has a <strong>UserStrategy</strong> — a pair of preferences stored in the <code>user_investment_strategy</code> database table. These preferences are loaded on each API request and used to adjust recommendation thresholds, GPS scores, and predicted-price references in real time. The underlying ML model output and stored GPS data are <em>never mutated</em>; the strategy system applies lightweight transformations at read time.</p>
-        <p style="margin-top:.75rem;">The single source of truth for all strategy logic is <code>src/utils/strategy.ts</code>. This module exports the type definitions, the lookup tables, and the <code>resolveStrategy()</code> function that every route and the Python batch script depend on.</p>
+        <p style="margin-top:.75rem;">The single source of truth for all strategy logic is <code>src/utils/strategy.ts</code>. This module exports the type definitions, the lookup tables, the validators (<code>isValidAggressiveness</code>, <code>isValidTimeframe</code>), <code>getUserStrategy(userId)</code>, and the <code>resolveStrategy()</code> function that every route and the Python batch script depend on.</p>
+        <p style="margin-top:.75rem;">The <strong>3 aggressiveness levels × 4 timeframes = 12 combined configurations</strong> are computed on the fly by <code>resolveStrategy()</code>; nothing is materialised.</p>
       </div>
 
       <div class="two-col">
@@ -185,7 +186,7 @@
         </div>
         <div class="card">
           <h4>Dimension 2 — Investment Timeframe</h4>
-          <p>Controls <strong>which prediction horizon is used</strong>. The ML model produces four horizon outputs (1-week, 1-month, 6-month, 1-year). The timeframe setting selects the column referenced for recommendations, GPS patching, and UI labels.</p>
+          <p>Controls <strong>which prediction horizon is used</strong>. The ML model produces four horizon outputs (1-week, 1-month, 6-month, 1-year). The timeframe setting selects the column referenced for recommendations, GPS patching, and the short label shown on cards.</p>
           <p style="margin-top:.5rem;">Values: <code>1_week</code> | <code>1_month</code> | <code>6_month</code> | <code>1_year</code></p>
           <p style="margin-top:.5rem;">Default: <strong>1_month</strong></p>
         </div>
@@ -205,9 +206,36 @@ export interface UserStrategy {
   investment_timeframe: InvestmentTimeframe;
 }
 
+export interface StrategyGates {
+  confidenceFloor:    number;  // 0–100; minimum prediction confidence
+  betaCutoff:         number;  // maximum beta tolerated
+  gpsGate:            number;  // minimum GPS score
+  predChangeGate:     number;  // minimum predicted change %
+  envFloorMultiplier: number;  // <1 loosens, >1 tightens env-driven floors
+}
+
+export interface TimeframeConfig {
+  outlook:              InvestmentTimeframe;       // outlook flag for predict_weighted_analysis.py
+  predChangeMultiplier: number;                    // stacked on gates.predChangeGate
+  sellThresholdShift:  number;                     // added to env-driven sell threshold
+  mlGate:              number;                     // minimum positive predicted change %
+  displayLabel:        string;                     // e.g. "in 6 months"
+  shortLabel:          '1W' | '1M' | '6M' | '1Y';  // compact card label
+  predictedPriceColumn:
+    | 'predicted_price_1w' | 'predicted_price_1m'
+    | 'predicted_price_6m' | 'predicted_price_1y';
+}
+
+export interface StrategyConfig {
+  aggressiveness:       Aggressiveness;
+  investment_timeframe: InvestmentTimeframe;
+  gates:                StrategyGates;
+  timeframe:            TimeframeConfig;
+}
+
 // Default applied when no row exists in user_investment_strategy
 export const DEFAULT_STRATEGY: UserStrategy = {
-  aggressiveness: 'neutral',
+  aggressiveness:       'neutral',
   investment_timeframe: '1_month',
 };</pre>
       </div>
@@ -215,7 +243,22 @@ export const DEFAULT_STRATEGY: UserStrategy = {
       <div class="card">
         <h4>getUserStrategy(userId)</h4>
         <p>Async function exported from <code>strategy.ts</code>. Queries <code>user_investment_strategy</code> for the given user. If no row exists, or if stored values fail validation (<code>isValidAggressiveness()</code> / <code>isValidTimeframe()</code>), <code>DEFAULT_STRATEGY</code> is returned. All callers wrap this with <code>.catch(() =&gt; DEFAULT_STRATEGY)</code> so a DB failure degrades gracefully to defaults rather than returning a 500.</p>
-        <pre>const userStrategy = await getUserStrategy(userId).catch(() => DEFAULT_STRATEGY);</pre>
+        <pre>// Actual implementation in src/utils/strategy.ts
+export async function getUserStrategy(userId: number | string): Promise&lt;UserStrategy&gt; {
+  const [rows] = await executeRawQuery(
+    'SELECT aggressiveness, investment_timeframe FROM user_investment_strategy WHERE user_id = ?',
+    [userId]
+  );
+  const row = Array.isArray(rows) && rows.length > 0 ? (rows[0] as any) : null;
+  if (!row) return DEFAULT_STRATEGY;
+  return {
+    aggressiveness:       isValidAggressiveness(row.aggressiveness) ? row.aggressiveness : DEFAULT_STRATEGY.aggressiveness,
+    investment_timeframe: isValidTimeframe(row.investment_timeframe) ? row.investment_timeframe : DEFAULT_STRATEGY.investment_timeframe,
+  };
+}
+
+// Caller pattern
+const userStrategy = await getUserStrategy(userId).catch(() => DEFAULT_STRATEGY);</pre>
       </div>
     </div>
 
@@ -223,7 +266,7 @@ export const DEFAULT_STRATEGY: UserStrategy = {
     <div class="section">
       <div class="section-title" id="aggressiveness">Aggressiveness Gates</div>
       <div class="card">
-        <p>The <code>AGGRESSIVENESS_GATES</code> constant maps each aggressiveness level to a set of five numeric thresholds. These gates are applied to recommendation filtering across the portfolio, watchlist, and discovery scopes.</p>
+        <p>The <code>AGGRESSIVENESS_GATES</code> constant maps each aggressiveness level to a set of five numeric thresholds. These gates are applied to recommendation filtering across the portfolio, watchlist, and discovery scopes. Values shown are verbatim from <code>src/utils/strategy.ts</code>.</p>
         <table class="props-table" style="margin-top:.75rem;">
           <thead>
             <tr>
@@ -261,18 +304,18 @@ export const DEFAULT_STRATEGY: UserStrategy = {
               <td>3.0%</td>
               <td>1.5%</td>
               <td>0.5%</td>
-              <td>Base minimum predicted price change (%) required — multiplied by <code>predChangeMultiplier</code> from the timeframe config</td>
+              <td>Base minimum predicted price change (%) — multiplied by <code>timeframe.predChangeMultiplier</code></td>
             </tr>
             <tr>
               <td><code>envFloorMultiplier</code></td>
               <td>1.05</td>
-              <td>1.0</td>
+              <td>1.00</td>
               <td>0.95</td>
-              <td>Applied to environment-variable threshold baselines (GPS BUY, SELL, DISCOVERY). Safe raises the bar by 5%; aggressive lowers it by 5%.</td>
+              <td>Applied to env-driven baselines (GPS BUY, DISCOVERY). Safe raises the bar 5%; aggressive lowers it 5%.</td>
             </tr>
           </tbody>
         </table>
-        <div class="note" style="margin-top:.75rem;"><strong>envFloorMultiplier application:</strong> In <code>GET /api/dashboard/recommendations</code>, the environment-variable thresholds (<code>GPS_RECOMMENDATION_BUY_THRESHOLD</code>, etc.) are multiplied by this value. For example, with a buy threshold of 85 and safe aggressiveness: effective threshold = 85 × 1.05 = 89.25. With aggressive: 85 × 0.95 = 80.75.</div>
+        <div class="note" style="margin-top:.75rem;"><strong>envFloorMultiplier application:</strong> In <code>GET /api/dashboard/recommendations</code>, the env-driven thresholds (<code>GPS_RECOMMENDATION_BUY_THRESHOLD</code>, <code>GPS_RECOMMENDATION_DISCOVERY_THRESHOLD</code>) are multiplied by this value. Example: with buy threshold of 65 and safe aggressiveness, effective threshold = 65 × 1.05 = 68.25. The sell threshold is <em>not</em> scaled by the multiplier — sells use <code>timeframe.sellThresholdShift</code> instead, so users are always warned about underperformers regardless of aggressiveness.</div>
       </div>
     </div>
 
@@ -280,60 +323,73 @@ export const DEFAULT_STRATEGY: UserStrategy = {
     <div class="section">
       <div class="section-title" id="timeframe">Timeframe Config</div>
       <div class="card">
-        <p>The <code>TIMEFRAME_CONFIG</code> constant maps each investment timeframe to properties that affect the prediction column selected, the threshold scaling, and the UI label.</p>
+        <p>The <code>TIMEFRAME_CONFIG</code> constant maps each investment timeframe to seven properties that affect the prediction column selected, the threshold scaling, and the UI label. Values are verbatim from <code>src/utils/strategy.ts</code>.</p>
         <table class="props-table" style="margin-top:.75rem;">
           <thead>
             <tr>
               <th>Timeframe</th>
+              <th><code>outlook</code></th>
               <th><code>predChangeMultiplier</code></th>
               <th><code>sellThresholdShift</code></th>
               <th><code>mlGate</code></th>
-              <th><code>predictedPriceColumn</code></th>
               <th><code>displayLabel</code></th>
+              <th><code>shortLabel</code></th>
+              <th><code>predictedPriceColumn</code></th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <td><code>1_week</code></td>
+              <td><code>1_week</code></td>
               <td>0.5</td>
               <td>-2</td>
               <td>0.5%</td>
-              <td><code>predicted_price_1w</code></td>
               <td>"in 1 week"</td>
+              <td><code>1W</code></td>
+              <td><code>predicted_price_1w</code></td>
             </tr>
             <tr>
+              <td><code>1_month</code></td>
               <td><code>1_month</code></td>
               <td>1.0</td>
               <td>0</td>
               <td>1.5%</td>
-              <td><code>predicted_price_1m</code></td>
               <td>"in 1 month"</td>
+              <td><code>1M</code></td>
+              <td><code>predicted_price_1m</code></td>
             </tr>
             <tr>
+              <td><code>6_month</code></td>
               <td><code>6_month</code></td>
               <td>1.5</td>
               <td>+3</td>
               <td>5%</td>
-              <td><code>predicted_price_6m</code></td>
               <td>"in 6 months"</td>
+              <td><code>6M</code></td>
+              <td><code>predicted_price_6m</code></td>
             </tr>
             <tr>
+              <td><code>1_year</code></td>
               <td><code>1_year</code></td>
               <td>2.0</td>
               <td>+5</td>
               <td>10%</td>
-              <td><code>predicted_price_1y</code></td>
               <td>"in 1 year"</td>
+              <td><code>1Y</code></td>
+              <td><code>predicted_price_1y</code></td>
             </tr>
           </tbody>
         </table>
         <div class="card" style="margin-top:1rem;border-left:3px solid #86efac;background:#f0fdf4;">
           <h4 style="color:#166534;">Column interpretation</h4>
           <ul>
-            <li><strong>predChangeMultiplier</strong> — multiplied by <code>predChangeGate</code> from aggressiveness. Final predChange gate = <code>aggressiveness.predChangeGate × timeframe.predChangeMultiplier</code>. A 1-week / safe user needs 3.0 × 0.5 = 1.5% predicted change; a 1-year / aggressive user needs 0.5 × 2.0 = 1.0%.</li>
-            <li><strong>sellThresholdShift</strong> — added to the environment-variable GPS SELL threshold. Long-horizon investors tolerate a lower GPS before calling a sell (they hold through dips). Short-horizon investors sell sooner (shift = -2 makes the threshold stricter).</li>
-            <li><strong>mlGate</strong> — minimum predicted change % for a DeepMoney pick to be validated by the ML signal. Short horizons have a low bar (small moves matter in 1 week); long horizons require significant expected gain.</li>
-            <li><strong>predictedPriceColumn</strong> — the SQL column in <code>user_stock_predictions</code> to use for the predicted price. The four columns are populated by <code>scripts/update_predictions.py</code> on each batch run.</li>
+            <li><strong>outlook</strong> — string flag passed to <code>predict_weighted_analysis.py</code> via the DeepMoney enrichment pipeline. Mirrors the timeframe key.</li>
+            <li><strong>predChangeMultiplier</strong> — stacked on <code>gates.predChangeGate</code>. Final predChange gate = <code>gates.predChangeGate × timeframe.predChangeMultiplier</code>. A 1-week / safe user needs 3.0 × 0.5 = 1.5%; a 1-year / aggressive user needs 0.5 × 2.0 = 1.0%.</li>
+            <li><strong>sellThresholdShift</strong> — <em>added</em> to the env-driven GPS SELL threshold (not multiplied). Long-horizon investors tolerate a lower GPS before calling a sell (positive shift raises the bar; <code>+3</code> at 6M means they hold longer). Short-horizon investors sell sooner (<code>-2</code> at 1W tightens it).</li>
+            <li><strong>mlGate</strong> — minimum predicted change % for a DeepMoney pick to be validated by the ML signal in <code>/api/prediction/deepmoney</code>. Short horizons have a low bar (small moves matter in 1 week); long horizons require significant expected gain.</li>
+            <li><strong>displayLabel</strong> — long, sentence-style label, e.g. <em>"in 6 months"</em>. Returned by <code>/api/dashboard/deepmoney-picks</code> as <code>timeframe_label</code> for prediction-card copy.</li>
+            <li><strong>shortLabel</strong> — compact two-char label (<code>'1W'</code>, <code>'1M'</code>, <code>'6M'</code>, <code>'1Y'</code>). Returned as <code>horizonLabel</code> by the watchlist, portfolio, and recommendations APIs so the frontend can render <em>"6M Pred"</em> or <em>"Based on 6M prediction"</em> dynamically.</li>
+            <li><strong>predictedPriceColumn</strong> — the SQL column in <code>user_stock_predictions</code> to use for the predicted price. Backs the suffix <code>sfx</code> (<code>'1w' | '1m' | '6m' | '1y'</code>) which routes also use to read <code>predicted_change_pct_&lt;sfx&gt;</code> and <code>confidence_score_&lt;sfx&gt;</code> from the same row.</li>
           </ul>
         </div>
       </div>
@@ -344,27 +400,42 @@ export const DEFAULT_STRATEGY: UserStrategy = {
       <div class="section-title" id="resolve">resolveStrategy()</div>
       <div class="card">
         <h4>Function signature</h4>
-        <pre>export function resolveStrategy(strategy: UserStrategy): {
-  gates: StrategyGates;    // from AGGRESSIVENESS_GATES[strategy.aggressiveness]
-  timeframe: TimeframeConfig; // from TIMEFRAME_CONFIG[strategy.investment_timeframe]
+        <pre>export function resolveStrategy(strategy: UserStrategy): StrategyConfig {
+  return {
+    aggressiveness:       strategy.aggressiveness,
+    investment_timeframe: strategy.investment_timeframe,
+    gates:                AGGRESSIVENESS_GATES[strategy.aggressiveness],
+    timeframe:            TIMEFRAME_CONFIG[strategy.investment_timeframe],
+  };
 }</pre>
-        <p>This is the primary consumer-facing function. It accepts a <code>UserStrategy</code> and returns the two resolved config objects. All API routes and the Python script call the equivalent of this function to get the numeric values to apply.</p>
-        <h4 style="margin-top:1rem;">Usage pattern in API routes</h4>
-        <pre>// Every strategy-aware route follows this pattern:
-const userStrategy = await getUserStrategy(userId).catch(() => DEFAULT_STRATEGY);
-const { gates, timeframe } = resolveStrategy(userStrategy);
-const priceColumn = timeframe.predictedPriceColumn;
+        <p>This is the primary consumer-facing function. It accepts a <code>UserStrategy</code> and returns a <code>StrategyConfig</code> bundle containing the resolved gates, timeframe config, plus the original aggressiveness and timeframe keys (handy for echoing back to the client as <code>gpsHorizon</code> or for analytics).</p>
+        <h4 style="margin-top:1rem;">Universal usage pattern in API routes</h4>
+        <pre>// Every strategy-aware list endpoint follows this pattern:
+const userStrategy    = await getUserStrategy(userId).catch(() => DEFAULT_STRATEGY);
+const timeframeConfig = resolveStrategy(userStrategy).timeframe;
+const priceColumn     = timeframeConfig.predictedPriceColumn;          // 'predicted_price_6m'
+const sfx             = priceColumn.replace('predicted_price_', '');   // '6m'
+const horizonLabel    = timeframeConfig.shortLabel;                    // '6M'
 
-// SQL: select the horizon-appropriate predicted price
-SELECT COALESCE(usp.${priceColumn}, usp.predicted_price_1m) AS predicted_price_horizon
+// SQL: select horizon-appropriate predicted price, change% and confidence
+//      from a single row in user_stock_predictions
+SELECT
+  COALESCE(usp.${priceColumn}, usp.predicted_price_1m) AS predicted_price_horizon,
+  usp.predicted_change_pct_${sfx}                      AS predicted_change_pct_horizon,
+  usp.confidence_score_${sfx}                          AS confidence_score_horizon
+FROM user_stock_predictions usp ...
 
-// Threshold calculation (recommendations route):
-const effectiveGpsGate     = gates.gpsGate;
-const effectivePredChange  = gates.predChangeGate * timeframe.predChangeMultiplier;
-const effectiveSellShift   = timeframe.sellThresholdShift;
-const envMult              = gates.envFloorMultiplier;
-const buyThreshold         = envBuyThreshold * envMult;
-const sellThreshold        = envSellThreshold + effectiveSellShift;</pre>
+// Threshold calculation (recommendations route)
+const { gates: strategyGates } = resolveStrategy(userStrategy);
+const mult                = strategyGates.envFloorMultiplier;
+const buyThreshold        = envBuyThreshold       * mult;
+const discoveryThreshold  = envDiscoveryThreshold * mult;
+const sellThreshold       = envSellThreshold      + timeframeConfig.sellThresholdShift; // shifted, not multiplied
+const predChangeGate      = strategyGates.predChangeGate * timeframeConfig.predChangeMultiplier;
+
+// Response shape includes shortLabel as horizonLabel for the UI
+return NextResponse.json({ ..., horizonLabel });</pre>
+        <div class="info" style="margin-top:.5rem;"><strong>SQL-injection safety:</strong> <code>priceColumn</code> and <code>sfx</code> are derived from a controlled <code>predictedPriceColumn</code> enum in <code>TimeframeConfig</code>, so direct template-literal interpolation into the SQL is safe.</div>
       </div>
     </div>
 
@@ -374,58 +445,40 @@ const sellThreshold        = envSellThreshold + effectiveSellShift;</pre>
       <div class="card">
         <h4>The problem</h4>
         <p>GPS scores and their component breakdowns are computed once and stored globally (in <code>stock_gps_scores</code>) using the 1-month ML prediction as the <code>mlpUpside</code> component. If a user's timeframe is 6 months, the stored GPS score reflects a 1-month prediction, which is misleading.</p>
-        <h4 style="margin-top:1rem;">The solution — adjustMlpUpsideForHorizon()</h4>
-        <p>The function <code>adjustMlpUpsideForHorizon(breakdown, predictedChangePctForHorizon)</code> in <code>src/utils/gps.ts</code> recalculates only the <code>mlpUpside</code> component using the user's horizon-specific predicted price, then recomputes the GPS total. The other 7 components (analyst consensus, revenue growth, etc.) are timeframe-independent and pass through unchanged.</p>
-        <pre>// src/utils/gps.ts
-export function adjustMlpUpsideForHorizon(
-  breakdown: GpsBreakdown,
-  predictedChangePctForHorizon: number
-): { breakdown: GpsBreakdown; score: number } {
-  const predictionMax = process.env.GPS_PREDICTION_MAX
-    ? parseFloat(process.env.GPS_PREDICTION_MAX) : 3;
-
-  // Re-clamp the mlpUpside component to [-20, +20]
-  const newMlpUpside = Math.min(
-    Math.max(predictedChangePctForHorizon / predictionMax, -1), 1
-  ) * 20;
-
-  const adjusted = { ...breakdown, mlpUpside: parseFloat(newMlpUpside.toFixed(1)) };
-  const total = adjusted.mlpUpside + adjusted.mlpConfidence + adjusted.revenueGrowth
-              + adjusted.earningsGrowth + adjusted.technicalSignal + adjusted.analystUpside
-              + adjusted.analystConsensus + adjusted.priceChange52w;
-
-  return {
-    breakdown: adjusted,
-    score: parseFloat(Math.min(Math.max(total, 0), 100).toFixed(1)),
-  };
-}</pre>
+        <h4 style="margin-top:1rem;">The solution — adjustGpsForHorizon()</h4>
+        <p>The function <code>adjustGpsForHorizon(breakdown, predictedChangePctForHorizon, confidence?)</code> in <code>src/utils/gps.ts</code> recalculates the <code>mlpUpside</code> (and, when supplied, the <code>mlpConfidence</code>) component using the user's horizon-specific predicted change and confidence, then recomputes the GPS total. The other components are timeframe-independent and pass through unchanged.</p>
         <h4 style="margin-top:1rem;">When it is called</h4>
-        <p>Every route that returns GPS data to the client applies this patch per stock item, after fetching the live current price from Yahoo Finance:</p>
+        <p>Every list endpoint that returns GPS data to the client applies the patch per stock item, using the model's persisted per-horizon <code>predicted_change_pct_&lt;sfx&gt;</code> and <code>confidence_score_&lt;sfx&gt;</code> when present (so the patched score matches <code>/api/prediction/[ticker]</code> exactly). It falls back to a price-derived delta — <code>((horizonPrice − currentPrice) / currentPrice) × 100</code> — when those columns are NULL for legacy rows.</p>
         <pre>// Shared pattern in portfolio, watchlist, and recommendations routes:
-const horizonPrice = item.predicted_price_horizon != null
-  ? parseFloat(item.predicted_price_horizon) : null;
+const baselineBreakdown = item.gps_breakdown
+  ? (typeof item.gps_breakdown === 'string' ? JSON.parse(item.gps_breakdown) : item.gps_breakdown)
+  : null;
 
-if (baselineBreakdown && currentPrice > 0 && horizonPrice) {
-  const horizonDeltaPct = ((horizonPrice - currentPrice) / currentPrice) * 100;
-  const adjusted = adjustMlpUpsideForHorizon(baselineBreakdown, horizonDeltaPct);
-  perUserGpsScore    = adjusted.score;
-  perUserGpsBreakdown = adjusted.breakdown;
+const storedChangePct  = item.predicted_change_pct_horizon != null
+  ? parseFloat(item.predicted_change_pct_horizon) : null;
+const storedConfidence = item.confidence_score_horizon    != null
+  ? parseFloat(item.confidence_score_horizon)    : undefined;
+const horizonPrice     = item.predicted_price_horizon     != null
+  ? parseFloat(item.predicted_price_horizon)     : null;
+
+if (baselineBreakdown) {
+  let changePct = storedChangePct;
+  if (changePct == null && currentPrice > 0 && horizonPrice) {
+    changePct = ((horizonPrice - currentPrice) / currentPrice) * 100;
+  }
+  if (changePct != null) {
+    const adjusted = adjustGpsForHorizon(baselineBreakdown, changePct, storedConfidence);
+    perUserGpsScore     = adjusted.score;
+    perUserGpsBreakdown = adjusted.breakdown;
+  }
 }</pre>
-        <div class="info" style="margin-top:.75rem;"><strong>Why only mlpUpside changes:</strong> The 7 other GPS components — analyst consensus, revenue growth, earnings growth, technical signal, analyst upside, price change 52w, and ML confidence — are all computed from fundamental or technical data that does not change based on prediction horizon. Only the ML model's directional prediction varies per horizon.</div>
+        <div class="info" style="margin-top:.75rem;"><strong>Why preferring the stored change%:</strong> The model persists <code>predicted_change_pct_&lt;sfx&gt;</code> and <code>confidence_score_&lt;sfx&gt;</code> at the moment of prediction. Reading them back is exact. Computing a delta from <code>(horizonPrice − currentPrice)</code> at request time uses a fresher live price but doesn't match what the model actually saw — fine as a fallback but second-best.</div>
       </div>
 
       <div class="card">
         <h4>GPS Breakdown Modal — horizon label</h4>
-        <p>When the GPS breakdown modal is opened, it receives a <code>horizon</code> prop (type <code>'1_week' | '1_month' | '6_month' | '1_year'</code>, default <code>'1_month'</code>). The ML Prediction row label is rendered as "ML Prediction (1m)", "ML Prediction (6m)", etc., so the user knows which horizon the displayed <code>mlpUpside</code> score reflects.</p>
-        <pre>// GpsBreakdownModal.tsx
-const HORIZON_LABEL = {
-  '1_week':  '1w',
-  '1_month': '1m',
-  '6_month': '6m',
-  '1_year':  '1y',
-};
-const mlpLabel = `ML Prediction (${HORIZON_LABEL[horizon] ?? '1m'})`;</pre>
-        <p style="margin-top:.75rem;">The <code>gpsHorizon</code> field is now part of the <code>DeepmoneyCard</code>, <code>PortfolioCard</code>, and <code>WatchlistCard</code> types (in <code>src/app/components/cards/types.ts</code>) and is forwarded through <code>GpsTooltip</code> → <code>GpsBreakdownModal</code>.</p>
+        <p>The GPS breakdown modal receives a <code>horizon</code> prop (<code>'1_week' | '1_month' | '6_month' | '1_year'</code>, default <code>'1_month'</code>) sourced from the <code>gpsHorizon</code> field on each card. The ML Prediction row label is rendered as "ML Prediction (1m)", "ML Prediction (6m)", etc., so the user knows which horizon the displayed <code>mlpUpside</code> reflects.</p>
+        <p style="margin-top:.5rem;">The <code>gpsHorizon</code> field is part of the <code>DeepmoneyCard</code>, <code>PortfolioCard</code>, and <code>WatchlistCard</code> types (in <code>src/app/components/cards/types.ts</code>) and is forwarded through <code>GpsTooltip</code> → <code>GpsBreakdownModal</code>.</p>
       </div>
     </div>
 
@@ -438,31 +491,65 @@ const mlpLabel = `ML Prediction (${HORIZON_LABEL[horizon] ?? '1m'})`;</pre>
           <thead><tr><th>Route</th><th>Strategy use</th></tr></thead>
           <tbody>
             <tr>
-              <td><code>GET /api/user/portfolio</code></td>
-              <td>Resolves <code>priceColumn</code> to select horizon-specific predicted price. Calls <code>adjustMlpUpsideForHorizon()</code> per holding. Returns <code>gpsHorizon</code> per item.</td>
+              <td><code>GET /api/user/watchlist</code></td>
+              <td>
+                Resolves <code>priceColumn</code>, <code>sfx</code>, and <code>horizonLabel</code> from <code>resolveStrategy()</code>. SELECTs <code>predicted_price_&lt;sfx&gt;</code>, <code>predicted_change_pct_&lt;sfx&gt;</code>, <code>confidence_score_&lt;sfx&gt;</code> aliased as <code>predicted_price_horizon</code> / <code>predicted_change_pct_horizon</code> / <code>confidence_score_horizon</code>. Calls <code>adjustGpsForHorizon()</code> per item. Returns <code>{ watchlist, horizonLabel }</code> with <code>gpsHorizon</code> on each item.
+              </td>
             </tr>
             <tr>
-              <td><code>GET /api/user/watchlist</code></td>
-              <td>Same as portfolio: horizon-aware GPS patch, returns <code>gpsHorizon</code> per item.</td>
+              <td><code>GET /api/user/portfolio</code></td>
+              <td>
+                Identical pattern to the watchlist endpoint. Returns <code>{ portfolio, horizonLabel }</code> (where <code>horizonLabel</code> is the <code>shortLabel</code>: <code>'1W' | '1M' | '6M' | '1Y'</code>) and stamps each holding with <code>gpsHorizon</code>.
+              </td>
             </tr>
             <tr>
               <td><code>GET /api/dashboard/recommendations</code></td>
-              <td>Computes effective thresholds: <code>buyThreshold</code>, <code>sellThreshold</code>, <code>discoveryThreshold</code>, <code>predChangeGate</code>, <code>confidenceFloor</code>, <code>betaCutoff</code>. Applies horizon GPS patch. Returns <code>gpsHorizon</code> per recommendation.</td>
+              <td>
+                Same SELECT pattern. Additionally computes <code>buyThreshold = envBuy × envFloorMultiplier</code>, <code>discoveryThreshold = envDiscovery × envFloorMultiplier</code>, <code>sellThreshold = envSell + sellThresholdShift</code>, and <code>predChangeGate = gates.predChangeGate × predChangeMultiplier</code>. Each recommendation carries <code>gpsHorizon: userStrategy.investment_timeframe</code>. The top-level response includes <code>horizonLabel</code> alongside <code>recommendations</code> and <code>asOf</code>.
+              </td>
+            </tr>
+            <tr>
+              <td><code>GET /api/prediction/[ticker]</code></td>
+              <td>
+                On cache hit or refresh, computes <code>gpsHorizon = strategy.investment_timeframe</code> and derives <code>horizonKey = investment_timeframe.replace('_', '')</code> (e.g. <code>'6month'</code>) to index <code>result.predicted_change_pct_&lt;sfx&gt;</code> and <code>result.confidence_score_&lt;sfx&gt;</code> for the horizon-specific GPS patch. The cache itself remains strategy-independent — only the GPS adjustment is per-user.
+              </td>
             </tr>
             <tr>
               <td><code>GET /api/dashboard/deepmoney-picks</code></td>
-              <td>Reads user strategy to return <code>timeframe</code> (e.g., <code>'6_month'</code>) and <code>timeframe_label</code> (e.g., <code>'in 6 months'</code>) for the UI display label on prediction cards.</td>
+              <td>
+                Reads user strategy to return <code>timeframe</code> (e.g. <code>'6_month'</code>) and <code>timeframe_label</code> (<code>displayLabel</code>, e.g. <em>"in 6 months"</em>) for UI copy on prediction cards.
+              </td>
             </tr>
             <tr>
               <td><code>GET /api/prediction/deepmoney</code></td>
-              <td>Resolves user's <code>outlook</code> and <code>mlGate</code>. Cache key is bucketed by outlook (<code>hot-tickers-enriched:{outlook}</code>) so each timeframe has an independent 5-minute cache. Passes <code>{ outlook, mlGate }</code> to <code>analyzeStocks()</code>.</td>
+              <td>
+                Resolves <code>outlook</code> and <code>mlGate</code>. Cache key is bucketed by outlook (<code>hot-tickers-enriched:{outlook}</code>) so each timeframe has an independent 5-minute cache. Passes <code>{ outlook, mlGate }</code> to <code>analyzeStocks()</code>.
+              </td>
             </tr>
             <tr>
               <td><code>GET/PATCH /api/user/profile</code></td>
-              <td>GET returns the full <code>strategy</code> object. PATCH accepts <code>aggressiveness</code> and/or <code>investment_timeframe</code> and upserts to <code>user_investment_strategy</code>.</td>
+              <td>
+                GET returns the full <code>strategy</code> object. PATCH accepts <code>aggressiveness</code> and/or <code>investment_timeframe</code> (nested under <code>strategy</code> or flat), merges with the existing row, validates, then upserts to <code>user_investment_strategy</code>.
+              </td>
+            </tr>
+            <tr>
+              <td><code>scripts/update_predictions.py</code> (DeepMoney sync)</td>
+              <td>
+                Loads all user strategies in one query (<code>get_all_user_strategies</code>) and applies the same gates + timeframe multipliers per ETF holding to populate <code>etf_stock_recommendations</code>. Constants live in <code>scripts/strategy_config.py</code> and must mirror <code>strategy.ts</code>.
+              </td>
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div class="card">
+        <h4>Frontend consumption of horizonLabel</h4>
+        <p>When watchlist, portfolio, or recommendations APIs return <code>horizonLabel</code> (e.g. <code>'6M'</code>), the corresponding card UIs render dynamic copy based on it instead of hardcoding <em>"1M"</em>:</p>
+        <ul>
+          <li><em>"6M Pred"</em> column header on the WatchlistCard.</li>
+          <li><em>"Based on 6M prediction"</em> in the recommendation rationale strip.</li>
+          <li>Compact pill on the PortfolioCard showing the horizon at a glance.</li>
+        </ul>
       </div>
 
       <div class="card">
@@ -472,21 +559,27 @@ const mlpLabel = `ML Prediction (${HORIZON_LABEL[horizon] ?? '1m'})`;</pre>
        └─ PATCH /api/user/profile → upserts user_investment_strategy
 
 Next time user loads dashboard:
-  ├─ GET /api/user/portfolio
+  ├─ GET /api/user/watchlist
   │    └─ getUserStrategy() → { aggressiveness: 'safe', investment_timeframe: '6_month' }
-  │    └─ resolveStrategy() → { gates: { gpsGate: 75, predChangeGate: 3.0, ... },
-  │                              timeframe: { predictedPriceColumn: 'predicted_price_6m', mlGate: 5, ... } }
-  │    └─ SQL: SELECT COALESCE(usp.predicted_price_6m, usp.predicted_price_1m) AS predicted_price_horizon
-  │    └─ adjustMlpUpsideForHorizon(baselineBreakdown, horizonDeltaPct)
-  │    └─ returns gpsScore (6m-adjusted), gpsBreakdown, gpsHorizon: '6_month'
+  │    └─ resolveStrategy().timeframe → { predictedPriceColumn: 'predicted_price_6m',
+  │                                       shortLabel: '6M', mlGate: 5, ... }
+  │    └─ sfx = '6m';  horizonLabel = '6M'
+  │    └─ SQL: COALESCE(usp.predicted_price_6m, usp.predicted_price_1m) AS predicted_price_horizon,
+  │            usp.predicted_change_pct_6m  AS predicted_change_pct_horizon,
+  │            usp.confidence_score_6m      AS confidence_score_horizon
+  │    └─ adjustGpsForHorizon(baselineBreakdown, changePct, confidence)
+  │    └─ Response: { watchlist: [...{ gpsHorizon: '6_month' }], horizonLabel: '6M' }
   │
   ├─ GET /api/dashboard/recommendations
-  │    └─ effectiveGpsGate = 75,  predChangeGate = 3.0 × 1.5 = 4.5%
-  │    └─ buyThreshold = envBuy × 1.05,  sellThreshold = envSell + 3
-  │    └─ horizon GPS patch applied per recommendation
+  │    └─ gates: { gpsGate: 75, predChangeGate: 3.0, envFloorMultiplier: 1.05, ... }
+  │    └─ buyThreshold     = envBuy × 1.05
+  │    └─ sellThreshold    = envSell + 3
+  │    └─ predChangeGate   = 3.0 × 1.5 = 4.5%
+  │    └─ Per-rec horizon GPS patch applied
+  │    └─ Response: { recommendations: [...], horizonLabel: '6M', asOf }
   │
   └─ GET /api/dashboard/deepmoney-picks
-       └─ returns timeframe: '6_month', timeframe_label: 'in 6 months'</pre>
+       └─ Response: timeframe: '6_month', timeframe_label: 'in 6 months'</pre>
       </div>
     </div>
 
@@ -511,7 +604,7 @@ Next time user loads dashboard:
 
       <div class="card">
         <h4>PATCH /api/user/profile — updating strategy</h4>
-        <p>The PATCH endpoint accepts two request body shapes. Both can update aggressiveness and/or timeframe independently — unset fields are preserved from the existing stored value.</p>
+        <p>The PATCH endpoint accepts two body shapes (nested or flat). Either field is independently updatable; unset fields are preserved from the existing stored value via a load-then-merge step inside the handler.</p>
         <pre>// Nested shape (sent by the Profile component's aggressiveness save):
 { "strategy": { "aggressiveness": "safe" } }
 
@@ -522,10 +615,10 @@ Next time user loads dashboard:
 { "strategy": { "aggressiveness": "aggressive", "investment_timeframe": "1_year" } }
 
 // Response on success:
-{ "message": "Strategy updated", "strategy": { "aggressiveness": "safe", "investment_timeframe": "6_month" } }</pre>
+{ "ok": true, "strategy": { "aggressiveness": "safe", "investment_timeframe": "6_month" } }</pre>
 
         <h4 style="margin-top:1rem;">Upsert behavior</h4>
-        <p>The route always loads the current stored strategy first, merges the incoming fields, validates the combined values, then upserts to <code>user_investment_strategy</code>. This means a partial PATCH that sends only <code>aggressiveness</code> will not reset <code>investment_timeframe</code> to the default.</p>
+        <p>The route loads the current stored strategy first (via <code>getUserStrategy</code>), merges the incoming fields, validates the combined values with <code>isValidAggressiveness</code> / <code>isValidTimeframe</code>, then runs an <code>INSERT ... ON DUPLICATE KEY UPDATE</code> against <code>user_investment_strategy</code>. A partial PATCH that sends only <code>aggressiveness</code> will not reset <code>investment_timeframe</code> to the default.</p>
       </div>
     </div>
 
@@ -562,37 +655,43 @@ Next time user loads dashboard:
 
     <!-- ═══════════════════════════════════════════════════════ -->
     <div class="section">
-      <div class="section-title" id="python">Python Mirror (scripts/update_predictions.py)</div>
+      <div class="section-title" id="python">Python Mirror (scripts/strategy_config.py + update_predictions.py)</div>
       <div class="card">
-        <p>The batch prediction script <code>update_predictions.py</code> contains an exact mirror of <code>resolveStrategy()</code> logic. When computing per-user ETF holding recommendations, the script loads all user strategies in a single query (<code>get_all_user_strategies()</code>), then applies the same aggressiveness gates and timeframe multipliers to decide whether each ETF holding crosses the recommendation threshold.</p>
+        <p>The batch prediction script <code>update_predictions.py</code> uses an exact mirror of <code>resolveStrategy()</code> logic via <code>scripts/strategy_config.py</code>. When computing per-user ETF holding recommendations, the script loads all user strategies in a single query (<code>get_all_user_strategies()</code>), then applies the same aggressiveness gates and timeframe multipliers to decide whether each ETF holding crosses the recommendation threshold and which <code>predicted_price_&lt;sfx&gt;</code> column to read.</p>
 
         <h4 style="margin-top:1rem;">Python strategy functions</h4>
-        <pre># update_predictions.py
+        <pre># scripts/strategy_config.py
 AGGRESSIVENESS_GATES = {
     'safe':       {'gps_gate': 75, 'pred_change_gate': 3.0, 'env_floor_multiplier': 1.05, ...},
     'neutral':    {'gps_gate': 65, 'pred_change_gate': 1.5, 'env_floor_multiplier': 1.00, ...},
     'aggressive': {'gps_gate': 55, 'pred_change_gate': 0.5, 'env_floor_multiplier': 0.95, ...},
 }
 TIMEFRAME_CONFIG = {
-    '1_week':  {'pred_change_multiplier': 0.5,  'predicted_price_col': 'predicted_price_1w', ...},
-    '1_month': {'pred_change_multiplier': 1.0,  'predicted_price_col': 'predicted_price_1m', ...},
-    '6_month': {'pred_change_multiplier': 1.5,  'predicted_price_col': 'predicted_price_6m', ...},
-    '1_year':  {'pred_change_multiplier': 2.0,  'predicted_price_col': 'predicted_price_1y', ...},
+    '1_week':  {'pred_change_multiplier': 0.5, 'predicted_price_col': 'predicted_price_1w', ...},
+    '1_month': {'pred_change_multiplier': 1.0, 'predicted_price_col': 'predicted_price_1m', ...},
+    '6_month': {'pred_change_multiplier': 1.5, 'predicted_price_col': 'predicted_price_6m', ...},
+    '1_year':  {'pred_change_multiplier': 2.0, 'predicted_price_col': 'predicted_price_1y', ...},
 }
 
-def resolve_strategy(aggressiveness, investment_timeframe):
-    gates = AGGRESSIVENESS_GATES.get(aggressiveness, AGGRESSIVENESS_GATES['neutral'])
-    tf    = TIMEFRAME_CONFIG.get(investment_timeframe, TIMEFRAME_CONFIG['1_month'])
-    env_base = float(os.getenv('ETF_HOLDING_GPS_SURFACE_VALUE', 60))
-    mult     = gates['env_floor_multiplier']
-    return {
-        'gps_threshold':  env_base * mult,
-        'pred_threshold': max(env_base * mult, gates['pred_change_gate'] * tf['pred_change_multiplier']),
-        'conf_threshold': env_base * mult,
-        'price_col':      tf['predicted_price_col'],
-    }</pre>
+def resolve_strategy(strategy: UserStrategy) -> StrategyConfig:
+    ...
 
-        <div class="note" style="margin-top:.75rem;"><strong>Keep in sync:</strong> Whenever <code>AGGRESSIVENESS_GATES</code> or <code>TIMEFRAME_CONFIG</code> values change in <code>src/utils/strategy.ts</code>, the corresponding Python dicts in <code>scripts/update_predictions.py</code> must be updated to match. These two files are the dual source of truth for strategy gate values.</div>
+def get_user_strategy(cursor, user_id) -> UserStrategy:
+    cursor.execute(
+        'SELECT aggressiveness FROM user_investment_strategy WHERE user_id = %s',
+        (user_id,)
+    )
+    ...
+
+def get_all_user_strategies(cursor, user_ids: list[int]) -> dict[int, UserStrategy]:
+    placeholders = ','.join(['%s'] * len(user_ids))
+    cursor.execute(
+        f'SELECT user_id, aggressiveness FROM user_investment_strategy WHERE user_id IN ({placeholders})',
+        user_ids,
+    )
+    ...</pre>
+
+        <div class="note" style="margin-top:.75rem;"><strong>Keep in sync:</strong> Whenever <code>AGGRESSIVENESS_GATES</code> or <code>TIMEFRAME_CONFIG</code> values change in <code>src/utils/strategy.ts</code>, the corresponding dicts in <code>scripts/strategy_config.py</code> must be updated to match. The TypeScript module and the Python module are the dual source of truth for strategy gate values.</div>
       </div>
     </div>
 
@@ -622,11 +721,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const nav = document.querySelector('.top-bar-nav');
   const leftBtns = document.querySelectorAll('.nav-scroll-left');
   const rightBtns = document.querySelectorAll('.nav-scroll-right');
-  
+
   if (!nav || leftBtns.length === 0 || rightBtns.length === 0) return;
-  
+
   const scrollAmount = 150;
-  
+
   function checkScroll() {
     // Show/hide left button
     if (nav.scrollLeft > 0) {
@@ -634,7 +733,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       leftBtns.forEach(btn => btn.style.visibility = 'hidden');
     }
-    
+
     // Show/hide right button
     const hasRightScroll = nav.scrollLeft < nav.scrollWidth - nav.clientWidth - 10;
     if (hasRightScroll) {
@@ -643,24 +742,24 @@ document.addEventListener('DOMContentLoaded', () => {
       rightBtns.forEach(btn => btn.style.visibility = 'hidden');
     }
   }
-  
+
   leftBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       nav.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
       setTimeout(checkScroll, 100);
     });
   });
-  
+
   rightBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       nav.scrollBy({ left: scrollAmount, behavior: 'smooth' });
       setTimeout(checkScroll, 100);
     });
   });
-  
+
   nav.addEventListener('scroll', checkScroll);
   window.addEventListener('resize', checkScroll);
-  
+
   // Initial check
   setTimeout(checkScroll, 100);
 });

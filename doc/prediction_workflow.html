@@ -104,7 +104,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Developer Docs</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-12</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-15</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -143,27 +143,33 @@
     <div class="section-divider"></div>
     <h3>On this page</h3>
     <a href="#overview">Overview</a>
+    <a href="#lifecycle">End-to-End Lifecycle</a>
     <a href="#strategy-integration">Strategy Integration</a>
     <a href="#step1">1. User Trigger (UI)</a>
     <a href="#step2">2. Data Assembly (Node)</a>
     <a href="#step3">3. API Gateway</a>
+    <a href="#dual-gps">— Dual GPS Computation</a>
+    <a href="#cache-behavior">— Cache Hit / Miss Behavior</a>
     <a href="#step4">4. Feature Engine (Python)</a>
     <a href="#feature-set">— Full Feature Set (118 cols)</a>
-    <a href="#new-features">— New Feature Groups</a>
     <a href="#insider-features">— Insider Features</a>
     <a href="#high-beta-penalty">— High-Beta Penalty</a>
     <a href="#algorithm-flow">— Algorithm Flowchart</a>
     <a href="#regime-analysis">— Regime Analysis</a>
     <a href="#step5">5. MLP Architecture (4-output)</a>
     <a href="#mlp-targets">— Training Targets</a>
+    <a href="#single-call">— Single Call → 4 Horizons</a>
     <a href="#step6">6. Signal Weighting</a>
     <a href="#week-blend">— 1-Week Blend Logic</a>
     <a href="#trajectory">— Trajectory Generation</a>
     <a href="#earnings-dampening">— Earnings Dampening</a>
     <a href="#confidence-scoring">— Confidence Scoring</a>
     <a href="#step7">7. Persistence Layer</a>
+    <a href="#save-payload">— savePredictionAsync Payload</a>
+    <a href="#save-route">— /api/prediction/save Schema</a>
     <a href="#analytics-recording">— Analytics Recording</a>
     <a href="#update-predictions-script">8. update_predictions.py</a>
+    <a href="#batch-horizon-fields">— Per-Horizon Persistence</a>
     <a href="#etf-holdings-scan">— ETF Holdings Scan</a>
     <a href="#strategy-gates-etf">— Strategy-Aware ETF Gates</a>
     <a href="#caching">9. Cache Architecture</a>
@@ -187,50 +193,78 @@
       <span>src/app/api/prediction/save/route.ts</span>
       <span>src/utils/predictionRecorder.ts</span>
       <span>src/app/components/StockPrediction.tsx</span>
-      <span>Updated 2026-06-12</span>
+      <span>Updated 2026-06-15</span>
     </div>
 
     <section id="overview">
-      <p>This document details the end-to-end execution path and mathematical logic behind the Stock Prediction System (v3.3). The pipeline runs an <strong>MLPRegressor (sklearn)</strong> trained fresh per request on 5 years of enriched historical data, producing 1-week, 1-month, 6-month, and 1-year price targets with Monte Carlo uncertainty bands and an 18-month trajectory chart.</p>
+      <p>This document details the end-to-end execution path and mathematical logic behind the Stock Prediction System (v3.4). The pipeline runs an <strong>MLPRegressor (sklearn)</strong> trained fresh per request on 5 years of enriched historical data, producing 1-week, 1-month, 6-month, and 1-year price targets with Monte Carlo uncertainty bands and an 18-month trajectory chart. <strong>A single Python invocation returns all four horizons at once.</strong></p>
+
+      <div class="updated-box">
+        <strong>v3.4.1 / June 2026 — Dual-GPS &amp; full horizon persistence:</strong>
+        <ul style="margin-top:.5rem;">
+          <li><code>POST /api/prediction/[ticker]</code> now runs the Python model once and computes <strong>two</strong> GPS scores from the result: a <em>neutral 1-month baseline</em> (saved to the global <code>stock_gps_scores</code> table) and a <em>user-horizon GPS</em> built from the horizon-matched <code>predicted_change_pct_*</code> / <code>confidence_score_*</code> fields and returned in the response as <code>gps_score</code> + <code>gps_breakdown</code> + <code>gps_horizon</code>.</li>
+          <li><code>savePredictionAsync()</code> now forwards <strong>all eight</strong> per-horizon outputs (four <code>predicted_change_pct_{1w,1m,6m,1y}</code> + four <code>confidence_score_{1w,1m,6m,1y}</code>) plus all four <code>predicted_price_{1w,1m,6m,1y}</code> to <code>/api/prediction/save</code>. Previously only the 1m price was sent.</li>
+          <li><code>POST /api/prediction/save</code> accepts those eight new optional Zod fields and persists them to <code>user_stock_predictions</code>. The dashboard can now recompute horizon-aware GPS using the model's own outputs instead of a price-derived approximation.</li>
+          <li><code>scripts/update_predictions.py</code> captures all eight per-horizon stats from the Python result, threads them through <code>save_prediction()</code> kwargs, and stores them in the in-process <code>prediction_cache</code> (and the <code>_empty_cache_entry()</code> sentinel) so cached-prediction branches also forward the per-horizon fields.</li>
+        </ul>
+      </div>
+
       <div class="highlight-box">
         <strong>v3.3 (2026-06-03):</strong> Primary short-term outlook changed from 1-day to <strong>1-week (T+5)</strong>. MLP now has a 4-output head: [T+1, T+5, T+126, T+252]. The 1-week prediction is a blended output (30% MLP T+5 / 70% trajectory interpolation) with an ATR-based movement cap. 118 total FEATURE_COLUMNS including 13 newly added columns. Cache schema version bumped to v2.
-      </div>
-      <div class="updated-box">
-        <strong>v3.4 / June 2026 — Strategy Integration:</strong> The prediction pipeline is now strategy-aware end-to-end. The Python script persists all four horizon prices (<code>predicted_price_1w / _1m / _6m / _1y</code>) to the database. The recommendations route, portfolio route, and watchlist route all read the user's <code>investment_timeframe</code> to select the correct horizon column and dynamically patch the GPS breakdown's <code>mlpUpside</code> component via <code>adjustMlpUpsideForHorizon()</code>. The DeepMoney real-time discovery route uses the user's timeframe to set the ML gate threshold and cache bucket. See <a href="#strategy-integration">Strategy Integration</a> and the <a href="strategy_system.html">Strategy System</a> doc for full details.
       </div>
       <div class="highlight-box">
         <strong>Regime-Aware Model status (Phases 1–3 complete):</strong> Per-request GMM/KMeans regime detection over a 10-dim market vector (VIX, VIX 20d avg, Treasury 10Y, HYG/LQD credit-spread proxy, sector ETF correlation, etc.). <code>select_regime_k()</code> picks K=3 or K=4 against minimum state population (≥15%) and temporal flip-rate (≤30%) constraints. Regime probabilities are appended as 11 additional feature columns before scaling and feed all four MLP horizons.
       </div>
       <div class="highlight-box">
-        <strong>Prediction Tracking System status (Phases 2–5 complete):</strong> Every live UI prediction and every DeepMoney sync stock writes a row to <code>prediction_records</code> via <a href="#analytics-recording"><code>recordPrediction()</code></a> (fire-and-forget). <code>/api/analytics/model-accuracy</code> is the read consumer and <code>ModelAccuracyWidget</code> surfaces the result. <strong>Direction accuracy is the headline metric</strong> (per-symbol percentage of resolved predictions whose direction matched the realized price move).
+        <strong>Prediction Tracking System status (Phases 2–5 complete):</strong> Every live UI prediction and every DeepMoney sync stock writes a row to <code>prediction_records</code> via <a href="#analytics-recording"><code>recordPrediction()</code></a> (fire-and-forget). <code>/api/analytics/model-accuracy</code> is the read consumer and <code>ModelAccuracyWidget</code> surfaces the result. <strong>Direction accuracy is the headline metric.</strong>
       </div>
     </section>
 
     <!-- ══════════════════════════════════════════ -->
-    <section id="strategy-integration">
-      <h2><span class="step-num" style="background:#7c3aed;">S</span> Strategy Integration (June 2026)</h2>
+    <section id="lifecycle">
+      <h2><span class="step-num" style="background:var(--purple);">L</span> End-to-End Lifecycle</h2>
       <div class="step-card">
-        <p>A user's investment strategy has two dimensions: <strong>aggressiveness</strong> (<code>safe</code> / <code>neutral</code> / <code>aggressive</code>) and <strong>investment timeframe</strong> (<code>1_week</code> / <code>1_month</code> / <code>6_month</code> / <code>1_year</code>). Both are stored in the <code>user_investment_strategy</code> database table and fetched via <code>getUserStrategy(userId)</code> which falls back to <code>neutral / 1_month</code> if no row exists.</p>
+        <p>The complete path from "user clicks predict" to "row written to <code>user_stock_predictions</code> / <code>stock_gps_scores</code>":</p>
+        <ol style="margin-left:1.5rem;">
+          <li><strong>UI trigger.</strong> User clicks the Predict button in <code>StockPrediction.tsx</code> on <code>/search/[ticker]</code>. The component first fetches enriched data from <code>GET /api/stock_data/[ticker]/data</code>, then posts the resulting JSON body to <code>POST /api/prediction/[ticker]</code>.</li>
+          <li><strong>Guard chain.</strong> The route validates origin, session, approval status, lookup quota, ticker format, body shape (<code>historicalData</code> length ≥ 365 + <code>stockMetrics</code> object), and the <code>outlook</code> query value. Internal calls (<code>x-api-key</code>) skip session + lookup checks.</li>
+          <li><strong>Cache check.</strong> Unless <code>?refresh=true</code> is set, the route consults the in-memory <code>predictionCache</code> at key <code>{ticker}_{outlook}</code>. On a hit, the Python script is skipped entirely — but GPS is still computed live from the cached result because GPS is per-user.</li>
+          <li><strong>Concurrency gate.</strong> If the cache misses, the route acquires a slot from <code>predictionSemaphore</code> (503 Busy if full).</li>
+          <li><strong>Python model.</strong> A temp JSON file is written and <code>scripts/predict_weighted_analysis.py</code> is spawned. The Python script always trains a fresh MLP and returns all four horizons in one call (see <a href="#single-call">Single Call → 4 Horizons</a>). The result includes <code>predicted_price_{1w,1m,6m,1y}</code>, <code>predicted_change_pct_{1w,1m,6m,1y}</code>, <code>confidence_score_{1w,1m,6m,1y}</code>, the 18-month trajectory, accuracy metrics, and regime info.</li>
+          <li><strong>Analytics record.</strong> Immediately after Python returns, <code>recordPrediction()</code> fires once (fire-and-forget) to insert a row into <code>prediction_records</code>.</li>
+          <li><strong>Generic-key backfill + cache write.</strong> The route populates legacy <code>predicted_price</code> / <code>predicted_change_pct</code> / <code>confidence_score</code> keys based on the requested <code>outlook</code> and stores the result in <code>predictionCache</code>.</li>
+          <li><strong>Dual GPS computation.</strong> <code>buildResponse()</code> computes the <strong>neutral 1m baseline GPS</strong> (used for persistence) and the <strong>user-horizon GPS</strong> (returned to the caller). See <a href="#dual-gps">Dual GPS Computation</a>.</li>
+          <li><strong>Async persistence.</strong> <code>savePredictionAsync()</code> POSTs the model output to <code>/api/prediction/save</code> with all four horizon prices, all four per-horizon change percentages, all four per-horizon confidence scores, and the <strong>baseline 1m GPS</strong>. This call is fire-and-forget; the user response does not wait for it.</li>
+          <li><strong>Save route.</strong> <code>/api/prediction/save</code> upserts <code>user_stock_predictions</code> (per-user, prices + per-horizon stats) and upserts <code>stock_gps_scores</code> + appends <code>stock_gps_score_history</code> with the GPS baseline (global, one row per stock).</li>
+          <li><strong>Response.</strong> The caller receives the full model output merged with <code>source</code>, <code>gps_score</code> (horizon-matched), <code>gps_breakdown</code>, and <code>gps_horizon</code>.</li>
+        </ol>
+      </div>
+    </section>
+
+    <section id="strategy-integration">
+      <h2><span class="step-num" style="background:#7c3aed;">S</span> Strategy Integration</h2>
+      <div class="step-card">
+        <p>A user's investment strategy has two dimensions: <strong>aggressiveness</strong> (<code>safe</code> / <code>neutral</code> / <code>aggressive</code>) and <strong>investment timeframe</strong> (<code>1_week</code> / <code>1_month</code> / <code>6_month</code> / <code>1_year</code>). Both are stored in the <code>user_investment_strategy</code> database table and fetched via <code>getUserStrategy(userId)</code> which falls back to <code>DEFAULT_STRATEGY</code> (<code>neutral / 1_month</code>) if no row exists.</p>
 
         <h4>Where strategy affects the prediction pipeline</h4>
         <table>
           <thead><tr><th>Touch point</th><th>How strategy affects it</th></tr></thead>
           <tbody>
-            <tr><td><code>update_predictions.py</code> (batch sync)</td><td>Fetches all user strategies up front. ETF threshold gates (GPS, predChange, confidence) are scaled by the user's <code>envFloorMultiplier</code> and <code>predChangeGate</code>. All four horizon prices are persisted per run.</td></tr>
-            <tr><td><code>POST /api/prediction/[ticker]</code> (live UI)</td><td>For authenticated requests, resolves <code>getUserStrategy(userId)</code> and uses <code>strategy.investment_timeframe</code> to pick the horizon-matched <code>predicted_change_pct_*</code> and <code>confidence_score_*</code> when computing the per-user GPS breakdown. The neutral 1-month GPS is what gets persisted globally; the per-user horizon GPS is returned only in the response.</td></tr>
+            <tr><td><code>update_predictions.py</code> (batch sync)</td><td>Fetches all user strategies up front via <code>get_all_user_strategies()</code>. ETF threshold gates (GPS, predChange, confidence) are scaled by the user's <code>envFloorMultiplier</code> and <code>predChangeGate</code>. All four horizon prices + all eight per-horizon stats are persisted per run.</td></tr>
+            <tr><td><code>POST /api/prediction/[ticker]</code> (live UI)</td><td>For authenticated requests, resolves <code>getUserStrategy(userId)</code> and uses <code>strategy.investment_timeframe</code> to pick the horizon-matched <code>predicted_change_pct_*</code> + <code>confidence_score_*</code> when computing the per-user GPS. The neutral 1m baseline GPS is what gets persisted globally; the per-user horizon GPS is returned only in the response.</td></tr>
             <tr><td><code>GET /api/prediction/deepmoney</code></td><td>Resolves user's timeframe to set <code>outlook</code> passed to <code>analyzeStocks()</code> and the <code>mlGate</code> (minimum predicted change threshold). Cache bucket is per-outlook.</td></tr>
             <tr><td><code>GET /api/dashboard/recommendations</code></td><td>Reads user's timeframe to select predicted_price column. Patches GPS breakdown for horizon. Scales GPS thresholds by aggressiveness. Shifts sell threshold by timeframe.</td></tr>
-            <tr><td><code>GET /api/user/portfolio</code></td><td>Reads user's timeframe to select predicted_price column. Patches GPS breakdown's mlpUpside for horizon via <code>adjustMlpUpsideForHorizon()</code>.</td></tr>
-            <tr><td><code>GET /api/user/watchlist</code></td><td>Same as portfolio — horizon-aware GPS patch applied per item.</td></tr>
+            <tr><td><code>GET /api/user/portfolio</code> &amp; <code>/api/user/watchlist</code></td><td>Read user's timeframe to select predicted_price column. Patch GPS breakdown's mlpUpside for horizon via <code>adjustMlpUpsideForHorizon()</code>.</td></tr>
           </tbody>
         </table>
 
-        <h4>GPS horizon patching</h4>
-        <p>The GPS score is computed globally once and stored in <code>stock_gps_scores</code> using the 1-month predicted change as the <code>mlpUpside</code> component. When a user has a different timeframe set, only the <code>mlpUpside</code> component needs to change — the other 7 components (revenue growth, earnings growth, technicals, analyst upside, analyst consensus, 52-week momentum, AI confidence) are horizon-independent. The <code>adjustMlpUpsideForHorizon(breakdown, horizonDeltaPct)</code> function in <code>src/utils/gps.ts</code> swaps out <code>mlpUpside</code> with the new value computed from <code>horizonDeltaPct / GPS_PREDICTION_MAX × 20</code> and recomputes the total, delivering a personalized GPS score without re-running the full GPS formula.</p>
+        <h4>GPS horizon patching downstream</h4>
+        <p>The baseline GPS persisted globally uses the 1-month predicted change as the <code>mlpUpside</code> component. When a downstream route serves a user whose timeframe is not 1-month, only the <code>mlpUpside</code> component needs to change — the other 7 components (revenue growth, earnings growth, technicals, analyst upside, analyst consensus, 52-week momentum, AI confidence) are horizon-independent. <code>adjustMlpUpsideForHorizon(breakdown, horizonDeltaPct)</code> in <code>src/utils/gps.ts</code> swaps <code>mlpUpside</code> with the new value and recomputes the total.</p>
         <div class="formula">
 // Horizon delta = (predicted_price_horizon - current_price) / current_price * 100
 // adjusted mlpUpside = clamp(horizonDelta / predictionMax, -1, 1) * 20
-// adjusted score = sum of all 8 components with new mlpUpside, clamped [0, 100]</div>
+// adjusted score    = sum of all 8 components with new mlpUpside, clamped [0, 100]</div>
+        <p>Because <code>/api/prediction/save</code> now persists the per-horizon <code>predicted_change_pct_*</code> + <code>confidence_score_*</code> directly, downstream routes can plug the model's own outputs into the GPS formula rather than deriving the delta from possibly-stale price columns.</p>
       </div>
     </section>
 
@@ -238,9 +272,9 @@
       <h2><span class="step-num">1</span> User Interaction</h2>
       <div class="step-card">
         <div class="component-tag">Frontend: StockSignalPanel.tsx + StockPrediction.tsx</div>
-        <p>The prediction workflow is initiated from the single-ticker view (<code>/search/[ticker]</code>). Requires 45 trading days of sequence context. Supports 15-minute server-side caching.</p>
+        <p>The prediction workflow is initiated from the single-ticker view (<code>/search/[ticker]</code>). Requires 45 trading days of sequence context (Python enforces this) and 365 days minimum of history (Node route enforces this). Supports short-lived server-side caching.</p>
 
-        <h4>Prediction Cards (updated v3.3)</h4>
+        <h4>Prediction Cards (v3.3+)</h4>
         <table>
           <thead><tr><th>Card</th><th>Color scheme</th><th>Field</th></tr></thead>
           <tbody>
@@ -274,7 +308,7 @@
           <div class="mini-card"><h4>Insider Transactions</h4><p style="font-size:.82rem;">90-day window: <code>insiderNetSellRatio90d</code> and <code>insiderTxCount90d</code>. Option exercises excluded.</p></div>
           <div class="mini-card"><h4>Macro Series (11 symbols)</h4><p style="font-size:.82rem;">VIX, TNX, sector ETF, HYG, LQD, DXY, SPY, IRX, WTI crude, Copper, Wheat.</p></div>
           <div class="mini-card"><h4>World Bank Macro</h4><p style="font-size:.82rem;">GDP growth, inflation, consumption growth — annual scalars broadcast across all rows.</p></div>
-          <div class="mini-card"><h4>Extended Feature Metrics <span class="new-badge">v3.3</span></h4><p style="font-size:.82rem;">EPS revision velocity, analyst upgrade/downgrade scores, pre/post-market gap %, 52-week positive ratio, institution ownership delta, peer relative strength.</p></div>
+          <div class="mini-card"><h4>Extended Feature Metrics</h4><p style="font-size:.82rem;">EPS revision velocity, analyst upgrade/downgrade scores, pre/post-market gap %, 52-week positive ratio, institution ownership delta, peer relative strength.</p></div>
         </div>
       </div>
     </section>
@@ -285,18 +319,58 @@
       <h2><span class="step-num">3</span> API Gateway &amp; Guards</h2>
       <div class="step-card">
         <div class="component-tag">POST /api/prediction/[ticker] — route.ts</div>
-        <p>Valid <code>outlook</code> values: <code>1_week</code>, <code>1_month</code>, <code>6_month</code>, <code>1_year</code>, <code>all</code>. Default: resolved from user's strategy or <code>all</code> for internal calls.</p>
+        <p>Valid <code>outlook</code> values: <code>1_week</code>, <code>1_month</code>, <code>6_month</code>, <code>1_year</code>, <code>all</code>. Default: <code>all</code>. The outlook only controls which generic-key aliases (<code>predicted_price</code> / <code>predicted_change_pct</code> / <code>confidence_score</code>) get populated and which cache bucket is used — the Python model itself always returns all four horizons.</p>
+
+        <h4>Guard chain (in order)</h4>
         <table>
           <thead><tr><th>Guard</th><th>Behavior</th></tr></thead>
           <tbody>
-            <tr><td>Origin check / session auth</td><td>Internal <code>x-api-key</code> bypasses session requirement</td></tr>
-            <tr><td>Approval guard</td><td>Rejects suspended accounts</td></tr>
-            <tr><td>LimitService lookup quota</td><td>403 LIMIT_EXCEEDED if daily lookup count exceeded</td></tr>
-            <tr><td><code>predictionCache</code> check</td><td>Returns cached result if available. Cache key: <code>{ticker}_{outlook}</code></td></tr>
-            <tr><td>Historical data validation</td><td>422 if fewer than 365 rows</td></tr>
-            <tr><td><code>predictionSemaphore</code></td><td>503 Busy if all slots full</td></tr>
+            <tr><td>Internal request detection</td><td><code>x-api-key</code> matching <code>DEEPMONEY_INTERNAL_SECRET</code> bypasses origin, session, and lookup-quota checks; <code>userId = 'internal'</code>.</td></tr>
+            <tr><td>Origin check</td><td>External calls only — <code>checkOrigin()</code>.</td></tr>
+            <tr><td>Session auth</td><td>External calls only — <code>getServerSession()</code>. 401 if missing.</td></tr>
+            <tr><td>Approval guard</td><td>External calls — rejects suspended accounts.</td></tr>
+            <tr><td>LimitService lookup quota</td><td>External calls — 403 <code>LIMIT_EXCEEDED</code> if daily lookup count exceeded.</td></tr>
+            <tr><td>Ticker validation</td><td><code>tickerSchema.parse()</code> — 400 on invalid format.</td></tr>
+            <tr><td>JSON body parse</td><td>400 on invalid JSON.</td></tr>
+            <tr><td>Historical data validation</td><td>422 if <code>historicalData</code> is missing, non-array, or has fewer than 365 rows.</td></tr>
+            <tr><td>stockMetrics validation</td><td>422 if <code>stockMetrics</code> is missing or non-object.</td></tr>
+            <tr><td><code>predictionCache</code> check</td><td>Skipped when <code>?refresh=true</code>. Cache key: <code>{ticker}_{outlook}</code>. On hit, returns immediately via <code>buildResponse(cached, 'cache')</code> — GPS is still computed live so per-user horizon is correct.</td></tr>
+            <tr><td><code>predictionSemaphore.isFull()</code></td><td>503 <code>Busy</code> if all concurrent prediction slots are full.</td></tr>
           </tbody>
         </table>
+
+        <section id="dual-gps">
+          <h4>Dual GPS Computation <span class="new-badge">v3.4.1</span></h4>
+          <p>After the Python script returns (or a cached result is read), <code>buildResponse()</code> computes <strong>two</strong> GPS scores from the same prediction result:</p>
+          <table>
+            <thead><tr><th>GPS variant</th><th>Inputs</th><th>Used for</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Baseline 1m GPS</strong> (<code>baselineGps</code>)</td><td><code>predicted_change_pct_1m</code> + <code>confidence_score_1m</code></td><td>Persisted globally to <code>stock_gps_scores</code> by <code>savePredictionAsync()</code>. One row per stock; horizon-neutral so the global table stays coherent across users.</td></tr>
+              <tr><td><strong>User-horizon GPS</strong> (<code>computedGps</code>)</td><td><code>predicted_change_pct_{horizon}</code> + <code>confidence_score_{horizon}</code> where <code>{horizon}</code> is resolved from <code>getUserStrategy(userId).investment_timeframe</code></td><td>Returned in the HTTP response as <code>gps_score</code>, <code>gps_breakdown</code>, and <code>gps_horizon</code>. Not persisted.</td></tr>
+            </tbody>
+          </table>
+          <p>The suffix map inside <code>buildResponse()</code> is:</p>
+          <pre><code>{ '1week': '1w', '1month': '1m', '6month': '6m', '1year': '1y' }</code></pre>
+          <p>If the user's timeframe is missing or unrecognised, the function falls back to the 1m fields, meaning the user-horizon GPS equals the baseline GPS for the default <code>neutral / 1_month</code> strategy.</p>
+          <div class="highlight-box"><strong>Internal calls</strong> (<code>userId === 'internal'</code>) skip GPS computation entirely — <code>buildResponse()</code> only computes GPS when <code>!isInternal</code> and the result contains <code>predicted_price_1m</code>. Internal consumers (DeepMoney sync, batch update) compute GPS themselves using <code>calculate_gps_v3()</code> in Python.</div>
+        </section>
+
+        <section id="cache-behavior">
+          <h4>Cache Hit vs Miss Behavior</h4>
+          <table>
+            <thead><tr><th>Step</th><th>Cache hit</th><th>Cache miss</th></tr></thead>
+            <tbody>
+              <tr><td>Python script spawn</td><td>Skipped</td><td>Runs (full ~5–15s training pass)</td></tr>
+              <tr><td><code>recordPrediction()</code> analytics write</td><td>Skipped</td><td>Fires (fire-and-forget)</td></tr>
+              <tr><td>Generic-key backfill</td><td>Skipped (cached result already has them from the original write)</td><td>Runs based on <code>validatedOutlook</code></td></tr>
+              <tr><td>Cache write</td><td>—</td><td>Writes to <code>predictionCache[{ticker}_{validatedOutlook}]</code></td></tr>
+              <tr><td>Baseline + user-horizon GPS computation</td><td>Runs (per-user, always live)</td><td>Runs</td></tr>
+              <tr><td><code>savePredictionAsync()</code> DB persist</td><td><strong>Skipped</strong> (<code>source === 'cache'</code>)</td><td><strong>Fires</strong> (<code>source === 'livedata'</code>)</td></tr>
+              <tr><td>Response <code>source</code> field</td><td><code>"cache"</code></td><td><code>"livedata"</code></td></tr>
+            </tbody>
+          </table>
+          <p>The cache-hit branch deliberately skips persistence: the global GPS row was already written when the cache entry was first computed, so re-writing it on every subsequent hit during the cache lifetime would be wasted work. GPS is still computed live on hits so the response always reflects the calling user's timeframe.</p>
+        </section>
       </div>
     </section>
 
@@ -377,7 +451,7 @@ if beta &gt; 2.5 AND HiRatio_52w &gt; 0.95:
         <section id="algorithm-flow">
           <h4 style="margin-top:1.5rem;">Algorithm Flowchart</h4>
           <div class="step-card" style="background:#f8fafc;border:1px dashed var(--primary);">
-            <p style="text-align:center;">JSON Input &rarr; <strong>118 Feature Engineering</strong><br>&darr;<br>GMM/KMeans Regime Detection (K=3 or 4) &rarr; 11 regime columns appended &rarr; 129 total features<br>&darr;<br>MinMaxScaler &rarr; SEQ_LEN=45 sliding windows &rarr; <strong>4-output MLP Training</strong><br>Targets: [T+1, T+5, T+126, T+252] scaled close values<br>&darr;<br>Deterministic T+5 / T+126 / T+252 inference<br>1-week = 30% MLP T+5 + 70% trajectory interpolation, capped at ±2×ATR×√5<br>&darr;<br>Monte Carlo Dropout (12 passes) &rarr; spread bands only<br>&darr;<br><strong>Heuristic Weighting</strong> (metric_analysis + consumer multiplier + high-beta penalty)<br>&darr;<br>18-month trajectory + JSON Output</p>
+            <p style="text-align:center;">JSON Input &rarr; <strong>118 Feature Engineering</strong><br>&darr;<br>GMM/KMeans Regime Detection (K=3 or 4) &rarr; 11 regime columns appended &rarr; 129 total features<br>&darr;<br>MinMaxScaler &rarr; SEQ_LEN=45 sliding windows &rarr; <strong>4-output MLP Training</strong><br>Targets: [T+1, T+5, T+126, T+252] scaled close values<br>&darr;<br>Deterministic T+5 / T+126 / T+252 inference<br>1-week = 30% MLP T+5 + 70% trajectory interpolation, capped at ±2×ATR×√5<br>&darr;<br>Monte Carlo Dropout (12 passes) &rarr; spread bands only<br>&darr;<br><strong>Heuristic Weighting</strong> (metric_analysis + consumer multiplier + high-beta penalty)<br>&darr;<br>18-month trajectory + JSON Output (all 4 horizons in one response)</p>
           </div>
         </section>
 
@@ -418,6 +492,26 @@ if beta &gt; 2.5 AND HiRatio_52w &gt; 0.95:
               <tr><td>3 — T+252</td><td>~12 months</td><td>Primary anchor for <code>predicted_price_1y</code></td></tr>
             </tbody>
           </table>
+        </section>
+
+        <section id="single-call">
+          <h4>Single Call → All 4 Horizons <span class="updated-badge">documented 2026-06-15</span></h4>
+          <p>The Python script trains the MLP once and runs deterministic inference for every horizon in the same process. Around line 1568 of <code>predict_weighted_analysis.py</code>, the <code>result</code> dict assembled by <code>predict()</code> contains every horizon's price, change %, and confidence score:</p>
+          <pre><code>{
+  "ticker": "AAPL",
+  "regularMarketPrice": 197.45,
+  "predicted_price_1w": 199.10,  "predicted_change_pct_1w": 0.84,  "confidence_score_1w": 72,
+  "predicted_price_1m": 201.30,  "predicted_change_pct_1m": 1.95,  "confidence_score_1m": 69,
+  "predicted_price_6m": 213.40,  "predicted_change_pct_6m": 8.08,  "confidence_score_6m": 64,
+  "predicted_price_1y": 225.80,  "predicted_change_pct_1y": 14.36, "confidence_score_1y": 58,
+  "predicted_range_1w": [...],
+  "monthly_trajectory": [...19 waypoints...],
+  "accuracy_metrics": {...},
+  "regime_info": {...},
+  "metric_analysis": {...},
+  "observability": {...}
+}</code></pre>
+          <p>When the request specifies <code>--outlook</code> other than <code>all</code>, the entry point filters this dict down to the requested horizon (preserving common fields like <code>ticker</code>, <code>regularMarketPrice</code>, <code>data_quality</code>, <code>accuracy_metrics</code>, and <code>regime_info</code>) before printing to stdout. Even so, the Node route's <code>savePredictionAsync()</code> persists from the in-memory <code>result</code> object returned by the Python child process, which still carries all four horizons when <code>outlook=all</code> is used (the typical live-UI path).</p>
         </section>
       </div>
     </section>
@@ -472,25 +566,84 @@ cs1w = min(100, cs1m + 3)</div>
     <section id="step7">
       <h2><span class="step-num">7</span> Persistence Layer</h2>
       <div class="step-card">
-        <div class="component-tag">POST /api/prediction/save — route.ts + src/utils/predictionRecorder.ts</div>
-        <p>After a successful prediction run, the API fires two independent async (fire-and-forget) writes:</p>
+        <div class="component-tag">savePredictionAsync() → POST /api/prediction/save → user_stock_predictions + stock_gps_scores</div>
+        <p>After a successful livedata prediction run, the route fires <strong>two</strong> independent fire-and-forget writes:</p>
         <ul>
-          <li><strong>User-facing save:</strong> <code>POST /api/prediction/save</code> with the neutral 1-month GPS baseline payload. The save payload accepts all four horizon columns (<code>predicted_price_1w / _1m / _6m / _1y</code>) as optional fields — downstream routes pick the correct column per the user's active timeframe.</li>
-          <li><strong>Analytics record:</strong> <code>recordPrediction()</code> (see <a href="#analytics-recording">below</a>) writing one row per (symbol, day) into <code>prediction_records</code>.</li>
+          <li><strong>Analytics record</strong> (always, immediately after Python returns): <code>recordPrediction()</code> inserts one row per <code>(symbol, CURDATE())</code> into <code>prediction_records</code>.</li>
+          <li><strong>User-facing save</strong> (only when <code>source === 'livedata'</code> and a baseline GPS was computed): <code>savePredictionAsync()</code> posts to <code>/api/prediction/save</code> with prices + per-horizon stats + the baseline 1m GPS.</li>
         </ul>
 
-        <h3 id="analytics-recording" style="background:none;padding:0;color:#334155;margin-top:1.5rem;">Analytics Recording (<code>recordPrediction</code>) <span class="new-badge">documented 2026-06-12</span></h3>
+        <section id="save-payload">
+          <h4>savePredictionAsync() — Outgoing Payload <span class="updated-badge">updated 2026-06-15</span></h4>
+          <p>The helper sends a single POST containing every horizon the Python model produced (numbers coerced safely through <code>num()</code> / <code>positive()</code> helpers — invalid values become <code>undefined</code> and are dropped):</p>
+          <pre><code>POST {NEXTAUTH_URL}/api/prediction/save
+Headers: Content-Type, Origin, x-api-key (DEEPMONEY_INTERNAL_SECRET)
+Body:
+{
+  ticker,
+  // Prices
+  predicted_price_1m,                          // required
+  predicted_price_1w,                          // optional, positive only
+  predicted_price_6m,                          // optional, positive only
+  predicted_price_1y,                          // optional, positive only
+  // Per-horizon model outputs (NEW)
+  predicted_change_pct_1w,
+  predicted_change_pct_1m,
+  predicted_change_pct_6m,
+  predicted_change_pct_1y,
+  confidence_score_1w,
+  confidence_score_1m,
+  confidence_score_6m,
+  confidence_score_1y,
+  // Context
+  user_id,                                     // internal-call user
+  gps_score,                                   // baseline 1m GPS
+  gps_breakdown                                // baseline 1m breakdown
+}</code></pre>
+          <div class="highlight-box"><strong>Why all 8 per-horizon stats?</strong> Persisting <code>predicted_change_pct_*</code> and <code>confidence_score_*</code> next to the prices lets the dashboard, portfolio, and watchlist routes recompute horizon-aware GPS using the model's own outputs. Previously they had to derive the horizon delta from <code>predicted_price_horizon − current_price</code>, which becomes inaccurate as the current price drifts between prediction runs.</div>
+        </section>
+
+        <section id="save-route">
+          <h4>POST /api/prediction/save — Zod Schema &amp; Writes</h4>
+          <p>The endpoint accepts the same 8 per-horizon fields as optional on the Zod schema <code>savePredictionSchema</code>:</p>
+          <table>
+            <thead><tr><th>Field</th><th>Zod constraint</th><th>Persisted to</th></tr></thead>
+            <tbody>
+              <tr><td><code>ticker</code></td><td><code>tickerSchema</code></td><td>resolved to <code>stocks.id</code></td></tr>
+              <tr><td><code>predicted_price_1m</code></td><td>required, positive</td><td><code>user_stock_predictions.predicted_price_1m</code></td></tr>
+              <tr><td><code>predicted_price_1w / _6m / _1y</code></td><td>optional, positive</td><td>matching <code>user_stock_predictions</code> column</td></tr>
+              <tr><td><code>predicted_change_pct_{1w,1m,6m,1y}</code></td><td>optional, number</td><td>matching <code>user_stock_predictions.predicted_change_pct_*</code> column <span class="new-badge">new</span></td></tr>
+              <tr><td><code>confidence_score_{1w,1m,6m,1y}</code></td><td>optional, [0,100]</td><td>matching <code>user_stock_predictions.confidence_score_*</code> column <span class="new-badge">new</span></td></tr>
+              <tr><td><code>gps_score</code></td><td>optional, [0,100]</td><td><code>stock_gps_scores.gps_score</code> + append to <code>stock_gps_score_history</code></td></tr>
+              <tr><td><code>gps_breakdown</code></td><td>any</td><td><code>stock_gps_scores.gps_breakdown</code> (JSON)</td></tr>
+              <tr><td><code>macro_features_used</code></td><td>optional, string[]</td><td><code>user_stock_predictions.macro_features_used</code></td></tr>
+              <tr><td><code>consumer_multiplier_applied</code></td><td>optional, number</td><td><code>user_stock_predictions.consumer_multiplier_applied</code></td></tr>
+              <tr><td><code>user_id</code></td><td>required for internal calls only</td><td>upsert key</td></tr>
+            </tbody>
+          </table>
+          <p>Field assignment is <strong>surgical</strong>: each field is only written when present in the payload. A run that produces a 1m price but no 6m price will not clobber an existing <code>predicted_price_6m</code> in the database.</p>
+          <p>Writes:</p>
+          <ol style="margin-left:1.5rem;">
+            <li><strong>Upsert <code>user_stock_predictions</code></strong> (unique key <code>(user_id, stock_id)</code>) — prices + per-horizon stats + <code>last_requested_at</code>.</li>
+            <li><strong>Skip-if-unchanged guard</strong> on the global GPS write: reads current <code>gps_score</code> from <code>stock_gps_scores</code> and only proceeds if it differs at one-decimal precision.</li>
+            <li><strong>Upsert <code>stock_gps_scores</code></strong> (one row per stock) — sets <code>as_of</code>, <code>gps_score</code>, <code>gps_breakdown</code>, <code>source = 'prediction_engine'</code>.</li>
+            <li><strong>Append <code>stock_gps_score_history</code></strong> (<code>INSERT IGNORE</code>) — time-series ledger of every score change.</li>
+            <li><strong>Legacy sync</strong>: <code>UPDATE recommended_stocks</code> for the most recent snapshot_date of this ticker (no-op if absent).</li>
+          </ol>
+        </section>
+
+        <h3 id="analytics-recording" style="background:none;padding:0;color:#334155;margin-top:1.5rem;">Analytics Recording (<code>recordPrediction</code>)</h3>
         <div class="component-tag">src/utils/predictionRecorder.ts → table <code>prediction_records</code></div>
         <p>Every successful live prediction run from <code>POST /api/prediction/[ticker]</code> fires a fire-and-forget call to <code>recordPrediction()</code> immediately after the Python script returns and before the response is sent. The function does a single <code>INSERT IGNORE</code> keyed on <code>(symbol, predicted_at = CURDATE())</code>, so the second prediction for the same ticker on the same calendar day is silently dropped — preserving the "one prediction per symbol per day" semantic the analytics layer depends on.</p>
         <pre><code>INSERT IGNORE INTO prediction_records (
   symbol, predicted_at, price_at_prediction,
   predicted_price_1w, predicted_price_1m, predicted_price_6m, predicted_price_1y
 ) VALUES (?, CURDATE(), ?, ?, ?, ?, ?)</code></pre>
-        <p>The same writer is used by <code>scripts/deepmoney_sync.py</code> (via the Python sibling <code>scripts/prediction_recorder.py</code>) so the analytics table accumulates predictions from both the live UI path and the nightly DeepMoney sync without double-counting same-day duplicates.</p>
+        <p>The same writer is used by <code>scripts/update_predictions.py</code> (via the Python sibling <code>scripts/prediction_recorder.py</code>) so the analytics table accumulates predictions from both the live UI path and the nightly DeepMoney sync without double-counting same-day duplicates.</p>
         <p><strong>Downstream consumers:</strong></p>
         <ul>
           <li><code>GET /api/analytics/model-accuracy</code> — joins <code>prediction_records</code> with realized-price snapshots and exposes per-symbol direction accuracy, MAPE, hit rate, and sample size.</li>
-          <li><code>ModelAccuracyWidget</code> — surfaces the headline <strong>direction accuracy</strong> metric (Phases 2–5 of the Prediction Tracking System are complete).</li>
+          <li><code>ModelAccuracyWidget</code> — surfaces the headline <strong>direction accuracy</strong> metric.</li>
           <li><code>scripts/resolve_predictions.py</code> — backfills realized prices once each horizon matures.</li>
         </ul>
       </div>
@@ -503,28 +656,46 @@ cs1w = min(100, cs1m + 3)</div>
       <h2><span class="step-num">8</span> update_predictions.py — Batch Portfolio Sync</h2>
       <div class="step-card">
         <div class="component-tag">scripts/update_predictions.py</div>
-        <p>This cron-scheduled Python script is the backbone of the offline prediction pipeline. It runs independently of the Node.js server and produces the data that the recommendations and GPS endpoints serve.</p>
+        <p>This cron-scheduled Python script is the offline backbone of the prediction pipeline. It runs independently of any user request and produces the data that the recommendations and GPS endpoints serve.</p>
 
         <h4>What it does (high level)</h4>
         <ul>
           <li>Queries active portfolio and watchlist positions for users who logged in within the last 7 days.</li>
-          <li>For each unique ticker, fetches enriched data from <code>GET /api/stock_data/{ticker}/data</code> and runs the Python prediction model via <code>POST /api/prediction/{ticker}?outlook=1_month</code>.</li>
-          <li>Computes GPS v3.0 scores locally using the same formula as <code>src/utils/gps.ts</code> (mirrored Python implementation).</li>
-          <li>Persists all four horizon prices (<code>predicted_price_1w / _1m / _6m / _1y</code>) to <code>user_stock_predictions</code> via <code>POST /api/prediction/save</code>.</li>
+          <li>For each unique ticker, fetches enriched data from <code>GET /api/stock_data/{ticker}/data</code> and runs the Python prediction model via <code>POST /api/prediction/{ticker}?outlook=...</code> (one call per timeframe, results merged).</li>
+          <li>Computes GPS v3.0 scores locally using <code>calculate_gps_v3()</code>, the Python mirror of <code>src/utils/gps.ts</code>.</li>
+          <li>Persists all four horizon prices and all eight per-horizon stats to <code>user_stock_predictions</code> via <code>POST /api/prediction/save</code>.</li>
+          <li>Records to <code>prediction_records</code> via <code>record_prediction()</code> (Python sibling of <code>recordPrediction</code>).</li>
           <li>Scans each user's ETF positions for hot holdings and saves qualifying recommendations to <code>etf_stock_recommendations</code>.</li>
         </ul>
 
         <h4>Prediction caching across users</h4>
-        <p>The script maintains a module-level <code>prediction_cache</code> dictionary keyed by ticker. When multiple users share the same stock, the expensive prediction model run happens only once. GPS inputs are stored in the cache entry alongside the raw results so they can be reused without recomputing them.</p>
+        <p>The script maintains a module-level <code>prediction_cache</code> dictionary keyed by ticker. When multiple users share the same stock, the expensive prediction model run happens only once. GPS inputs are stored in the cache entry alongside the raw results so they can be reused without recomputing.</p>
 
-        <div class="highlight-box"><strong>GPS v3.0 mirror:</strong> The Python implementation of <code>calculate_gps_v3()</code> at the top of <code>update_predictions.py</code> is a direct mirror of <code>calculateGpsScore()</code> in <code>src/utils/gps.ts</code>. Both use the same 8-component model with identical coefficients and clamping logic. When GPS v3.0 changes, both files must be kept in sync.</div>
+        <div class="highlight-box"><strong>GPS v3.0 mirror:</strong> <code>calculate_gps_v3()</code> at the top of <code>update_predictions.py</code> is a direct mirror of <code>calculateGpsScore()</code> in <code>src/utils/gps.ts</code>. Both use the same 8-component model with identical coefficients and clamping logic. When GPS v3.0 changes, both files must be kept in sync.</div>
+
+        <section id="batch-horizon-fields">
+          <h4>Per-Horizon Persistence in <code>save_prediction()</code> <span class="updated-badge">updated 2026-06-15</span></h4>
+          <p>The function signature now accepts the full set of per-horizon kwargs:</p>
+          <pre><code>save_prediction(
+  ticker, predicted_price, user_id,
+  gps_score=None, gps_breakdown=None,
+  predicted_price_1w=None, predicted_price_6m=None, predicted_price_1y=None,
+  predicted_change_pct_1w=None, predicted_change_pct_1m=None,
+  predicted_change_pct_6m=None, predicted_change_pct_1y=None,
+  confidence_score_1w=None,     confidence_score_1m=None,
+  confidence_score_6m=None,     confidence_score_1y=None,
+)</code></pre>
+          <p>Each kwarg is only added to the outbound JSON payload when it is non-<code>None</code>, mirroring the surgical-upsert behavior of the save route on the receiving side. Both the fresh-prediction branch and the cached-prediction branch in <code>sync_portfolio_predictions()</code> read these fields and pass them through.</p>
+          <p>The cache sentinel <code>_empty_cache_entry()</code> was updated to include the eight per-horizon keys so a failed fetch still produces a dict whose <code>.get()</code> calls return <code>None</code> rather than <code>KeyError</code>.</p>
+        </section>
 
         <h4>Step-by-step flow</h4>
         <ol style="margin-left:1.5rem;margin-bottom:1rem;">
           <li style="margin-bottom:.5rem;">Connect to MySQL. Execute <code>ACTIVE_PORTFOLIO_QUERY</code> — joins <code>users</code>, <code>user_stocks</code>, <code>stocks</code>. Filters <code>last_login &gt;= NOW() - INTERVAL 7 DAY</code>, <code>is_active = 1</code>, <code>user_confirmed = 1</code>, and either <code>is_purchased = 1 AND shares &gt; 0</code> (portfolio) or <code>is_purchased = 0</code> (watchlist).</li>
           <li style="margin-bottom:.5rem;">Batch-fetch all user strategies via <code>get_all_user_strategies(cursor, user_ids)</code>. This loads each user's <code>aggressiveness</code> and <code>investment_timeframe</code> for later use in ETF gate calculation.</li>
-          <li style="margin-bottom:.5rem;">For each row: check prediction_cache. If miss, call <code>fetch_stock_data(ticker)</code> and <code>run_prediction(ticker, stock_data)</code>. Compute GPS. Store in cache.</li>
-          <li style="margin-bottom:.5rem;">Call <code>save_prediction()</code> with all four horizon prices and GPS data.</li>
+          <li style="margin-bottom:.5rem;">For each row: check <code>prediction_cache</code>. If miss, call <code>fetch_stock_data(ticker)</code> and <code>run_prediction(ticker, stock_data)</code>. Extract all 8 per-horizon stats. Compute GPS v3.0. Store everything in cache.</li>
+          <li style="margin-bottom:.5rem;">Call <code>save_prediction()</code> with all four horizon prices + all 8 per-horizon stats + GPS data.</li>
+          <li style="margin-bottom:.5rem;">Call <code>record_prediction()</code> to write to <code>prediction_records</code>.</li>
           <li style="margin-bottom:.5rem;">ETF Holdings Scan (see below).</li>
           <li style="margin-bottom:.5rem;"><code>conn.commit()</code> to flush direct GPS writes. Close DB connections.</li>
         </ol>
@@ -545,13 +716,13 @@ cs1w = min(100, cs1m + 3)</div>
       </section>
 
       <section id="strategy-gates-etf">
-        <h3>Strategy-Aware ETF Gates <span class="updated-badge">updated 2026-06-09</span></h3>
+        <h3>Strategy-Aware ETF Gates</h3>
         <div class="step-card">
-          <p>ETF holding thresholds are not one-size-fits-all. They are computed per user using three layers:</p>
+          <p>ETF holding thresholds are computed per user using three layers:</p>
           <ol style="margin-left:1.5rem;">
             <li style="margin-bottom:.5rem;"><strong>Environment baseline:</strong> <code>ETF_HOLDING_GPS_SURFACE_VALUE</code> (default 60), <code>ETF_HOLDING_MIN_PRED_CHANGE</code> (default 1.5%), <code>ETF_HOLDING_MIN_CONFIDENCE</code> (default 60).</li>
             <li style="margin-bottom:.5rem;"><strong>Aggressiveness multiplier</strong> from <code>resolve_strategy(user_strategy)</code>: <code>safe=1.05</code>, <code>neutral=1.0</code>, <code>aggressive=0.95</code>. Applied to all three baseline thresholds. Safe users require higher scores; aggressive users accept lower scores.</li>
-            <li style="margin-bottom:.5rem;"><strong>Predicted-change floor:</strong> <code>max(env_pred_threshold * mult, gates['predChangeGate'])</code>. This means if the strategy's own absolute gate (safe=3%, neutral=1.5%, aggressive=0.5%) is stricter than the env-scaled baseline, it takes priority.</li>
+            <li style="margin-bottom:.5rem;"><strong>Predicted-change floor:</strong> <code>max(env_pred_threshold * mult, gates['predChangeGate'])</code>. If the strategy's own absolute gate (safe=3%, neutral=1.5%, aggressive=0.5%) is stricter than the env-scaled baseline, it takes priority.</li>
           </ol>
           <div class="formula">
 gps_threshold  = ETF_HOLDING_GPS_SURFACE_VALUE * mult
@@ -575,9 +746,10 @@ conf_threshold = ETF_HOLDING_MIN_CONFIDENCE * mult
       <h2>Cache Architecture</h2>
       <div class="step-card">
         <ul>
-          <li><strong>Result cache (v2):</strong> keyed by <code>MD5(ticker + last_date + data_len + "v2")</code>. Full prediction JSON stored as <code>{key}.json</code>. Bumping <code>CACHE_SCHEMA_VERSION</code> constant invalidates all stale caches automatically.</li>
-          <li><strong>Feature cache:</strong> full feature DataFrame stored as <code>{ticker}_features_df.pkl</code>. Incremental updates only recompute new rows.</li>
-          <li><strong>Server-side in-memory cache:</strong> <code>predictionCache</code> keyed by <code>{ticker}_{outlook}</code>. Bypassed by <code>?refresh=true</code>.</li>
+          <li><strong>Python result cache (v2):</strong> keyed by <code>MD5(ticker + last_date + data_len + "v2")</code>. Full prediction JSON stored as <code>{key}.json</code> on disk. Bumping <code>CACHE_SCHEMA_VERSION</code> invalidates all stale caches automatically.</li>
+          <li><strong>Python feature cache:</strong> full feature DataFrame stored as <code>{ticker}_features_df.pkl</code>. Incremental updates only recompute new rows.</li>
+          <li><strong>Node in-memory cache:</strong> <code>predictionCache</code> (defined in <code>src/utils/cache.ts</code>) keyed by <code>{ticker}_{outlook}</code>. Short-lived (TTL constant in <code>cache.ts</code>; ≈ 15 minutes by design). Bypassed by <code>?refresh=true</code>. The cached entry includes every horizon's price, change %, and confidence score so user-horizon GPS can be recomputed on subsequent calls without re-running Python.</li>
+          <li><strong>Batch script in-process cache:</strong> the <code>prediction_cache</code> dict inside <code>update_predictions.py</code> lives only for the duration of one sync run. Keyed by ticker; entries include all 8 per-horizon stats and the GPS result so multiple users sharing a ticker each get the right values without re-running the model.</li>
         </ul>
         <p>CPU throttled via environment variables (<code>OMP_NUM_THREADS=1</code>, etc.) and <code>os.nice(15)</code>.</p>
       </div>
@@ -586,7 +758,19 @@ conf_threshold = ETF_HOLDING_MIN_CONFIDENCE * mult
     <section id="changelog">
       <h2>Recent Changes</h2>
       <div class="step-card">
-        <h4>2026-06-12 — Analytics &amp; Tracking documentation refresh</h4>
+        <h4>2026-06-15 — Dual-GPS &amp; full horizon persistence</h4>
+        <table>
+          <thead><tr><th>File</th><th>Change</th></tr></thead>
+          <tbody>
+            <tr><td><code>src/app/api/prediction/[ticker]/route.ts</code></td><td><code>buildResponse()</code> now computes both a <strong>1m baseline GPS</strong> (persisted globally) and a <strong>user-horizon GPS</strong> (returned in the response). The user's <code>investment_timeframe</code> is resolved via <code>getUserStrategy(userId)</code> and the matching <code>predicted_change_pct_*</code> + <code>confidence_score_*</code> are plugged into <code>calculateGpsScore()</code>.</td></tr>
+            <tr><td><code>src/app/api/prediction/[ticker]/route.ts</code></td><td><code>savePredictionAsync()</code> forwards all four horizon prices, all four <code>predicted_change_pct_*</code>, and all four <code>confidence_score_*</code> to <code>/api/prediction/save</code>. Numbers coerced via <code>num()</code> / <code>positive()</code>; invalid values drop out.</td></tr>
+            <tr><td><code>src/app/api/prediction/save/route.ts</code></td><td>Zod schema <code>savePredictionSchema</code> extended with 8 new optional fields: <code>predicted_change_pct_{1w,1m,6m,1y}</code> and <code>confidence_score_{1w,1m,6m,1y}</code> (the latter constrained to <code>[0,100]</code>). All are persisted to <code>user_stock_predictions</code> via the surgical-assignment branch.</td></tr>
+            <tr><td><code>scripts/update_predictions.py</code></td><td><code>save_prediction()</code> signature extended with 8 new per-horizon kwargs. The fresh-prediction branch captures all 8 stats from the Python result; the cached-prediction branch reads them from <code>prediction_cache</code>. <code>_empty_cache_entry()</code> updated to include the 8 keys.</td></tr>
+            <tr><td>Lifecycle docs</td><td>End-to-end lifecycle section added; cache hit/miss table; single-call → 4-horizons section; per-horizon persistence section; <code>savePredictionAsync</code> payload spec; <code>/api/prediction/save</code> Zod schema documented.</td></tr>
+          </tbody>
+        </table>
+
+        <h4 style="margin-top:2rem;">2026-06-12 — Analytics &amp; Tracking documentation refresh</h4>
         <table>
           <thead><tr><th>File</th><th>Change</th></tr></thead>
           <tbody>
@@ -601,20 +785,14 @@ conf_threshold = ETF_HOLDING_MIN_CONFIDENCE * mult
           <thead><tr><th>File</th><th>Change</th></tr></thead>
           <tbody>
             <tr><td><code>scripts/update_predictions.py</code></td><td>Added <code>strategy_config</code> module import. Batch-fetches all user strategies at startup. ETF holding gates now scaled per user via <code>resolve_strategy()</code> aggressiveness multiplier and predChangeGate floor.</td></tr>
-            <tr><td><code>scripts/update_predictions.py</code></td><td>All four horizon prices (<code>predicted_price_1w / _1m / _6m / _1y</code>) now persisted to <code>user_stock_predictions</code> via <code>save_prediction()</code>. Recommendations route can then read the correct column per user's timeframe.</td></tr>
+            <tr><td><code>scripts/update_predictions.py</code></td><td>All four horizon prices (<code>predicted_price_1w / _1m / _6m / _1y</code>) now persisted to <code>user_stock_predictions</code>.</td></tr>
             <tr><td><code>scripts/update_predictions.py</code></td><td>Added <code>calculate_gps_v3()</code> Python mirror function (GPS v3.0, 8 components, 100 pts) — kept in sync with <code>src/utils/gps.ts</code>.</td></tr>
             <tr><td><code>src/app/api/user/portfolio/route.ts</code></td><td>Reads <code>getUserStrategy()</code> to select predicted_price horizon column; calls <code>adjustMlpUpsideForHorizon()</code> per item. Returns <code>gpsHorizon</code> field.</td></tr>
-            <tr><td><code>src/app/api/user/watchlist/route.ts</code></td><td>Same horizon-aware GPS patch as portfolio route. Returns <code>gpsHorizon</code> field.</td></tr>
-            <tr><td><code>src/app/api/user/profile/route.ts</code></td><td>GET now returns <code>strategy</code> object. PATCH endpoint added to update aggressiveness and/or investment_timeframe. Both nested and flat request body shapes accepted.</td></tr>
+            <tr><td><code>src/app/api/user/watchlist/route.ts</code></td><td>Same horizon-aware GPS patch as portfolio route.</td></tr>
             <tr><td><code>src/app/api/dashboard/recommendations/route.ts</code></td><td>Full strategy-aware GPS thresholds. Aggressiveness multiplier applied to buy/discovery thresholds. Timeframe shift applied to sell threshold. predChangeGate scaled by timeframe multiplier. mlpUpside patched per horizon.</td></tr>
-            <tr><td><code>src/app/api/dashboard/deepmoney-picks/route.ts</code></td><td>Reads user's timeframe to populate <code>timeframe</code> and <code>timeframe_label</code> fields in response for UI labeling.</td></tr>
             <tr><td><code>src/app/api/prediction/deepmoney/route.ts</code></td><td>Resolves user's strategy to set <code>outlook</code> and <code>mlGate</code> forwarded to <code>analyzeStocks()</code>. Cache bucket keyed by outlook.</td></tr>
-            <tr><td><code>src/utils/strategy.ts</code></td><td>New file. Single source of truth for <code>AGGRESSIVENESS_GATES</code> and <code>TIMEFRAME_CONFIG</code> tables. Exports <code>getUserStrategy()</code>, <code>resolveStrategy()</code>, <code>isValidAggressiveness()</code>, <code>isValidTimeframe()</code>, <code>DEFAULT_STRATEGY</code>.</td></tr>
+            <tr><td><code>src/utils/strategy.ts</code></td><td>Single source of truth for <code>AGGRESSIVENESS_GATES</code> and <code>TIMEFRAME_CONFIG</code>. Exports <code>getUserStrategy()</code>, <code>resolveStrategy()</code>, <code>DEFAULT_STRATEGY</code>.</td></tr>
             <tr><td><code>src/utils/gps.ts</code></td><td>Added <code>adjustMlpUpsideForHorizon(breakdown, predictedChangePctForHorizon)</code> function.</td></tr>
-            <tr><td><code>src/types/api.ts</code></td><td>Added <code>ProfileStrategy</code>, <code>InvestmentTimeframe</code>, and updated <code>ProfileResponse</code> to include <code>strategy</code> field.</td></tr>
-            <tr><td><code>src/types/dashboard.ts</code></td><td>Added <code>gpsHorizon</code> field to <code>DashboardRecommendation</code>.</td></tr>
-            <tr><td><code>src/app/components/cards/types.ts</code></td><td>Added <code>gpsHorizon</code> optional field to <code>DeepmoneyCard</code>, <code>PortfolioCard</code>, and <code>WatchlistCard</code>.</td></tr>
-            <tr><td><code>src/app/components/modals/GpsBreakdownModal.tsx</code></td><td>Added <code>horizon</code> prop. ML Prediction row label shows active horizon abbreviation, e.g. "ML Prediction (6m)".</td></tr>
           </tbody>
         </table>
 

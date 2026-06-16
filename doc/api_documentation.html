@@ -97,7 +97,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">API Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-12</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-15</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -163,7 +163,7 @@
       <span>GrowMyStocks</span>
       <span>Next.js 14 App Router</span>
       <span>35+ routes documented</span>
-      <span>Updated 2026-06-12</span>
+      <span>Updated 2026-06-15</span>
     </div>
 
     <div class="summary-grid">
@@ -173,7 +173,7 @@
       <div class="stat-card"><div class="value">6h</div><div class="label">Max Cache TTL</div></div>
     </div>
 
-    <div class="updated"><strong>June 2026 changes summary:</strong> Several user endpoints now consume <code>getUserStrategy()</code> to read the user's <code>aggressiveness</code> and <code>investment_timeframe</code> from <code>user_investment_strategy</code>. Portfolio, watchlist, and recommendations routes select the appropriate predicted-price column (<code>predicted_price_1w / _1m / _6m / _1y</code>) and dynamically patch the GPS breakdown's <code>mlpUpside</code> component to match that horizon. The profile endpoint now returns a <code>strategy</code> object and accepts PATCH requests to update it. A new <code>/api/analytics/model-accuracy</code> endpoint exposes a MAPE-style accuracy headline that powers the dashboard's <code>ModelAccuracyWidget</code>. The prediction route now fires <code>recordPrediction()</code> to log every fresh prediction into <code>prediction_records</code> for later resolution. Dashboard ETF holding recommendations are now scoped to the <em>latest</em> <code>snapshot_date</code> per user instead of a rolling 7-day window. See the <a href="strategy_system.html">Strategy System</a> doc for the full strategy model.</div>
+    <div class="updated"><strong>June 2026 changes summary:</strong> Horizon-aware response shapes are now standard across <code>/api/user/portfolio</code>, <code>/api/user/watchlist</code>, and <code>/api/dashboard/recommendations</code> — each returns a top-level <code>horizonLabel</code> matching the user's <code>investment_timeframe.shortLabel</code>. Portfolio and watchlist rows additionally expose <code>predicted_price_horizon</code>, <code>predicted_change_pct_horizon</code>, and <code>confidence_score_horizon</code> picked from the per-horizon columns in <code>user_stock_predictions</code>. <code>POST /api/prediction/save</code> accepts 8 new optional fields (<code>predicted_change_pct_{1w,1m,6m,1y}</code> and <code>confidence_score_{1w,1m,6m,1y}</code>) and writes them to <code>user_stock_predictions</code>; <code>POST /api/prediction/[ticker]</code> now forwards all 4 horizons of prices + 4 change_pct + 4 confidence to <code>/api/prediction/save</code> via <code>savePredictionAsync</code>. The user profile endpoint accepts PATCH to update the strategy. A new <code>/api/analytics/model-accuracy</code> endpoint powers the dashboard's <code>ModelAccuracyWidget</code>. See the <a href="strategy_system.html">Strategy System</a> doc for the full strategy model.</div>
 
     <div class="info">All routes are Next.js App Router Route Handlers (<code>route.ts</code> files). All authenticated routes validate the NextAuth JWT session. The <code>checkOrigin()</code> middleware is applied to most mutation endpoints. An internal bypass using the <code>x-api-key</code> header allows server-to-server calls. All authenticated data endpoints call <code>checkApprovalGuard(userId)</code> to re-verify approval status against the database on every request.</div>
 
@@ -289,14 +289,17 @@
           <span class="method method-GET">GET</span>
           <span class="route-path">/api/user/portfolio</span>
           <span class="badge badge-auth">Auth required</span>
-          <span class="badge badge-new">Updated 2026-06-09</span>
+          <span class="badge badge-new">Updated 2026-06-15</span>
           <span class="route-file">src/app/api/user/portfolio/route.ts</span>
         </div>
         <div class="route-desc">Returns the authenticated user's full portfolio enriched with live market data. Queries <code>user_stocks</code> joined with <code>stocks</code>, <code>user_stock_predictions</code>, <code>stock_gps_scores</code>, and <code>stock_brand</code>.</div>
-        <div class="updated"><strong>Horizon-aware GPS (June 2026):</strong> The route reads the user's <code>investment_timeframe</code> via <code>getUserStrategy()</code> and selects the matching predicted-price column (<code>predicted_price_1w</code>, <code>_1m</code>, <code>_6m</code>, or <code>_1y</code>) as <code>predicted_price_horizon</code>. It then calls <code>adjustMlpUpsideForHorizon(breakdown, horizonDeltaPct)</code> to patch the cached 1-month GPS breakdown's <code>mlpUpside</code> component to reflect the user's actual horizon, recomputing the total GPS score. The original 7 non-prediction components pass through unchanged. The response also includes <code>gpsHorizon</code> (the active timeframe string) so the UI can label the breakdown correctly.</div>
-        <div class="sub-heading">SQL pattern (dynamic column)</div>
+        <div class="updated"><strong>Horizon-aware response (June 2026):</strong> The route reads the user's <code>investment_timeframe</code> via <code>getUserStrategy()</code>, resolves it to a column suffix (<code>1w</code> / <code>1m</code> / <code>6m</code> / <code>1y</code>), and exposes three horizon-keyed columns on every row: <code>predicted_price_horizon</code>, <code>predicted_change_pct_horizon</code>, and <code>confidence_score_horizon</code> (all selected from the matching <code>user_stock_predictions</code> columns with <code>predicted_price_1m</code> as a price fallback). It then calls <code>adjustGpsForHorizon(breakdown, changePct, confidence)</code> to patch the cached 1-month GPS breakdown's <code>mlpUpside</code> component using the model's persisted per-horizon change/confidence (with a price-derived delta as a last-resort fallback for legacy rows). The top-level response now includes <code>horizonLabel</code> (from <code>timeframeConfig.shortLabel</code>) so the UI can label the breakdown correctly, alongside <code>gpsHorizon</code> on each row.</div>
+        <div class="sub-heading">SQL pattern (dynamic columns by timeframe suffix)</div>
         <pre>SELECT
+  usp.predicted_price_1m,
   COALESCE(usp.{priceColumn}, usp.predicted_price_1m) AS predicted_price_horizon,
+  usp.predicted_change_pct_{sfx}     AS predicted_change_pct_horizon,
+  usp.confidence_score_{sfx}         AS confidence_score_horizon,
   sgs.gps_score,
   sgs.gps_breakdown
 FROM user_stocks us
@@ -315,15 +318,20 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
       "average_cost_basis": number,
       "regularMarketPrice": number,
       "prev_close": number | null,
-      "gpsScore": number | null,          // horizon-patched
-      "gpsBreakdown": object | null,      // horizon-patched
-      "gpsHorizon": string,               // e.g. "1_month"
+      "predicted_price_1m": number | null,
+      "predicted_price_horizon":    number | null,   // selected per user's timeframe
+      "predicted_change_pct_horizon": number | null, // from usp.predicted_change_pct_{sfx}
+      "confidence_score_horizon":   number | null,   // from usp.confidence_score_{sfx}
+      "gpsScore":     number | null,                 // horizon-patched
+      "gpsBreakdown": object | null,                 // horizon-patched
+      "gpsHorizon":   string,                        // e.g. "6_month"
       "brand_color": string | null,
       "is_etf": boolean,
       "recommendationKey": string | null,
       "sector": string | null
     }
   ],
+  "horizonLabel": string,                            // e.g. "in 6 months" — from timeframeConfig.shortLabel
   "totals": {
     "costBasis": number,
     "marketValue": number,
@@ -338,6 +346,13 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
   "ratings": [ { "symbol": string, "primary": string, "score": number | null, "count": number | null } ],
   "asOf": string
 }</pre>
+        <div class="dep-list">
+          <span class="dep-tag">getUserStrategy</span>
+          <span class="dep-tag">resolveStrategy</span>
+          <span class="dep-tag">adjustGpsForHorizon</span>
+          <span class="dep-tag">user_stock_predictions (DB)</span>
+          <span class="dep-tag">stock_gps_scores (DB)</span>
+        </div>
       </div>
 
       <div class="route-card">
@@ -366,16 +381,49 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
           <span class="method method-DELETE">DELETE</span>
           <span class="route-path">/api/user/watchlist</span>
           <span class="badge badge-auth">Auth required</span>
-          <span class="badge badge-new">Updated 2026-06-09</span>
+          <span class="badge badge-new">Updated 2026-06-15</span>
           <span class="route-file">src/app/api/user/watchlist/route.ts</span>
         </div>
         <div class="sub-heading">GET — Horizon-aware GPS</div>
-        <div class="route-desc">Returns all watchlist items with live Yahoo Finance prices and 6-month moving average. As of June 2026, the GPS breakdown is patched to the user's active investment timeframe using the same <code>adjustMlpUpsideForHorizon()</code> approach as the portfolio route. The response includes <code>gpsHorizon</code> so the card can label the prediction correctly (e.g., "Predicted +4.2% in 6 months").</div>
+        <div class="route-desc">Returns all watchlist items with live Yahoo Finance prices and a 6-month moving average computed from <code>stocksdailyprice</code>. The GPS breakdown is patched to the user's active investment timeframe using <code>adjustGpsForHorizon()</code> with the model's persisted per-horizon change% and confidence (with a price-derived delta as a last-resort fallback). The top-level response now includes <code>horizonLabel</code> from <code>timeframeConfig.shortLabel</code> so the watchlist card can label the prediction correctly.</div>
+        <div class="sub-heading">GET Response shape</div>
+        <pre>{
+  "watchlist": [
+    {
+      "stock_id":     number,
+      "symbol":       string,
+      "company_name": string,
+      "shares":       number,
+      "purchase_price": number,
+      "is_purchased": 0,
+      "ma6_month":    number | null,
+      "regularMarketPrice": number,
+      "prev_close":   number | null,
+      "predicted_price_1m":        number | null,
+      "predicted_price_horizon":   number | null,    // selected per user's timeframe
+      "predicted_change_pct_horizon": number | null, // from usp.predicted_change_pct_{sfx}
+      "confidence_score_horizon":  number | null,    // from usp.confidence_score_{sfx}
+      "recommendationKey":         string | null,
+      "numberOfAnalystOpinions":   number | null,
+      "gpsScore":     number | null,                 // horizon-patched
+      "gpsBreakdown": object | null,                 // horizon-patched
+      "gpsHorizon":   string                         // e.g. "6_month"
+    }
+  ],
+  "horizonLabel": string                             // e.g. "in 6 months" — top-level
+}</pre>
         <div class="sub-heading">POST Body (Zod validated)</div>
         <pre>{ "ticker": "string", "name": "string" }</pre>
-        <div class="route-desc">Adds a stock to the watchlist (<code>is_purchased = 0</code>). Checks the user's watchlist item limit via <code>LimitService</code> before inserting.</div>
+        <div class="route-desc">Adds a stock to the watchlist (<code>is_purchased = 0</code>). Checks the user's watchlist item limit via <code>LimitService</code> before inserting. Captures the current Yahoo Finance price into <code>purchase_price</code> so the UI can show a "Price When Added" delta later.</div>
         <div class="sub-heading">DELETE ?stockId=</div>
-        <div class="route-desc">Removes the specified stock (by symbol) from the watchlist. Validates ownership before deletion.</div>
+        <div class="route-desc">Removes the specified stock (by symbol — the <code>stockId</code> query param is actually a ticker) from the watchlist. Validates ownership before deletion.</div>
+        <div class="dep-list">
+          <span class="dep-tag">getUserStrategy</span>
+          <span class="dep-tag">resolveStrategy</span>
+          <span class="dep-tag">adjustGpsForHorizon</span>
+          <span class="dep-tag">LimitService</span>
+          <span class="dep-tag">user_stock_predictions (DB)</span>
+        </div>
       </div>
 
       <div class="route-card">
@@ -492,12 +540,13 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
           <span class="method method-GET">GET</span>
           <span class="route-path">/api/dashboard/recommendations</span>
           <span class="badge badge-auth">Auth required</span>
-          <span class="badge badge-new">Updated 2026-06-12</span>
+          <span class="badge badge-new">Updated 2026-06-15</span>
           <span class="route-file">src/app/api/dashboard/recommendations/route.ts</span>
         </div>
         <div class="route-desc">Aggregates GPS-scored predictions across four scopes — <strong>portfolio</strong>, <strong>watchlist</strong>, <strong>discovery</strong>, and <strong>etf_holding</strong> — and returns BUY/SELL recommendations sorted by GPS score descending. BUY/SELL action is determined purely by GPS thresholds and the user's strategy, not by delta percentage alone.</div>
-        <div class="updated"><strong>Latest-snapshot ETF holdings (June 12, 2026):</strong> The ETF holding recommendations sub-query now selects only rows where <code>snapshot_date = (SELECT MAX(snapshot_date) FROM etf_stock_recommendations WHERE user_id = ?)</code>, replacing the prior rolling 7-day window. This mirrors the deepmoney-picks pattern and prevents stale picks from earlier <code>update_predictions.py</code> runs from leaking into the current card list. Per-user strategy, GPS thresholds, macro adjustment, and the <code>etf_holding</code> scope behavior are otherwise unchanged.</div>
-        <div class="updated"><strong>Strategy-aware GPS (June 2026):</strong> All GPS thresholds are multiplied by the user's <code>envFloorMultiplier</code> (safe=1.05, neutral=1.0, aggressive=0.95). The sell threshold additionally shifts by <code>sellThresholdShift</code> (longer horizons tolerate more dip before a sell signal). The predicted-change gate is the strategy's <code>predChangeGate</code> multiplied by <code>predChangeMultiplier</code> (longer horizons require a larger absolute move). The GPS breakdown's <code>mlpUpside</code> component is patched to the user's horizon via <code>adjustMlpUpsideForHorizon()</code>, yielding a per-user GPS score rather than the cached 1-month baseline.</div>
+        <div class="updated"><strong>Top-level horizonLabel (June 15, 2026):</strong> The response now includes a top-level <code>horizonLabel</code> string matching the user's <code>investment_timeframe.shortLabel</code> (e.g. <code>"in 6 months"</code>). This lets the dashboard recommendation cards render a single horizon caption without re-resolving the strategy client-side.</div>
+        <div class="updated"><strong>Latest-snapshot ETF holdings (June 12, 2026):</strong> The ETF holding recommendations sub-query selects only rows where <code>snapshot_date = (SELECT MAX(snapshot_date) FROM etf_stock_recommendations WHERE user_id = ?)</code>, replacing the prior rolling 7-day window. This mirrors the deepmoney-picks pattern and prevents stale picks from earlier <code>update_predictions.py</code> runs from leaking into the current card list.</div>
+        <div class="updated"><strong>Strategy-aware GPS (June 2026):</strong> All GPS thresholds are multiplied by the user's <code>envFloorMultiplier</code> (safe=1.05, neutral=1.0, aggressive=0.95). The sell threshold additionally shifts by <code>sellThresholdShift</code> (longer horizons tolerate more dip before a sell signal). The predicted-change gate is the strategy's <code>predChangeGate</code> multiplied by <code>predChangeMultiplier</code> (longer horizons require a larger absolute move). The GPS breakdown's <code>mlpUpside</code> component is patched to the user's horizon via <code>adjustGpsForHorizon()</code>, yielding a per-user GPS score rather than the cached 1-month baseline.</div>
         <div class="sub-heading">Effective thresholds per strategy (example with env defaults)</div>
         <table class="props-table">
           <thead><tr><th>Strategy</th><th>BUY gate</th><th>SELL gate</th><th>Discovery BUY gate</th><th>Pred change gate (1m)</th></tr></thead>
@@ -538,11 +587,13 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
       "etfTicker":       string | undefined   // present only for etf_holding scope
     }
   ],
+  "horizonLabel": string,                     // top-level — e.g. "in 6 months"
   "asOf": string
 }</pre>
         <div class="dep-list">
           <span class="dep-tag">getUserStrategy</span>
-          <span class="dep-tag">adjustMlpUpsideForHorizon</span>
+          <span class="dep-tag">resolveStrategy</span>
+          <span class="dep-tag">adjustGpsForHorizon</span>
           <span class="dep-tag">fetchYahooQuotesForSymbols</span>
           <span class="dep-tag">GET /api/worldbank</span>
           <span class="dep-tag">checkApprovalGuard</span>
@@ -559,7 +610,7 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
           <span class="route-file">src/app/api/dashboard/deepmoney-picks/route.ts</span>
         </div>
         <div class="route-desc">Returns the latest AI-curated snapshot from the <code>recommended_stocks</code> and <code>hot_etfs</code> database tables. Each category is scoped to its own <code>MAX(snapshot_date)</code> to handle sync timing offsets. Enriches hot stocks and ETFs with Yahoo Finance <code>previousClose</code> to compute <code>changeAmount</code> and <code>changePercent</code>. ETF holdings (<code>type = 'etf_holding'</code>) are surfaced from the same <code>recommended_stocks</code> table, deduplicated by ticker (highest GPS first).</div>
-        <div class="updated"><strong>Strategy-aware timeframe label (June 2026):</strong> The route now reads the user's <code>investment_timeframe</code> via <code>getUserStrategy()</code> and returns both <code>timeframe</code> (e.g. <code>"6_month"</code>) and <code>timeframe_label</code> (e.g. <code>"in 6 months"</code> — sourced from <code>resolveStrategy(...).timeframe.displayLabel</code>) in the response. The underlying ML data is from the latest sync (currently a 1-month baseline run); the timeframe fields are used purely for UI labeling so DeepMoney cards display the correct horizon string.</div>
+        <div class="updated"><strong>Strategy-aware timeframe label (June 2026):</strong> The route reads the user's <code>investment_timeframe</code> via <code>getUserStrategy()</code> and returns both <code>timeframe</code> (e.g. <code>"6_month"</code>) and <code>timeframe_label</code> (e.g. <code>"in 6 months"</code> — sourced from <code>resolveStrategy(...).timeframe.displayLabel</code>) in the response. The underlying ML data is from the latest sync (currently a 1-month baseline run); the timeframe fields are used purely for UI labeling so DeepMoney cards display the correct horizon string.</div>
         <div class="sub-heading">GPS Thresholds</div>
         <table class="props-table">
           <thead><tr><th>Category</th><th>Threshold</th><th>Source</th></tr></thead>
@@ -628,10 +679,11 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
           <span class="route-path">/api/prediction/[ticker]</span>
           <span class="badge badge-auth">Auth or internal API key</span>
           <span class="badge badge-rate">Rate limited (LimitService)</span>
-          <span class="badge badge-new">Updated 2026-06-12</span>
+          <span class="badge badge-new">Updated 2026-06-15</span>
           <span class="route-file">src/app/api/prediction/[ticker]/route.ts</span>
         </div>
         <div class="route-desc">Runs the ML prediction pipeline for a single ticker. Spawns <code>scripts/predict_weighted_analysis.py</code> via Node <code>child_process.spawn</code> inside a semaphore. Results are cached in <code>predictionCache</code> and persisted asynchronously via <code>/api/prediction/save</code>.</div>
+        <div class="updated"><strong>All-horizons save forwarding (June 15, 2026):</strong> The internal <code>savePredictionAsync()</code> helper (lines ~248-290) now forwards every horizon of the Python script's output to <code>/api/prediction/save</code> — all 4 prices (<code>predicted_price_1w/_1m/_6m/_1y</code>), all 4 change percentages (<code>predicted_change_pct_1w/_1m/_6m/_1y</code>), and all 4 confidence scores (<code>confidence_score_1w/_1m/_6m/_1y</code>). Numeric values are sanitized through <code>num()</code>/<code>positive()</code> guards; non-finite or non-positive values are dropped so Zod validation on the save endpoint stays happy. Prices and the user_id are sent alongside the standard <code>gps_score</code> + <code>gps_breakdown</code>. The route's own response shape (<code>gps_score</code>, <code>gps_breakdown</code>, <code>gps_horizon</code>) is unchanged.</div>
         <div class="updated"><strong>Analytics recording (June 2026):</strong> Immediately after a successful Python run, the route fires-and-forgets a <code>recordPrediction()</code> call (from <code>src/utils/predictionRecorder.ts</code>) that inserts a row into <code>prediction_records</code> with <code>(symbol, predicted_at = CURDATE(), price_at_prediction, predicted_price_1w/_1m/_6m/_1y)</code>. The insert uses <code>INSERT IGNORE</code> so duplicate predictions for the same symbol on the same day are silently skipped. These rows are later resolved against actual prices and feed the <code>/api/analytics/model-accuracy</code> endpoint.</div>
         <div class="updated"><strong>Strategy-aware outlook + GPS horizon (June 2026):</strong> For authenticated non-internal requests the route resolves the user's <code>investment_timeframe</code> via <code>getUserStrategy()</code>. The neutral 1m GPS baseline is always computed and persisted to <code>stock_gps_scores</code>, but the response also includes a per-user <code>gps_score</code> / <code>gps_breakdown</code> recomputed against the prediction matching the user's timeframe (<code>predicted_change_pct_1w/_1m/_6m/_1y</code> + matching confidence). The <code>outlook</code> query param defaults to <code>'all'</code> when not provided; clients drive the user-facing horizon by sending the user's <code>investment_timeframe</code>.</div>
         <div class="sub-heading">Query Params</div>
@@ -687,20 +739,54 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
           <span class="route-path">/api/prediction/save</span>
           <span class="badge badge-auth">Auth or internal API key</span>
           <span class="badge badge-origin">Origin check</span>
+          <span class="badge badge-new">Updated 2026-06-15</span>
           <span class="route-file">src/app/api/prediction/save/route.ts</span>
         </div>
-        <div class="route-desc">Persists a prediction result to <code>user_stock_predictions</code>. Upserts on <code>(user_id, stock_id)</code>. All four horizon columns (<code>predicted_price_1w / _1m / _6m / _1y</code>) are written when provided so the dashboard recommendations route can pick the right column per the user's timeframe. GPS score is synced to <code>stock_gps_scores</code> when changed.</div>
+        <div class="route-desc">Persists a prediction result to <code>user_stock_predictions</code>. Upserts on <code>(user_id, stock_id)</code>. All four price horizons plus the new per-horizon change% and confidence columns are written when provided so the dashboard recommendations, portfolio, and watchlist routes can pick the right columns per the user's timeframe. The canonical GPS score is mirrored to <code>stock_gps_scores</code> (and historic snapshots appended to <code>stock_gps_score_history</code>) only when the score has actually changed at 1-decimal precision — avoiding spurious writes on repeat predictions.</div>
+        <div class="updated"><strong>New optional fields (June 15, 2026):</strong> The Zod schema now accepts 8 additional optional fields — <code>predicted_change_pct_{1w,1m,6m,1y}</code> and <code>confidence_score_{1w,1m,6m,1y}</code>. When present they are upserted directly into the matching <code>user_stock_predictions</code> columns. Field assignments use surgical guards (<code>if (payload.X !== undefined)</code>) so legacy callers that don't send them never overwrite existing values. The Zod schema in <code>src/app/api/prediction/save/route.ts</code> is the authoritative source of truth for the payload contract.</div>
         <div class="sub-heading">Request Body (Zod validated)</div>
         <pre>{
-  "ticker":             string,   // required
-  "predicted_price_1m": number,   // required
-  "predicted_price_1w": number,   // optional
-  "predicted_price_6m": number,   // optional
-  "predicted_price_1y": number,   // optional
-  "user_id":            string,   // required for internal calls
-  "gps_score":          number | null,
-  "gps_breakdown":      object
+  "ticker":                  string,                  // required
+  "predicted_price_1m":      number (positive),      // required
+  "predicted_price_1w":      number (positive),      // optional
+  "predicted_price_6m":      number (positive),      // optional
+  "predicted_price_1y":      number (positive),      // optional
+
+  // New June 2026 — per-horizon model outputs (all optional)
+  "predicted_change_pct_1w": number,                 // optional
+  "predicted_change_pct_1m": number,                 // optional
+  "predicted_change_pct_6m": number,                 // optional
+  "predicted_change_pct_1y": number,                 // optional
+  "confidence_score_1w":     number (0-100),         // optional
+  "confidence_score_1m":     number (0-100),         // optional
+  "confidence_score_6m":     number (0-100),         // optional
+  "confidence_score_1y":     number (0-100),         // optional
+
+  "macro_features_used":         string[],           // optional
+  "consumer_multiplier_applied": number,             // optional
+  "last_requested_at":           string (ISO 8601),  // optional — defaults to now()
+
+  "gps_score":     number (0-100) | null,            // optional — synced to stock_gps_scores
+  "gps_breakdown": object,                           // optional
+
+  "user_id":       string (numeric)                  // required for internal x-api-key calls only
 }</pre>
+        <div class="sub-heading">Response</div>
+        <pre>200 { "message": "Prediction saved successfully" }
+400 { "message": "<field>: <zod-error-message>", "errors": [ ... ] }
+401 { "message": "Authentication required" }                  // when no session and no internal key
+403 { "message": "<approval-guard-reason>", "code": string }  // suspended / unapproved accounts
+500 { "message": "Failed to save prediction" }</pre>
+        <div class="note">For internal server-to-server callers (x-api-key header), <code>user_id</code> is required in the body. Session-authenticated callers ignore any <code>user_id</code> field and always use the session's user id. Origin check is bypassed only for internal calls.</div>
+        <div class="dep-list">
+          <span class="dep-tag">isInternalRequest</span>
+          <span class="dep-tag">checkOrigin</span>
+          <span class="dep-tag">checkApprovalGuard</span>
+          <span class="dep-tag">user_stock_predictions (DB)</span>
+          <span class="dep-tag">stock_gps_scores (DB)</span>
+          <span class="dep-tag">stock_gps_score_history (DB)</span>
+          <span class="dep-tag">recommended_stocks (sync target)</span>
+        </div>
       </div>
 
       <div class="route-card">

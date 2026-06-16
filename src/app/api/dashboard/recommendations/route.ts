@@ -58,8 +58,10 @@ export async function GET(request: NextRequest) {
     // to predicted_price_1m so behavior is graceful when other horizons aren't
     // populated yet. predictedPriceColumn comes from a controlled enum — safe
     // to interpolate into SQL.
-    const priceColumn = resolveStrategy(userStrategy).timeframe.predictedPriceColumn;
+    const timeframeConfig = resolveStrategy(userStrategy).timeframe;
+    const priceColumn = timeframeConfig.predictedPriceColumn;
     const sfx = priceColumn.replace('predicted_price_', ''); // '1w' | '1m' | '6m' | '1y'
+    const horizonLabel = timeframeConfig.shortLabel;
 
     // 1. Fetch predictions with GPS scores. GPS is strategy-independent — we
     // always read the canonical value from stock_gps_scores (with a fallback
@@ -144,7 +146,6 @@ export async function GET(request: NextRequest) {
     // Timeframe stacks on top of aggressiveness: it multiplies the predicted-change
     // bar (longer horizon → bigger expected move required) and shifts the sell
     // threshold (longer horizon → more tolerant of dips, holds through volatility).
-    const timeframeConfig = resolveStrategy(userStrategy).timeframe;
     const buyThreshold       = envBuyThreshold * mult;
     const sellThreshold      = envSellThreshold + timeframeConfig.sellThresholdShift;
     const discoveryThreshold = envDiscoveryThreshold * mult;
@@ -288,6 +289,7 @@ export async function GET(request: NextRequest) {
 
     const response: DashboardRecommendationsResponse = {
       recommendations,
+      horizonLabel,
       asOf: new Date().toISOString(),
     };
 

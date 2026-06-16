@@ -97,7 +97,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Components Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-12</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-15</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -162,7 +162,7 @@
       <span>Next.js 14 App Router</span>
       <span>TypeScript + Tailwind CSS</span>
       <span>46+ components documented</span>
-      <span>Updated 2026-06-12</span>
+      <span>Updated 2026-06-15</span>
     </div>
 
     <div class="summary-grid">
@@ -245,7 +245,7 @@
           <div><div class="comp-name">Dashboard</div><div class="comp-file">src/app/components/Dashboard.tsx</div></div>
           <span class="badge badge-client">Client</span>
         </div>
-        <div class="comp-desc">Top-level orchestrator for the home page (<code>/</code>). Fetches the user's portfolio via <code>GET /api/user/portfolio</code> on mount. Determines market open/close status (NYSE hours, weekdays only). Composes: <code>MajorIndicesStrip</code>, <code>PortfolioSummary</code>, <code>PortfolioSection</code>, <code>RecommendationsSection</code>, <code>ModelAccuracyWidget</code>, and <code>WatchlistSection</code>. The <code>ModelAccuracyWidget</code> sits between <code>RecommendationsSection</code> and <code>WatchlistSection</code> inside the "Discovery &amp; Watchlist" block. Passes portfolio data and refresh callbacks down to child sections. On the home page, <code>RecommendationsSection</code> is called with <code>scopes={['portfolio', 'watchlist']}</code> — the <code>etf_holding</code> scope is only active on the <code>/portfolio</code> page.</div>
+        <div class="comp-desc">Top-level orchestrator for the home page (<code>/</code>). Fetches the user's portfolio via <code>GET /api/user/portfolio</code> on mount and stores both the portfolio array and the <code>horizonLabel</code> returned by that endpoint in a <code>portfolioHorizonLabel</code> state value (default <code>'1M'</code>). Determines market open/close status (NYSE hours, weekdays only). Composes: <code>MajorIndicesStrip</code>, <code>PortfolioSummary</code>, <code>PortfolioSection</code>, <code>RecommendationsSection</code>, <code>ModelAccuracyWidget</code>, and <code>WatchlistSection</code>. The <code>ModelAccuracyWidget</code> sits between <code>RecommendationsSection</code> and <code>WatchlistSection</code> inside the "Discovery &amp; Watchlist" block. Passes <code>portfolioHorizonLabel</code> down to <code>PortfolioSection</code> as the <code>horizonLabel</code> prop, plus refresh callbacks. On the home page, <code>RecommendationsSection</code> is called with default scopes (the endpoint already filters to portfolio/watchlist on this page) — the <code>etf_holding</code> scope is only active on the <code>/portfolio</code> page.</div>
         <div class="dep-list">
           <span class="dep-tag">MajorIndicesStrip</span>
           <span class="dep-tag">PortfolioSummary</span>
@@ -255,6 +255,7 @@
           <span class="dep-tag">WatchlistSection</span>
           <span class="dep-tag">GET /api/user/portfolio</span>
         </div>
+        <div class="updated"><strong>June 2026:</strong> Added <code>portfolioHorizonLabel</code> state. The portfolio API response now includes a <code>horizonLabel</code> field derived from the user's <code>investment_timeframe</code>, which Dashboard captures and forwards to <code>PortfolioSection</code> so portfolio cards render the correct horizon-aware footer ("6M pred", "1Y pred", etc.).</div>
       </div>
 
       <div class="comp-card">
@@ -281,22 +282,21 @@
           <div><div class="comp-name">PortfolioSection</div><div class="comp-file">src/app/components/PortfolioSection.tsx</div></div>
           <span class="badge badge-client">Client</span>
         </div>
-        <div class="comp-desc">Renders the user's portfolio as a <code>StockCardSection</code> grid. Manages open/close state for <code>BuyMoreModal</code> and <code>SellModal</code>. Maps each <code>PortfolioItem</code> to a <code>PortfolioCard</code> model and passes the appropriate action handlers.</div>
+        <div class="comp-desc">Renders the user's portfolio as a <code>StockCardSection</code> grid. Maps each <code>PortfolioItem</code> to a <code>PortfolioCard</code> model, forwarding the optional <code>horizonLabel</code> prop (default <code>'1M'</code>) into each card so the footer reads "{horizonLabel} pred". The mapper reads <code>predicted_price_horizon</code> first and falls back to the legacy <code>predicted_price_1m</code> field when the new field is null. Card clicks navigate to <code>/search/{symbol}</code> via the router. Note: Buy/Sell modal management lives in the parent <code>/portfolio</code> page (or Dashboard composition), not in this component directly.</div>
         <table class="props-table">
-          <thead><tr><th>Prop</th><th>Type</th><th>Required</th></tr></thead>
+          <thead><tr><th>Prop</th><th>Type</th><th>Required</th><th>Default</th></tr></thead>
           <tbody>
-            <tr><td><code>portfolioItems</code></td><td>PortfolioItem[]</td><td><span class="required">required</span></td></tr>
-            <tr><td><code>loading</code></td><td>boolean</td><td><span class="required">required</span></td></tr>
-            <tr><td><code>error</code></td><td>string | null</td><td><span class="required">required</span></td></tr>
-            <tr><td><code>onRefresh</code></td><td>() =&gt; void</td><td><span class="required">required</span></td></tr>
+            <tr><td><code>portfolio</code></td><td>PortfolioItem[]</td><td><span class="required">required</span></td><td>—</td></tr>
+            <tr><td><code>horizonLabel</code></td><td>string</td><td><span class="optional">optional</span></td><td><code>'1M'</code></td></tr>
+            <tr><td><code>onRefresh</code></td><td>() =&gt; void</td><td><span class="required">required</span></td><td>—</td></tr>
           </tbody>
         </table>
         <div class="dep-list">
           <span class="dep-tag">StockCardSection</span>
-          <span class="dep-tag">BuyMoreModal</span>
-          <span class="dep-tag">SellModal</span>
+          <span class="dep-tag">StockCard</span>
           <span class="dep-tag">cards/types · PortfolioCard</span>
         </div>
+        <div class="updated"><strong>June 2026:</strong> Added <code>horizonLabel</code> prop. Mapper now reads <code>predicted_price_horizon</code> (the renamed card field) and falls back to <code>predicted_price_1m</code> for backward compatibility. The mapped <code>PortfolioCard.predictedPriceHorizon</code> and <code>horizonLabel</code> together drive the new horizon-aware footer in <code>PortfolioCardView</code>.</div>
       </div>
 
       <div class="comp-card">
@@ -304,13 +304,14 @@
           <div><div class="comp-name">WatchlistSection</div><div class="comp-file">src/app/components/WatchlistSection.tsx</div></div>
           <span class="badge badge-client">Client</span>
         </div>
-        <div class="comp-desc">Fetches the watchlist from <code>GET /api/user/watchlist</code> on mount. Renders the results via <code>StockCardSection</code>. Manages a remove-confirmation native dialog and <code>PurchaseFromWatchlistModal</code> for moving items to the portfolio. Maps each <code>WatchlistItem</code> to a <code>WatchlistCard</code> model.</div>
+        <div class="comp-desc">Fetches the watchlist from <code>GET /api/user/watchlist</code> on mount. The response now includes both an array of watchlist items <em>and</em> a top-level <code>horizonLabel</code> string, which the component stores in local state (default <code>'1M'</code>) and forwards into the mapped <code>WatchlistCard</code> models. The mapper reads <code>predicted_price_horizon</code> first and falls back to the legacy <code>predicted_price_1m</code> field. Renders results via <code>StockCardSection</code>. Manages a remove-confirmation native dialog and <code>PurchaseFromWatchlistModal</code> for moving items to the portfolio.</div>
         <div class="dep-list">
           <span class="dep-tag">StockCardSection</span>
           <span class="dep-tag">PurchaseFromWatchlistModal</span>
           <span class="dep-tag">GET /api/user/watchlist</span>
           <span class="dep-tag">DELETE /api/user/watchlist</span>
         </div>
+        <div class="updated"><strong>June 2026:</strong> Captures <code>data.horizonLabel</code> from the watchlist endpoint into a <code>horizonLabel</code> state variable and forwards it onto each mapped <code>WatchlistCard</code>. Combined with the renamed <code>predictedPriceHorizon</code> field, this drives the new "{horizonLabel} Pred" footer in <code>WatchlistCardView</code>.</div>
       </div>
 
       <div class="comp-card">
@@ -318,7 +319,7 @@
           <div><div class="comp-name">StockCardSection</div><div class="comp-file">src/app/components/StockCardSection.tsx</div></div>
           <span class="badge badge-client">Client</span>
         </div>
-        <div class="comp-desc">Generic typed grid container. Handles loading skeletons, error state with retry, and empty state. Renders cards with a staggered slide-up CSS animation. Columns are configurable.</div>
+        <div class="comp-desc">Generic typed grid container. Handles loading skeletons, error state with retry, and empty state. Renders cards with a staggered slide-up CSS animation. Columns are configurable. The grid uses <code>auto-rows-max</code> so each grid row track is sized to the tallest card in that row, and every per-card wrapper has <code>h-full</code> so cards stretch to fill their row track — this gives all cards on a row equal heights even when their content differs.</div>
         <table class="props-table">
           <thead><tr><th>Prop</th><th>Type</th><th>Required</th><th>Default</th></tr></thead>
           <tbody>
@@ -326,12 +327,13 @@
             <tr><td><code>icon</code></td><td>string</td><td><span class="optional">optional</span></td><td>—</td></tr>
             <tr><td><code>data</code></td><td>T[]</td><td><span class="required">required</span></td><td>—</td></tr>
             <tr><td><code>renderCard</code></td><td>(item: T, idx: number) =&gt; ReactNode</td><td><span class="required">required</span></td><td>—</td></tr>
-            <tr><td><code>loading</code></td><td>boolean</td><td><span class="required">required</span></td><td>—</td></tr>
+            <tr><td><code>loading</code></td><td>boolean</td><td><span class="optional">optional</span></td><td>false</td></tr>
             <tr><td><code>error</code></td><td>string | null</td><td><span class="optional">optional</span></td><td>null</td></tr>
-            <tr><td><code>emptyMessage</code></td><td>string</td><td><span class="optional">optional</span></td><td>—</td></tr>
+            <tr><td><code>emptyMessage</code></td><td>ReactNode</td><td><span class="optional">optional</span></td><td>—</td></tr>
             <tr><td><code>columns</code></td><td>2 | 3 | 4</td><td><span class="optional">optional</span></td><td>3</td></tr>
           </tbody>
         </table>
+        <div class="updated"><strong>June 2026:</strong> Each per-card grid wrapper now uses <code>className="h-full"</code> and the grid itself uses <code>auto-rows-max</code>. This makes cards in the same row equal-height regardless of how much body content each has.</div>
       </div>
 
       <div class="comp-card">
@@ -381,7 +383,7 @@
           <div><div class="comp-name">RecommendationsSection</div><div class="comp-file">src/app/components/RecommendationsSection.tsx</div></div>
           <span class="badge badge-client">Client</span>
         </div>
-        <div class="comp-desc">Fetches from <code>GET /api/dashboard/recommendations</code> and renders a grid of <code>MiniDataCard</code> components with BUY/SELL badges. Accepts an optional <code>scopes</code> prop to filter which recommendation buckets are shown. When the <code>etf_holding</code> scope is included, an optional <code>portfolioEtfTickers</code> prop can be provided to client-side filter ETF holding cards so only holdings whose parent ETF is in the user's portfolio are shown (preventing watchlist ETF holding cards from appearing). Cards with <code>scope === 'etf_holding'</code> render a teal badge and display "In {etfTicker}" in the sub-label.</div>
+        <div class="comp-desc">Fetches from <code>GET /api/dashboard/recommendations</code> and renders a grid of <code>MiniDataCard</code> components with BUY/SELL badges. Reads <code>data.horizonLabel</code> from the response and renders it in the header pill as <strong>"Based on {horizonLabel} prediction"</strong> (falls back to <code>'1M'</code> when missing). Accepts an optional <code>scopes</code> prop to filter which recommendation buckets are shown. When the <code>etf_holding</code> scope is included, an optional <code>portfolioEtfTickers</code> prop can be provided to client-side filter ETF holding cards so only holdings whose parent ETF is in the user's portfolio are shown (preventing watchlist ETF holding cards from appearing). Cards with <code>scope === 'etf_holding'</code> render a teal badge and display "In {etfTicker}" in the sub-label.</div>
         <table class="props-table">
           <thead><tr><th>Prop</th><th>Type</th><th>Required</th></tr></thead>
           <tbody>
@@ -389,7 +391,7 @@
             <tr><td><code>portfolioEtfTickers</code></td><td>string[]</td><td><span class="optional">optional</span></td></tr>
           </tbody>
         </table>
-        <div class="updated"><strong>June 2026:</strong> Added <code>portfolioEtfTickers</code> prop. On the <code>/portfolio</code> page, <code>PortfolioPage</code> derives this list from items where <code>is_etf === true</code> in the portfolio API response, then passes it alongside <code>scopes={['portfolio', 'watchlist', 'etf_holding']}</code>. The component builds a Set from this array and filters out any <code>etf_holding</code> card whose <code>etfTicker</code> is not in the set.</div>
+        <div class="updated"><strong>June 2026:</strong> Header pill no longer hardcodes "Based on 1-month prediction" — it now reads <code>data.horizonLabel</code> from the recommendations endpoint (e.g. "Based on 6M prediction"). The <code>portfolioEtfTickers</code> prop was added earlier: on the <code>/portfolio</code> page, <code>PortfolioPage</code> derives this list from items where <code>is_etf === true</code> and passes it alongside <code>scopes={['portfolio', 'watchlist', 'etf_holding']}</code>.</div>
         <div class="dep-list"><span class="dep-tag">MiniDataCard</span><span class="dep-tag">GpsTooltip</span><span class="dep-tag">GET /api/dashboard/recommendations</span></div>
       </div>
 
@@ -420,26 +422,80 @@
     <!-- ══════════════════════════════════════════ -->
     <div class="section">
       <div class="section-title" id="card-system">Card System</div>
-      <div class="note">The card system uses a discriminated-union approach. A single <code>StockCardModel</code> type has four variants: <code>search-trending</code>, <code>deepmoney</code>, <code>portfolio</code>, <code>watchlist</code>. All cards are routed through <code>StockCard</code>, which switches on <code>card.variant</code>.</div>
+      <div class="note">The card system uses a discriminated-union approach. A single <code>StockCardModel</code> type has four variants: <code>search-trending</code>, <code>deepmoney</code>, <code>portfolio</code>, <code>watchlist</code>. All cards are routed through <code>StockCard</code>, which switches on <code>card.variant</code> and dispatches to the appropriate variant view (<code>SearchTrendingCardView</code> / <code>DeepmoneyCardView</code> / <code>PortfolioCardView</code> / <code>WatchlistCardView</code>). The <code>watchlist</code> variant owns its own outer container (a compact 10px-radius tile per the design mockup) and bypasses <code>BaseCardShell</code>; the other three variants are wrapped in <code>BaseCardShell</code>.</div>
 
       <div class="comp-card">
         <div class="comp-header">
           <div><div class="comp-name">StockCardModel (types)</div><div class="comp-file">src/app/components/cards/types.ts</div></div>
           <span class="badge badge-util">Types</span>
         </div>
-        <div class="comp-desc">Defines the discriminated union that drives the entire card system.</div>
-        <pre>type StockCardModel =
-  | SearchTrendingCard  // variant: 'search-trending'
-  | DeepmoneyCard       // variant: 'deepmoney'
-  | PortfolioCard       // variant: 'portfolio'
-  | WatchlistCard       // variant: 'watchlist'
+        <div class="comp-desc">Defines the discriminated union that drives the entire card system. All variants share <code>CardBase</code> (<code>symbol</code>, <code>companyName</code>, <code>price</code>, <code>changePercent</code>, optional <code>changeAmount</code>).</div>
+        <pre>type CardVariant = 'search-trending' | 'deepmoney' | 'portfolio' | 'watchlist'
+
+interface CardBase {
+  symbol: string
+  companyName: string
+  price: number | null
+  changePercent: number | null
+  changeAmount?: number | null
+}
+
+interface SearchTrendingCard extends CardBase {
+  variant: 'search-trending'
+  hotRating: number | null
+}
+
+interface DeepmoneyCard extends CardBase {
+  variant: 'deepmoney'
+  prediction: 'Bullish' | 'Bearish' | 'Neutral' | number | null
+  gpsScore: number | null
+  gpsBreakdown?: any | null
+  timeframeLabel?: string | null   // e.g. "in 6 months"
+  gpsHorizon?: '1_week' | '1_month' | '6_month' | '1_year'
+}
+
+interface PortfolioCard extends CardBase {
+  variant: 'portfolio'
+  sharesHeld: number | null
+  analystFeedback: string | null
+  analysts?: number | null
+  gpsScore?: number | null
+  gpsBreakdown?: any | null
+  gpsHorizon?: '1_week' | '1_month' | '6_month' | '1_year'
+  topAccentColor?: string
+  predictedPriceHorizon?: number | null   // renamed from predictedPrice1m
+  horizonLabel?: string                   // e.g. "1M", "6M"
+  fiftyTwoWeekHigh?: number | null
+  logo?: string | null
+}
+
+interface WatchlistCard extends CardBase {
+  variant: 'watchlist'
+  analystFeedback: string | null
+  analysts?: number | null
+  ma6m: number | null
+  gpsScore?: number | null
+  gpsBreakdown?: any | null
+  gpsHorizon?: '1_week' | '1_month' | '6_month' | '1_year'
+  isCompact?: boolean
+  predictedPriceHorizon?: number | null   // renamed from predictedPrice1m
+  horizonLabel?: string                   // e.g. "1M", "6M"
+}
+
+type StockCardModel =
+  | SearchTrendingCard
+  | DeepmoneyCard
+  | PortfolioCard
+  | WatchlistCard
 
 interface CardActionHandlers {
-  onBuyMore?: (card: PortfolioCard) => void
-  onSell?: (card: PortfolioCard) => void
-  onAddToPortfolio?: (card: WatchlistCard) => void
-  onRemove?: (card: WatchlistCard) => void
+  onCardClick?: (symbol: string) => void
+  onBuyMore?: (symbol: string) => void
+  onSell?: (symbol: string) => void
+  onAddToPortfolio?: (symbol: string) => void
+  onRemoveFromWatchlist?: (symbol: string) => void
 }</pre>
+        <div class="updated"><strong>June 2026:</strong> Renamed <code>PortfolioCard.predictedPrice1m</code> → <code>predictedPriceHorizon</code> and added <code>horizonLabel?: string</code>. Same rename applied to <code>WatchlistCard</code>. The card footers now read these two fields together so the rendered label ("1M Pred", "6M Pred", "1Y Pred") matches whichever horizon the API computed.</div>
       </div>
 
       <div class="comp-card">
@@ -447,13 +503,13 @@ interface CardActionHandlers {
           <div><div class="comp-name">StockCard</div><div class="comp-file">src/app/components/cards/StockCard.tsx</div></div>
           <span class="badge badge-client">Client</span><span class="badge badge-memo">Memoized</span>
         </div>
-        <div class="comp-desc">Entry point for all card renders. Wrapped in <code>React.memo</code>. Switches on <code>card.variant</code> and delegates to the appropriate variant view component. Wraps output in <code>BaseCardShell</code>.</div>
+        <div class="comp-desc">Entry point for all card renders. Wrapped in <code>React.memo</code>. Switches on <code>card.variant</code> and delegates to the appropriate variant view component. For all variants except <code>watchlist</code>, wraps output in <code>BaseCardShell</code>; the <code>watchlist</code> variant renders its own outer shell directly. A single <code>handleCardClick</code> fires <code>actions.onCardClick(card.symbol)</code> on click and is forwarded into either the shell or the watchlist view.</div>
         <table class="props-table">
           <thead><tr><th>Prop</th><th>Type</th><th>Required</th></tr></thead>
           <tbody>
             <tr><td><code>card</code></td><td>StockCardModel</td><td><span class="required">required</span></td></tr>
-            <tr><td><code>handlers</code></td><td>CardActionHandlers</td><td><span class="optional">optional</span></td></tr>
-            <tr><td><code>onClick</code></td><td>() =&gt; void</td><td><span class="optional">optional</span></td></tr>
+            <tr><td><code>actions</code></td><td>CardActionHandlers</td><td><span class="optional">optional</span></td></tr>
+            <tr><td><code>className</code></td><td>string</td><td><span class="optional">optional</span></td></tr>
           </tbody>
         </table>
         <div class="dep-list">
@@ -470,7 +526,7 @@ interface CardActionHandlers {
           <div><div class="comp-name">BaseCardShell</div><div class="comp-file">src/app/components/cards/BaseCardShell.tsx</div></div>
           <span class="badge badge-client">Client</span>
         </div>
-        <div class="comp-desc">Outer wrapper for all card variants. Applies hover shadow transition. When an <code>onClick</code> is provided, sets <code>role="button"</code>, <code>tabIndex={0}</code>, and handles Enter/Space keyboard activation.</div>
+        <div class="comp-desc">Outer wrapper for the portfolio, deepmoney, and search-trending card variants. Applies hover shadow transition, <code>rounded-2xl</code> shape, and a flex-column layout via <code>flex flex-col overflow-hidden</code>. Uses <code>w-full h-full</code> so the shell fills its grid-row track, giving sibling cards equal heights when the parent grid uses <code>auto-rows-max</code> (see <code>StockCardSection</code>). When an <code>onClick</code> is provided, sets <code>role="button"</code>, <code>tabIndex={0}</code>, and handles Enter/Space keyboard activation. Applies the global <code>focus-ring</code> utility class for accessible focus styling.</div>
         <table class="props-table">
           <thead><tr><th>Prop</th><th>Type</th><th>Required</th></tr></thead>
           <tbody>
@@ -479,6 +535,7 @@ interface CardActionHandlers {
             <tr><td><code>children</code></td><td>ReactNode</td><td><span class="required">required</span></td></tr>
           </tbody>
         </table>
+        <div class="updated"><strong>June 2026:</strong> Switched from sized-to-content to <code>h-full</code>. Combined with <code>auto-rows-max</code> on the parent grid in <code>StockCardSection</code>, this makes every card in a row stretch to the height of the tallest card in that row.</div>
       </div>
 
       <div class="comp-card">
@@ -604,15 +661,16 @@ interface CardActionHandlers {
           <div><div class="comp-name">PortfolioCardView</div><div class="comp-file">src/app/components/cards/variants/PortfolioCardView.tsx</div></div>
           <span class="badge badge-client">Client</span>
         </div>
-        <div class="comp-desc">Renders a portfolio holding card. Top accent color bar uses the stock's brand color. Displays: shares owned, GPS score with tooltip, analyst consensus badge, and predicted 1-month price with delta. Action buttons: Buy More, Sell.</div>
+        <div class="comp-desc">Renders a portfolio holding card. Top accent color bar uses the stock's brand color (<code>topAccentColor</code>). Header shows the brand logo (<code>BrandLogo</code>), ticker, company name, current price, and a per-share daily change. The metrics row displays shares owned, GPS score with <code>GpsTooltip</code>, and an analyst consensus badge. The footer renders <strong>"{horizonLabel} pred {predictedPriceHorizon}"</strong> plus a colored percentage delta, falling back to <code>'1M'</code> when no <code>horizonLabel</code> is supplied. A red triangular warning icon replaces the chevron when the predicted change clears a downside threshold (uses a tuned heuristic: anything &gt;= -3% is suppressed as noise; &lt;= -6% always flags; the moderate range is suppressed if the stock is within 5% of its 52-week high).</div>
         <table class="props-table">
           <thead><tr><th>Prop</th><th>Type</th><th>Required</th></tr></thead>
           <tbody>
             <tr><td><code>card</code></td><td>PortfolioCard</td><td><span class="required">required</span></td></tr>
-            <tr><td><code>handlers</code></td><td>CardActionHandlers</td><td><span class="optional">optional</span></td></tr>
+            <tr><td><code>actions</code></td><td>CardActionHandlers</td><td><span class="optional">optional</span></td></tr>
           </tbody>
         </table>
-        <div class="dep-list"><span class="dep-tag">CardHeader</span><span class="dep-tag">CardMetricRow</span><span class="dep-tag">CardActions</span><span class="dep-tag">GpsTooltip</span><span class="dep-tag">formatters</span></div>
+        <div class="dep-list"><span class="dep-tag">BrandLogo</span><span class="dep-tag">GpsTooltip</span><span class="dep-tag">formatters</span></div>
+        <div class="updated"><strong>June 2026:</strong> Footer no longer hardcodes "1M pred"; it reads <code>card.horizonLabel</code> (default <code>'1M'</code>) and <code>card.predictedPriceHorizon</code> — the renamed card-model fields. The downside-warning thresholds were tightened to reduce false alarms near 52-week highs.</div>
       </div>
 
       <div class="comp-card">
@@ -620,15 +678,17 @@ interface CardActionHandlers {
           <div><div class="comp-name">WatchlistCardView</div><div class="comp-file">src/app/components/cards/variants/WatchlistCardView.tsx</div></div>
           <span class="badge badge-client">Client</span>
         </div>
-        <div class="comp-desc">Renders a watchlist stock card. Displays: GPS score with tooltip, analyst consensus, 6-month moving average, and predicted 1-month price. Action buttons: Add to Portfolio, Remove from Watchlist.</div>
+        <div class="comp-desc">Renders a watchlist stock card. Owns its own outer container (a compact 10px-radius white tile with <code>w-full h-full</code>) instead of using <code>BaseCardShell</code>. Header shows ticker, company name, current price, and dollar/percent change. A 3-column metrics grid displays GPS score, an analyst consensus badge (with optional analyst count below), and the 6-month moving average (MA 6M). The footer renders <strong>"{horizonLabel} Pred {predictedPriceHorizon} +X.X%"</strong> on a single line followed by a right-pointing chevron — the label is now horizon-aware (defaults to <code>'1M'</code> when <code>horizonLabel</code> is absent).</div>
         <table class="props-table">
           <thead><tr><th>Prop</th><th>Type</th><th>Required</th></tr></thead>
           <tbody>
             <tr><td><code>card</code></td><td>WatchlistCard</td><td><span class="required">required</span></td></tr>
-            <tr><td><code>handlers</code></td><td>CardActionHandlers</td><td><span class="optional">optional</span></td></tr>
+            <tr><td><code>actions</code></td><td>CardActionHandlers</td><td><span class="optional">optional</span></td></tr>
+            <tr><td><code>onClick</code></td><td>() =&gt; void</td><td><span class="optional">optional</span></td></tr>
           </tbody>
         </table>
-        <div class="dep-list"><span class="dep-tag">CardHeader</span><span class="dep-tag">CardMetricRow</span><span class="dep-tag">CardActions</span><span class="dep-tag">GpsTooltip</span><span class="dep-tag">formatters</span></div>
+        <div class="dep-list"><span class="dep-tag">formatters</span></div>
+        <div class="updated"><strong>June 2026:</strong> Footer rewritten. Reads <code>{horizonLabel} Pred</code> instead of the hardcoded "1M Pred" and renders the label + price on a single line (instead of stacked). Uses the renamed <code>predictedPriceHorizon</code> card field.</div>
       </div>
 
       <div class="comp-card">
@@ -636,7 +696,7 @@ interface CardActionHandlers {
           <div><div class="comp-name">DeepmoneyCardView</div><div class="comp-file">src/app/components/cards/variants/DeepmoneyCardView.tsx</div></div>
           <span class="badge badge-util">Presentational</span>
         </div>
-        <div class="comp-desc">Renders an AI-curated pick card (hot stocks / hot ETFs). Displays: current price, AI prediction (numeric target price or categorical label), and GPS score. No action buttons.</div>
+        <div class="comp-desc">Renders an AI-curated pick card (hot stocks / hot ETFs). Displays: current price, AI prediction (numeric target price or categorical "Bullish"/"Bearish"/"Neutral" label, with an optional <code>timeframeLabel</code> like "in 6 months"), and GPS score. No action buttons.</div>
         <table class="props-table">
           <thead><tr><th>Prop</th><th>Type</th><th>Required</th></tr></thead>
           <tbody>
