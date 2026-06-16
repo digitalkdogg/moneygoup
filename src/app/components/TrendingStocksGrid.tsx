@@ -11,7 +11,14 @@ interface TrendingStock {
   companyName: string
   price: number | null
   changePercent: number | null
+  changeAmount?: number | null
   trendScore: number | null
+  gpsScore?: number | null
+  gpsBreakdown?: any | null
+  analystFeedback?: string | null
+  analysts?: number | null
+  ma6m?: number | null
+  predictedPriceHorizon?: number | null
   source: string
 }
 
@@ -28,6 +35,7 @@ function TrendingSkeleton() {
 export default function TrendingStocksGrid() {
   const router = useRouter()
   const [stocks, setStocks] = useState<TrendingStock[]>(Array(12).fill({ symbol: '', companyName: '', price: null, changePercent: null, trendScore: null, source: '' }))
+  const [horizonLabel, setHorizonLabel] = useState<string>('1M')
   const [error, setError] = useState<string | null>(null)
   const [hasData, setHasData] = useState(false)
 
@@ -40,6 +48,9 @@ export default function TrendingStocksGrid() {
         }
         const data = await response.json()
         setStocks(data.stocks || [])
+        if (typeof data?.horizonLabel === 'string') {
+          setHorizonLabel(data.horizonLabel)
+        }
         setHasData(data.stocks && data.stocks.length > 0)
         if (!data.stocks || data.stocks.length === 0) {
           setError('No trending data available')
@@ -78,7 +89,15 @@ export default function TrendingStocksGrid() {
     companyName: stock.companyName,
     price: stock.price,
     changePercent: stock.changePercent,
-    hotRating: stock.trendScore
+    changeAmount: stock.changeAmount ?? null,
+    hotRating: stock.trendScore,
+    gpsScore: stock.gpsScore ?? null,
+    gpsBreakdown: stock.gpsBreakdown ?? null,
+    analystFeedback: stock.analystFeedback ?? null,
+    analysts: stock.analysts ?? null,
+    ma6m: stock.ma6m ?? null,
+    predictedPriceHorizon: stock.predictedPriceHorizon ?? null,
+    horizonLabel,
   })
 
   const handleCardClick = (symbol: string) => {

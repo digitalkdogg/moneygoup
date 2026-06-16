@@ -13,6 +13,16 @@ export interface CardBase {
 export interface SearchTrendingCard extends CardBase {
   variant: 'search-trending'
   hotRating: number | null
+  /** GPS score (0-100) sourced from stock_gps_scores, optionally horizon-patched. */
+  gpsScore?: number | null
+  gpsBreakdown?: any | null
+  analystFeedback?: string | null
+  analysts?: number | null
+  ma6m?: number | null
+  /** Predicted price for the user's chosen horizon (1W/1M/6M/1Y). */
+  predictedPriceHorizon?: number | null
+  /** Compact horizon label rendered on the card, e.g. "1M" or "6M". */
+  horizonLabel?: string
 }
 
 export interface DeepmoneyCard extends CardBase {
