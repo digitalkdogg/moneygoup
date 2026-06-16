@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
-
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://growmystocks.com'
+import { SITE_URL as siteUrl } from '@/utils/siteUrl'
 
 export const metadata: Metadata = {
   title: 'Login — GrowMyStocks',

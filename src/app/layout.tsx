@@ -4,10 +4,9 @@ import { headers } from 'next/headers'
 import './globals.css'
 import AppShell from './components/AppShell'
 import Providers from './providers';
+import { SITE_URL as siteUrl } from '@/utils/siteUrl'
 
 const rubik = Rubik({ subsets: ['latin'], weight: ['400', '500', '600', '700'] })
-
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://growmystocks.com'
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),

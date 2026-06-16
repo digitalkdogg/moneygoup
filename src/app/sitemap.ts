@@ -1,8 +1,7 @@
 import { MetadataRoute } from 'next'
+import { SITE_URL as siteUrl } from '@/utils/siteUrl'
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://growmystocks.com'
-
   return [
     {
       url: siteUrl,
