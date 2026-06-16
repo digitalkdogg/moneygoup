@@ -328,17 +328,35 @@ def sync_deepmoney():
                 print(f"    - Qualifying stock found for Dashboard: {ticker} (GPS: {gps})")
                 qualifying_stock_ids.add(stock_id)
 
+                # Pull the raw nullable values from pred_input — the existing
+                # `predicted_change_pct` / `conf_score` locals above were coerced
+                # to 0 for the gate checks, so they can't be used for persistence.
+                # The deepmoney route emits both the generic key and the _1m key;
+                # prefer the explicit _1m, fall back to the generic.
+                change_pct_1m = pred_input.get('predicted_change_pct_1m')
+                if change_pct_1m is None:
+                    change_pct_1m = pred_input.get('predicted_change_pct')
+                conf_score_1m = pred_input.get('confidence_score_1m')
+                if conf_score_1m is None:
+                    conf_score_1m = pred_input.get('confidence_score')
+
                 # Add prediction for all active users
                 for user_id in active_user_ids:
                     # GPS columns removed from user_stock_predictions — now in stock_gps_scores.
+                    # predicted_change_pct_1m + confidence_score_1m are persisted so the
+                    # dashboard's adjustGpsForHorizon uses the model's actual horizon
+                    # output instead of a price-derived approximation.
                     cursor.execute("""
                         INSERT INTO user_stock_predictions
-                        (user_id, stock_id, predicted_price_1m, last_requested_at)
-                        VALUES (%s, %s, %s, NOW())
+                        (user_id, stock_id, predicted_price_1m,
+                         predicted_change_pct_1m, confidence_score_1m, last_requested_at)
+                        VALUES (%s, %s, %s, %s, %s, NOW())
                         ON DUPLICATE KEY UPDATE
-                        predicted_price_1m = VALUES(predicted_price_1m),
-                        last_requested_at  = VALUES(last_requested_at)
-                    """, (user_id, stock_id, predicted_price_1m))
+                        predicted_price_1m      = VALUES(predicted_price_1m),
+                        predicted_change_pct_1m = VALUES(predicted_change_pct_1m),
+                        confidence_score_1m     = VALUES(confidence_score_1m),
+                        last_requested_at       = VALUES(last_requested_at)
+                    """, (user_id, stock_id, predicted_price_1m, change_pct_1m, conf_score_1m))
 
                     # Add to user_stocks as unconfirmed if not already a purchased position
                     cursor.execute("""
