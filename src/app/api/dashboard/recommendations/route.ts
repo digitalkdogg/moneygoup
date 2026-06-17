@@ -139,9 +139,14 @@ export async function GET(request: NextRequest) {
     const { gates: strategyGates } = resolveStrategy(userStrategy);
     const mult = strategyGates.envFloorMultiplier;
 
-    const envBuyThreshold       = getEnvThreshold('GPS_RECOMMENDATION_BUY_THRESHOLD', 65);
-    const envSellThreshold      = getEnvThreshold('GPS_RECOMMENDATION_SELL_THRESHOLD', 45);
-    const envDiscoveryThreshold = getEnvThreshold('GPS_RECOMMENDATION_DISCOVERY_THRESHOLD', 70);
+    // BUY/SELL/DISCOVERY thresholds are one baseline + two offsets. BUY anchors
+    // the system ("a stock is buy-worthy when GPS clears baseline"); SELL and
+    // DISCOVERY are relative to that. Offsets are typically negative — SELL is
+    // a lower bar to warn on underperformers, DISCOVERY is a lower bar to
+    // surface promising-but-unconfirmed picks.
+    const envBuyThreshold       = getEnvThreshold('GPS_BASELINE', 65);
+    const envSellThreshold      = envBuyThreshold + getEnvThreshold('GPS_SELL_OFFSET', -20);
+    const envDiscoveryThreshold = envBuyThreshold + getEnvThreshold('GPS_DISCOVERY_OFFSET', 5);
 
     // Timeframe stacks on top of aggressiveness: it multiplies the predicted-change
     // bar (longer horizon → bigger expected move required) and shifts the sell
