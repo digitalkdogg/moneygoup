@@ -126,10 +126,21 @@ async function fetchWorldBankTrendData(): Promise<any> {
     }
 }
 
+export interface PerformETFDiscoveryOptions {
+  /** When true, skip scoreETFHoldings entirely. The caller is taking
+   *  responsibility for enriching + scoring the holdings (typically because
+   *  it wants them in the main discovery enrichment pipeline). */
+  skipHoldingsScoring?: boolean;
+  /** When provided, holding tickers fetched from qualifying ETFs are added
+   *  to this Set so the caller can union them into its enrichment queue. */
+  holdingTickersOut?: Set<string>;
+}
+
 export async function performETFDiscovery(
   hotStocks: any[],
   trendingSubSectors: string[],
-  trendingTickers: string[] = []
+  trendingTickers: string[] = [],
+  options: PerformETFDiscoveryOptions = {}
 ): Promise<ETFDiscoveryResult[]> {
   const startTime = Date.now();
   const snapshotDate = new Date().toISOString().split('T')[0];
@@ -358,7 +369,19 @@ export async function performETFDiscovery(
     // Aggregate all holdings into one list for global deduplication scoring
     const allHoldings = holdingsByETF.flatMap(e => e.holdings);
 
-    if (allHoldings.length > 0) {
+    // Surface ticker symbols to the caller's enrichment queue, regardless of
+    // whether we also do the scoring pass below.
+    if (options.holdingTickersOut) {
+      for (const h of allHoldings) {
+        if (h.ticker) options.holdingTickersOut.add(h.ticker.toUpperCase());
+      }
+    }
+
+    if (options.skipHoldingsScoring) {
+      logger.info('ETF holdings scoring skipped (caller will enrich + score via main pipeline)', {
+        totalHoldings: allHoldings.length,
+      });
+    } else if (allHoldings.length > 0) {
       const scored = await scoreETFHoldings(allHoldings, { wbData });
 
       const totalSurfaced = scored.filter(h => h.surfaced).length;

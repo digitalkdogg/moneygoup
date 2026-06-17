@@ -334,7 +334,7 @@ async function enrichTickers(tickers: string[]) {
             try {
                 const [summary, historicalResult, fundamentals] = await Promise.all([
                     yahooFinance.quoteSummary(ticker, {
-                        modules: ['summaryDetail', 'financialData', 'defaultKeyStatistics', 'price', 'assetProfile']
+                        modules: ['summaryDetail', 'financialData', 'defaultKeyStatistics', 'price', 'assetProfile', 'recommendationTrend']
                     }, { validateResult: false }).catch(() => null),
                     yahooFinance.chart(ticker, {
                         period1: oneYearAgo,
@@ -359,6 +359,15 @@ async function enrichTickers(tickers: string[]) {
 
                 const rdSeries = (fundamentals as any) || [];
                 const researchDevelopment = rdSeries[rdSeries.length - 1]?.researchAndDevelopment ?? 0;
+
+                // Analyst recommendation trend — pull the current-month ('0m')
+                // strongBuy count for the analyst-consensus override gate in
+                // analyzer.ts. Falls back to null when Yahoo has no trend data.
+                const trend = ((summary as any).recommendationTrend?.trend ?? []) as Array<{ period?: string; strongBuy?: number }>;
+                const currentTrend = trend.find(t => t.period === '0m') ?? trend[0];
+                const analystStrongBuy = (typeof currentTrend?.strongBuy === 'number')
+                    ? currentTrend.strongBuy
+                    : null;
 
                 const marketCap = price.marketCap || detail.marketCap || 0;
                 const currentPrice = price.regularMarketPrice || 0;
@@ -402,6 +411,7 @@ async function enrichTickers(tickers: string[]) {
                     totalRevenue: financial.totalRevenue || 0,
                     fiftyTwoWeekChange: fiftyTwoWeekChange,
                     analystUpside: analystUpside,
+                    analystStrongBuy: analystStrongBuy,
                     sma20: tech?.sma20 || null,
                     sma50: tech?.sma50 || null,
                     rsi: tech?.rsi14 || null,
@@ -500,28 +510,53 @@ export async function GET(request: NextRequest) {
         }
 
         const allTickersSet = await fetchSecondaryTickers(primaryTickers);
-        
+
+        const newsTickerArray = Array.from(allTickersSet).sort();
+
+        // --- Metric Enrichment (Pass 1: news tickers) ---
+        // We need sectors from the enriched news stocks so the ETF qualification
+        // can find related ETFs. So enrich the news tickers first, then use
+        // their sectors to drive ETF discovery, then enrich any additional
+        // holdings tickers in a second pass.
+        const newsEnrichedStocks = await enrichTickers(newsTickerArray);
+
+        const seenSectors = new Set<string>();
+        newsEnrichedStocks.forEach(s => { if (s.sector) seenSectors.add(s.sector); });
+
+        // --- ETF Discovery (early): qualify ETFs + collect holdings tickers ---
+        // Step 2.3 of the analyst-consensus plan: holdings flow through the same
+        // enrichTickers + analyzeStocks pipeline as news-discovered tickers,
+        // so the analyst-strongBuy override gate applies to them too. We skip
+        // scoreETFHoldings here; the analyzer's GPS computation supersedes it
+        // for this run. The /holdings endpoint's etf_holding_scores cache will
+        // refresh on its own staleness schedule.
+        const etfHoldingTickers = new Set<string>();
+        const hotEtfs = await performETFDiscovery(
+            newsEnrichedStocks,
+            Array.from(seenSectors),
+            Array.from(allTickersSet),
+            { skipHoldingsScoring: true, holdingTickersOut: etfHoldingTickers }
+        );
+
+        // --- Metric Enrichment (Pass 2: ETF-holding tickers not in news set) ---
+        const newHoldingTickers = Array.from(etfHoldingTickers).filter(t => !allTickersSet.has(t));
+        const holdingEnrichedStocks = newHoldingTickers.length > 0
+            ? await enrichTickers(newHoldingTickers.sort())
+            : [];
+
+        // Merge enriched results + grow allTickersSet so meta counters include holdings
+        const enrichedStocks = [...newsEnrichedStocks, ...holdingEnrichedStocks];
+        for (const t of newHoldingTickers) allTickersSet.add(t);
+
         const tickerArray = Array.from(allTickersSet).sort();
 
-        // --- Metric Enrichment ---
-        const enrichedStocks = await enrichTickers(tickerArray);
-
         // --- Analysis Filtering ---
-        // Pass shared data + user-driven outlook + ML gate to the analyzer
+        // Pass shared data + user-driven outlook + ML gate + analyst-override threshold
+        const analystThreshold = parseInt(process.env.DEEPMONEY_ANALYST_THRESHOLD ?? '3', 10);
         const filteredStocks = await analyzeStocks(
             enrichedStocks,
             { wbData, marketIndices },
-            { outlook, mlGate },
-        );
-
-        // --- ETF Discovery ---
-        const seenSectors = new Set<string>();
-        filteredStocks.forEach(s => { if (s.sector) seenSectors.add(s.sector); });
-        
-        const hotEtfs = await performETFDiscovery(
-            filteredStocks,
-            Array.from(seenSectors),
-            Array.from(allTickersSet)
+            { outlook, mlGate, analystThreshold },
         );
 
         const data = {
@@ -550,7 +585,12 @@ export async function GET(request: NextRequest) {
                     rejectedByAI: enrichedStocks.filter(s => !s.error && s.tradingSignalScore >= 0 && s.historyRows >= 100).length - filteredStocks.length,
                     filteredCount: filteredStocks.length,
                     predictionThreshold: `${mlGate}%`,
-                    predictionSample: filteredStocks.slice(0, 5).map(s => ({ ticker: s.ticker, pred: s.prediction_1m })),
+                    analystThreshold,
+                    analystConsensusSurfaced: filteredStocks.filter(s => s.discovery_source === 'analyst_consensus').length,
+                    newsTickerCount: newsTickerArray.length,
+                    etfHoldingTickerCount: etfHoldingTickers.size,
+                    etfHoldingTickerNewlyEnriched: newHoldingTickers.length,
+                    predictionSample: filteredStocks.slice(0, 5).map(s => ({ ticker: s.ticker, pred: s.prediction_1m, source: s.discovery_source })),
                 }
             },
         };

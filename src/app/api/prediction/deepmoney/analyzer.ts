@@ -26,6 +26,10 @@ export interface EnrichedStock {
     totalRevenue?: number | null;
     fiftyTwoWeekChange?: number | null;
     analystUpside?: number | null;
+    /** Count of analyst opinions in the strongBuy bucket for the current month
+     *  (recommendationTrend "0m" period). Drives the analyst-consensus override
+     *  gate in analyzeStocks. Undefined when Yahoo has no trend data. */
+    analystStrongBuy?: number | null;
     sma20?: number | null;
     sma50?: number | null;
     rsi?: number | null;
@@ -40,6 +44,10 @@ export interface EnrichedStock {
     classification?: string;
     sector?: string;
     prediction_input?: any;
+    /** Why this stock made the cut. 'v2_engine' = passed the standard mlGate.
+     *  'analyst_consensus' = positive prediction but below mlGate, surfaced
+     *  by analyst strongBuy override. */
+    discovery_source?: 'v2_engine' | 'analyst_consensus';
 }
 
 /** Options that drive how the analyzer runs the ML and gates the results. */
@@ -48,6 +56,10 @@ export interface AnalyzeOptions {
     outlook?: '1_week' | '1_month' | '6_month' | '1_year';
     /** Minimum positive predicted change % required to surface (ML Validation Gate). */
     mlGate?: number;
+    /** Minimum analyst strongBuy count to surface a stock whose prediction is
+     *  positive but below mlGate. Bypasses only the mlGate — the > 0 floor
+     *  still applies. Default 3 (DEEPMONEY_ANALYST_THRESHOLD). */
+    analystThreshold?: number;
 }
 
 /**
@@ -59,8 +71,9 @@ export async function analyzeStocks(
     sharedContext?: { wbData?: any, marketIndices?: any },
     options: AnalyzeOptions = {},
 ): Promise<EnrichedStock[]> {
-    const outlook = options.outlook ?? '1_month';
-    const mlGate  = options.mlGate  ?? 1.5;
+    const outlook          = options.outlook          ?? '1_month';
+    const mlGate           = options.mlGate           ?? 1.5;
+    const analystThreshold = options.analystThreshold ?? 3;
 
     // First filter: stocks that have a positive or neutral tradingSignalScore
     // This pre-filtering reduces the number of heavy prediction calls
@@ -107,8 +120,15 @@ export async function analyzeStocks(
 
                 if (predictedChangePct !== undefined) {
                     stock.prediction_1m = predictedChangePct;
-                    // Threshold: positive predictions >= mlGate only (timeframe-scaled ML Validation Gate)
-                    if (predictedChangePct > 0 && predictedChangePct >= mlGate) {
+                    // Two paths to surface:
+                    //   (a) ML Validation Gate — prediction is positive AND clears mlGate
+                    //   (b) Analyst-consensus override — prediction is positive (any size)
+                    //       AND analyst strongBuy count >= DEEPMONEY_ANALYST_THRESHOLD.
+                    // The > 0 floor applies to BOTH paths — we never surface a stock
+                    // the model predicts will go down, regardless of analyst sentiment.
+                    const passesMlGate    = predictedChangePct >= mlGate && predictedChangePct > 0;
+                    const analystOverride = (stock.analystStrongBuy ?? 0) >= analystThreshold && predictedChangePct > 0;
+                    if (passesMlGate || analystOverride) {
 
                         // --- GPS Score Calculation (v2.3) ---
                         const gpsResult = calculateGpsScore(
@@ -146,6 +166,10 @@ export async function analyzeStocks(
                             predicted_price_6m: predictions['6_month']?.predicted_price,
                             predicted_price_1y: predictions['1_year']?.predicted_price,
                         };
+                        // Tag the discovery_source so downstream (deepmoney_sync.py,
+                        // dashboard cards) can tell apart engine-surfaced vs analyst-
+                        // surfaced stocks. mlGate wins over analystOverride when both fire.
+                        stock.discovery_source = passesMlGate ? 'v2_engine' : 'analyst_consensus';
                         filteredStocks.push(stock);
                     }
                 }
