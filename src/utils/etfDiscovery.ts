@@ -340,13 +340,18 @@ export async function performETFDiscovery(
 
   // --- Phase 3: Score top holdings for each qualifying ETF ------------------
   try {
-    const topN = parseInt(process.env.ETF_HOLDING_TOP_N ?? '5', 10);
+    // ETF_HOLDING_MAX_TICKERS is the single knob for "how many holdings do we
+    // care about." It bounds (a) the per-ETF fetch from Yahoo (here) and (b)
+    // the post-dedup global scoring cap inside scoreETFHoldings. Whichever cap
+    // binds first wins — for small N the per-ETF cap dominates, for large N
+    // the dedup cap dominates. See utils/etfHoldings.ts:235.
+    const maxTickers = parseInt(process.env.ETF_HOLDING_MAX_TICKERS ?? '50', 10);
 
     // Fetch holdings for all qualifying ETFs in parallel
     const holdingsByETF = await Promise.all(
       finalResults.map(async etf => ({
         etfTicker: etf.ticker,
-        holdings: await fetchETFHoldings(etf.ticker, topN),
+        holdings: await fetchETFHoldings(etf.ticker, maxTickers),
       }))
     );
 
