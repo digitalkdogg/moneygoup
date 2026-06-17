@@ -53,7 +53,6 @@ const PRIMARY_FEED_URLS = [
     'https://www.fiercebiotech.com/rss/xml',                                   // Biotech
     'https://www.fierceelectronics.com/rss/xml',                               // Semiconductors
     'https://www.spacenews.com/feed/',                                         // Aerospace/Defense
-    'https://ir.stockanalysis.com/feed/',                                      // Small/Mid cap
 ];
 
 const YAHOO_TICKER_FEED_BASE = 'https://feeds.finance.yahoo.com/rss/2.0/headline?s=';
