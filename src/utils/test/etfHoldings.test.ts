@@ -79,6 +79,33 @@ describe('etfHoldings', () => {
   let fetchETFHoldings:  typeof import('../etfHoldings').fetchETFHoldings;
   let scoreETFHoldings:  typeof import('../etfHoldings').scoreETFHoldings;
 
+  // Pin GPS_PREDICTION_MAX + all ETF_HOLDING_* surfacing thresholds to the
+  // code defaults. The test fixtures assume default behavior; .env.local
+  // (production tuning) overrides them and leaks into the Jest process via
+  // Next.js route module imports, distorting GPS scores and surfacing gates.
+  const _pinnedKeys = [
+    'GPS_PREDICTION_MAX',
+    'ETF_HOLDING_GPS_SURFACE_VALUE',
+    'ETF_HOLDING_MIN_PRED_CHANGE',
+    'ETF_HOLDING_MIN_CONFIDENCE',
+    'ETF_HOLDING_MAX_BETA',
+    'ETF_HOLDING_STALENESS_HOURS',
+  ];
+  const _saved: Record<string, string | undefined> = {};
+  beforeAll(() => {
+    for (const k of _pinnedKeys) {
+      _saved[k] = process.env[k];
+      delete process.env[k];
+    }
+    process.env.GPS_PREDICTION_MAX = '3';
+  });
+  afterAll(() => {
+    for (const k of _pinnedKeys) {
+      if (_saved[k] === undefined) delete process.env[k];
+      else process.env[k] = _saved[k];
+    }
+  });
+
   beforeEach(() => {
     jest.resetModules();
     jest.clearAllMocks();

@@ -1,5 +1,6 @@
 import json
 import os
+import time
 import requests
 import mysql.connector
 from datetime import datetime
@@ -69,7 +70,27 @@ def fetch_world_bank_data(headers: dict) -> dict | None:
 
 def sync_deepmoney():
     print(f"[{datetime.now()}] Starting DeepMoney sync...")
-    
+
+    # ── Run-level counters for the end-of-run summary ─────────────────────
+    # Initialized up here so they're always defined, even when an exception
+    # short-circuits the work before they'd otherwise be set.
+    run_start = time.time()
+    counters = {
+        "ml_gate_rejected":      0,   # local GPS gate (gps <= ml_gate_threshold)
+        "vol_gate_rejected":     0,   # confidence-vs-beta volatility gate
+        "stocks_written":        0,   # rows inserted into recommended_stocks
+        "gps_updated":           0,   # stock_gps_scores rows updated (score changed)
+        "gps_unchanged":         0,   # stock_gps_scores rows skipped (same score)
+        "dashboard_qualified":   0,   # stocks meeting dashboard threshold
+        "ath_warnings":          0,   # high-beta near-ATH stocks flagged
+        "etf_holdings_written":  0,   # rows inserted from ETF holdings pass
+        "stale_cleaned":         0,   # discovery rows removed in cleanup pass
+        "active_users":          0,
+        "hot_etfs":              0,
+        "stocks_in_api_resp":    0,
+    }
+    meta_snapshot: dict = {}  # cached API meta for the summary block
+
     # ML Validation Gate (Ref: doc/deepmoney_sync_workflow.html)
     # This is the "Gate" that allows a stock to be recorded as a recommendation
     gate_env = os.getenv('DEEPMONEY_GPS_VALUE')
@@ -102,6 +123,7 @@ def sync_deepmoney():
         # Print debug metadata if available
         meta = data.get('meta', {})
         debug = meta.get('debug', {})
+        meta_snapshot = meta
         if debug:
             print(f"  [debug] Enrichment Rejected: {debug.get('rejectedEnrichment')}")
             print(f"  [debug] Signal Score Rejected: {debug.get('rejectedSignalScore')}")
@@ -130,6 +152,27 @@ def sync_deepmoney():
     today = datetime.now().strftime('%Y-%m-%d')
 
     try:
+        # 3.0 Idempotent schema additions for Path-A ranker integration.
+        # Adds gps_score_type ('light'|'full'), ranker_score (0..1 percentile),
+        # and hist_vol_30 (annualized 30d vol) to both recommended_stocks and
+        # stock_gps_scores. MySQL 8 doesn't support `ADD COLUMN IF NOT EXISTS`
+        # (that's MariaDB-only), so we issue one ALTER per column and swallow
+        # errno 1060 ("Duplicate column name") to stay idempotent across reruns.
+        ranker_schema_columns = [
+            ("recommended_stocks", "gps_score_type", "ENUM('light','full') NOT NULL DEFAULT 'full'"),
+            ("recommended_stocks", "ranker_score",   "DECIMAL(6,4) NULL"),
+            ("recommended_stocks", "hist_vol_30",    "DECIMAL(8,4) NULL"),
+            ("stock_gps_scores",   "gps_score_type", "ENUM('light','full') NOT NULL DEFAULT 'full'"),
+            ("stock_gps_scores",   "ranker_score",   "DECIMAL(6,4) NULL"),
+            ("stock_gps_scores",   "hist_vol_30",    "DECIMAL(8,4) NULL"),
+        ]
+        for table, column, defn in ranker_schema_columns:
+            try:
+                cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {defn}")
+            except mysql.connector.Error as e:
+                if e.errno != 1060:  # 1060 = duplicate column → already present
+                    raise
+
         # 3. Clear existing recommendation data
         print("Clearing existing recommendation data...")
         cursor.execute("DELETE FROM recommended_stocks")
@@ -163,10 +206,12 @@ def sync_deepmoney():
         print("Fetching approved users...")
         cursor.execute("SELECT id FROM users WHERE approval_status = 'approved'")
         active_user_ids = [row[0] for row in cursor.fetchall()]
+        counters["active_users"] = len(active_user_ids)
         print(f"Found {len(active_user_ids)} approved users.")
 
         # 4. Process Stocks from (stocks array)
         stocks = data.get('stocks', [])
+        counters["stocks_in_api_resp"] = len(stocks)
         qualifying_stock_ids: set = set()
         print(f"Processing {len(stocks)} hot stocks...")
         
@@ -198,6 +243,7 @@ def sync_deepmoney():
             # 4.1 Apply ML Validation Gate (GPS > DEEPMONEY_GPS_VALUE)
             if gps <= ml_gate_threshold:
                 # print(f"  [gate] SKIP {ticker}: GPS {gps} <= Gate {ml_gate_threshold}")
+                counters["ml_gate_rejected"] += 1
                 continue
 
             # 4.2 Volatility-adjusted confidence gate
@@ -208,8 +254,10 @@ def sync_deepmoney():
                 volatility_gate = conf_score >= 65
             if not volatility_gate:
                 print(f"  [vol-gate] SKIP {ticker}: CS {conf_score} insufficient for beta {beta_val:.2f}")
+                counters["vol_gate_rejected"] += 1
                 continue
 
+            counters["stocks_written"] += 1
             print(f"  > {ticker} (GPS: {gps}, Pred: {predicted_change_pct}%)")
             
             # Map V2 fields to DB variables
@@ -253,6 +301,7 @@ def sync_deepmoney():
             # ATH proximity warning flag
             hi_ratio = s.get('hiRatio52w') or 0
             if hi_ratio > 0.97 and beta_val > 2.0:
+                counters["ath_warnings"] += 1
                 print(f"  [ath-warn] {ticker}: Near ATH ({hi_ratio:.2%}) with high beta ({beta_val:.2f})")
                 metric_lbl = f"{metric_lbl} ⚠️ATH" if metric_lbl else "⚠️ATH"
 
@@ -319,12 +368,15 @@ def sync_deepmoney():
                         gps_breakdown = VALUES(gps_breakdown),
                         source        = VALUES(source)
                 """, (stock_id, gps, json.dumps(gps_breakdown)))
+                counters["gps_updated"] += 1
                 print(f"    - GPS updated: {existing_gps} → {round(float(gps), 1)}")
             else:
+                counters["gps_unchanged"] += 1
                 print(f"    - GPS unchanged ({round(float(gps), 1)}), skipping write")
 
             # 5b. Dashboard qualification: user_stock_predictions + user_stocks
             if gps > dashboard_threshold and predicted_change_pct >= pred_threshold:
+                counters["dashboard_qualified"] += 1
                 print(f"    - Qualifying stock found for Dashboard: {ticker} (GPS: {gps})")
                 qualifying_stock_ids.add(stock_id)
 
@@ -372,6 +424,7 @@ def sync_deepmoney():
         # The prediction call above already ran scoreETFHoldings + populated etf_holding_scores.
         # We now read those cached scores back through the same endpoint the UI uses.
         hot_etfs = data.get('hot_etfs', [])
+        counters["hot_etfs"] = len(hot_etfs)
         print(f"Fetching ETF holdings for {len(hot_etfs)} hot ETF(s) via /api/stock_data/[ticker]/holdings...")
 
         etf_holding_rs_query = """
@@ -433,6 +486,7 @@ def sync_deepmoney():
                 ))
                 holdings_written += 1
 
+        counters["etf_holdings_written"] = holdings_written
         print(f"  ETF holdings persisted: {holdings_written}")
 
         # Post-sync cleanup: remove discovery entries for stocks that didn't qualify this run.
@@ -456,19 +510,107 @@ def sync_deepmoney():
             stale_placeholders = ','.join(['%s'] * len(stale_ids))
             cursor.execute(f"DELETE FROM user_stock_predictions WHERE stock_id IN ({stale_placeholders})", stale_ids)
             cursor.execute(f"DELETE FROM user_stocks WHERE is_active = 1 AND user_confirmed = 0 AND stock_id IN ({stale_placeholders})", stale_ids)
+            counters["stale_cleaned"] = len(stale_ids)
             print(f"  Removed {len(stale_ids)} stale discovery stock(s) not in today's qualifying set.")
         else:
             print("  No stale entries found.")
 
         conn.commit()
         print(f"[{datetime.now()}] Sync completed successfully.")
-        
+
     except Exception as e:
         print(f"Error during database operations: {e}")
-        conn.rollback()
+        try:
+            conn.rollback()
+        except Exception:
+            pass
     finally:
-        cursor.close()
-        conn.close()
+        try:
+            cursor.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+        _print_run_summary(counters, meta_snapshot, ml_gate_threshold, dashboard_threshold, run_start)
+
+
+def _fmt_int(n) -> str:
+    """Right-aligned integer formatter for the summary table."""
+    try:
+        return f"{int(n):>6,}"
+    except (TypeError, ValueError):
+        return f"{'--':>6}"
+
+
+def _fmt_duration(elapsed_sec: float) -> str:
+    if elapsed_sec < 60:
+        return f"{elapsed_sec:.1f}s"
+    mins, secs = divmod(elapsed_sec, 60)
+    if mins < 60:
+        return f"{int(mins)}m {int(secs)}s"
+    hrs, mins = divmod(mins, 60)
+    return f"{int(hrs)}h {int(mins)}m {int(secs)}s"
+
+
+def _print_run_summary(counters: dict, meta: dict, ml_gate: float, dashboard_gate: float, run_start: float) -> None:
+    """Print a structured funnel summary at the end of the run.
+
+    Always called from the finally block, so it prints even when an exception
+    short-circuits the sync. Numbers from a partial run are still useful for
+    debugging — missing counters just stay at zero.
+    """
+    debug = (meta or {}).get('debug', {}) or {}
+    elapsed = time.time() - run_start
+
+    print()
+    print("=" * 70)
+    print("  DEEPMONEY SYNC SUMMARY")
+    print("=" * 70)
+
+    # ── Discovery / AI funnel (from API meta.debug) ─────────────────────────
+    print("  DISCOVERY → AI FUNNEL")
+    print(f"    Total tickers discovered:        {_fmt_int(meta.get('totalDiscovered'))}")
+    print(f"    Rejected at enrichment:          {_fmt_int(debug.get('rejectedEnrichment'))}")
+    print(f"    Rejected on signal score:        {_fmt_int(debug.get('rejectedSignalScore'))}")
+    print(f"    Rejected on history (<100 days): {_fmt_int(debug.get('rejectedHistory'))}")
+    print(f"    Passed to AI analyzer:           {_fmt_int(debug.get('passedToAnalyzer'))}")
+    print(f"    Rejected by AI gate:             {_fmt_int(debug.get('rejectedByAI'))}")
+    print(f"    Surfaced by API:                 {_fmt_int(counters.get('stocks_in_api_resp'))}")
+
+    # ── Local gating (this script's filters on top of API output) ───────────
+    print()
+    print("  LOCAL GATING")
+    print(f"    Local GPS gate (>{ml_gate}):"
+          f"{' ':>14}{_fmt_int(counters.get('ml_gate_rejected'))} rejected")
+    print(f"    Volatility gate:"
+          f"{' ':>22}{_fmt_int(counters.get('vol_gate_rejected'))} rejected")
+    print(f"    Written to recommended_stocks:   {_fmt_int(counters.get('stocks_written'))}")
+    print(f"    Dashboard threshold (>{dashboard_gate}):"
+          f"{' ':>10}{_fmt_int(counters.get('dashboard_qualified'))} qualified")
+    if counters.get('ath_warnings'):
+        print(f"    Near-ATH high-beta warnings:     {_fmt_int(counters.get('ath_warnings'))}")
+
+    # ── Score-history writes ────────────────────────────────────────────────
+    print()
+    print("  GPS HISTORY")
+    print(f"    Scores updated:                  {_fmt_int(counters.get('gps_updated'))}")
+    print(f"    Scores unchanged (skipped):      {_fmt_int(counters.get('gps_unchanged'))}")
+
+    # ── ETF holdings + cleanup ──────────────────────────────────────────────
+    print()
+    print("  ETF HOLDINGS & CLEANUP")
+    print(f"    Hot ETFs surfaced:               {_fmt_int(counters.get('hot_etfs'))}")
+    print(f"    ETF holdings written:            {_fmt_int(counters.get('etf_holdings_written'))}")
+    print(f"    Stale discovery rows cleaned:    {_fmt_int(counters.get('stale_cleaned'))}")
+
+    # ── Users + timing ──────────────────────────────────────────────────────
+    print()
+    print("  RUN")
+    print(f"    Approved users notified:         {_fmt_int(counters.get('active_users'))}")
+    print(f"    Sync duration:                   {_fmt_duration(elapsed):>6}")
+    print("=" * 70)
 
 if __name__ == "__main__":
     sync_deepmoney()

@@ -8,3 +8,9 @@ python-dotenv
 Pillow
 beautifulsoup4
 playwright
+# Offline-only (used by scripts/build_ranking_dataset.py).
+# Do NOT import in scripts/predict_weighted_analysis.py — that script
+# is in the hot inference path and must remain network-free.
+yfinance
+# Offline-only (used by scripts/train_ranker.py).
+lightgbm

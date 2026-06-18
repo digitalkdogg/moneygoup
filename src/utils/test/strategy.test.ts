@@ -18,6 +18,20 @@
 import { calculateGpsScore, GpsMetrics, GpsPredictionResult } from '../gps';
 import { resolveStrategy, Aggressiveness } from '../strategy';
 
+// Pin GPS_PREDICTION_MAX to the code default (3). Without this, the test
+// fixtures' hardcoded expected GPS values drift when .env.local sets a
+// different value (e.g. production tuning of 15) and that env leaks into
+// the Jest process via Next.js route module imports elsewhere in the suite.
+let _prevGpsPredictionMax: string | undefined;
+beforeAll(() => {
+  _prevGpsPredictionMax = process.env.GPS_PREDICTION_MAX;
+  process.env.GPS_PREDICTION_MAX = '3';
+});
+afterAll(() => {
+  if (_prevGpsPredictionMax === undefined) delete process.env.GPS_PREDICTION_MAX;
+  else process.env.GPS_PREDICTION_MAX = _prevGpsPredictionMax;
+});
+
 const AGGRESSIVENESS: Aggressiveness[] = ['safe', 'neutral', 'aggressive'];
 
 interface StockFixture {

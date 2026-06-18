@@ -18,6 +18,18 @@ export interface GpsPredictionResult {
   confidenceScore?: number;       // 0–100, max 5 pts
 }
 
+/** Inputs to GPS-Light — the tier-1 score computed before Monte Carlo runs.
+ *  Replaces the 25-pt MLP block (mlpUpside + mlpConfidence) with a 20-pt
+ *  ranker block and a 5-pt vol-based uncertainty proxy. The other 75 points
+ *  (rev/earn/tech/analyst/52w) are identical to GPS-Full. */
+export interface GpsLightInput {
+  /** Ranker percentile within today's universe, 0..1. Higher = better. */
+  rankerScorePct?: number;
+  /** Annualized 30-day realized vol (e.g. 0.25 = 25%). Lower → higher
+   *  confidence-proxy pts, mirroring how the MLP's confidenceScore behaves. */
+  histVol30?: number;
+}
+
 export interface GpsBreakdown {
   mlpUpside: number;        // 20 pts — ML predicted change
   mlpConfidence: number;    // 5 pts  — AI model confidence
@@ -89,6 +101,65 @@ export function adjustGpsForHorizon(
     breakdown: adjusted,
     score: parseFloat(Math.min(Math.max(total, 0), 100).toFixed(1)),
   }
+}
+
+/**
+ * GPS-Light — the tier-1 composite computed *before* Monte Carlo runs.
+ *
+ * Structurally identical to calculateGpsScore (same 8-component, 100-pt
+ * breakdown) except the top-25 MLP block is replaced:
+ *   - mlpUpside (20 pts)     → rankerScorePct × 20
+ *   - mlpConfidence (5 pts)  → low-vol proxy: 5 × (1 - HistVol_30 / volCeiling)
+ *
+ * Components 3-8 (revenue, earnings, technical, analyst×2, 52w) are unchanged
+ * — exactly the same code path as the full GPS score. This keeps the two
+ * scores on the same 0-100 scale so a watchlist-tier 'light' row and a
+ * surfaced-tier 'full' row are directly comparable.
+ *
+ * The breakdown's `mlpUpside` and `mlpConfidence` fields are reused (not
+ * renamed) so existing UI consumers don't break. The caller stores
+ * gps_score_type='light' alongside the score to disambiguate semantics.
+ */
+export function calculateGpsLight(metrics: GpsMetrics, light: GpsLightInput): GpsResult {
+  // 1. Ranker upside (20 pts) — model's percentile rank within today's universe.
+  const rankerPct = Math.min(Math.max(light.rankerScorePct ?? 0, 0), 1);
+  const m1 = rankerPct * 20;
+
+  // 2. Volatility-based confidence proxy (5 pts).
+  // Low realized vol = high "confidence" that the cheap signals are stable.
+  // Default ceiling 0.80 — typical equity 30-day annualized vol caps here.
+  const volCeiling = process.env.GPS_LIGHT_VOL_CEILING
+    ? parseFloat(process.env.GPS_LIGHT_VOL_CEILING)
+    : 0.80;
+  const hv = light.histVol30 ?? 0.30;  // 30% is a reasonable equity median
+  const m2 = Math.max(0, Math.min(5, 5 * (1 - hv / volCeiling)));
+
+  // 3-8. Cheap signals — identical formulas to calculateGpsScore (m3..m8).
+  const m3 = Math.min(Math.max((metrics.revenueGrowthPct || 0) / 0.3, 0), 1) * 12;
+  const m4 = Math.min(Math.max((metrics.earningsGrowthPct || 0) / 0.25, 0), 1) * 12;
+  const rawTech = metrics.technicalScore ?? 0;
+  const m5 = Math.min(Math.max((rawTech + 14) / 28, 0), 1) * 20;
+  const m6 = Math.min(Math.max((metrics.analystUpside || 0) / 0.3, 0), 1) * 12;
+  const m7 = CONSENSUS_POINTS[metrics.recommendationKey ?? ''] ?? CONSENSUS_POINTS.hold;
+  const m8 = Math.min(Math.max((metrics.priceChange52w || 0) / 0.2, 0), 1) * 10;
+
+  const totalGps = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8;
+
+  return {
+    score: parseFloat(Math.min(Math.max(totalGps, 0), 100).toFixed(1)),
+    // GPS-Light has no Monte Carlo prediction → no bearish signal flag.
+    bearishSignal: false,
+    breakdown: {
+      mlpUpside:        parseFloat(m1.toFixed(1)),
+      mlpConfidence:    parseFloat(m2.toFixed(1)),
+      revenueGrowth:    parseFloat(m3.toFixed(1)),
+      earningsGrowth:   parseFloat(m4.toFixed(1)),
+      technicalSignal:  parseFloat(m5.toFixed(1)),
+      analystUpside:    parseFloat(m6.toFixed(1)),
+      analystConsensus: parseFloat(m7.toFixed(1)),
+      priceChange52w:   parseFloat(m8.toFixed(1)),
+    },
+  };
 }
 
 export function calculateGpsScore(metrics: GpsMetrics, prediction: GpsPredictionResult): GpsResult {

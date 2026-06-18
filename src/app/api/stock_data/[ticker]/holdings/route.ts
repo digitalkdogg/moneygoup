@@ -58,59 +58,67 @@ export async function GET(
       return NextResponse.json({ ticker, isEtf: false, holdings: [] });
     }
 
-    // 2. Enrich with cached scores from etf_holding_scores (most recent snapshot per holding ticker)
-    const holdingTickers = rawHoldings.map(h => h.ticker);
+    // 2. Look up the score for each holding from `stock_gps_scores` — the
+    //    canonical "every analyzer-scored ticker's current GPS" table. This
+    //    replaces the deprecated `etf_holding_scores` cache, which was only
+    //    populated by scoreETFHoldings() (now disabled for the deepmoney
+    //    discovery path) and went stale immediately. stock_gps_scores is
+    //    refreshed every sync run for every stock the analyzer touches —
+    //    holdings included, since holding tickers flow through the main
+    //    analyzer pipeline via enrichTickers + analyzeStocks.
+    const holdingTickers = rawHoldings.map(h => h.ticker.toUpperCase());
     const placeholders = holdingTickers.map(() => '?').join(', ');
 
     let scoreRows: any[] = [];
     try {
       const [rows] = await executeRawQuery(
-        `SELECT ehs.ticker, ehs.gps_score, ehs.gps_breakdown,
-                ehs.predicted_change_pct, ehs.bearish_signal, ehs.beta,
-                ehs.score_source, ehs.snapshot_date
-         FROM etf_holding_scores ehs
-         INNER JOIN (
-           SELECT ticker, MAX(snapshot_date) AS max_date
-           FROM etf_holding_scores
-           WHERE ticker IN (${placeholders}) AND parent_etf_ticker = ?
-           GROUP BY ticker
-         ) latest ON ehs.ticker = latest.ticker AND ehs.snapshot_date = latest.max_date
-         WHERE ehs.parent_etf_ticker = ?`,
-        [...holdingTickers, ticker, ticker]
+        `SELECT s.symbol AS ticker, sgs.gps_score, sgs.gps_breakdown, sgs.source AS score_source
+         FROM stocks s
+         INNER JOIN stock_gps_scores sgs ON sgs.stock_id = s.id
+         WHERE s.symbol IN (${placeholders})`,
+        holdingTickers
       );
       scoreRows = rows as any[];
     } catch (err) {
-      logger.warn('etf_holding_scores lookup failed, returning raw holdings', { ticker, error: err });
+      logger.warn('stock_gps_scores lookup failed, returning raw holdings', { ticker, error: err });
     }
 
-    // Build a map for quick lookup
     const scoreMap = new Map<string, any>();
     for (const row of scoreRows) {
       scoreMap.set(row.ticker.toUpperCase(), row);
     }
 
-    // 3. Surfacing thresholds (same constants as scoreETFHoldings)
+    // 3. Surfacing thresholds. ETF_HOLDING_MAX_BETA is kept as an env var for
+    //    backward compatibility but no longer enforced — beta isn't stored in
+    //    stock_gps_scores, and the gps_score threshold already filters most
+    //    high-beta noise via the technical/confidence components.
     const gpsSurfaceValue  = getEnvFloat('ETF_HOLDING_GPS_SURFACE_VALUE', 60);
-    const maxBeta          = getEnvFloat('ETF_HOLDING_MAX_BETA', 2.0);
     const minPredChangePct = getEnvFloat('ETF_HOLDING_MIN_PRED_CHANGE', 1.5);
+
+    // The breakdown's `mlpUpside` component is computed as:
+    //   clip(predicted_change_pct / GPS_PREDICTION_MAX, -1, 1) * 20
+    // GPS_PREDICTION_MAX defaults to 3 (see src/utils/gps.ts:72,95). So
+    //   mlpUpside ≥ minPredChangePct / 3 * 20 ⟺ predicted_change_pct ≥ minPredChangePct
+    // We use this inverse to recover a predicted_change_pct proxy and a
+    // bearish flag (mlpUpside < 0 means the model predicted a decline) from
+    // the JSON breakdown — no separate columns needed.
+    const predictionMax = getEnvFloat('GPS_PREDICTION_MAX', 3);
+    const minMlpUpsideForSurface = (minPredChangePct / predictionMax) * 20;
 
     // 4. Merge holdings with scores
     const holdings = rawHoldings.map(h => {
       const cached = scoreMap.get(h.ticker.toUpperCase());
 
       let gps_score: number | null = null;
-      let gps_breakdown: object | null = null;
+      let gps_breakdown: any = null;
       let predicted_change_pct: number | null = null;
       let bearish_signal: boolean | null = null;
-      let beta: number | null = null;
+      const beta: number | null = null;  // no longer sourced; kept in response shape
       let score_source: string | null = null;
       let surfaced = false;
 
       if (cached) {
         gps_score = cached.gps_score != null ? parseFloat(cached.gps_score) : null;
-        predicted_change_pct = cached.predicted_change_pct != null ? parseFloat(cached.predicted_change_pct) : null;
-        bearish_signal = !!cached.bearish_signal;
-        beta = cached.beta != null ? parseFloat(cached.beta) : null;
         score_source = cached.score_source ?? null;
 
         if (cached.gps_breakdown) {
@@ -121,13 +129,22 @@ export async function GET(
           } catch {}
         }
 
+        const mlpUpside = gps_breakdown && typeof gps_breakdown.mlpUpside === 'number'
+          ? gps_breakdown.mlpUpside
+          : null;
+
+        // Recover predicted_change_pct + bearish_signal from the breakdown
+        // so the response shape is unchanged for existing consumers.
+        if (mlpUpside !== null) {
+          predicted_change_pct = (mlpUpside / 20) * predictionMax;
+          bearish_signal = mlpUpside < 0;
+        }
+
         if (
           gps_score !== null &&
-          predicted_change_pct !== null &&
           gps_score >= gpsSurfaceValue &&
-          predicted_change_pct >= minPredChangePct &&
-          !bearish_signal &&
-          (beta === null || beta <= maxBeta)
+          mlpUpside !== null &&
+          mlpUpside >= minMlpUpsideForSurface
         ) {
           surfaced = true;
         }
@@ -139,6 +156,9 @@ export async function GET(
         holdingPercent: h.holdingPercent,
         gps_score,
         gps_breakdown,
+        predicted_change_pct,
+        bearish_signal,
+        beta,
         score_source,
         surfaced,
       };

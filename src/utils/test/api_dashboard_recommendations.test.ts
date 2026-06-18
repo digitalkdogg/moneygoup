@@ -24,6 +24,31 @@ jest.mock('@/utils/approvalStatus', () => ({
 describe('GET /api/dashboard/recommendations', () => {
   let mockRequest: any;
 
+  // Pin GPS_PREDICTION_MAX + all dashboard threshold env vars to the code
+  // defaults. The test fixtures assume default behavior; .env.local
+  // (production tuning) overrides them and leaks into the Jest process via
+  // Next.js route module imports.
+  const _pinnedKeys = [
+    'GPS_PREDICTION_MAX',
+    'GPS_BASELINE',
+    'GPS_SELL_OFFSET',
+    'GPS_DISCOVERY_OFFSET',
+  ];
+  const _saved: Record<string, string | undefined> = {};
+  beforeAll(() => {
+    for (const k of _pinnedKeys) {
+      _saved[k] = process.env[k];
+      delete process.env[k];
+    }
+    process.env.GPS_PREDICTION_MAX = '3';
+  });
+  afterAll(() => {
+    for (const k of _pinnedKeys) {
+      if (_saved[k] === undefined) delete process.env[k];
+      else process.env[k] = _saved[k];
+    }
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
     (checkOrigin as jest.Mock).mockReturnValue(null);
