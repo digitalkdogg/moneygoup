@@ -45,7 +45,9 @@ export async function GET(request: NextRequest) {
         MAX(CASE WHEN us.is_purchased = 0 AND us.user_confirmed = 1 AND us.is_active = 1 THEN 1 ELSE 0 END) AS onWatchlist,
         MAX(CASE WHEN us.is_purchased = 1 AND us.shares > 0 AND us.is_active = 1 THEN 1 ELSE 0 END) AS onPortfolio,
         SUM(CASE WHEN us.is_purchased = 1 AND us.is_active = 1 THEN us.shares ELSE 0 END) AS shares,
-        MIN(CASE WHEN us.is_purchased = 1 AND us.is_active = 1 THEN us.initial_purchase_date ELSE NULL END) AS purchaseDate,
+        MIN(CASE WHEN us.is_purchased = 1 AND us.is_active = 1
+                 THEN COALESCE(us.initial_purchase_date, us.last_transaction_date)
+                 ELSE NULL END) AS purchaseDate,
         MAX(CASE WHEN us.is_purchased = 1 AND us.is_active = 1 THEN us.purchase_price ELSE 0 END) AS purchasePrice,
         MIN(CASE WHEN us.is_purchased = 0 AND us.is_active = 1 THEN us.created_at ELSE NULL END) AS watchlistAddedDate,
         MAX(CASE WHEN us.is_purchased = 0 AND us.is_active = 1 THEN us.purchase_price ELSE 0 END) AS watchlistPriceAdded

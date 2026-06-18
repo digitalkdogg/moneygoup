@@ -635,55 +635,135 @@ export default function Stock({
               : null
             const totalPositive = totalGainDollar != null && totalGainDollar >= 0
 
+            // Day-over-day close behavior since first_purchase_date. Two metrics:
+            //   1) current streak — how many consecutive days the stock has been
+            //      moving in one direction as of the most recent close. Reported
+            //      as a count + direction ('up' | 'down' | 'flat'). 'flat' means
+            //      the latest close equals the prior close — the streak broke.
+            //   2) total up/down days — running tally of every up-close and
+            //      every down-close since purchase. NOT consecutive.
+            // Equal closes break the current streak but do not increment either
+            // total. The prior close used as the baseline for day-1 may pre-date
+            // the purchase — that's fine, it's the comparison anchor.
+            const streaks = (() => {
+              const empty = { current: 0, currentDirection: 'flat' as 'up' | 'down' | 'flat', totalUp: 0, totalDown: 0 }
+              if (!pos.purchaseDate || !Array.isArray(historical) || historical.length < 2) return empty
+              const purchaseTime = new Date(pos.purchaseDate).getTime()
+              if (Number.isNaN(purchaseTime)) return empty
+              let totalUp = 0, totalDown = 0
+              let current = 0
+              let currentDirection: 'up' | 'down' | 'flat' = 'flat'
+              for (let i = 1; i < historical.length; i++) {
+                const row = historical[i]
+                const prevRow = historical[i - 1]
+                const rowTime = new Date(row?.date).getTime()
+                if (Number.isNaN(rowTime) || rowTime < purchaseTime) continue
+                const curr = row?.close
+                const prev = prevRow?.close
+                if (typeof curr !== 'number' || typeof prev !== 'number') continue
+                if (curr > prev) {
+                  totalUp += 1
+                  current = currentDirection === 'up' ? current + 1 : 1
+                  currentDirection = 'up'
+                } else if (curr < prev) {
+                  totalDown += 1
+                  current = currentDirection === 'down' ? current + 1 : 1
+                  currentDirection = 'down'
+                } else {
+                  current = 0
+                  currentDirection = 'flat'
+                }
+              }
+              return { current, currentDirection, totalUp, totalDown }
+            })()
+
             return (
               <div className="bg-white rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] border border-gray-100 mb-8 p-8 pb-7">
                 <h2 className="section-heading">Your Portfolio Position</h2>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-                  <div className="bg-[#f7f8f6] rounded-lg px-4 pt-3.5 pb-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-5">
+                  <div className="bg-[#f7f8f6] rounded-lg px-4 pt-3.5 pb-4 flex flex-col">
                     <p className="text-[10px] font-bold tracking-[0.09em] text-gray-500 uppercase mb-2">Total Portfolio Value</p>
-                    <p className="text-xl font-bold text-gray-900 leading-tight mb-1">{formatCurrency(positionValue)}</p>
-                    <p className="text-xs text-gray-500">Current position value</p>
+                    <div className="mt-auto">
+                      <p className="text-xl font-bold text-gray-900 leading-tight mb-1">{formatCurrency(positionValue)}</p>
+                      <p className="text-xs text-gray-500">Current position value</p>
+                    </div>
                   </div>
 
-                  <div className="bg-[#f7f8f6] rounded-lg px-4 pt-3.5 pb-4">
+                  <div className="bg-[#f7f8f6] rounded-lg px-4 pt-3.5 pb-4 flex flex-col">
                     <p className="text-[10px] font-bold tracking-[0.09em] text-gray-500 uppercase mb-2">Shares Owned</p>
-                    <p className="text-xl font-bold text-gray-900 leading-tight mb-1">{formatNumber(pos.shares)}</p>
-                    <p className="text-xs text-gray-500">
-                      {pos.purchaseDate ? `First purchased on ${formatDate(pos.purchaseDate)}` : ' '}
-                    </p>
+                    <div className="mt-auto">
+                      <p className="text-xl font-bold text-gray-900 leading-tight mb-1">{formatNumber(pos.shares)}</p>
+                      <p className="text-xs text-gray-500">
+                        {pos.purchaseDate ? `Prchased on ${formatDate(pos.purchaseDate)}` : ' '}
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="bg-[#f7f8f6] rounded-lg px-4 pt-3.5 pb-4">
+                  <div className="bg-[#f7f8f6] rounded-lg px-4 pt-3.5 pb-4 flex flex-col">
                     <p className="text-[10px] font-bold tracking-[0.09em] text-gray-500 uppercase mb-2">Today's Gain/Loss</p>
-                    {todayDollar != null && todayPct != null ? (
-                      <>
-                        <p className={`text-xl font-bold leading-tight mb-1 ${todayPositive ? 'text-green-700' : 'text-red-600'}`}>
-                          {formatCurrency(todayDollar)}
-                        </p>
-                        <p className={`text-xs ${todayPositive ? 'text-green-700' : 'text-red-600'}`}>
-                          {todayPct.toFixed(2)}% today
-                        </p>
-                      </>
-                    ) : (
-                      <p className="text-xl font-bold text-gray-400 leading-tight">N/A</p>
-                    )}
+                    <div className="mt-auto">
+                      {todayDollar != null && todayPct != null ? (
+                        <>
+                          <p className={`text-xl font-bold leading-tight mb-1 ${todayPositive ? 'text-green-700' : 'text-red-600'}`}>
+                            {formatCurrency(todayDollar)}
+                          </p>
+                          <p className={`text-xs ${todayPositive ? 'text-green-700' : 'text-red-600'}`}>
+                            {todayPct.toFixed(2)}% today
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-xl font-bold text-gray-400 leading-tight">N/A</p>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="bg-[#f7f8f6] rounded-lg px-4 pt-3.5 pb-4">
+                  <div className="bg-[#f7f8f6] rounded-lg px-4 pt-3.5 pb-4 flex flex-col">
                     <p className="text-[10px] font-bold tracking-[0.09em] text-gray-500 uppercase mb-2">Total Gain/Loss</p>
-                    {totalGainDollar != null && totalGainPct != null ? (
-                      <>
-                        <p className={`text-xl font-bold leading-tight mb-1 ${totalPositive ? 'text-green-700' : 'text-red-600'}`}>
-                          {formatCurrency(totalGainDollar)}
-                        </p>
-                        <p className={`text-xs ${totalPositive ? 'text-green-700' : 'text-red-600'}`}>
-                          {totalGainPct.toFixed(2)}% lifetime
-                        </p>
-                      </>
-                    ) : (
-                      <p className="text-xl font-bold text-gray-400 leading-tight">N/A</p>
-                    )}
+                    <div className="mt-auto">
+                      {totalGainDollar != null && totalGainPct != null ? (
+                        <>
+                          <p className={`text-xl font-bold leading-tight mb-1 ${totalPositive ? 'text-green-700' : 'text-red-600'}`}>
+                            {formatCurrency(totalGainDollar)}
+                          </p>
+                          <p className={`text-xs ${totalPositive ? 'text-green-700' : 'text-red-600'}`}>
+                            {totalGainPct.toFixed(2)}% lifetime
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-xl font-bold text-gray-400 leading-tight">N/A</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="bg-[#f7f8f6] rounded-lg px-4 pt-3.5 pb-4 flex flex-col">
+                    <p className="text-[10px] font-bold tracking-[0.09em] text-gray-500 uppercase mb-2">Streaks</p>
+                    <div className="mt-auto">
+                      {streaks.totalUp === 0 && streaks.totalDown === 0 ? (
+                        <>
+                          <p className="text-xl font-bold text-gray-400 leading-tight mb-1">—</p>
+                          <p className="text-xs text-gray-500">No streak data yet</p>
+                        </>
+                      ) : (
+                        <>
+                          <p className={`text-base font-bold leading-tight ${
+                            streaks.currentDirection === 'up' ? 'text-green-700'
+                            : streaks.currentDirection === 'down' ? 'text-red-600'
+                            : 'text-gray-500'
+                          }`}>
+                            {streaks.currentDirection === 'flat'
+                              ? '0 current'
+                              : `${streaks.current} current ${streaks.currentDirection}`}
+                          </p>
+                          <p className="text-base font-bold text-green-700 leading-tight">
+                            {streaks.totalUp} up days
+                          </p>
+                          <p className="text-base font-bold text-red-600 leading-tight">
+                            {streaks.totalDown} down days
+                          </p>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
 
