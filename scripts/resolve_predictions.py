@@ -81,7 +81,7 @@ def resolve_horizon(conn, horizon: str, days_offset: int) -> tuple[int, int]:
     SELECT id, symbol, predicted_at, price_at_prediction, predicted_price_{horizon}
     FROM prediction_records
     WHERE resolved_{horizon} = 0
-      AND DATE_ADD(predicted_at, INTERVAL {days_offset} DAY) <= CURDATE()
+      AND DATE_ADD(predicted_at, INTERVAL {days_offset} DAY) < CURDATE()
     LIMIT 1000
     """
 
