@@ -135,6 +135,47 @@
         .pill.purple { background: #ede9fe; color: #6d28d9; }
         .pill.teal { background: #ccfbf1; color: #0f766e; }
 
+        /* Env var cards */
+        .env-category {
+            font-size: 1.05rem; font-weight: 700; color: #0f172a;
+            margin: 2.25rem 0 .75rem; padding: .55rem .9rem;
+            background: linear-gradient(90deg,#f0fdf4 0%, #fff 100%);
+            border-left: 4px solid var(--primary); border-radius: 6px;
+        }
+        .env-var-card {
+            background: #fff; border: 1px solid var(--border);
+            border-left: 4px solid var(--primary); border-radius: 8px;
+            padding: .85rem 1.1rem; margin-bottom: .7rem;
+            box-shadow: 0 1px 2px rgba(0,0,0,.04);
+        }
+        .env-var-card .name {
+            font-family: ui-monospace, SFMono-Regular, monospace;
+            font-size: .95rem; font-weight: 700; color: var(--primary-dark);
+            word-break: break-all;
+        }
+        .env-var-card .default {
+            display: inline-block; margin-left: .4rem;
+            padding: 1px 7px; background: #f1f5f9; border-radius: 999px;
+            font-size: .72rem; color: #475569;
+            font-family: ui-monospace, SFMono-Regular, monospace; vertical-align: middle;
+        }
+        .env-var-card .default.required {
+            background: #fee2e2; color: #991b1b;
+        }
+        .env-var-card .field { margin-top: .45rem; font-size: .85rem; color: #374151; line-height: 1.5; }
+        .env-var-card .field-label {
+            display: inline-block; min-width: 84px;
+            font-size: .68rem; font-weight: 700; letter-spacing: .05em;
+            text-transform: uppercase; color: #64748b; margin-right: .35rem;
+        }
+        .env-var-card .field code { font-size: .8rem; }
+        .env-var-card pre.example {
+            background: var(--code-bg); color: var(--code-text);
+            padding: .55rem .85rem; border-radius: 6px;
+            font-size: .78rem; line-height: 1.5; margin: .35rem 0 0 .25rem;
+            white-space: pre-wrap; word-break: break-all;
+        }
+
         </style>
 </head>
 <body>
@@ -185,6 +226,12 @@
     <a href="#user-flow">Key User Flow</a>
     <a href="#personalization">Personalization Model</a>
     <a href="#background-jobs">Background Jobs</a>
+    <a href="#env-vars">Environment Variables</a>
+    <a href="#env-vars-system">— System</a>
+    <a href="#env-vars-database">— Database</a>
+    <a href="#env-vars-email">— Email</a>
+    <a href="#env-vars-deepmoney">— DeepMoney</a>
+    <a href="#env-vars-prediction">— Prediction / GPS</a>
     <a href="#read-next">Where to Read Next</a>
     <div class="section-divider"></div>
     <a href="authentication_flow.html">Auth Flow</a>
@@ -328,8 +375,377 @@
             </ul>
         </section>
 
+        <section id="env-vars">
+            <h2>7. Environment Variables</h2>
+            <p>Every runtime knob the app reads, grouped by concern. Each entry lists what the knob does, its default, where in the code it's read, and one concrete example of turning it. Values shown in red are <strong>required</strong> — the app will fail to start without them. Vars marked <em>(optional)</em> have a code-level default and only need to be set when you want to override it.</p>
+
+            <div class="env-category" id="env-vars-system">System (auth, security, session, infrastructure)</div>
+
+            <div class="env-var-card">
+                <span class="name">NEXTAUTH_SECRET</span>
+                <span class="default required">required</span>
+                <div class="field"><span class="field-label">Overview</span>Cryptographic key NextAuth uses to sign JWT session tokens. Rotating it invalidates every live session immediately.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/lib/auth.ts</code> (NextAuth options), every <code>getServerSession()</code> call.</div>
+                <div class="field"><span class="field-label">Visible on</span>Every authenticated page (<code>/</code> dashboard, <code>/portfolio</code>, <code>/search</code>, <code>/profile</code>, <code>/admin/users</code>). Rotating signs all users out — they'd bounce to <code>/login</code> on the next request.</div>
+                <div class="field"><span class="field-label">Tuning</span>Generate a fresh value when you suspect a leak. Any 32+ char random string works:
+                    <pre class="example">NEXTAUTH_SECRET=$(openssl rand -base64 32)</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">NEXTAUTH_URL</span>
+                <span class="default required">required</span>
+                <div class="field"><span class="field-label">Overview</span>Canonical URL of this Next.js instance. Single source of truth for NextAuth callback URLs, origin-check fallback, metadataBase, sitemap, and robots.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/lib/auth.ts</code>, <code>src/utils/originCheck.ts</code>, <code>src/utils/siteUrl.ts</code>, every internal API call from Python sync scripts.</div>
+                <div class="field"><span class="field-label">Visible on</span>Every page (NextAuth redirects), every transactional email's links (registration / approval / password reset), and the public <code>/sitemap.xml</code> + <code>/robots.txt</code>. Misconfigured → emails point to the wrong host.</div>
+                <div class="field"><span class="field-label">Tuning</span>Set per environment. Dev / prod examples:
+                    <pre class="example">NEXTAUTH_URL=http://localhost:3001         # dev
+NEXTAUTH_URL=https://growmystocks.com      # prod</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">NEXT_PUBLIC_SITE_URL</span>
+                <span class="default">optional · falls back to NEXTAUTH_URL</span>
+                <div class="field"><span class="field-label">Overview</span>Public-facing URL exposed to the browser bundle. Only override if the client-side URL differs from the server-side one (e.g. CDN domain in front of a different origin).</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/utils/siteUrl.ts</code> (SITE_URL export), client-side fetch helpers.</div>
+                <div class="field"><span class="field-label">Visible on</span>Browser-rendered share / canonical URLs, OpenGraph metadata, and any client-side fetch that builds absolute URLs. Only matters when the public hostname differs from <code>NEXTAUTH_URL</code> (CDN in front, multi-region).</div>
+                <div class="field"><span class="field-label">Tuning</span>Usually leave unset. Set it when CDN/proxy needs a different visible URL:
+                    <pre class="example">NEXT_PUBLIC_SITE_URL=https://cdn.growmystocks.com</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">ALLOWED_ORIGINS</span>
+                <span class="default">optional · falls back to NEXTAUTH_URL</span>
+                <div class="field"><span class="field-label">Overview</span>Comma-separated origins allowed through the <code>checkOrigin</code> middleware on API routes. Unset means the origin allowlist is the single value from <code>NEXTAUTH_URL</code>.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/utils/originCheck.ts</code>.</div>
+                <div class="field"><span class="field-label">Visible on</span>Browser-to-API requests on every authenticated page. Misconfigured → users see CORS errors / blank panels on <code>/dashboard</code>, <code>/portfolio</code>, <code>/search</code> when the browser origin isn't on the allowlist.</div>
+                <div class="field"><span class="field-label">Tuning</span>Set when more than one origin needs API access (staging + prod, or marketing site embedding):
+                    <pre class="example">ALLOWED_ORIGINS=https://growmystocks.com,https://staging.growmystocks.com</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">TRUSTED_PROXIES</span>
+                <span class="default">optional · empty (only the direct peer is trusted)</span>
+                <div class="field"><span class="field-label">Overview</span>Comma-separated list of upstream proxy IPs whose <code>X-Forwarded-For</code> header is trusted when extracting the client IP for rate limiting. Prevents IP-spoof bypass by untrusted proxies.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/utils/rateLimitMiddleware.ts</code> (called by every rate limiter).</div>
+                <div class="field"><span class="field-label">Visible on</span>Rate-limit accuracy on <code>/login</code>, <code>/register</code>, <code>/forgot-password</code>, <code>/contact</code>, and the prediction API. Misconfigured behind a proxy → everyone shares the proxy's IP and one bad actor triggers 429s for the whole user base.</div>
+                <div class="field"><span class="field-label">Tuning</span>Add localhost for dev, nginx/cloudflare ranges for prod:
+                    <pre class="example">TRUSTED_PROXIES=127.0.0.1,::1                    # dev
+TRUSTED_PROXIES=10.0.0.0/8,173.245.48.0/20       # prod behind cloudflare</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">DEEPMONEY_INTERNAL_SECRET</span>
+                <span class="default required">required</span>
+                <div class="field"><span class="field-label">Overview</span>Shared secret on the <code>x-api-key</code> header that cron scripts (<code>deepmoney_sync.py</code>, <code>update_predictions.py</code>) use to authenticate against internal API routes. Must match between Python and Next.js or scripts get silently redirected to <code>/login</code>.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/utils/internalAuth.ts</code>, every Python sync script.</div>
+                <div class="field"><span class="field-label">Visible on</span>Indirectly visible everywhere the sync output is rendered — the dashboard's DeepMoney Picks widget, BUY / SELL / DISCOVERY cards on <code>/dashboard</code>, and ETF Holding cards on <code>/portfolio</code>. If the secret breaks, the cron scripts silently fail and these surfaces go stale.</div>
+                <div class="field"><span class="field-label">Tuning</span>Rotate after any suspected leak. The reader strips surrounding quotes so either form works:
+                    <pre class="example">DEEPMONEY_INTERNAL_SECRET=$(openssl rand -hex 32)</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">SESSION_MAX_AGE</span>
+                <span class="default">optional · 86400 (24h)</span>
+                <div class="field"><span class="field-label">Overview</span>NextAuth JWT session TTL in seconds. Lower forces reauth more often; higher keeps users signed in longer.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/lib/auth.ts</code> (<code>session.maxAge</code>).</div>
+                <div class="field"><span class="field-label">Visible on</span>Login persistence across pages. When the TTL expires, the user gets bounced from whichever page they're on (<code>/dashboard</code>, <code>/portfolio</code>, etc.) to <code>/login</code>.</div>
+                <div class="field"><span class="field-label">Tuning</span>One-week persistent login example:
+                    <pre class="example">SESSION_MAX_AGE=604800     # 7 * 24 * 3600</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">REDIS_URL</span>
+                <span class="default required">required for prod-grade rate limiting</span>
+                <div class="field"><span class="field-label">Overview</span>Connection string for the Redis backend used by the distributed rate limiter. Unset / unreachable triggers an in-memory fallback that's not safe across multiple Node instances.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/utils/redisRateLimiter.ts</code>.</div>
+                <div class="field"><span class="field-label">Visible on</span>Throttling behavior on <code>/login</code>, <code>/register</code>, <code>/forgot-password</code>, <code>/contact</code>. With Redis up, limits are consistent across server instances; without it, behind a load balancer users may see inconsistent 429s.</div>
+                <div class="field"><span class="field-label">Tuning</span>Point it at the right host; switch DB index per environment:
+                    <pre class="example">REDIS_URL=redis://127.0.0.1:6379          # dev
+REDIS_URL=redis://user:pass@redis:6380/1   # prod</pre>
+                </div>
+            </div>
+
+            <div class="env-category" id="env-vars-database">Database</div>
+
+            <div class="env-var-card">
+                <span class="name">DB_HOST</span>
+                <span class="default required">required</span>
+                <div class="field"><span class="field-label">Overview</span>MySQL server hostname or IP. Used by both the Next.js app and every Python sync script.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/utils/databaseHelper.ts</code>, <code>scripts/deepmoney_sync.py</code>, <code>scripts/update_predictions.py</code>, <code>scripts/prediction_recorder.py</code>.</div>
+                <div class="field"><span class="field-label">Visible on</span>Every dynamic page — <code>/dashboard</code>, <code>/portfolio</code>, <code>/search</code>, <code>/profile</code>, <code>/admin/users</code>. DB unreachable = whole app 500s; the DeepMoney sync also fails.</div>
+                <div class="field"><span class="field-label">Tuning</span>Point at a remote DB or change for read-replica routing:
+                    <pre class="example">DB_HOST=localhost
+DB_HOST=mysql-primary.internal</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">DB_USER</span>
+                <span class="default required">required</span>
+                <div class="field"><span class="field-label">Overview</span>MySQL user account with read/write on the application database.</div>
+                <div class="field"><span class="field-label">Where used</span>Same as <code>DB_HOST</code>.</div>
+                <div class="field"><span class="field-label">Visible on</span>Same surfaces as <code>DB_HOST</code>. Wrong user → every page that loads data 500s.</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">DB_USER=growmystocks_app</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">DB_PASSWORD</span>
+                <span class="default required">required</span>
+                <div class="field"><span class="field-label">Overview</span>Password for <code>DB_USER</code>. Treat as secret — never commit; rotate with the user.</div>
+                <div class="field"><span class="field-label">Where used</span>Same as <code>DB_HOST</code>.</div>
+                <div class="field"><span class="field-label">Visible on</span>Same surfaces as <code>DB_HOST</code>. Wrong password is functionally identical to DB being down.</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">DB_PASSWORD=&lt;strong-random-string&gt;</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">DB_DATABASE</span>
+                <span class="default required">required</span>
+                <div class="field"><span class="field-label">Overview</span>Schema name the app connects to. All tables documented in the <a href="database_documentation.html">Database</a> doc live here.</div>
+                <div class="field"><span class="field-label">Where used</span>Same as <code>DB_HOST</code>.</div>
+                <div class="field"><span class="field-label">Visible on</span>Same surfaces as <code>DB_HOST</code>. Wrong schema → "table not found" errors on every data-loading page.</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">DB_DATABASE=moneygoup</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">DB_PORT</span>
+                <span class="default">optional · 3306</span>
+                <div class="field"><span class="field-label">Overview</span>MySQL server port. Change only when the server doesn't run on the default.</div>
+                <div class="field"><span class="field-label">Where used</span>Same as <code>DB_HOST</code>.</div>
+                <div class="field"><span class="field-label">Visible on</span>Same surfaces as <code>DB_HOST</code>.</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">DB_PORT=3307</pre>
+                </div>
+            </div>
+
+            <div class="env-category" id="env-vars-email">Email (Resend)</div>
+
+            <div class="env-var-card">
+                <span class="name">RESEND_API_KEY</span>
+                <span class="default required">required for password-reset emails</span>
+                <div class="field"><span class="field-label">Overview</span>Resend API key used by the password-reset flow. Without it, <code>/forgot-password</code> silently no-ops and users can't recover accounts.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/lib/email.ts</code> (password-reset path).</div>
+                <div class="field"><span class="field-label">Visible on</span><code>/forgot-password</code> → user submits their email → reset email arrives in their inbox with a link back to <code>/reset-password?token=…</code>. Missing/wrong key → reset emails silently fail.</div>
+                <div class="field"><span class="field-label">Tuning</span>One key per environment; rotate via the Resend dashboard:
+                    <pre class="example">RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">RESEND_REG_API_KEY</span>
+                <span class="default">optional · falls back to RESEND_API_KEY</span>
+                <div class="field"><span class="field-label">Overview</span>Resend key for the initial "thanks for signing up — account under review" email sent right after registration. Lets you route registration mail through a separate Resend project for analytics or rate-limit isolation.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/lib/email.ts</code> · <code>sendRegistrationEmail()</code>.</div>
+                <div class="field"><span class="field-label">Visible on</span><code>/register</code> → user submits the form → the "thanks for signing up, your account is under review" email lands in their inbox.</div>
+                <div class="field"><span class="field-label">Tuning</span>Set only if you want a dedicated registration sender:
+                    <pre class="example">RESEND_REG_API_KEY=re_signup_xxxxxxxxxxxxxxxxxxxxxxxx</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">RESEND_REG_FINAL_API_KEY</span>
+                <span class="default">optional · falls back to RESEND_API_KEY</span>
+                <div class="field"><span class="field-label">Overview</span>Resend key for the final "your account has been approved" welcome email after admin approval.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/lib/email.ts</code> (approval-confirmation path).</div>
+                <div class="field"><span class="field-label">Visible on</span>Admin clicks Approve in <code>/admin/users</code> → the approved user receives a welcome email and can now log in at <code>/login</code>.</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">RESEND_REG_FINAL_API_KEY=re_welcome_xxxxxxxxxxxxxxxxxxxxxxxx</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">RESEND_CONTACT_API_KEY</span>
+                <span class="default required">required for the contact form</span>
+                <div class="field"><span class="field-label">Overview</span>Resend key used by <code>/api/contact</code> for inbound contact-form submissions. Separate from auth keys so contact-form abuse can't burn your transactional quota.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/app/api/contact/route.ts</code>.</div>
+                <div class="field"><span class="field-label">Visible on</span><code>/contact</code> → user submits a message → it's delivered to <code>CONTACT_RECIPIENT_EMAIL</code>. Missing/wrong key → form looks like it works but no email is sent.</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">RESEND_CONTACT_API_KEY=re_contact_xxxxxxxxxxxxxxxxxxxxxxxx</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">RESEND_FROM_EMAIL</span>
+                <span class="default required">required</span>
+                <div class="field"><span class="field-label">Overview</span>From: address on every Resend-sent mail. Must be a verified domain in your Resend account or the API rejects the send.</div>
+                <div class="field"><span class="field-label">Where used</span>All email helpers in <code>src/lib/email.ts</code> and <code>src/app/api/contact/route.ts</code>.</div>
+                <div class="field"><span class="field-label">Visible on</span>The From: header on every email the platform sends — registration, approval, password reset, contact-form copy. Unverified domain → Resend rejects the send and the user never receives the email.</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">RESEND_FROM_EMAIL=hello@growmystocks.com</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">CONTACT_RECIPIENT_EMAIL</span>
+                <span class="default">optional · digitalkdogg@gmail.com</span>
+                <div class="field"><span class="field-label">Overview</span>Destination address for contact-form submissions. Can be a personal inbox, a shared mailbox, or a mailing-list address.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/app/api/contact/route.ts</code>.</div>
+                <div class="field"><span class="field-label">Visible on</span>The admin inbox that receives <code>/contact</code> form submissions. Users never see this address — it's the To: header on the inbound notification.</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">CONTACT_RECIPIENT_EMAIL=support@growmystocks.com</pre>
+                </div>
+            </div>
+
+            <div class="env-category" id="env-vars-deepmoney">DeepMoney sync pipeline</div>
+
+            <div class="env-var-card">
+                <span class="name">DEEPMONEY_ALGORITHM</span>
+                <span class="default">optional · 5</span>
+                <div class="field"><span class="field-label">Overview</span>The <strong>single knob</strong> controlling deepmoney pipeline aggressiveness end-to-end. Float 1.0–10.0; lower = stricter, higher = more permissive. Resolves through <code>models/algorithm_presets.json</code> into four fields: <code>rankerKeepPct</code>, <code>mlpConfidenceFloor</code>, <code>volGateFloor</code>, <code>analystStrongBuyThreshold</code>. Fractional values (e.g. 1.5) interpolate linearly between adjacent integer rows. Replaces the retired <code>DEEPMONEY_GPS_VALUE</code>, <code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code>, <code>DEEPMONEY_ANALYST_THRESHOLD</code>, <code>DEEPMONEY_USE_RANKER_GATE</code>, and <code>DEEPMONEY_TIER2_TOPK</code>.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/utils/algorithmPreset.ts</code> (single read), <code>src/app/api/prediction/deepmoney/route.ts</code> (echoes the resolved preset in <code>meta.algorithm</code>), <code>scripts/deepmoney_sync.py</code> (reads back from <code>meta.algorithm</code>). Full detail: <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>.</div>
+                <div class="field"><span class="field-label">Visible on</span>The dashboard's <strong>DeepMoney Picks</strong> widget, the <strong>DISCOVERY cards</strong> on <code>/dashboard</code>, and the per-user ETF Holding cards on <code>/portfolio</code> — all three are populated by the nightly <code>deepmoney_sync.py</code> run, which uses the resolved preset to gate every stock written to <code>recommended_stocks</code>. Lower the number = fewer cards everywhere; higher = more.</div>
+                <div class="field"><span class="field-label">Tuning</span>Move the whole pipeline in one direction with one number:
+                    <pre class="example">DEEPMONEY_ALGORITHM=1.5   # very strict: top ~7% by ranker, CS ≥ 72.5 (only top-bucket picks)
+DEEPMONEY_ALGORITHM=5     # default: top 25%, CS ≥ 60
+DEEPMONEY_ALGORITHM=8     # loose: top 60%, CS ≥ 45</pre>
+                </div>
+            </div>
+
+            <div class="env-category" id="env-vars-prediction">Prediction / GPS scoring</div>
+
+            <div class="env-var-card">
+                <span class="name">GPS_PREDICTION_MAX</span>
+                <span class="default">optional · 3</span>
+                <div class="field"><span class="field-label">Overview</span>Saturation point for the <code>mlpUpside</code> component of the GPS score. Formula: <code>mlpUpside = clamp(predicted_change_pct / GPS_PREDICTION_MAX, -1, 1) × 20</code>. Lower = component saturates faster (a +3% prediction pegs the full 20 pts); higher = component is more discriminating across a wider range.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/utils/gps.ts</code> (<code>calculateGpsScore</code> and <code>adjustGpsForHorizon</code>), <code>scripts/update_predictions.py</code> (<code>calculate_gps_v3</code> mirror), <code>src/app/api/stock_data/[ticker]/holdings/route.ts</code> (inverse — recovers <code>predicted_change_pct</code> from stored breakdown).</div>
+                <div class="field"><span class="field-label">Visible on</span>The GPS number on <strong>every card with a GPS score</strong> — portfolio cards on <code>/portfolio</code>, watchlist cards on <code>/dashboard</code>, BUY / SELL / DISCOVERY cards on <code>/dashboard</code>, the GPS panel on <code>/search/[ticker]</code>, and the <strong>GpsBreakdownModal</strong> shown when a user taps a GPS number. Changing it shifts how aggressively prediction strength gets converted into the visible score.</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">GPS_PREDICTION_MAX=3      # default: tight 3% saturation
+GPS_PREDICTION_MAX=15     # current prod: 15% saturation</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">GPS_BASELINE</span>
+                <span class="default">optional · 65</span>
+                <div class="field"><span class="field-label">Overview</span>Anchor for the dashboard's BUY / SELL / DISCOVERY card rendering. BUY threshold = <code>GPS_BASELINE</code>; SELL = baseline + <code>GPS_SELL_OFFSET</code>; DISCOVERY = baseline + <code>GPS_DISCOVERY_OFFSET</code>. Then strategy <code>envFloorMultiplier</code> (safe×1.05, aggressive×0.95) scales BUY and DISCOVERY per user.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/app/api/dashboard/recommendations/route.ts</code>.</div>
+                <div class="field"><span class="field-label">Visible on</span>The <strong>BUY cards</strong> on the <code>/dashboard</code> Recommendations strip, and the matching cards on <code>/portfolio</code>. Raising = fewer BUY cards render; safe-strategy users see an even tighter set than aggressive users for the same baseline.</div>
+                <div class="field"><span class="field-label">Tuning</span>Raise to be more selective on BUY cards:
+                    <pre class="example">GPS_BASELINE=62           # current: BUY at 62, scales 65.1 (safe) / 58.9 (aggressive)
+GPS_BASELINE=75           # stricter: BUY only above 75</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">GPS_SELL_OFFSET</span>
+                <span class="default">optional · -20</span>
+                <div class="field"><span class="field-label">Overview</span>Offset added to <code>GPS_BASELINE</code> to compute the SELL warning threshold. Almost always negative — SELL fires when GPS drops well below the BUY anchor. Not scaled by aggressiveness; warnings fire regardless of strategy.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/app/api/dashboard/recommendations/route.ts</code>.</div>
+                <div class="field"><span class="field-label">Visible on</span>The <strong>SELL warning cards</strong> on <code>/dashboard</code> (red-bordered cards on the portfolio side). More negative = SELL warnings fire later (only on deeper score drops); less negative = warnings fire more eagerly.</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">GPS_SELL_OFFSET=-30       # SELL fires at GPS ≤ baseline - 30</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">GPS_DISCOVERY_OFFSET</span>
+                <span class="default">optional · +5</span>
+                <div class="field"><span class="field-label">Overview</span>Offset added to <code>GPS_BASELINE</code> for the DISCOVERY card threshold. Set <strong>negative</strong> to put DISCOVERY below BUY (surface promising-but-unconfirmed picks). The code default of <code>+5</code> puts it above BUY — usually the wrong direction; override it deliberately.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/app/api/dashboard/recommendations/route.ts</code>.</div>
+                <div class="field"><span class="field-label">Visible on</span>The <strong>DISCOVERY cards</strong> on the <code>/dashboard</code> Recommendations strip (stocks the user doesn't own yet but the system thinks are interesting). More negative = more DISCOVERY cards surface; the default <code>+5</code> means almost none ever show.</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">GPS_DISCOVERY_OFFSET=-25  # DISCOVERY fires at GPS ≥ baseline - 25</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">GPS_DEEPMONEY_MIN_SCORE</span>
+                <span class="default">optional · 65</span>
+                <div class="field"><span class="field-label">Overview</span>Read-side GPS floor for the dashboard's DeepMoney Picks widget only. Filters which rows of <code>recommended_stocks</code> show in that widget. Independent from the BUY/SELL/DISCOVERY classification — a stock can clear this filter and still render as a non-BUY card.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/app/api/dashboard/deepmoney-picks/route.ts</code>.</div>
+                <div class="field"><span class="field-label">Visible on</span>The dashboard's <strong>DeepMoney Picks widget only</strong> — the carousel of AI-curated stocks on <code>/dashboard</code>. Doesn't affect the BUY / SELL / DISCOVERY classification elsewhere on the page; it just filters which sync-persisted rows render in this specific widget.</div>
+                <div class="field"><span class="field-label">Tuning</span>Effectively disable the widget filter (rely on the sync's own gates):
+                    <pre class="example">GPS_DEEPMONEY_MIN_SCORE=4    # almost everything passes
+GPS_DEEPMONEY_MIN_SCORE=65   # default: only the top tier shows</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">ETF_HOLDING_GPS_SURFACE_VALUE</span>
+                <span class="default">optional · 60</span>
+                <div class="field"><span class="field-label">Overview</span>Baseline GPS threshold for an ETF holding to be surfaced as a per-user recommendation. Multiplied by the user's <code>envFloorMultiplier</code> per-strategy, so the effective floor is per-user.</div>
+                <div class="field"><span class="field-label">Where used</span><code>scripts/update_predictions.py</code> and <code>src/app/api/stock_data/[ticker]/holdings/route.ts</code>.</div>
+                <div class="field"><span class="field-label">Visible on</span>The <strong>ETF Holding cards</strong> shown on <code>/portfolio</code> when the user owns an ETF (e.g. SPY, QQQ, VGT) — surfaces individual stocks <em>inside</em> those ETFs as picks. Higher = stricter, fewer cards; lower = more cards.</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">ETF_HOLDING_GPS_SURFACE_VALUE=60   # neutral users: GPS ≥ 60 surfaces
+                                   # safe users:    GPS ≥ 63 (60 × 1.05)
+                                   # aggressive:    GPS ≥ 57 (60 × 0.95)</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">ETF_HOLDING_MIN_PRED_CHANGE</span>
+                <span class="default">optional · 1.5</span>
+                <div class="field"><span class="field-label">Overview</span>Minimum predicted-change % for an ETF holding to surface. Scaled per-user by aggressiveness. Read live by the holdings endpoint and by the predictions sync.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/app/api/stock_data/[ticker]/holdings/route.ts</code>, <code>scripts/update_predictions.py</code>.</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">ETF_HOLDING_MIN_PRED_CHANGE=5      # require ≥5% predicted move</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">ETF_HOLDING_MIN_CONFIDENCE</span>
+                <span class="default">optional · 60</span>
+                <div class="field"><span class="field-label">Overview</span>Baseline minimum MLP confidence (0–100) for an ETF holding to surface as a recommendation. Scaled per-user by aggressiveness.</div>
+                <div class="field"><span class="field-label">Where used</span><code>scripts/update_predictions.py</code>.</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">ETF_HOLDING_MIN_CONFIDENCE=55      # accept slightly lower-confidence picks</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">ETF_HOLDING_MAX_TICKERS</span>
+                <span class="default">optional · 50</span>
+                <div class="field"><span class="field-label">Overview</span>Caps both (a) how many holdings the discovery flow fetches from Yahoo per ETF, and (b) how many unique tickers get scored after dedup. Whichever cap binds first wins.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/utils/etfDiscovery.ts</code>, <code>src/utils/etfHoldings.ts</code>.</div>
+                <div class="field"><span class="field-label">Tuning</span>Raising means more Yahoo rate-limit pressure but wider coverage:
+                    <pre class="example">ETF_HOLDING_MAX_TICKERS=25     # narrow / cheap
+ETF_HOLDING_MAX_TICKERS=100    # wide / heavier Yahoo load</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">ETF_HOLDING_MAX_BETA</span>
+                <span class="default">optional · 2.0</span>
+                <div class="field"><span class="field-label">Overview</span>Beta cap on ETF holdings — anything above this is dropped before scoring so the surfaced set isn't dominated by volatile names. Filter is bypassed in some legacy code paths; check the call site if you change it.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/utils/etfHoldings.ts</code>, <code>src/app/api/stock_data/[ticker]/holdings/route.ts</code>.</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">ETF_HOLDING_MAX_BETA=2      # default
+ETF_HOLDING_MAX_BETA=3      # accept higher-beta holdings (more risk)</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">ETF_HOLDING_STALENESS_HOURS</span>
+                <span class="default">optional · 4</span>
+                <div class="field"><span class="field-label">Overview</span>How old a cached <code>etf_holding_scores</code> row can be before <code>/holdings</code> re-scores it. Lower = fresher data, more compute; higher = cheaper, more stale.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/utils/etfHoldings.ts</code>.</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">ETF_HOLDING_STALENESS_HOURS=4      # default
+ETF_HOLDING_STALENESS_HOURS=24     # cheaper, daily-only refresh</pre>
+                </div>
+            </div>
+
+            <div class="highlight-box" style="margin-top:1.5rem;">
+                <strong>Reference:</strong> The deep-dive doc for the deepmoney sync (<a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>) carries the full algorithm-preset table mapping levels 1–10 to their resolved <code>{rankerKeepPct, mlpConfidenceFloor, volGateFloor, analystStrongBuyThreshold}</code> values. The <a href="gps_score.html">GPS Score</a> doc explains how <code>GPS_PREDICTION_MAX</code> shapes the <code>mlpUpside</code> component within the overall 8-component formula.
+            </div>
+        </section>
+
         <section id="read-next">
-            <h2>7. Where to Read Next</h2>
+            <h2>8. Where to Read Next</h2>
             <p>The overview deliberately stays shallow. Pick the door that matches what you need to know:</p>
             <div class="read-next-grid">
                 <a class="read-next-card" href="architecture_documentation.html">

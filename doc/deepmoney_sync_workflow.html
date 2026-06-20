@@ -96,7 +96,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Developer Docs</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-15</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-19</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -137,15 +137,21 @@
     <a href="#entrypoint">Entrypoint &amp; Env Loading</a>
     <a href="#step1">1. Macro Data Sync</a>
     <a href="#step2">2. DeepMoney Discovery</a>
+    <a href="#step2-feeds">— Discovery Sources (28)</a>
     <a href="#strategy-link">— Strategy-Driven ML Gate</a>
-    <a href="#step3">3. ML Validation Gate (Python)</a>
-    <a href="#vol-gate">— Volatility-Adj. Confidence Gate</a>
+    <a href="#step3">3. Python-side Gates</a>
+    <a href="#vol-gate">— Confidence Gate (preset-driven)</a>
     <a href="#ath-warn">— ATH Proximity Warning</a>
     <a href="#step4">4. Dashboard Qualification</a>
     <a href="#step5">5. ETF Holdings</a>
     <a href="#step6">6. Persistence &amp; Cleanup</a>
     <a href="#analytics-record">— Analytics Recording</a>
+    <a href="#summary-block">— End-of-Run Summary</a>
     <a href="#step7">7. API Response Shape</a>
+    <a href="#path-a">8. Ranker + Analyst Override</a>
+    <a href="#path-a-flow">— Flow</a>
+    <a href="#path-a-schema">— Schema Additions</a>
+    <a href="#path-a-rollout">— Rollout &amp; Rollback</a>
     <a href="#tables">Tables Written</a>
     <a href="#scheduling">Scheduling</a>
     <a href="#env-config">Environment Config</a>
@@ -162,17 +168,28 @@
 
   <main>
     <p style="font-size:.8rem;color:#94a3b8;margin-bottom:.25rem;">doc / deepmoney_sync_workflow.html</p>
-    <h1>DeepMoney Analysis Workflow (v2.5)</h1>
+    <h1>DeepMoney Analysis Workflow (v2.7)</h1>
     <div class="meta">
       <span>scripts/deepmoney_sync.py</span>
       <span>scripts/get_macro_data.py</span>
       <span>scripts/prediction_recorder.py</span>
+      <span>scripts/score_ranker.py</span>
+      <span>scripts/ranker_features.py</span>
       <span>src/app/api/prediction/deepmoney/</span>
-      <span>Updated 2026-06-15</span>
+      <span>src/utils/rankerInference.ts</span>
+      <span>src/utils/algorithmPreset.ts</span>
+      <span>models/algorithm_presets.json</span>
+      <span>Updated 2026-06-19</span>
     </div>
 
     <section id="overview">
       <p>The DeepMoney sync is a background batch process (typically run as a cron job) that discovers, validates, and persists AI-curated stock recommendations and ETF picks to the database. The results power the dashboard's "AI Picks" panel, the discovery recommendations feed, and the macro context snapshot visible to all approved users.</p>
+      <div class="highlight-box">
+        <strong>v2.7 changes (2026-06-19):</strong> Collapsed all pipeline tuning to a single integer env var, <code>DEEPMONEY_ALGORITHM</code> (1–10, default 5), resolved via <code>models/algorithm_presets.json</code> into four fields: <code>rankerKeepPct</code>, <code>mlpConfidenceFloor</code>, <code>volGateFloor</code>, <code>analystStrongBuyThreshold</code>. The LightGBM ranker is now mandatory and is the primary stock-level filter (keep top <code>rankerKeepPct</code> by rank percentile). An <strong>analyst-strongBuy override lane</strong> runs alongside the ranker — any pre-filtered stock with analyst strongBuy count ≥ <code>analystStrongBuyThreshold</code> (also scaled by level) bypasses the ranker keep-cut and the <code>mlGate</code> floor (still must yield positive predicted change). Stage 1 additionally merges holdings of ~20 popular ETFs into the candidate pool and scrapes the Yahoo Finance earnings calendar; new feeds added for oilprice.com, Defense News (land+space JSON), DIA, and a simpler SEC Form 4 endpoint. The GPS-Light path is gone; <code>gps_score_type</code> is always <code>'full'</code>. Retired env vars: <code>DEEPMONEY_GPS_VALUE</code>, <code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code>, <code>DEEPMONEY_ANALYST_THRESHOLD</code>, <code>DEEPMONEY_USE_RANKER_GATE</code>, <code>DEEPMONEY_TIER2_TOPK</code>.
+      </div>
+      <div class="highlight-box">
+        <strong>v2.6 changes (2026-06-18):</strong> Added the Path-A cross-sectional ranker integration (feature-flagged via <code>DEEPMONEY_USE_RANKER_GATE</code>). Two-pass flow in <code>analyzer.ts</code>: Tier-1 GPS-Light + ranker score for the full universe, Tier-2 Monte Carlo only on the top-K promoted set. Schema additions to <code>recommended_stocks</code> and <code>stock_gps_scores</code>: <code>gps_score_type</code>, <code>ranker_score</code>, <code>hist_vol_30</code>. End-of-run funnel summary block. ETF holdings endpoint now reads from <code>stock_gps_scores</code> directly (retiring the dead <code>etf_holding_scores</code> cache). <em>Superseded by v2.7 — the feature flag and tier-K env vars no longer exist.</em>
+      </div>
       <div class="highlight-box">
         <strong>v2.5 changes (2026-06-15):</strong> Documented strategy-driven <code>mlGate</code> wiring in the API route (timeframe-aware prediction floor), in-process <code>_indices_cache</code> helper, outlook-bucketed cache key, and corrected <code>record_prediction</code> semantics to <code>ON DUPLICATE KEY UPDATE</code> (not <code>INSERT IGNORE</code>).
       </div>
@@ -199,7 +216,7 @@
           <li><code>.env.local</code> (if present)</li>
           <li><code>.env</code></li>
         </ol>
-        <p>Required env vars: <code>DB_HOST</code>, <code>DB_USER</code>, <code>DB_PASSWORD</code>, <code>DB_DATABASE</code>, <code>DEEPMONEY_INTERNAL_SECRET</code>. Optional knobs: <code>DEEPMONEY_GPS_VALUE</code>, <code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code>, <code>NEXTAUTH_URL</code> (read but not used for the discovery call).</p>
+        <p>Required env vars: <code>DB_HOST</code>, <code>DB_USER</code>, <code>DB_PASSWORD</code>, <code>DB_DATABASE</code>, <code>DEEPMONEY_INTERNAL_SECRET</code>. Optional knobs: <code>DEEPMONEY_ALGORITHM</code> (integer 1–10, default 5), <code>NEXTAUTH_URL</code> (read but not used for the discovery call).</p>
         <p><strong>Module-level cache:</strong> <code>_indices_cache</code> is a process-local variable used by <code>get_market_indices()</code>. The first call hits <code>/api/market/indices</code>; subsequent calls inside the same run return the memoized payload. The function is currently <em>defined but not called</em> inside <code>sync_deepmoney()</code> — it is exported infrastructure for future use or for callers that import the module.</p>
       </div>
     </section>
@@ -231,13 +248,67 @@
           <li><strong>Authorization:</strong> Uses <code>DEEPMONEY_INTERNAL_SECRET</code> via the <code>x-api-key</code> header. The secret is stripped of surrounding quotes before use to handle environment variable formatting quirks (<code>secret = INTERNAL_SECRET.strip('"')</code>).</li>
           <li><strong>Internal URL:</strong> All calls use <code>INTERNAL_API_URL = 'http://localhost:3001'</code> (hardcoded). This bypasses nginx and its 60-second proxy timeout — the discovery route can take over 2 minutes.</li>
           <li><strong>Endpoint called:</strong> <code>GET /api/prediction/deepmoney?refresh=true</code></li>
-          <li><strong>Discovery methods (server-side):</strong> Multi-source RSS / screener feeds (Yahoo, MarketBeat, TheStreet, Motley Fool, CNBC, MarketWatch, Seeking Alpha, SEC EDGAR 8-K/Form 4, ApeWisdom, sector verticals) feed primary tickers, which are then expanded into a secondary set. Enriched stocks pass through technical-indicator scoring and an AI analyzer; ETFs are surfaced via <code>performETFDiscovery()</code>.</li>
+          <li><strong>Discovery methods (server-side, Stage 1):</strong> Primary tickers come from ~28 RSS / screener / atom / JSON sources (Yahoo, MarketBeat, TheStreet, Motley Fool, CNBC, MarketWatch, Seeking Alpha, SEC EDGAR 8-K + two Form-4 endpoints, ApeWisdom, sector verticals, oilprice.com, Defense News land/space JSON via Arc Publishing, DIA). The set is then expanded by a secondary Yahoo per-ticker-feed pass (capped at 30). Two additional Stage-1 sources merge in parallel with the secondary pass: the top holdings of ~20 popular ETFs (<code>POPULAR_ETF_TICKERS</code>, fetched via the internal <code>/holdings</code> endpoint) and the Yahoo Finance earnings calendar (HTML scraped for <code>/quote/&lt;TICKER&gt;</code> links). Everything dedups into a single <code>Set&lt;string&gt;</code> before enrichment. ETFs themselves are surfaced via <code>performETFDiscovery()</code>.</li>
         </ul>
         <div class="warning-box">
           <strong>Maintenance note:</strong> If the Next.js server port ever changes from 3001, <code>INTERNAL_API_URL</code> must be updated manually in each Python script — it is not controlled by an environment variable. The same hardcoded constant exists in <code>scripts/get_macro_data.py</code> and other sync scripts.
         </div>
-        <p>The response includes a <code>meta.debug</code> object logged during the sync showing pipeline stage counts: stocks rejected by enrichment, by signal score, by insufficient history (&lt;100 trading days), passed to the AI analyzer, rejected by the AI (&lt; <code>mlGate</code>%), and final filtered count.</p>
+        <p>The response includes a <code>meta.debug</code> object logged during the sync showing pipeline stage counts: stocks rejected by enrichment, by signal score, by insufficient history (&lt;100 trading days), passed to the analyzer, rejected by the LightGBM ranker, analyst-consensus surfaced, and final filtered count. <code>meta.algorithm</code> echoes the resolved <code>DEEPMONEY_ALGORITHM</code> preset so the Python sync uses the same gate values the server applied.</p>
       </div>
+
+      <section id="step2-feeds">
+        <h3>Discovery Sources (Stage 1)</h3>
+        <div class="step-card">
+          <p>The full <code>PRIMARY_FEED_URLS</code> array in <code>src/app/api/prediction/deepmoney/route.ts</code> plus the two non-feed sources that run in parallel. Every ticker discovered here flows into a single <code>Set&lt;string&gt;</code> before secondary expansion and enrichment.</p>
+          <table>
+            <thead><tr><th>#</th><th>Source</th><th>Format</th><th>Category</th></tr></thead>
+            <tbody>
+              <tr><td>1</td><td>Yahoo Finance — DJI headlines RSS</td><td>RSS</td><td>Index news</td></tr>
+              <tr><td>2</td><td>Yahoo Finance — GSPC headlines RSS</td><td>RSS</td><td>Index news</td></tr>
+              <tr><td>3</td><td>Yahoo Finance — IXIC headlines RSS</td><td>RSS</td><td>Index news</td></tr>
+              <tr><td>4</td><td>Yahoo screener — <code>small_cap_gainers</code></td><td>JSON</td><td>Screener</td></tr>
+              <tr><td>5</td><td>Yahoo screener — <code>most_actives</code></td><td>JSON</td><td>Screener</td></tr>
+              <tr><td>6</td><td>Yahoo screener — <code>undervalued_growth_stocks</code></td><td>JSON</td><td>Screener</td></tr>
+              <tr><td>7</td><td>Yahoo screener — <code>aggressive_small_caps</code></td><td>JSON</td><td>Screener</td></tr>
+              <tr><td>8</td><td>MarketBeat — <code>marketbeat.com/feed/</code></td><td>RSS</td><td>Equity news</td></tr>
+              <tr><td>9</td><td>TheStreet — partner feed</td><td>RSS</td><td>Equity news</td></tr>
+              <tr><td>10</td><td>Motley Fool — Chrome partner feed</td><td>RSS</td><td>Equity news</td></tr>
+              <tr><td>11</td><td>CNBC — combined CMS</td><td>RSS</td><td>Equity news</td></tr>
+              <tr><td>12</td><td>MarketWatch — realtime headlines</td><td>RSS</td><td>Equity news</td></tr>
+              <tr><td>13</td><td>Seeking Alpha — <code>seekingalpha.com/feed.xml</code></td><td>RSS</td><td>Equity news</td></tr>
+              <tr><td>14</td><td>Investing.com — <code>news_25.rss</code></td><td>RSS</td><td>Equity news</td></tr>
+              <tr><td>15</td><td>CNBC — <code>id/20409666</code> device RSS</td><td>RSS</td><td>Equity news</td></tr>
+              <tr><td>16</td><td>TipRanks — <code>tipranks.com/news</code></td><td>RSS</td><td>Equity news</td></tr>
+              <tr><td>17</td><td>SEC EDGAR — 8-K atom (count=40)</td><td>Atom</td><td>Regulatory</td></tr>
+              <tr><td>18</td><td>SEC EDGAR — Form 4 atom (count=40)</td><td>Atom (Form 4)</td><td>Insider activity</td></tr>
+              <tr><td>19</td><td>ApeWisdom — <code>filter/all-stocks</code></td><td>JSON</td><td>Social sentiment</td></tr>
+              <tr><td>20</td><td>Silicon Alley Insider</td><td>RSS</td><td>Sector — Tech</td></tr>
+              <tr><td>21</td><td>FierceBiotech</td><td>RSS</td><td>Sector — Biotech</td></tr>
+              <tr><td>22</td><td>FierceElectronics</td><td>RSS</td><td>Sector — Semiconductors</td></tr>
+              <tr><td>23</td><td>SpaceNews</td><td>RSS</td><td>Sector — Aerospace/Defense</td></tr>
+              <tr><td>24</td><td>OilPrice.com — <code>rss/main</code></td><td>RSS</td><td>Sector — Energy/commodities</td></tr>
+              <tr><td>25</td><td>DIA — Defense Intelligence Agency RSS</td><td>RSS</td><td>Sector — Defense intel</td></tr>
+              <tr><td>26</td><td>SEC EDGAR — Form 4 atom (no count param)</td><td>Atom (Form 4)</td><td>Insider activity</td></tr>
+              <tr><td>27</td><td>Defense News — <code>/land</code> section</td><td>JSON (Arc Publishing)</td><td>Sector — Defense</td></tr>
+              <tr><td>28</td><td>Defense News — <code>/space</code> section</td><td>JSON (Arc Publishing)</td><td>Sector — Defense</td></tr>
+              <tr><td colspan="4" style="background:#f0fdf4;font-weight:600;color:#166534;padding-top:.6rem;">Non-feed Stage-1 sources (run in parallel with the secondary Yahoo pass)</td></tr>
+              <tr><td>A</td><td>Popular ETFs — top holdings of <code>POPULAR_ETF_TICKERS</code> (20 ETFs)</td><td>JSON via internal <code>/holdings</code></td><td>Index/sector exposure</td></tr>
+              <tr><td>B</td><td>Yahoo Finance — earnings calendar</td><td>HTML scrape (<code>/quote/&lt;TICKER&gt;</code> links)</td><td>Earnings season</td></tr>
+            </tbody>
+          </table>
+          <p style="margin-top:.75rem;"><strong>Parsing branches in <code>fetchPrimaryTickers</code>:</strong></p>
+          <ul>
+            <li><strong>RSS / Atom (default):</strong> <code>extractTextFromRSS</code> walks <code>&lt;item&gt;</code> elements, joins <code>&lt;title&gt;</code> + <code>&lt;description&gt;</code>, runs the <code>TICKER_PATTERNS</code> regex set (<code>$AAPL</code>, <code>(AAPL)</code>, <code>Nasdaq: AAPL</code>, <code>NYSE: AAPL</code>, <code>AAPL stock</code>).</li>
+            <li><strong>SEC Form 4 atom:</strong> matched by URL pattern (<code>type=4</code> + <code>output=atom</code>). Parsed via <code>fast-xml-parser</code>; tickers pulled from each entry's <code>edgar:issuerTradingSymbol</code> directly — no regex.</li>
+            <li><strong>JSON — ApeWisdom:</strong> <code>data.results[].ticker</code> with a 5-mention 24h-ago pre-filter to drop low-signal noise.</li>
+            <li><strong>JSON — Yahoo screener:</strong> <code>data.finance.result[0].quotes[].symbol</code>.</li>
+            <li><strong>JSON — Arc Publishing (Defense News):</strong> walks <code>data.content_elements[]</code> joining each story's <code>headlines.basic</code>, <code>subheadlines.basic</code>, <code>description.basic</code>, then runs the same RSS-style ticker regex.</li>
+          </ul>
+          <p>Every URL is fetched concurrently via <code>Promise.allSettled</code> with a 15-second timeout. Per-feed failures (timeouts, 4xx blocks, parse errors) are non-fatal — the run completes with whatever subset succeeded.</p>
+          <div class="highlight-box">
+            <strong>Secondary expansion:</strong> after the primary pass, the first 30 primary tickers (<code>MAX_SECONDARY = 30</code>) are each used to fetch a Yahoo per-ticker feed (<code>feeds.finance.yahoo.com/rss/2.0/headline?s=&lt;TICKER&gt;</code>), and any additional tickers mentioned in those feeds are added to the candidate pool. This typically doubles the discovered ticker count without re-hitting the broader news sources.</div>
+        </div>
+      </section>
 
       <section id="strategy-link">
         <h3>Strategy-Driven ML Gate (Server Side)</h3>
@@ -257,19 +328,18 @@
     <div class="flow-arrow">&#8595;</div>
 
     <section id="step3">
-      <h2><span class="step-num">3</span> ML Validation Gate (Python)</h2>
+      <h2><span class="step-num">3</span> Python-side Gates</h2>
       <div class="step-card">
         <div class="component-tag">deepmoney_sync.py — stock filtering loop</div>
-        <p>Every candidate stock returned in <code>data.stocks</code> is run through a multi-stage Python-side gate before being written to <code>recommended_stocks</code>:</p>
+        <p>Every candidate stock returned in <code>data.stocks</code> has already survived the server-side LightGBM ranker (or the analyst-override lane). The Python sync applies one additional gate before writing to <code>recommended_stocks</code>:</p>
 
         <div class="gate-flow">
-          Candidate stock<br>
+          Candidate stock (already a ranker survivor from server-side Stage 3)<br>
           &darr;<br>
-          <strong>Gate 1: GPS Score</strong><br>
-          <code>gps &gt; DEEPMONEY_GPS_VALUE</code> (env, default 10.0)<br>
+          <strong>Gate 1 (removed):</strong> per-stock GPS gate no longer applied — the ranker is the sole filter<br>
           &darr;<br>
-          <strong>Gate 2: Volatility-Adjusted Confidence</strong><br>
-          <code>conf_score &ge; 50</code> (or <code>&ge; 65</code> if <code>beta &gt; 2.5</code>)<br>
+          <strong>Gate 2: MLP Confidence Floor (algorithm preset)</strong><br>
+          <code>conf_score &ge; mlpConfidenceFloor</code> (or <code>&ge; volGateFloor</code> if <code>beta &gt; 2.5</code>)<br>
           &darr;<br>
           <strong>Analytics fire-and-forget: <code>record_prediction()</code></strong><br>
           &darr;<br>
@@ -281,27 +351,26 @@
       </div>
 
       <section id="vol-gate">
-        <h3>Volatility-Adjusted Confidence Gate</h3>
+        <h3>Volatility-Adjusted Confidence Gate (preset-driven, v2.7)</h3>
         <div class="step-card">
-          <p>After passing the GPS gate, each stock is evaluated against a confidence threshold that scales with market volatility (beta):</p>
+          <p>Each candidate is evaluated against a confidence threshold pulled from the resolved <code>meta.algorithm</code> preset. The floor scales with beta: low-beta stocks use <code>mlpConfidenceFloor</code>, high-beta stocks (&gt; 2.5) use the higher <code>volGateFloor</code>.</p>
           <pre><code>conf_score = pred_input.get('confidence_score') or pred_input.get('confidence_score_1m') or 0
 beta_val = s.get('beta') or 1.0
 
-volatility_gate = conf_score &gt;= 50
-if beta_val &gt; 2.5:
-    volatility_gate = conf_score &gt;= 65
-
-if not volatility_gate:
-    print(f"  [vol-gate] SKIP {ticker}: CS {conf_score} insufficient for beta {beta_val:.2f}")
+confidence_floor = vol_gate_floor if beta_val &gt; 2.5 else mlp_confidence_floor
+if conf_score &lt; confidence_floor:
+    print(f"  [vol-gate] SKIP {ticker}: CS {conf_score} &lt; floor {confidence_floor} (beta {beta_val:.2f})")
+    counters["vol_gate_rejected"] += 1
     continue</code></pre>
-          <p>Rationale: high-beta stocks amplify both upside and downside. The model's confidence score already reflects data quality and historical accuracy, but a confidence of, say, 52 on a stock with beta 3.5 represents a riskier recommendation than the same score on a beta-1.0 stock. This gate enforces a higher evidentiary bar for volatile names before they appear in the dashboard's AI Picks.</p>
+          <p>Rationale: high-beta stocks amplify both upside and downside. The model's confidence score already reflects data quality and historical accuracy, but a confidence of, say, 52 on a stock with beta 3.5 represents a riskier recommendation than the same score on a beta-1.0 stock. The two-floor scheme enforces a higher evidentiary bar for volatile names.</p>
           <table>
             <thead><tr><th>Beta range</th><th>Minimum confidence score</th></tr></thead>
             <tbody>
-              <tr><td>beta &le; 2.5</td><td>50</td></tr>
-              <tr><td>beta &gt; 2.5</td><td>65</td></tr>
+              <tr><td>beta &le; 2.5</td><td><code>mlpConfidenceFloor</code> (preset)</td></tr>
+              <tr><td>beta &gt; 2.5</td><td><code>volGateFloor</code> (preset, always ≥ <code>mlpConfidenceFloor</code>)</td></tr>
             </tbody>
           </table>
+          <p>Example values: at <code>DEEPMONEY_ALGORITHM=5</code> the floors are 60 / 65; at level 1 they are 75 / 75; at level 10 they are 30 / 35. See <a href="#env-config">Environment Config</a> for the full table. Floors are calibrated to the MLP's discrete confidence-score buckets observed at runtime (<code>{35, 50, 65, 75}</code>).</p>
         </div>
       </section>
 
@@ -324,10 +393,10 @@ if hi_ratio &gt; 0.97 and beta_val &gt; 2.0:
     <section id="step4">
       <h2><span class="step-num">4</span> Dashboard Qualification</h2>
       <div class="step-card">
-        <div class="component-tag">deepmoney_sync.py — GPS &gt; DEEPMONEY_RECOMMENDATION_GPS_VALUE</div>
-        <p>Stocks that passed the ML gate are then evaluated against a second, stricter threshold for inclusion in individual user dashboards:</p>
+        <div class="component-tag">deepmoney_sync.py — MLP confidence floor (from algorithm preset)</div>
+        <p>Stocks that passed the volatility-adjusted gate are then evaluated for inclusion in individual user dashboards. GPS-based dashboard gating has been retired; the gate is now on the MLP's own 1-month confidence score:</p>
         <ul>
-          <li><strong>GPS threshold:</strong> <code>gps &gt; DEEPMONEY_RECOMMENDATION_GPS_VALUE</code> (env, default 25.0)</li>
+          <li><strong>Confidence threshold:</strong> <code>conf_score_1m &ge; mlpConfidenceFloor</code> (resolved from <code>DEEPMONEY_ALGORITHM</code> via <code>meta.algorithm</code>).</li>
           <li><strong>Prediction gate:</strong> <code>predicted_change_pct &ge; 1.5%</code> (hardcoded as <code>pred_threshold = 1.5</code>; this matches the neutral / 1-month <code>mlGate</code> in <code>TIMEFRAME_CONFIG</code>).</li>
         </ul>
         <p>Before this gate runs, every qualifying stock is upserted into <code>stocks</code> (insert when missing) and its GPS score is upserted into <code>stock_gps_scores</code> via <code>INSERT ... ON DUPLICATE KEY UPDATE</code> — but only if the GPS score has actually changed when rounded to one decimal place. Unchanged scores are skipped to keep <code>as_of</code> timestamps meaningful. The write uses <code>source = 'deepmoney_sync'</code>.</p>
@@ -345,12 +414,21 @@ if hi_ratio &gt; 0.97 and beta_val &gt; 2.0:
     <section id="step5">
       <h2><span class="step-num">5</span> ETF Holdings</h2>
       <div class="step-card">
-        <div class="component-tag">deepmoney_sync.py — hot_etfs loop</div>
-        <p>For every hot ETF returned in <code>data.hot_etfs</code>, the script fetches <code>GET /api/stock_data/{etf_ticker}/holdings</code> (30-second timeout) and reads the cached holding-level GPS scores that the discovery pass already wrote to <code>etf_holding_scores</code>.</p>
+        <div class="component-tag">deepmoney_sync.py — hot_etfs loop + /api/stock_data/[ticker]/holdings</div>
+        <p>For every hot ETF returned in <code>data.hot_etfs</code>, the script fetches <code>GET /api/stock_data/{etf_ticker}/holdings</code> (30-second timeout). The endpoint pulls the live holdings list from yfinance, then enriches each holding with its current GPS score for surfacing.</p>
+        <div class="warning-box">
+          <strong>v2.6 change (2026-06-18):</strong> The endpoint now reads holding scores from <code>stock_gps_scores</code> joined to <code>stocks</code> by symbol. Previously it read from <code>etf_holding_scores</code> — a cache that the <code>/deepmoney</code> discovery route stopped populating (<code>skipHoldingsScoring: true</code> at <code>route.ts:538</code>), causing the cache to go stale and the sync to surface 0 holdings most days. The new query path is independent of any cache refresh schedule and reflects whatever the analyzer just wrote this run.
+        </div>
+        <p>Surfacing criteria (in <code>holdings/route.ts</code>):</p>
+        <ul>
+          <li><code>gps_score &ge; ETF_HOLDING_GPS_SURFACE_VALUE</code> (env, default 60)</li>
+          <li>Breakdown's <code>mlpUpside</code> component clears <code>(ETF_HOLDING_MIN_PRED_CHANGE / GPS_PREDICTION_MAX) &times; 20</code>. With defaults (1.5% / 3), this is <code>mlpUpside &ge; 10</code>. The proxy works because <code>mlpUpside = clip(predicted_change_pct / GPS_PREDICTION_MAX, -1, 1) &times; 20</code> in <code>calculateGpsScore</code>, so the inverse recovers a <code>predicted_change_pct</code> threshold from the stored breakdown alone — no extra columns required.</li>
+        </ul>
+        <p><code>predicted_change_pct</code> and <code>bearish_signal</code> are still returned in the response shape (recovered from <code>mlpUpside</code>) so existing consumers don't break. <code>beta</code> is always <code>null</code> now — it isn't stored in <code>stock_gps_scores</code>, and the surfacing logic no longer enforces a beta cap. The <code>ETF_HOLDING_MAX_BETA</code> env var is kept for backward compatibility but is no longer read.</p>
         <p>For each holding flagged <code>surfaced: true</code>, a row is inserted into <code>recommended_stocks</code> with:</p>
         <ul>
           <li><code>type = 'etf_holding'</code></li>
-          <li><code>parent_etf_ticker</code>, <code>holding_percent</code>, the cached <code>gps_score</code> and <code>gps_breakdown</code></li>
+          <li><code>parent_etf_ticker</code>, <code>holding_percent</code>, the looked-up <code>gps_score</code> and <code>gps_breakdown</code></li>
           <li><code>bearish_signal = 0</code> (surfaced = non-bearish by definition)</li>
           <li><code>classification = 'ETF Holding'</code></li>
           <li><code>discovery_source = "etf_holdings/{etf_ticker}"</code></li>
@@ -358,6 +436,9 @@ if hi_ratio &gt; 0.97 and beta_val &gt; 2.0:
           <li><code>snapshot_date</code> = today</li>
         </ul>
         <p>A counter (<code>holdings_written</code>) is printed at the end of the loop. Holding rows share the same <code>recommended_stocks</code> table as hot stocks and are distinguished only by <code>type</code>.</p>
+        <div class="highlight-box">
+          <strong>Tuning note:</strong> If holdings rarely surface in your environment, check the distribution of <code>stock_gps_scores.gps_score</code> against <code>ETF_HOLDING_GPS_SURFACE_VALUE</code>. Production-tuned ceilings above ~70 will produce empty holding sets on most market days since the analyzer's GPS output peaks in the 50–60 range during typical conditions.
+        </div>
       </div>
     </section>
 
@@ -389,6 +470,26 @@ if hi_ratio &gt; 0.97 and beta_val &gt; 2.0:
     predicted_price_1y=predicted_price_1y,
 )</code></pre>
         <p>This call is independent of the GPS / user-dashboard logic — it runs as soon as the stock passes the ML gate + volatility gate, before the Dashboard Qualification threshold is checked. The result feeds the <code>/api/analytics/model-accuracy</code> endpoint and the <code>ModelAccuracyWidget</code> headline direction-accuracy metric (Prediction Tracking System, Phase 2–5).</p>
+
+        <h3 id="summary-block" style="background:none;padding:0;color:#334155;margin-top:1.5rem;">End-of-Run Summary <span class="new-badge">new 2026-06-18</span></h3>
+        <p>The script prints a structured funnel summary at the end of every run, regardless of whether the main DB transaction committed or rolled back. The summary lives in <code>_print_run_summary()</code> and is invoked from the <code>finally</code> block, so partial-run numbers still print on exceptions.</p>
+        <p>Run-level counters tracked by the script:</p>
+        <table>
+          <thead><tr><th>Counter</th><th>Source</th></tr></thead>
+          <tbody>
+            <tr><td><code>vol_gate_rejected</code></td><td>Stocks failing the MLP confidence floor (or the higher <code>volGateFloor</code> for beta &gt; 2.5)</td></tr>
+            <tr><td><code>stocks_written</code></td><td>Rows actually inserted into <code>recommended_stocks</code></td></tr>
+            <tr><td><code>gps_updated</code> / <code>gps_unchanged</code></td><td><code>stock_gps_scores</code> write outcomes</td></tr>
+            <tr><td><code>dashboard_qualified</code></td><td>Stocks clearing <code>mlpConfidenceFloor</code> on the 1-month confidence score and <code>pred_threshold</code></td></tr>
+            <tr><td><code>ath_warnings</code></td><td>High-beta near-ATH flags</td></tr>
+            <tr><td><code>etf_holdings_written</code></td><td>Rows inserted from the holdings pass</td></tr>
+            <tr><td><code>stale_cleaned</code></td><td>Discovery rows removed in the post-sync cleanup</td></tr>
+          </tbody>
+        </table>
+        <p>API-side debug counts from <code>meta.debug</code> (rejections at enrichment, signal score, history, ranker keep-cut) are echoed in the summary's "Discovery → Ranker Funnel" block, along with the resolved algorithm preset (<code>level</code>, <code>rankerKeepPct</code>, <code>mlpConfidenceFloor</code>, <code>volGateFloor</code>) and the count of popular-ETF holdings merged. Local gating, GPS history, ETF holdings & cleanup, and run-timing sections follow.</p>
+        <div class="highlight-box">
+          <strong>Reading the summary:</strong> The <code>dashboard_qualified</code> count reflects eligibility (stocks written to <code>user_stocks</code>), <em>not</em> what ultimately renders on user dashboards. The dashboard renderer applies its own strategy-driven thresholds (<code>GPS_BASELINE</code>, <code>GPS_SELL_OFFSET</code>, <code>GPS_DISCOVERY_OFFSET</code>) on top of this set. See <a href="#env-config">Environment Config</a> for the threshold variables.
+        </div>
       </div>
     </section>
 
@@ -431,18 +532,34 @@ if hi_ratio &gt; 0.97 and beta_val &gt; 2.0:
   ],
   "hot_etfs": [ ... ],
   "meta": {
-    "totalDiscovered": 380,
+    "totalDiscovered": 480,
     "enrichedCount": 57,
     "filteredCount": 12,
     "hotEtfsCount": 4,
+    "primaryCount": 220,
+    "secondaryCount": 60,
+    "etfPopularHoldingsCount": 142,
+    "yahooEarningsTickerCount": 38,
+    "feedsQueried": 248,
+    "algorithm": {
+      "level": 5,
+      "rankerKeepPct": 0.25,
+      "mlpConfidenceFloor": 60,
+      "volGateFloor": 70,
+      "analystStrongBuyThreshold": 4
+    },
     "debug": {
       "rejectedEnrichment": 14,
       "rejectedSignalScore": 22,
       "rejectedHistory": 3,
       "passedToAnalyzer": 18,
-      "rejectedByAI": 6,
+      "rejectedByRanker": 6,
       "filteredCount": 12,
       "predictionThreshold": "1.5%",
+      "analystConsensusSurfaced": 2,
+      "newsTickerCount": 198,
+      "etfHoldingTickerCount": 31,
+      "etfHoldingTickerNewlyEnriched": 9,
       "predictionSample": [ ... ]
     }
   }
@@ -450,22 +567,110 @@ if hi_ratio &gt; 0.97 and beta_val &gt; 2.0:
       </div>
     </section>
 
+    <div class="flow-arrow">&#8595;</div>
+
+    <section id="path-a">
+      <h2><span class="step-num">8</span> Cross-sectional Ranker + Analyst Override <span class="new-badge">v2.7 hard filter</span></h2>
+      <div class="step-card">
+        <div class="component-tag">analyzer.ts + scripts/score_ranker.py + models/ranker_v1_regression.txt</div>
+        <p>As of v2.7 the LightGBM ranker is the primary stock-level filter. It is no longer feature-flagged: the analyzer always fetches OHLCV payloads for the full pre-filtered universe, scores everything with the trained LightGBM model in one batch, sorts by <code>rank_pct</code> descending, and keeps only the top <code>rankerKeepPct</code> fraction (resolved from <code>DEEPMONEY_ALGORITHM</code> via <code>models/algorithm_presets.json</code>). The rest are normally discarded.</p>
+        <p><strong>Analyst-strongBuy override lane:</strong> any pre-filtered stock whose current-month analyst <code>strongBuy</code> count (Yahoo <code>recommendationTrend</code> <code>0m</code> period) meets the preset's <code>analystStrongBuyThreshold</code> bypasses the ranker keep-cut and joins the survivor list. These stocks still go through Monte Carlo + GPS-Full, and they still require positive predicted change to be surfaced — but they skip the <code>mlGate</code> percentage floor. Their <code>discovery_source</code> is <code>'analyst_consensus'</code> at write time; ranker-and-mlGate survivors are <code>'v2_engine'</code>.</p>
+        <p><strong>Tuning:</strong> set <code>DEEPMONEY_ALGORITHM</code> in <code>.env.local</code>. Level 1 keeps the top 5% by ranker and requires 10 strongBuys for override; level 10 keeps the whole universe and requires only 1 strongBuy. See the algorithm preset table for the full mapping.</p>
+        <div class="highlight-box">
+          <strong>Failure mode:</strong> if <code>score_ranker.py</code> errors or returns no scores, the analyzer logs a loud error and falls through with every pre-filtered stock treated as a survivor for that run. The analyst override still runs on top in this mode (no-ops since everything is already a survivor). This is a degraded-mode escape hatch, not a normal path — investigate the log if the funnel summary shows zero rejected by ranker.
+        </div>
+      </div>
+
+      <section id="path-a-flow">
+        <h3>Flow</h3>
+        <div class="step-card">
+          <div class="gate-flow">
+            Pre-filter (unchanged: <code>tradingSignalScore &ge; 0</code> AND <code>historyRows &ge; 100</code>)<br>
+            &darr;<br>
+            <strong>Phase 1 — Fetch payloads for entire pre-filtered universe</strong><br>
+            <code>getStockDataForPrediction()</code> per ticker (cheap, OHLCV only)<br>
+            &darr;<br>
+            <strong>Phase 2 — Batch ranker scoring</strong><br>
+            <code>fetchRankerSharedMacro()</code> once (~22 series, 30-min cache)<br>
+            <code>scoreWithRanker()</code> spawns <code>scripts/score_ranker.py</code> as subprocess<br>
+            Returns <code>{ticker → {rankPct, rawScore, histVol30}}</code><br>
+            &darr;<br>
+            <strong>Phase 3 — Hard cut by rank percentile</strong><br>
+            Sort by <code>rank_pct</code> descending<br>
+            Keep the top <code>Math.ceil(stocks.length &times; rankerKeepPct)</code> = <code>rankerSurvivors</code><br>
+            &darr;<br>
+            <strong>Phase 3b — Analyst override lane (additive)</strong><br>
+            Take pre-filtered stocks NOT in <code>rankerSurvivors</code> whose<br>
+            <code>analystStrongBuy &ge; analystStrongBuyThreshold</code><br>
+            <code>survivors = [...rankerSurvivors, ...analystOverrideStocks]</code><br>
+            &darr;<br>
+            <strong>Phase 4 — Monte Carlo + GPS-Full on every survivor</strong><br>
+            Existing <code>runPredictionInternal()</code> per ticker for all 4 horizons<br>
+            Surfacing gate: <code>passesMlGate || (isAnalystOverride &amp;&amp; pred &gt; 0)</code><br>
+            <code>calculateGpsScore()</code> as today, <code>gps_score_type = 'full'</code><br>
+            <code>discovery_source = passesMlGate ? 'v2_engine' : 'analyst_consensus'</code><br>
+            <code>ranker_score</code> + <code>hist_vol_30</code> attached when available
+          </div>
+          <p style="margin-top:1rem;"><strong>Shadow validation, free:</strong> every surfaced stock carries its paired <code>ranker_score</code> at write time. Computing precision@K of "ranker top-K vs. full-GPS top-K" over rolling 2–4 week windows requires nothing more than a SQL query against <code>recommended_stocks</code> grouped by <code>discovery_source</code> — no offline pipeline needed.</p>
+        </div>
+      </section>
+
+      <section id="path-a-schema">
+        <h3>Schema Additions</h3>
+        <div class="step-card">
+          <p>The sync's setup phase issues idempotent <code>ALTER TABLE ... ADD COLUMN</code> statements at startup, wrapped in try/except to silently no-op on MySQL errno 1060 (Duplicate column). MySQL 8 does not support <code>IF NOT EXISTS</code> on <code>ADD COLUMN</code> — that's MariaDB-only — so the per-column try/except pattern is required for safe reruns.</p>
+          <table>
+            <thead><tr><th>Table</th><th>Column</th><th>Definition</th></tr></thead>
+            <tbody>
+              <tr><td><code>recommended_stocks</code></td><td><code>gps_score_type</code></td><td><code>ENUM('light','full') NOT NULL DEFAULT 'full'</code></td></tr>
+              <tr><td><code>recommended_stocks</code></td><td><code>ranker_score</code></td><td><code>DECIMAL(6,4) NULL</code> — percentile rank within run, 0..1</td></tr>
+              <tr><td><code>recommended_stocks</code></td><td><code>hist_vol_30</code></td><td><code>DECIMAL(8,4) NULL</code> — annualized 30-day realized vol</td></tr>
+              <tr><td><code>stock_gps_scores</code></td><td><code>gps_score_type</code></td><td><code>ENUM('light','full') NOT NULL DEFAULT 'full'</code></td></tr>
+              <tr><td><code>stock_gps_scores</code></td><td><code>ranker_score</code></td><td><code>DECIMAL(6,4) NULL</code></td></tr>
+              <tr><td><code>stock_gps_scores</code></td><td><code>hist_vol_30</code></td><td><code>DECIMAL(8,4) NULL</code></td></tr>
+            </tbody>
+          </table>
+          <p>As of v2.7 the ranker is mandatory, so every surfaced row has <code>gps_score_type = 'full'</code>, a populated <code>ranker_score</code> (when the ranker successfully scored the ticker — analyst-override stocks that the ranker skipped due to insufficient history will have <code>NULL</code> here), and a populated <code>hist_vol_30</code>. The <code>'light'</code> enum value is kept on the column for backward compatibility with historical rows but is never written by the current pipeline.</p>
+        </div>
+      </section>
+
+      <section id="path-a-rollout">
+        <h3>Rollout &amp; Rollback</h3>
+        <div class="step-card">
+          <p><strong>Files required when gate is on:</strong></p>
+          <ul>
+            <li><code>models/ranker_v1_regression.txt</code> — trained LightGBM booster (~72 features)</li>
+            <li><code>models/feature_manifest.json</code> — feature column order, training metadata, drift guard</li>
+            <li><code>scripts/ranker_features.py</code>, <code>scripts/score_ranker.py</code> — feature computation + inference</li>
+            <li><code>src/utils/rankerInference.ts</code> — TS bridge (shared macro fetch + subprocess invocation)</li>
+            <li>Python deps: <code>lightgbm</code> (offline-only; not imported when the gate is off)</li>
+          </ul>
+          <p><strong>Rollback (full pipeline-off):</strong> there is no per-run rollback — the ranker is mandatory. To soften the filter without code changes, raise <code>DEEPMONEY_ALGORITHM</code> toward 10 (level 10 keeps the entire pre-filtered universe). Schema columns stay (additive, harmless when unused).</p>
+          <p><strong>Failure mode:</strong> if <code>score_ranker.py</code> fails or the subprocess errors, <code>scoreWithRanker()</code> logs and returns an empty score map. The analyzer detects the empty map and falls through with every pre-filtered stock treated as a survivor for that run. No silent stock loss, but the funnel summary will show zero ranker-rejections — that is the signal to investigate the log.</p>
+          <p><strong>Retraining:</strong> the v1 model was trained on 24 months of weekly cross-sectional snapshots (~50K rows from <code>ranking_training_snapshots</code>). To retrain: rerun <code>scripts/build_ranking_dataset.py</code> against current data, then <code>scripts/train_ranker.py</code>. Both are offline scripts — not invoked by the sync. The output replaces <code>models/ranker_v1_regression.txt</code> + <code>models/feature_manifest.json</code>; the inference path picks them up on the next subprocess call (no restart needed).</p>
+        </div>
+      </section>
+    </section>
+
+    <div class="flow-arrow">&#8595;</div>
+
     <section id="tables">
       <h2>Tables Written</h2>
       <div class="step-card">
         <table>
           <thead><tr><th>Table</th><th>Operation</th><th>Notes</th></tr></thead>
           <tbody>
-            <tr><td><code>recommended_stocks</code></td><td><code>DELETE</code> + bulk <code>INSERT</code></td><td>Fully rebuilt each run. Holds both <code>hot_stocks</code> and <code>etf_holding</code> rows for today's <code>snapshot_date</code>.</td></tr>
+            <tr><td><code>recommended_stocks</code></td><td><code>DELETE</code> + bulk <code>INSERT</code></td><td>Fully rebuilt each run. Holds both <code>hot_stocks</code> and <code>etf_holding</code> rows for today's <code>snapshot_date</code>. v2.6 added <code>gps_score_type</code>, <code>ranker_score</code>, <code>hist_vol_30</code>.</td></tr>
             <tr><td><code>macro_context_snapshots</code></td><td><code>INSERT ... ON DUPLICATE KEY UPDATE</code></td><td>Keyed on <code>snapshot_date</code>. Only written when <code>wb_data.success</code> is true.</td></tr>
             <tr><td><code>stocks</code></td><td><code>SELECT</code> then <code>INSERT</code> if missing</td><td>Ensures a <code>stock_id</code> exists for every qualifying ticker before downstream upserts.</td></tr>
-            <tr><td><code>stock_gps_scores</code></td><td><code>INSERT ... ON DUPLICATE KEY UPDATE</code></td><td>Only when the rounded value actually changed. <code>source = 'deepmoney_sync'</code>.</td></tr>
+            <tr><td><code>stock_gps_scores</code></td><td><code>INSERT ... ON DUPLICATE KEY UPDATE</code></td><td>Only when the rounded value actually changed. <code>source = 'deepmoney_sync'</code>. v2.6 added <code>gps_score_type</code>, <code>ranker_score</code>, <code>hist_vol_30</code>.</td></tr>
             <tr><td><code>user_stock_predictions</code></td><td><code>INSERT ... ON DUPLICATE KEY UPDATE</code> + targeted <code>DELETE</code></td><td>One row per (user, qualifying stock). Cleanup removes rows for stocks not in today's qualifying set.</td></tr>
             <tr><td><code>user_stocks</code></td><td><code>INSERT ... ON DUPLICATE KEY UPDATE</code> + targeted <code>DELETE</code></td><td>Guard clause preserves <code>is_purchased = 1</code> rows; cleanup only touches <code>is_active = 1 AND user_confirmed = 0</code>.</td></tr>
             <tr><td><code>prediction_records</code></td><td><code>INSERT ... ON DUPLICATE KEY UPDATE</code> via <code>prediction_recorder.py</code></td><td>One row per (symbol, <code>CURDATE()</code>). Powers Model Accuracy widget.</td></tr>
           </tbody>
         </table>
-        <p style="margin-top:.75rem;"><strong>Not written by this script:</strong> <code>etf_stock_recommendations</code>, <code>etf_holding_scores</code> (the latter is populated by the server-side discovery route during the API call, not by the Python script).</p>
+        <p style="margin-top:.75rem;"><strong>Not written by this script:</strong> <code>etf_stock_recommendations</code> (owned by <code>update_predictions.py</code>); <code>etf_holding_scores</code> (deprecated as of v2.6 — no longer read or written by any active code path; the <code>/holdings</code> endpoint now reads from <code>stock_gps_scores</code> directly; safe to drop in a future migration).</p>
+        <p style="margin-top:.5rem;"><strong>Idempotent schema migrations applied at startup:</strong> Path-A additions (<code>gps_score_type</code>, <code>ranker_score</code>, <code>hist_vol_30</code>) for both <code>recommended_stocks</code> and <code>stock_gps_scores</code>. Each <code>ALTER TABLE ... ADD COLUMN</code> is wrapped in try/except and swallows MySQL errno 1060 (Duplicate column name), so reruns are safe.</p>
       </div>
     </section>
 
@@ -490,13 +695,36 @@ if hi_ratio &gt; 0.97 and beta_val &gt; 2.0:
           <thead><tr><th>Variable</th><th>Default</th><th>Purpose</th></tr></thead>
           <tbody>
             <tr><td><code>DEEPMONEY_INTERNAL_SECRET</code></td><td>—</td><td>Shared secret for internal API calls (<code>x-api-key</code>). Surrounding quotes are stripped at use time, so either quoted or unquoted forms in the env file work.</td></tr>
-            <tr><td><code>DEEPMONEY_GPS_VALUE</code></td><td>10.0</td><td>ML Gate: minimum GPS score to write a stock to <code>recommended_stocks</code>.</td></tr>
-            <tr><td><code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code></td><td>25.0</td><td>Dashboard Threshold: minimum GPS score to push a stock to user dashboards.</td></tr>
-            <tr><td><code>pred_threshold</code> (hardcoded)</td><td>1.5%</td><td>Prediction Gate: minimum <code>predicted_change_pct</code> required alongside the Dashboard GPS threshold. Matches the neutral / 1-month <code>mlGate</code> in <code>TIMEFRAME_CONFIG</code>.</td></tr>
+            <tr><td><code>DEEPMONEY_ALGORITHM</code></td><td><code>5</code></td><td><strong>Single pipeline knob (v2.7).</strong> Float 1.0–10.0 resolved via <code>models/algorithm_presets.json</code> into <code>{rankerKeepPct, mlpConfidenceFloor, volGateFloor, analystStrongBuyThreshold}</code>. Integer levels return the table row directly; fractional levels (e.g. <code>1.5</code>, <code>3.7</code>) are <strong>linearly interpolated</strong> between the two adjacent integer rows — <code>analystStrongBuyThreshold</code> is rounded to the nearest integer since strongBuy counts are integer. Level 1 is strictest (top 5% by ranker, CS ≥ 75, 10 strongBuys to override); level 10 is most permissive (keep all, CS ≥ 30, 1 strongBuy to override). Echoed back in <code>meta.algorithm</code> so the Python sync reads the resolved values, never the env var itself. Replaces the retired <code>DEEPMONEY_GPS_VALUE</code>, <code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code>, <code>DEEPMONEY_ANALYST_THRESHOLD</code>, <code>DEEPMONEY_USE_RANKER_GATE</code>, and <code>DEEPMONEY_TIER2_TOPK</code>.</td></tr>
+            <tr><td><code>pred_threshold</code> (hardcoded)</td><td>1.5%</td><td>Prediction Gate: minimum <code>predicted_change_pct</code> required alongside the dashboard MLP-confidence floor. Matches the neutral / 1-month <code>mlGate</code> in <code>TIMEFRAME_CONFIG</code>.</td></tr>
             <tr><td><code>NEXTAUTH_URL</code></td><td>http://localhost:3001</td><td>Read but not used for the discovery call. The deepmoney URL is hardcoded to <code>localhost:3001</code> regardless of this variable.</td></tr>
             <tr><td><code>DB_HOST</code>, <code>DB_USER</code>, <code>DB_PASSWORD</code>, <code>DB_DATABASE</code></td><td>—</td><td>MySQL connection for the sync script and for <code>prediction_recorder.py</code>.</td></tr>
+            <tr><td colspan="3" style="background:#f0fdf4;font-weight:600;color:#166534;padding-top:.6rem;">ETF Holdings (read by /holdings endpoint, indirectly via the sync's holdings fetch)</td></tr>
+            <tr><td><code>ETF_HOLDING_GPS_SURFACE_VALUE</code></td><td>60</td><td>Minimum GPS score for a holding to surface. v2.6 raised practical relevance — the endpoint now reads from <code>stock_gps_scores</code> directly, so the threshold gates whatever the analyzer actually produced this run.</td></tr>
+            <tr><td><code>ETF_HOLDING_MIN_PRED_CHANGE</code></td><td>1.5</td><td>Minimum predicted change % implied by the breakdown's <code>mlpUpside</code> component. Surface gate: <code>mlpUpside &ge; (MIN_PRED_CHANGE / GPS_PREDICTION_MAX) &times; 20</code>.</td></tr>
+            <tr><td><code>ETF_HOLDING_MAX_BETA</code></td><td>2.0</td><td>Kept for backward compat; <strong>no longer enforced</strong> as of v2.6. <code>beta</code> is not stored in <code>stock_gps_scores</code> and the surfacing logic skips this check.</td></tr>
+            <tr><td><code>GPS_PREDICTION_MAX</code></td><td>3</td><td>Used by <code>calculateGpsScore</code> for the <code>mlpUpside</code> component, and by the <code>/holdings</code> endpoint to invert <code>mlpUpside → predicted_change_pct</code>. Production-tuned values (e.g. 15) reduce <code>mlpUpside</code> magnitude proportionally.</td></tr>
           </tbody>
         </table>
+        <h3 style="margin-top:1.5rem;">Algorithm Preset Table</h3>
+        <p>Full level → preset mapping (from <code>models/algorithm_presets.json</code>). Higher level = more aggressive (more candidates surface). <strong>Fractional levels interpolate linearly</strong> — e.g. <code>DEEPMONEY_ALGORITHM=1.5</code> resolves to <code>{rankerKeepPct: 0.075, mlpConfidenceFloor: 72.5, volGateFloor: 75, analystStrongBuyThreshold: 9}</code> (midpoint of L1 and L2, with the analyst threshold rounded to the nearest integer).</p>
+        <p>Confidence-floor values are calibrated to the actual MLP confidence-score distribution observed at runtime (the model emits discrete buckets around <code>{35, 50, 65, 75}</code>). A floor of 75 keeps only top-bucket picks; a floor of 35 keeps everything.</p>
+        <table>
+          <thead><tr><th>Level</th><th><code>rankerKeepPct</code></th><th><code>mlpConfidenceFloor</code></th><th><code>volGateFloor</code></th><th><code>analystStrongBuyThreshold</code></th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>0.05</td><td>75</td><td>75</td><td>10</td></tr>
+            <tr><td>2</td><td>0.10</td><td>70</td><td>75</td><td>8</td></tr>
+            <tr><td>3</td><td>0.15</td><td>65</td><td>75</td><td>6</td></tr>
+            <tr><td>4</td><td>0.20</td><td>65</td><td>70</td><td>5</td></tr>
+            <tr><td>5 <em>(default)</em></td><td>0.25</td><td>60</td><td>65</td><td>4</td></tr>
+            <tr><td>6</td><td>0.35</td><td>55</td><td>60</td><td>3</td></tr>
+            <tr><td>7</td><td>0.45</td><td>50</td><td>55</td><td>3</td></tr>
+            <tr><td>8</td><td>0.60</td><td>45</td><td>50</td><td>2</td></tr>
+            <tr><td>9</td><td>0.80</td><td>35</td><td>45</td><td>1</td></tr>
+            <tr><td>10</td><td>1.00</td><td>30</td><td>35</td><td>1</td></tr>
+          </tbody>
+        </table>
+        <p style="margin-top:.75rem;"><strong>Dashboard threshold env vars</strong> (<code>GPS_BASELINE</code>, <code>GPS_SELL_OFFSET</code>, <code>GPS_DISCOVERY_OFFSET</code>) are read by the dashboard renderer, not by this sync script. They determine which of the <code>dashboard_qualified</code> stocks actually render as BUY/SELL/DISCOVERY cards. See <a href="strategy_system.html">Strategy System</a> for the renderer's gate logic.</p>
       </div>
     </section>
 
@@ -506,7 +734,10 @@ if hi_ratio &gt; 0.97 and beta_val &gt; 2.0:
         <table>
           <thead><tr><th>Date</th><th>Change</th><th>Detail</th></tr></thead>
           <tbody>
-            <tr><td>2026-06-15</td><td>Documented strategy-driven server-side <code>mlGate</code> <span class="new-badge">new</span></td><td>API route resolves <code>getUserStrategy()</code> &rarr; <code>resolveStrategy().timeframe</code> for <code>outlook</code> + <code>mlGate</code>. Cache is bucketed by outlook. Linked to <a href="strategy_system.html">Strategy System</a> for gate / timeframe tables.</td></tr>
+            <tr><td>2026-06-19</td><td>Single-knob revamp (v2.7) <span class="new-badge">new</span></td><td>Replaced five tuning env vars with a single integer <code>DEEPMONEY_ALGORITHM</code> (1–10) resolved via <code>models/algorithm_presets.json</code> into four fields. The LightGBM ranker is now mandatory: sort by <code>rank_pct</code> desc, keep top <code>rankerKeepPct</code>. Analyst-strongBuy override lane added back (threshold also scaled by level) — pre-filtered stocks with <code>analystStrongBuy ≥ threshold</code> bypass the ranker keep-cut and the mlGate floor, surfaced as <code>discovery_source='analyst_consensus'</code>. Stage 1 also merges holdings of ~20 popular ETFs into the candidate pool and scrapes the Yahoo Finance earnings calendar; new feeds: oilprice.com, Defense News (land+space JSON), DIA RSS, simpler SEC Form 4 atom. Arc Publishing <code>content_elements</code> handler added to the JSON branch. The GPS-Light tier is gone; <code>gps_score_type</code> is always <code>'full'</code>. <code>deepmoney_sync.py</code> now writes the analyzer's <code>discovery_source</code> verbatim instead of hardcoding <code>'v2_engine'</code>. Retired: <code>DEEPMONEY_GPS_VALUE</code>, <code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code>, <code>DEEPMONEY_ANALYST_THRESHOLD</code>, <code>DEEPMONEY_USE_RANKER_GATE</code>, <code>DEEPMONEY_TIER2_TOPK</code>.</td></tr>
+            <tr><td>2026-06-18</td><td>Path-A ranker integration (v2.6) <em>— superseded by v2.7</em></td><td>Two-pass flow in <code>analyzer.ts</code> feature-flagged via <code>DEEPMONEY_USE_RANKER_GATE</code>. LightGBM cross-sectional ranker scores the full universe in Phase 2; only the top-<code>DEEPMONEY_TIER2_TOPK</code> by GPS-Light gets Monte Carlo. New schema columns (<code>gps_score_type</code>, <code>ranker_score</code>, <code>hist_vol_30</code>), and a structured end-of-run summary block printed from the <code>finally</code> clause.</td></tr>
+            <tr><td>2026-06-18</td><td>ETF holdings endpoint rewrite</td><td><code>/api/stock_data/[ticker]/holdings</code> now reads from <code>stock_gps_scores</code> joined to <code>stocks</code> instead of the deprecated <code>etf_holding_scores</code> cache (which the <code>/deepmoney</code> route stopped populating). Surfacing criteria recover <code>predicted_change_pct</code> and <code>bearish_signal</code> from <code>gps_breakdown.mlpUpside</code>. <code>beta</code> cap no longer enforced (not in source data).</td></tr>
+            <tr><td>2026-06-15</td><td>Documented strategy-driven server-side <code>mlGate</code></td><td>API route resolves <code>getUserStrategy()</code> &rarr; <code>resolveStrategy().timeframe</code> for <code>outlook</code> + <code>mlGate</code>. Cache is bucketed by outlook. Linked to <a href="strategy_system.html">Strategy System</a> for gate / timeframe tables.</td></tr>
             <tr><td>2026-06-15</td><td>Corrected analytics recorder semantics</td><td><code>record_prediction()</code> uses <code>ON DUPLICATE KEY UPDATE</code> with <code>COALESCE</code> to backfill horizon columns, not <code>INSERT IGNORE</code>. The doc previously stated <code>INSERT IGNORE</code>; updated to match <code>scripts/prediction_recorder.py</code>.</td></tr>
             <tr><td>2026-06-15</td><td>Added entrypoint &amp; scheduling sections</td><td>Documented <code>.env</code> load order, the module-level <code>_indices_cache</code> helper, cron cadence, runtime budget, idempotency and failure modes.</td></tr>
             <tr><td>2026-06-15</td><td>Added "Tables Written" summary</td><td>Single-table reference for ops/debugging — lists each table this script touches, operation, and any guards.</td></tr>

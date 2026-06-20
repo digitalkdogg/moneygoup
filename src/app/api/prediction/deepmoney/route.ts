@@ -16,6 +16,7 @@ import { analyzeStocks } from './analyzer';
 import { checkApprovalGuard } from '@/utils/approvalStatus';
 import { performETFDiscovery } from '@/utils/etfDiscovery';
 import { getUserStrategy, resolveStrategy, DEFAULT_STRATEGY } from '@/utils/strategy';
+import { resolveAlgorithm } from '@/utils/algorithmPreset';
 
 const logger = createLogger('api/prediction/deepmoney');
 const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
@@ -48,14 +49,33 @@ const PRIMARY_FEED_URLS = [
     'https://tipranks.com/news',
     'https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&dateb=&owner=include&count=40&search_text=&output=atom',
     'https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=4&dateb=&owner=include&count=40&output=atom',
+    'https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=4&output=atom',
     'https://apewisdom.io/api/v1.0/filter/all-stocks',
     'https://feeds.feedburner.com/typepad/alleyinsider/silicon_alley_insider', // Tech
     'https://www.fiercebiotech.com/rss/xml',                                   // Biotech
     'https://www.fierceelectronics.com/rss/xml',                               // Semiconductors
     'https://www.spacenews.com/feed/',                                         // Aerospace/Defense
+    'https://oilprice.com/rss/main',                                           // Energy / commodities
+    'https://www.dia.mil/DesktopModules/ArticleCS/RSS.ashx?ContentType=1&Site=661&isdashboardselected=0&max=20', // Defense Intelligence Agency news
+    // Defense News — Arc Publishing JSON. Two narrow sections (land + space)
+    // so we don't double-count air/naval/pentagon stories. The mxId=00000000
+    // placeholder is the unauthenticated default.
+    'https://www.defensenews.com/pf/api/v3/content/fetch/story-feed-sections?query=%7B%22excludeSections%22%3A%22%2Fair%22%2C%22feedOffset%22%3A0%2C%22feedSize%22%3A5%2C%22includeSections%22%3A%22%2Fland%22%7D&filter=%7B_id%2Ccontent_elements%7B_id%2Cadditional_properties%7Badvertising%7BcommercialAdNode%2CplayAds%2CplayVideoAds%2CvideoAdZone%7D%7D%2Ccanonical_url%2Ccredits%7Bby%7B_id%2Cadditional_properties%7Boriginal%7Bbyline%2Cemail%7D%7D%2Cdescription%2Cimage%2Cname%2Cslug%2Ctype%7D%7D%2Cdescription%7Bbasic%7D%2Cdisplay_date%2Cembed_html%2Cheadlines%7Bbasic%2Cweb%7D%2Clabel%7Boverline_color%7Btext%7D%2Coverline_text%7Btext%7D%7D%2Cpromo_items%7Bbasic%7B_id%2Cadditional_properties%7Bfocal_point%7Bmax%2Cmin%2Cx%2Cy%7D%7D%2Calt_text%2Cauth%7B1%7D%2Ccontent%2Cembed_html%2Cheight%2Cimage_type%2Ctype%2Curl%2Cwidth%7D%7D%2Crelated_content%7Bbasic%7Breferent%7Btype%7D%7D%2Credirect%7Bredirect_url%7D%7D%2Cshort_url%2Csubheadlines%7Bbasic%7D%2Csubtype%2Ctaxonomy%7Badditional_properties%7Bparent_site_primaries%7BsectionId%7D%7D%2Cprimary_section%7B_id%2C_website%2Cadditional_properties%7Bancestors%2Coriginal%7Bsite%7Bforce_overline%7D%7D%7D%2Cname%2Cparent%7D%2Csections%7B_id%2Cname%2Cpath%7D%2Ctags%7Btext%7D%7D%2Ctype%2Cwebsite%2Cwebsite_url%2Cwebsites%7Bair-force-times%7Bwebsite_section%7B_id%2Cadditional_properties%7Bancestors%2Coriginal%7Bsite%7Bforce_overline%7D%7D%7D%2Cname%2Cpath%7D%7D%2Carmy-times%7Bwebsite_section%7B_id%2Cadditional_properties%7Bancestors%2Coriginal%7Bsite%7Bforce_overline%7D%7D%7D%2Cname%2Cpath%7D%7D%2Cc4isrnet%7Bwebsite_section%7B_id%2Cadditional_properties%7Bancestors%2Coriginal%7Bsite%7Bforce_overline%7D%7D%7D%2Cname%2Cpath%7D%7D%2Cdefense-news%7Bwebsite_section%7B_id%2Cadditional_properties%7Bancestors%2Coriginal%7Bsite%7Bforce_overline%7D%7D%7D%2Cname%2Cpath%7D%7D%2Cfederal-times%7Bwebsite_section%7B_id%2Cadditional_properties%7Bancestors%2Coriginal%7Bsite%7Bforce_overline%7D%7D%7D%2Cname%2Cpath%7D%7D%2Cmarine-corps-times%7Bwebsite_section%7B_id%2Cadditional_properties%7Bancestors%2Coriginal%7Bsite%7Bforce_overline%7D%7D%7D%2Cname%2Cpath%7D%7D%2Cmilitary-times%7Bwebsite_section%7B_id%2Cadditional_properties%7Bancestors%2Coriginal%7Bsite%7Bforce_overline%7D%7D%7D%2Cname%2Cpath%7D%7D%2Cnavy-times%7Bwebsite_section%7B_id%2Cadditional_properties%7Bancestors%2Coriginal%7Bsite%7Bforce_overline%7D%7D%7D%2Cname%2Cpath%7D%7D%7D%7D%2Ccount%2Cnext%2Csize%2Ctype%7D&d=143&mxId=00000000&_website=defense-news',
+    'https://www.defensenews.com/pf/api/v3/content/fetch/story-feed-sections?query=%7B%22excludeSections%22%3A%22%2Fnaval%2C%2Fland%2C%2Fair%2C%2Fpentagon%22%2C%22feedOffset%22%3A0%2C%22feedSize%22%3A5%2C%22includeSections%22%3A%22%2Fspace%22%7D&filter=%7B_id%2Ccontent_elements%7B_id%2Cadditional_properties%7Badvertising%7BcommercialAdNode%2CplayAds%2CplayVideoAds%2CvideoAdZone%7D%7D%2Ccanonical_url%2Ccredits%7Bby%7B_id%2Cadditional_properties%7Boriginal%7Bbyline%2Cemail%7D%7D%2Cdescription%2Cimage%2Cname%2Cslug%2Ctype%7D%7D%2Cdescription%7Bbasic%7D%2Cdisplay_date%2Cembed_html%2Cheadlines%7Bbasic%2Cweb%7D%2Clabel%7Boverline_color%7Btext%7D%2Coverline_text%7Btext%7D%7D%2Cpromo_items%7Bbasic%7B_id%2Cadditional_properties%7Bfocal_point%7Bmax%2Cmin%2Cx%2Cy%7D%7D%2Calt_text%2Cauth%7B1%7D%2Ccontent%2Cembed_html%2Cheight%2Cimage_type%2Ctype%2Curl%2Cwidth%7D%7D%2Crelated_content%7Bbasic%7Breferent%7Btype%7D%7D%2Credirect%7Bredirect_url%7D%7D%2Cshort_url%2Csubheadlines%7Bbasic%7D%2Csubtype%2Ctaxonomy%7Badditional_properties%7Bparent_site_primaries%7BsectionId%7D%7D%2Cprimary_section%7B_id%2C_website%2Cadditional_properties%7Bancestors%2Coriginal%7Bsite%7Bforce_overline%7D%7D%7D%2Cname%2Cparent%7D%2Csections%7B_id%2Cname%2Cpath%7D%2Ctags%7Btext%7D%7D%2Ctype%2Cwebsite%2Cwebsite_url%2Cwebsites%7Bair-force-times%7Bwebsite_section%7B_id%2Cadditional_properties%7Bancestors%2Coriginal%7Bsite%7Bforce_overline%7D%7D%7D%2Cname%2Cpath%7D%7D%2Carmy-times%7Bwebsite_section%7B_id%2Cadditional_properties%7Bancestors%2Coriginal%7Bsite%7Bforce_overline%7D%7D%7D%2Cname%2Cpath%7D%7D%2Cc4isrnet%7Bwebsite_section%7B_id%2Cadditional_properties%7Bancestors%2Coriginal%7Bsite%7Bforce_overline%7D%7D%7D%2Cname%2Cpath%7D%7D%2Cdefense-news%7Bwebsite_section%7B_id%2Cadditional_properties%7Bancestors%2Coriginal%7Bsite%7Bforce_overline%7D%7D%7D%2Cname%2Cpath%7D%7D%2Cfederal-times%7Bwebsite_section%7B_id%2Cadditional_properties%7Bancestors%2Coriginal%7Bsite%7Bforce_overline%7D%7D%7D%2Cname%2Cpath%7D%7D%2Cmarine-corps-times%7Bwebsite_section%7B_id%2Cadditional_properties%7Bancestors%2Coriginal%7Bsite%7Bforce_overline%7D%7D%7D%2Cname%2Cpath%7D%7D%2Cmilitary-times%7Bwebsite_section%7B_id%2Cadditional_properties%7Bancestors%2Coriginal%7Bsite%7Bforce_overline%7D%7D%7D%2Cname%2Cpath%7D%7D%2Cnavy-times%7Bwebsite_section%7B_id%2Cadditional_properties%7Bancestors%2Coriginal%7Bsite%7Bforce_overline%7D%7D%7D%2Cname%2Cpath%7D%7D%7D%7D%2Ccount%2Cnext%2Csize%2Ctype%7D&d=143&mxId=00000000&_website=defense-news',
 ];
 
 const YAHOO_TICKER_FEED_BASE = 'https://feeds.finance.yahoo.com/rss/2.0/headline?s=';
+
+/**
+ * Fixed list of widely-held ETFs whose top holdings are merged into the
+ * candidate pool every run. Same pattern as PRIMARY_FEED_URLS — bake the
+ * list into code, no env var. The /holdings endpoint is queried per ETF
+ * concurrently, with a single ETF failure being non-fatal.
+ */
+const POPULAR_ETF_TICKERS = [
+    'SPY', 'QQQ', 'IWM', 'VTI', 'XLK', 'XLF', 'XLE', 'XLV', 'XLY', 'XLP',
+    'XLI', 'XLU', 'XLRE', 'GLD', 'ARKK', 'VOO', 'DIA', 'EEM', 'SMH', 'HYG',
+];
 
 /**
  * Regex patterns for extracting stock tickers from text.
@@ -241,6 +261,22 @@ async function fetchPrimaryTickers(): Promise<Set<string>> {
                     for (const ticker of extractTickersFromYahooScreenerJson(data)) {
                         allTickers.add(ticker);
                     }
+                } else if (Array.isArray(data?.content_elements)) {
+                    // Arc Publishing PF API (Defense News etc.): walk every
+                    // story's headlines / subheadlines / description and run
+                    // the same ticker regex used for RSS bodies.
+                    const chunks: string[] = [];
+                    for (const item of data.content_elements) {
+                        const h  = item?.headlines?.basic;
+                        const sh = item?.subheadlines?.basic;
+                        const d  = item?.description?.basic;
+                        if (typeof h  === 'string') chunks.push(h);
+                        if (typeof sh === 'string') chunks.push(sh);
+                        if (typeof d  === 'string') chunks.push(d);
+                    }
+                    for (const ticker of extractTickers(chunks.join(' '))) {
+                        allTickers.add(ticker);
+                    }
                 }
             } else if (type === 'sec_form_4_xml') {
                 for (const ticker of extractTickersFromSECForm4Xml(data)) {
@@ -281,6 +317,73 @@ async function fetchSecondaryTickers(primaryTickers: Set<string>): Promise<Set<s
         }
     }
     return allTickers;
+}
+
+/**
+ * Scrape the Yahoo Finance earnings calendar page for ticker symbols.
+ * The page renders tickers as <a href="/quote/AAPL?..."> links in the
+ * server-side HTML, so a single regex pull gives us today's reporting names
+ * without needing JS execution. Failure is non-fatal — an empty set is
+ * returned so the rest of the pipeline continues.
+ */
+async function fetchYahooEarningsTickers(): Promise<Set<string>> {
+    const found = new Set<string>();
+    try {
+        const res = await fetch('https://finance.yahoo.com/calendar/earnings/', {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            },
+            signal: AbortSignal.timeout(15_000),
+        });
+        if (!res.ok) {
+            logger.warn(`Yahoo earnings calendar returned ${res.status}`);
+            return found;
+        }
+        const html = await res.text();
+        const linkRegex = /\/quote\/([A-Z]{1,5})(?=[?/"&])/g;
+        let m: RegExpExecArray | null;
+        while ((m = linkRegex.exec(html)) !== null) {
+            const t = m[1].toUpperCase();
+            if (!TICKER_STOPLIST.has(t)) found.add(t);
+        }
+    } catch (err) {
+        logger.warn('Yahoo earnings calendar scrape failed', { error: String(err) });
+    }
+    return found;
+}
+
+/**
+ * Pull the top holdings of each popular ETF via the internal /holdings
+ * endpoint and return the union of holding tickers across them. A single
+ * ETF failure is non-fatal — we surface whatever the successful calls
+ * returned.
+ */
+async function fetchEtfHoldingTickers(etfTickers: string[]): Promise<Set<string>> {
+    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3001';
+    const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
+    const headers: HeadersInit = {};
+    if (internalSecret) headers['x-api-key'] = internalSecret;
+
+    const results = await Promise.allSettled(etfTickers.map(async (etf) => {
+        const res = await fetch(`${baseUrl}/api/stock_data/${encodeURIComponent(etf)}/holdings`, {
+            headers,
+            signal: AbortSignal.timeout(15_000),
+        });
+        if (!res.ok) throw new Error(`holdings ${etf} returned ${res.status}`);
+        return res.json();
+    }));
+
+    const merged = new Set<string>();
+    for (const r of results) {
+        if (r.status !== 'fulfilled' || !r.value) continue;
+        const holdings = Array.isArray(r.value.holdings) ? r.value.holdings : [];
+        for (const h of holdings) {
+            const t = (h?.ticker || '').toUpperCase();
+            if (t && !TICKER_STOPLIST.has(t)) merged.add(t);
+        }
+    }
+    return merged;
 }
 
 /**
@@ -474,6 +577,11 @@ export async function GET(request: NextRequest) {
     const mlGate = tfCfg.mlGate;
     const CACHE_KEY = `${CACHE_KEY_BASE}:${outlook}`;
 
+    // --- Resolve algorithm preset (single source of truth for all gates) ---
+    // The level travels back to deepmoney_sync.py via meta.algorithm; no
+    // other env vars are read for tuning behavior from this point on.
+    const algorithm = resolveAlgorithm(process.env.DEEPMONEY_ALGORITHM);
+
     // --- Cache check (bucketed by outlook so each timeframe has its own snapshot) ---
     const { searchParams } = new URL(request.url);
     const forceRefresh = searchParams.get('refresh') === 'true';
@@ -510,6 +618,15 @@ export async function GET(request: NextRequest) {
         }
 
         const allTickersSet = await fetchSecondaryTickers(primaryTickers);
+
+        // --- Merge popular-ETF holdings + Yahoo earnings calendar (Stage 1) ---
+        // Set semantics dedup automatically with feed-discovered tickers.
+        const [popularEtfHoldingTickers, yahooEarningsTickers] = await Promise.all([
+            fetchEtfHoldingTickers(POPULAR_ETF_TICKERS),
+            fetchYahooEarningsTickers(),
+        ]);
+        for (const t of popularEtfHoldingTickers) allTickersSet.add(t);
+        for (const t of yahooEarningsTickers) allTickersSet.add(t);
 
         const newsTickerArray = Array.from(allTickersSet).sort();
 
@@ -551,12 +668,20 @@ export async function GET(request: NextRequest) {
         const tickerArray = Array.from(allTickersSet).sort();
 
         // --- Analysis Filtering ---
-        // Pass shared data + user-driven outlook + ML gate + analyst-override threshold
-        const analystThreshold = parseInt(process.env.DEEPMONEY_ANALYST_THRESHOLD ?? '3', 10);
+        // The ranker keeps only the top algorithm.rankerKeepPct of the enriched
+        // pool (Stage 3). Stocks below that cut can still surface via the
+        // analyst-strongBuy override lane (threshold also scaled by the
+        // algorithm level — higher level surfaces more). All survivors then
+        // run through Monte Carlo and the outlook-driven prediction gate.
         const filteredStocks = await analyzeStocks(
             enrichedStocks,
             { wbData, marketIndices },
-            { outlook, mlGate, analystThreshold },
+            {
+                outlook,
+                mlGate,
+                rankerKeepPct: algorithm.rankerKeepPct,
+                analystStrongBuyThreshold: algorithm.analystStrongBuyThreshold,
+            },
         );
 
         const data = {
@@ -576,16 +701,20 @@ export async function GET(request: NextRequest) {
                 hotEtfsCount: hotEtfs.length,
                 primaryCount: primaryTickers.size,
                 secondaryCount: allTickersSet.size - primaryTickers.size,
+                etfPopularHoldingsCount: popularEtfHoldingTickers.size,
+                yahooEarningsTickerCount: yahooEarningsTickers.size,
                 feedsQueried: PRIMARY_FEED_URLS.length + primaryTickers.size,
+                // Resolved DEEPMONEY_ALGORITHM preset. deepmoney_sync.py reads
+                // back from here — it is the only knob for run aggressiveness.
+                algorithm,
                 debug: {
                     rejectedEnrichment: enrichedStocks.filter(s => s.error).length,
                     rejectedSignalScore: enrichedStocks.filter(s => !s.error && (s.tradingSignalScore === undefined || s.tradingSignalScore < 0)).length,
                     rejectedHistory: enrichedStocks.filter(s => !s.error && s.tradingSignalScore >= 0 && s.historyRows < 100).length,
                     passedToAnalyzer: enrichedStocks.filter(s => !s.error && s.tradingSignalScore >= 0 && s.historyRows >= 100).length,
-                    rejectedByAI: enrichedStocks.filter(s => !s.error && s.tradingSignalScore >= 0 && s.historyRows >= 100).length - filteredStocks.length,
+                    rejectedByRanker: enrichedStocks.filter(s => !s.error && s.tradingSignalScore >= 0 && s.historyRows >= 100).length - filteredStocks.length,
                     filteredCount: filteredStocks.length,
                     predictionThreshold: `${mlGate}%`,
-                    analystThreshold,
                     analystConsensusSurfaced: filteredStocks.filter(s => s.discovery_source === 'analyst_consensus').length,
                     newsTickerCount: newsTickerArray.length,
                     etfHoldingTickerCount: etfHoldingTickers.size,

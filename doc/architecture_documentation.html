@@ -677,60 +677,16 @@ Each variant uses:
     <!-- ══════════════════════════════════════════ -->
     <div class="section">
       <div class="section-title" id="env-vars">Environment Variables</div>
-      <div class="updated" style="margin-bottom:1rem;"><strong>June 2026 rename:</strong> ETF holding env vars have been standardised to a consistent <code>ETF_HOLDING_*</code> prefix. <code>ETF_HOLDINGS_TOP_N</code> is now <code>ETF_HOLDING_TOP_N</code> (TypeScript). The Python script (<code>update_predictions.py</code>) reads <code>ETF_HOLDING_GPS_SURFACE_VALUE</code>, <code>ETF_HOLDING_MIN_PRED_CHANGE</code>, and <code>ETF_HOLDING_MIN_CONFIDENCE</code> (previously named with an <code>S</code> plural and different suffixes). Defaults are GPS=60, pred change=1.5%, confidence=60 across both runtimes.</div>
       <div class="arch-card">
-        <table class="props-table">
-          <thead><tr><th>Variable</th><th>Purpose</th><th>Required</th></tr></thead>
-          <tbody>
-            <!-- Database Configuration -->
-            <tr><td><code>DB_HOST</code></td><td>Hostname or IP address of the MySQL server (e.g., <code>localhost</code>, <code>127.0.0.1</code>, <code>db.example.com</code>, or <code>192.168.1.100</code>). Used to establish all database connections for the application.</td><td>Yes</td></tr>
-            <tr><td><code>DB_USER</code></td><td>MySQL user account with permissions to access the database. Used for authentication when connecting to the database. Should have appropriate read/write permissions.</td><td>Yes</td></tr>
-            <tr><td><code>DB_PASSWORD</code></td><td>Password for the MySQL user account. Used alongside DB_USER to authenticate database connections. Keep this secure and never commit to version control.</td><td>Yes</td></tr>
-            <tr><td><code>DB_DATABASE</code></td><td>Name of the main MySQL database (e.g., <code>moneygoup</code>). The application will connect to this specific database and create/query all tables within it.</td><td>Yes</td></tr>
-            <tr><td><code>DB_PORT</code></td><td>MySQL server port number (typically <code>3306</code>). Change this if your MySQL server runs on a non-standard port or behind a proxy.</td><td>Yes</td></tr>
-            <tr><td><code>LOG_DB_NAME</code></td><td>Separate MySQL database name for storing application logs and analytics (e.g., <code>logs</code>). If not provided, logging may write to the main database or be disabled.</td><td>No</td></tr>
-            <!-- Authentication -->
-            <tr><td><code>NEXTAUTH_SECRET</code></td><td>Cryptographic secret key used by NextAuth to sign JWT tokens and encrypt sessions. Generate a secure random string (minimum 32 characters). All users must reauthenticate if this changes.</td><td>Yes</td></tr>
-            <tr><td><code>NEXTAUTH_URL</code></td><td>Base URL where NextAuth callbacks will be sent (e.g., <code>http://localhost:3001</code> for dev, <code>https://app.example.com</code> for prod). Must match the OAuth provider's registered redirect URI exactly.</td><td>Yes</td></tr>
-            <tr><td><code>NEXT_PUBLIC_SITE_URL</code></td><td>Public-facing application URL used in email links, client-side redirects, and API responses (e.g., <code>http://localhost:3001</code> or <code>https://app.example.com</code>). Accessible on the client side, so never put secrets here.</td><td>Yes</td></tr>
-            <!-- Security & CORS -->
-            <tr><td><code>ALLOWED_ORIGINS</code></td><td>Comma-separated list of origins that can make cross-origin requests to the API (e.g., <code>http://localhost:3001,https://app.example.com</code>). Controls CORS headers. Use <code>*</code> only in development.</td><td>Yes</td></tr>
-            <tr><td><code>TRUSTED_PROXIES</code></td><td>Comma-separated list of IP addresses or IP ranges that are trusted reverse proxies (e.g., <code>127.0.0.1,::1</code> for localhost or <code>10.0.0.0/8</code> for internal networks). Used to parse X-Forwarded-For headers for accurate client IP detection.</td><td>Yes</td></tr>
-            <tr><td><code>DEEPMONEY_INTERNAL_SECRET</code></td><td>Secure API key for authenticating requests from external DeepMoney services or internal background jobs. Used to verify that requests are from trusted sources. Treat as a secret; regenerate if compromised.</td><td>Yes</td></tr>
-            <!-- Session Management -->
-            <tr><td><code>SESSION_MAX_AGE</code></td><td>Session timeout duration in seconds. Default is <code>86400</code> (24 hours). Lower values force reauthentication more frequently; higher values keep users logged in longer. Affects both JWT and Redis session storage.</td><td>No</td></tr>
-            <tr><td><code>REDIS_URL</code></td><td>Connection string for Redis server in format <code>redis://[user:password@]host:port[/database]</code> (e.g., <code>redis://127.0.0.1:6379</code> or <code>redis://user:pass@redis.example.com:6380/0</code>). Used for session caching, rate limiting, and real-time data.</td><td>Yes</td></tr>
-            <!-- Email Service (Resend) -->
-            <tr><td><code>RESEND_API_KEY</code></td><td>API key from Resend email service for sending authentication-related emails (registration, account approval, password resets). Get this from the Resend dashboard. Each key is tied to a specific Resend account/project.</td><td>Yes</td></tr>
-            <tr><td><code>RESEND_API_REG_KEY</code></td><td>Optional separate Resend API key for initial registration emails. If provided, overrides RESEND_API_KEY for registration flow. Useful for routing different email types through different Resend projects.</td><td>No</td></tr>
-            <tr><td><code>RESEND_REG_FINAL_API_KEY</code></td><td>Optional separate Resend API key for final registration confirmation/welcome emails. If provided, overrides other keys for registration completion. Allows granular email routing and analytics.</td><td>No</td></tr>
-            <tr><td><code>RESEND_CONTACT_API_KEY</code></td><td>API key from Resend for contact form and support emails. Separate from auth emails to allow independent rate limiting, tracking, and failover. Get from Resend dashboard.</td><td>Yes</td></tr>
-            <tr><td><code>RESEND_FROM_EMAIL</code></td><td>Sender email address for all Resend communications (e.g., <code>noreply@app.example.com</code> or <code>support@example.com</code>). Must be a verified domain in your Resend account. Appears in the From: header of all emails.</td><td>Yes</td></tr>
-            <tr><td><code>CONTACT_RECIPIENT_EMAIL</code></td><td>Admin email address that receives contact form submissions. Users' messages will be forwarded here. If not set, defaults to <code>digitalkdogg@gmail.com</code>. Can be a mailing list or team inbox.</td><td>No</td></tr>
-            <!-- Portfolio Recommendation Thresholds -->
-            <tr><td><code>RECOMMENDATION_PORTFOLIO_POSITIVE_THRESHOLD</code></td><td><strong>Legacy/Deprecated:</strong> Previously used to trigger portfolio "buy" recommendations when price change exceeded this percentage. No longer used in GPS v3.0 recommendation logic. Safe to ignore or remove.</td><td>No</td></tr>
-            <tr><td><code>RECOMMENDATION_PORTFOLIO_NEGATIVE_THRESHOLD</code></td><td><strong>Legacy/Deprecated:</strong> Previously used to trigger portfolio "sell" recommendations when price change fell below this negative percentage. No longer used in GPS v3.0. Safe to ignore or remove.</td><td>No</td></tr>
-            <tr><td><code>RECOMMENDATION_WATCHLIST_THRESHOLD</code></td><td><strong>Legacy/Deprecated:</strong> Previously used for watchlist entry recommendations based on price movement threshold. Replaced by GPS scoring system in v3.0. Safe to ignore or remove.</td><td>No</td></tr>
-            <!-- DeepMoney Sync Thresholds -->
-            <tr><td><code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code></td><td>Minimum GPS score (0-100) required for a stock to be included in DeepMoney recommendation syncs. Value of <code>25</code> means only stocks with GPS ≥25 are sent to DeepMoney. Controls data quality and filtering.</td><td>No</td></tr>
-            <tr><td><code>DEEPMONEY_GPS_VALUE</code></td><td>Minimum GPS score (0-100) threshold for general DeepMoney data synchronization. Value of <code>10</code> means GPS ≥10 stocks are synced. Lower threshold = more data synced, higher threshold = higher quality data.</td><td>No</td></tr>
-            <tr><td><code>GPS_PREDICTION_MAX</code></td><td>Maximum possible GPS prediction score value (upper bound). Value of <code>5</code> means GPS scores are capped at 5. Used for normalizing prediction ranges. Adjust if changing prediction scale.</td><td>No</td></tr>
-            <tr><td><code>PREVIEW</code></td><td>Boolean toggle (<code>true</code> or <code>false</code>) to enable preview/experimental mode. When <code>true</code>, shows beta features, test data, or alternate algorithms. When <code>false</code>, uses production features and data.</td><td>No</td></tr>
-            <!-- GPS Recommendation Thresholds -->
-            <tr><td><code>GPS_RECOMMENDATION_BUY_THRESHOLD</code></td><td>Minimum GPS score (0-100) for generating "BUY" recommendations. Value of <code>85</code> means only stocks with GPS ≥85 trigger buy signals. Higher threshold = fewer, higher-confidence buy signals. Adjust to control recommendation frequency.</td><td>No</td></tr>
-            <tr><td><code>GPS_RECOMMENDATION_SELL_THRESHOLD</code></td><td>Maximum GPS score (0-100) below which "SELL" recommendations are triggered. Value of <code>45</code> means stocks with GPS &lt;45 trigger sell signals. Lower threshold = stronger sell signals. Adjust based on risk tolerance.</td><td>No</td></tr>
-            <tr><td><code>GPS_RECOMMENDATION_DISCOVERY_THRESHOLD</code></td><td>Minimum GPS score (0-100) for including stocks in discovery/watchlist recommendations. Value of <code>80</code> means only GPS ≥80 stocks appear in discovery lists. Controls quality and relevance of discovery recommendations.</td><td>No</td></tr>
-            <tr><td><code>GPS_DEEPMONEY_MIN_SCORE</code></td><td>Minimum GPS score (0-100) required to use DeepMoney predictions as a factor in recommendations. Value of <code>65</code> means only GPS ≥65 stocks trigger DeepMoney-based logic. Ensures predictions are only applied to sufficiently analyzed stocks.</td><td>No</td></tr>
-            <!-- ETF Holdings Analysis — canonical ETF_HOLDING_* set (updated June 2026) -->
-            <tr><td><code>ETF_HOLDING_GPS_SURFACE_VALUE</code></td><td>GPS score threshold (0-100) for surfacing ETF holdings as recommendations. Read by <code>update_predictions.py</code>. Default <code>60</code>. Holdings below this threshold are scored but not saved as user recommendations. Previously named <code>ETF_HOLDINGS_GPS_THRESHOLD</code> in the Python script.</td><td>No</td></tr>
-            <tr><td><code>ETF_HOLDING_MIN_PRED_CHANGE</code></td><td>Minimum predicted price change percentage (e.g., <code>1.5</code>) required for an ETF holding recommendation to be saved. Read by <code>update_predictions.py</code>. Default <code>1.5</code>. Previously named <code>ETF_HOLDINGS_PREDICTION_THRESHOLD</code>.</td><td>No</td></tr>
-            <tr><td><code>ETF_HOLDING_MIN_CONFIDENCE</code></td><td>Minimum AI model confidence score (0-100) for an ETF holding recommendation to be saved. Read by <code>update_predictions.py</code>. Default <code>60</code>. Previously named <code>ETF_HOLDINGS_CONFIDENCE_THRESHOLD</code>.</td><td>No</td></tr>
-            <tr><td><code>ETF_HOLDING_TOP_N</code></td><td>Number of top holdings to analyze per ETF in the TypeScript ETF discovery flow (<code>src/utils/etfDiscovery.ts</code>). Default <code>5</code>. Previously named <code>ETF_HOLDINGS_TOP_N</code>.</td><td>No</td></tr>
-            <tr><td><code>ETF_HOLDING_MAX_TICKERS</code></td><td>Maximum number of unique ticker symbols to analyze per ETF (e.g., <code>50</code>). Prevents analyzing massive diversified ETFs (like VTI with 3000+ holdings). Trades comprehensiveness for performance.</td><td>No</td></tr>
-            <tr><td><code>ETF_HOLDING_MAX_BETA</code></td><td>Maximum beta coefficient (volatility multiplier) for including ETF holdings in analysis (e.g., <code>2.0</code>). Filters out extremely volatile holdings. Value of 2.0 = 2x market volatility.</td><td>No</td></tr>
-            <tr><td><code>ETF_HOLDING_STALENESS_HOURS</code></td><td>Maximum age of cached ETF holdings data in hours before a refresh is triggered (e.g., <code>6</code>). Lower = fresher data but more API calls; higher = fewer calls but potentially stale data.</td><td>No</td></tr>
-          </tbody>
-        </table>
+        <p>The full catalogue of runtime knobs — grouped by concern (System, Database, Email, DeepMoney, Prediction / GPS), with overview, default, where each one is read in the codebase, and a concrete tuning example — lives in the <a href="moneygoup_overview.html#env-vars">App Overview</a>. That doc is the single source of truth; this page intentionally does not duplicate the table.</p>
+        <p style="margin-top:.5rem;">Quick jumps:</p>
+        <ul style="margin-top:.25rem;padding-left:1.4rem;">
+          <li><a href="moneygoup_overview.html#env-vars-system">System</a> — auth, security, session, infrastructure (NextAuth, Redis, internal secret).</li>
+          <li><a href="moneygoup_overview.html#env-vars-database">Database</a> — MySQL connection parameters.</li>
+          <li><a href="moneygoup_overview.html#env-vars-email">Email</a> — Resend keys and addressing.</li>
+          <li><a href="moneygoup_overview.html#env-vars-deepmoney">DeepMoney</a> — single <code>DEEPMONEY_ALGORITHM</code> knob (1–10, fractional supported).</li>
+          <li><a href="moneygoup_overview.html#env-vars-prediction">Prediction / GPS</a> — GPS formula tuning, dashboard rendering thresholds, ETF holding gates.</li>
+        </ul>
       </div>
     </div>
 

@@ -1,6 +1,6 @@
 import { createLogger } from '@/utils/logger';
 import { getStockDataForPrediction, runPredictionInternal } from '@/utils/stockDataHelper';
-import { calculateGpsScore, calculateGpsLight } from '@/utils/gps';
+import { calculateGpsScore } from '@/utils/gps';
 import { fetchRankerSharedMacro, scoreWithRanker, type RankerScoreMap } from '@/utils/rankerInference';
 
 const logger = createLogger('api/prediction/deepmoney/analyzer');
@@ -28,8 +28,9 @@ export interface EnrichedStock {
     fiftyTwoWeekChange?: number | null;
     analystUpside?: number | null;
     /** Count of analyst opinions in the strongBuy bucket for the current month
-     *  (recommendationTrend "0m" period). Drives the analyst-consensus override
-     *  gate in analyzeStocks. Undefined when Yahoo has no trend data. */
+     *  (recommendationTrend "0m" period). Currently kept on the stock for
+     *  visibility but no longer gates surfacing — the ranker is the sole
+     *  filter. Slated to become a ranker training feature. */
     analystStrongBuy?: number | null;
     sma20?: number | null;
     sma50?: number | null;
@@ -45,17 +46,18 @@ export interface EnrichedStock {
     classification?: string;
     sector?: string;
     prediction_input?: any;
-    /** Why this stock made the cut. 'v2_engine' = passed the standard mlGate.
-     *  'analyst_consensus' = positive prediction but below mlGate, surfaced
-     *  by analyst strongBuy override. */
+    /** Why this stock made the cut. 'v2_engine' = passed the LightGBM ranker
+     *  filter AND the mlGate. 'analyst_consensus' = bypassed the ranker via
+     *  the analyst-strongBuy override lane (threshold scales with
+     *  DEEPMONEY_ALGORITHM); these stocks still require positive predicted
+     *  change, but skip the ranker keep-cut and the mlGate floor. */
     discovery_source?: 'v2_engine' | 'analyst_consensus';
 
-    /** Path-A additions (Step 3). gps_score_type tells consumers whether
-     *  gps_score came from the cheap Tier-1 composite ('light') or the
-     *  Monte-Carlo Tier-2 path ('full'). ranker_score is the model's
-     *  percentile rank within today's universe, 0..1. hist_vol_30 is the
-     *  annualized 30-day realized vol used by the GPS-Light uncertainty
-     *  proxy — exposed so downstream consumers can audit the score. */
+    /** gps_score_type is always 'full' now — every survivor of the ranker
+     *  hard filter runs through Monte Carlo + GPS-Full. ranker_score is the
+     *  model's percentile rank within today's universe (0..1). hist_vol_30
+     *  is the annualized 30-day realized vol used during scoring — exposed
+     *  so downstream consumers can audit the run. */
     gps_score_type?: 'light' | 'full';
     ranker_score?: number | null;
     hist_vol_30?: number | null;
@@ -67,55 +69,53 @@ export interface AnalyzeOptions {
     outlook?: '1_week' | '1_month' | '6_month' | '1_year';
     /** Minimum positive predicted change % required to surface (ML Validation Gate). */
     mlGate?: number;
-    /** Minimum analyst strongBuy count to surface a stock whose prediction is
-     *  positive but below mlGate. Bypasses only the mlGate — the > 0 floor
-     *  still applies. Default 3 (DEEPMONEY_ANALYST_THRESHOLD). */
-    analystThreshold?: number;
+    /** Fraction of ranker-scored stocks (sorted by rank_pct desc) to keep.
+     *  Driven by DEEPMONEY_ALGORITHM via models/algorithm_presets.json. */
+    rankerKeepPct?: number;
+    /** Minimum current-month analyst strongBuy count for a pre-filtered stock
+     *  to bypass the ranker keep-cut. Also driven by DEEPMONEY_ALGORITHM —
+     *  higher levels lower this threshold, surfacing more analyst picks. */
+    analystStrongBuyThreshold?: number;
 }
 
 const BATCH_SIZE = 3;
 
 /**
- * Analyzes and filters a list of enriched stocks.
+ * Analyzes and filters a list of enriched stocks. The LightGBM ranker is the
+ * single hard filter — stocks that fall below the kept-fraction cut never run
+ * Monte Carlo and never appear in the output.
  *
- * Path-A flow (when DEEPMONEY_USE_RANKER_GATE=true):
+ * Flow:
  *   1. Pre-filter (tradingSignalScore >= 0, historyRows >= 100).
- *   2. Fetch OHLCV payloads for ALL pre-filtered stocks.
+ *   2. Fetch OHLCV payloads for every pre-filtered stock.
  *   3. Score every stock with the LightGBM ranker in one batch.
- *   4. Compute GPS-Light for everyone; sort desc; promote top-N (DEEPMONEY_TIER2_TOPK).
- *   5. Run Monte Carlo + full GPS only on the promoted top-N.
- *   6. Light-tier stocks (the rest) land in `outLightTier` if provided —
- *      they have ranker_score, hist_vol_30, gps_score (light), gps_score_type='light'.
+ *   4. Sort by rank_pct desc; keep the top `rankerKeepPct` fraction; the
+ *      rest are discarded (no GPS-Light fallback, no output row).
+ *   5. Run Monte Carlo + GPS-Full on the survivors. Survivors that also
+ *      clear the outlook-driven mlGate (predicted_change_pct floor) get
+ *      surfaced; the rest are dropped silently.
  *
- * Without the env flag, behavior matches the legacy single-pass flow exactly:
- * fetch + Monte Carlo + GPS-Full for every pre-filtered stock. The feature
- * flag is the rollback switch.
- *
- * Return value: same as before — only the surfaced stocks (passing mlGate ||
- * analystOverride), now decorated with gps_score_type='full', ranker_score
- * (when computed), and hist_vol_30. Callers that ignore the new fields work
- * unchanged.
+ * If the ranker subprocess fails or returns no scores, every pre-filtered
+ * stock is treated as a survivor so the pipeline stays operational while
+ * the error is loud in the logs — this is a degraded-mode fall-through,
+ * not a normal behavior path.
  */
 export async function analyzeStocks(
     stocks: EnrichedStock[],
     sharedContext?: { wbData?: any, marketIndices?: any },
     options: AnalyzeOptions = {},
-    outLightTier?: EnrichedStock[],
 ): Promise<EnrichedStock[]> {
-    const outlook          = options.outlook          ?? '1_month';
-    const mlGate           = options.mlGate           ?? 1.5;
-    const analystThreshold = options.analystThreshold ?? 3;
+    const outlook                   = options.outlook                   ?? '1_month';
+    const mlGate                    = options.mlGate                    ?? 1.5;
+    const rankerKeepPct             = options.rankerKeepPct             ?? 0.25;
+    const analystStrongBuyThreshold = options.analystStrongBuyThreshold ?? 4;
 
-    const useRankerGate = process.env.DEEPMONEY_USE_RANKER_GATE === 'true';
-    const tier2TopK     = parseInt(process.env.DEEPMONEY_TIER2_TOPK ?? '200', 10);
-
-    // First filter: stocks that have a positive or neutral tradingSignalScore
-    // This pre-filtering reduces the number of heavy prediction calls
+    // Pre-filter: skip enrichment failures, negative technical signals, or
+    // tickers with too little OHLCV history for the ranker / MC to work.
     const initialFilteredStocks = stocks.filter(stock => {
         if (stock.error || stock.tradingSignalScore === undefined) {
             return false;
         }
-        // User requested: skip if < 100 rows found in discovery enrichment pass
         if (stock.historyRows !== undefined && stock.historyRows < 100) {
             return false;
         }
@@ -127,8 +127,6 @@ export async function analyzeStocks(
     }
 
     // ─── Phase 1 — fetch OHLCV payloads for every pre-filtered stock ───────
-    // We need them all whether or not the ranker is on: legacy flow runs MC
-    // on all of them; ranker flow needs OHLCV to compute its feature vector.
     const payloads = new Map<string, any>();
     for (let i = 0; i < initialFilteredStocks.length; i += BATCH_SIZE) {
         const batch = initialFilteredStocks.slice(i, i + BATCH_SIZE);
@@ -144,90 +142,60 @@ export async function analyzeStocks(
 
     // ─── Phase 2 — ranker scoring (cross-sectional, single batch) ──────────
     let rankerScores: RankerScoreMap = new Map();
-    if (useRankerGate) {
-        try {
-            const sharedMacro = await fetchRankerSharedMacro();
-            rankerScores = await scoreWithRanker(
-                initialFilteredStocks,
-                payloads,
-                sharedMacro,
-            );
-            logger.info(`Ranker scored ${rankerScores.size}/${initialFilteredStocks.length} stocks`);
-        } catch (err) {
-            logger.error('Ranker scoring failed; falling back to legacy full-universe Monte Carlo', { error: String(err) });
-            rankerScores = new Map();
-        }
+    try {
+        const sharedMacro = await fetchRankerSharedMacro();
+        rankerScores = await scoreWithRanker(
+            initialFilteredStocks,
+            payloads,
+            sharedMacro,
+        );
+        logger.info(`Ranker scored ${rankerScores.size}/${initialFilteredStocks.length} stocks`);
+    } catch (err) {
+        logger.error('Ranker scoring failed — degraded fall-through (all stocks treated as survivors)', { error: String(err) });
+        rankerScores = new Map();
     }
 
-    // ─── Phase 3 — GPS-Light + top-K selection ─────────────────────────────
-    // If ranker succeeded, every pre-filtered stock gets a GPS-Light score
-    // and only the top-K by Light score gets promoted to Monte Carlo.
-    // If ranker failed or is disabled, every stock proceeds to MC (legacy).
-    let tier2Tickers: Set<string>;
-
+    // ─── Phase 3 — hard cut at the top rankerKeepPct fraction ──────────────
+    let rankerSurvivors: EnrichedStock[];
     if (rankerScores.size > 0) {
-        const lightScored = initialFilteredStocks
-            .map(stock => {
-                const info = rankerScores.get(stock.ticker);
-                if (!info) return null;
-                const lightResult = calculateGpsLight(
-                    {
-                        analystUpside:     stock.analystUpside ?? 0,
-                        revenueGrowthPct:  stock.revenueGrowth ?? 0,
-                        earningsGrowthPct: stock.earningsGrowth ?? 0,
-                        priceChange52w:    stock.fiftyTwoWeekChange ?? 0,
-                        technicalScore:    stock.tradingSignalScore,
-                        recommendationKey: stock.recommendationKey ?? undefined,
-                    },
-                    {
-                        rankerScorePct: info.rankPct,
-                        histVol30:      info.histVol30 ?? undefined,
-                    }
-                );
-                return {
-                    stock,
-                    lightScore:     lightResult.score,
-                    lightBreakdown: lightResult.breakdown,
-                    rankerScore:    info.rankPct,
-                    histVol30:      info.histVol30,
-                };
+        const ranked = initialFilteredStocks
+            .map(s => {
+                const info = rankerScores.get(s.ticker);
+                return info ? { stock: s, rankPct: info.rankPct } : null;
             })
-            .filter((x): x is NonNullable<typeof x> => x !== null);
+            .filter((x): x is { stock: EnrichedStock; rankPct: number } => x !== null);
 
-        // Sort desc by Light score, promote top-K
-        lightScored.sort((a, b) => b.lightScore - a.lightScore);
-        const promoted = lightScored.slice(0, tier2TopK);
-        const watchlist = lightScored.slice(tier2TopK);
-        tier2Tickers = new Set(promoted.map(p => p.stock.ticker));
-
-        // Push watchlist (Light-only) into outLightTier if caller provided one.
-        // These stocks never get Monte Carlo, so gps_score IS the Light score.
-        if (outLightTier) {
-            for (const item of watchlist) {
-                outLightTier.push({
-                    ...item.stock,
-                    gps_score:        item.lightScore,
-                    gps_score_type:   'light',
-                    ranker_score:     item.rankerScore,
-                    hist_vol_30:      item.histVol30,
-                    // gps_breakdown is on the stock object via `as any` to match
-                    // existing pattern (it's not in EnrichedStock interface but
-                    // downstream consumers read it).
-                    ...({ gps_breakdown: item.lightBreakdown } as any),
-                });
-            }
-        }
+        ranked.sort((a, b) => b.rankPct - a.rankPct);
+        const keepN = Math.max(1, Math.ceil(ranked.length * rankerKeepPct));
+        rankerSurvivors = ranked.slice(0, keepN).map(r => r.stock);
+        logger.info(`Ranker keep-cut: ${rankerSurvivors.length}/${ranked.length} survive at rankerKeepPct=${rankerKeepPct}`);
     } else {
-        // Legacy / fallback: every pre-filtered stock gets Monte Carlo
-        tier2Tickers = new Set(initialFilteredStocks.map(s => s.ticker));
+        // Degraded fall-through (see Phase 2 catch).
+        rankerSurvivors = initialFilteredStocks;
     }
 
-    // ─── Phase 4 — Monte Carlo + GPS-Full on promoted subset ───────────────
-    const filteredStocks: EnrichedStock[] = [];
-    const promotedStocks = initialFilteredStocks.filter(s => tier2Tickers.has(s.ticker));
+    // ─── Phase 3b — analyst-strongBuy override lane ────────────────────────
+    // Any pre-filtered stock whose current-month analyst strongBuy count
+    // clears the algorithm-scaled threshold bypasses the ranker keep-cut.
+    // These stocks still go through MC and must yield positive predicted
+    // change to surface, but they skip the mlGate floor.
+    const rankerTickers = new Set(rankerSurvivors.map(s => s.ticker));
+    const analystOverrideStocks = initialFilteredStocks.filter(s =>
+        !rankerTickers.has(s.ticker) &&
+        (s.analystStrongBuy ?? 0) >= analystStrongBuyThreshold,
+    );
+    const analystOverrideTickers = new Set(analystOverrideStocks.map(s => s.ticker));
+    if (analystOverrideStocks.length > 0) {
+        logger.info(`Analyst override added ${analystOverrideStocks.length} stocks (threshold=${analystStrongBuyThreshold})`);
+    }
 
-    for (let i = 0; i < promotedStocks.length; i += BATCH_SIZE) {
-        const batch = promotedStocks.slice(i, i + BATCH_SIZE);
+    const survivors = [...rankerSurvivors, ...analystOverrideStocks];
+
+    // ─── Phase 4 — Monte Carlo + GPS-Full on ranker survivors only ─────────
+    const filteredStocks: EnrichedStock[] = [];
+
+    for (let i = 0; i < survivors.length; i += BATCH_SIZE) {
+        const batch = survivors.slice(i, i + BATCH_SIZE);
 
         await Promise.all(batch.map(async (stock) => {
             try {
@@ -237,7 +205,6 @@ export async function analyzeStocks(
                     return;
                 }
 
-                // Run predictions for ALL four timeframes
                 const predictions: Record<string, any> = {};
                 const timeframes = ['1_week', '1_month', '6_month', '1_year'] as const;
                 for (const tf of timeframes) {
@@ -245,70 +212,70 @@ export async function analyzeStocks(
                     predictions[tf] = result;
                 }
 
-                // Use 1_month for the ML gate decision (consistent with prior behavior)
                 const predictionResult = predictions['1_month'];
                 const predictedChangePct = predictionResult?.predicted_change_pct;
+                if (predictedChangePct === undefined) return;
 
-                if (predictedChangePct !== undefined) {
-                    stock.prediction_1m = predictedChangePct;
-                    const passesMlGate    = predictedChangePct >= mlGate && predictedChangePct > 0;
-                    const analystOverride = (stock.analystStrongBuy ?? 0) >= analystThreshold && predictedChangePct > 0;
-                    if (passesMlGate || analystOverride) {
+                stock.prediction_1m = predictedChangePct;
 
-                        // --- GPS Score Calculation (v2.3) — unchanged ---
-                        const gpsResult = calculateGpsScore(
-                          {
-                            analystUpside:     stock.analystUpside ?? 0,
-                            revenueGrowthPct:  stock.revenueGrowth ?? 0,
-                            earningsGrowthPct: stock.earningsGrowth ?? 0,
-                            priceChange52w:    stock.fiftyTwoWeekChange ?? 0,
-                            technicalScore:    stock.tradingSignalScore,
-                            recommendationKey: stock.recommendationKey ?? undefined,
-                          },
-                          {
-                            predictedChangePct1m: predictionResult.predicted_change_pct,
-                            confidenceScore:      predictionResult.confidence_score,
-                          }
-                        );
-
-                        stock.gps_score = gpsResult.score;
-                        (stock as any).gps_breakdown = gpsResult.breakdown;
-                        stock.gps_score_type = 'full';
-
-                        // Attach ranker_score if it was computed in Phase 2 —
-                        // gives Step 4 shadow validation paired data for free.
-                        const rankerInfo = rankerScores.get(stock.ticker);
-                        if (rankerInfo) {
-                            stock.ranker_score = rankerInfo.rankPct;
-                            stock.hist_vol_30  = rankerInfo.histVol30;
-                        }
-
-                        const rdSpendPct = (stock.researchDevelopment || 0) / (stock.totalRevenue || 1);
-                        if ((stock.revenueGrowth || 0) >= 0.20 && (stock.grossMargins || 0) >= 0.50 && rdSpendPct >= 0.10) {
-                            stock.classification = 'ai_tech_hyper_growth';
-                        } else if ((stock.revenueGrowth || 0) >= 0.10 && (stock.fiftyTwoWeekChange || 0) >= 0.10) {
-                            stock.classification = 'established_growth';
-                        } else {
-                            stock.classification = 'standard';
-                        }
-
-                        // Merge all four timeframe predictions into the input
-                        stock.prediction_input = {
-                            ...predictionResult,
-                            predicted_price_1w: predictions['1_week']?.predicted_price,
-                            predicted_price_1m: predictions['1_month']?.predicted_price,
-                            predicted_price_6m: predictions['6_month']?.predicted_price,
-                            predicted_price_1y: predictions['1_year']?.predicted_price,
-                        };
-                        stock.discovery_source = passesMlGate ? 'v2_engine' : 'analyst_consensus';
-                        filteredStocks.push(stock);
-                    }
+                const isAnalystOverride = analystOverrideTickers.has(stock.ticker);
+                const passesMlGate      = predictedChangePct >= mlGate && predictedChangePct > 0;
+                const passesAnalystGate = isAnalystOverride && predictedChangePct > 0;
+                if (!(passesMlGate || passesAnalystGate)) {
+                    return;
                 }
+
+                const gpsResult = calculateGpsScore(
+                  {
+                    analystUpside:     stock.analystUpside ?? 0,
+                    revenueGrowthPct:  stock.revenueGrowth ?? 0,
+                    earningsGrowthPct: stock.earningsGrowth ?? 0,
+                    priceChange52w:    stock.fiftyTwoWeekChange ?? 0,
+                    technicalScore:    stock.tradingSignalScore,
+                    recommendationKey: stock.recommendationKey ?? undefined,
+                  },
+                  {
+                    predictedChangePct1m: predictionResult.predicted_change_pct,
+                    confidenceScore:      predictionResult.confidence_score,
+                  }
+                );
+
+                stock.gps_score = gpsResult.score;
+                (stock as any).gps_breakdown = gpsResult.breakdown;
+                stock.gps_score_type = 'full';
+
+                const rankerInfo = rankerScores.get(stock.ticker);
+                if (rankerInfo) {
+                    stock.ranker_score = rankerInfo.rankPct;
+                    stock.hist_vol_30  = rankerInfo.histVol30;
+                }
+
+                const rdSpendPct = (stock.researchDevelopment || 0) / (stock.totalRevenue || 1);
+                if ((stock.revenueGrowth || 0) >= 0.20 && (stock.grossMargins || 0) >= 0.50 && rdSpendPct >= 0.10) {
+                    stock.classification = 'ai_tech_hyper_growth';
+                } else if ((stock.revenueGrowth || 0) >= 0.10 && (stock.fiftyTwoWeekChange || 0) >= 0.10) {
+                    stock.classification = 'established_growth';
+                } else {
+                    stock.classification = 'standard';
+                }
+
+                stock.prediction_input = {
+                    ...predictionResult,
+                    predicted_price_1w: predictions['1_week']?.predicted_price,
+                    predicted_price_1m: predictions['1_month']?.predicted_price,
+                    predicted_price_6m: predictions['6_month']?.predicted_price,
+                    predicted_price_1y: predictions['1_year']?.predicted_price,
+                };
+                stock.discovery_source = passesMlGate ? 'v2_engine' : 'analyst_consensus';
+                filteredStocks.push(stock);
             } catch (err) {
                 logger.error(`Error processing prediction for ${stock.ticker}:`, { error: String(err) });
             }
         }));
     }
+
+    // Suppress unused-param warnings for variables retained for future use.
+    void outlook;
 
     return filteredStocks;
 }

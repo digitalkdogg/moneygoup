@@ -76,12 +76,11 @@ def sync_deepmoney():
     # short-circuits the work before they'd otherwise be set.
     run_start = time.time()
     counters = {
-        "ml_gate_rejected":      0,   # local GPS gate (gps <= ml_gate_threshold)
-        "vol_gate_rejected":     0,   # confidence-vs-beta volatility gate
+        "vol_gate_rejected":     0,   # MLP confidence-vs-beta gate
         "stocks_written":        0,   # rows inserted into recommended_stocks
         "gps_updated":           0,   # stock_gps_scores rows updated (score changed)
         "gps_unchanged":         0,   # stock_gps_scores rows skipped (same score)
-        "dashboard_qualified":   0,   # stocks meeting dashboard threshold
+        "dashboard_qualified":   0,   # stocks meeting MLP-confidence dashboard gate
         "ath_warnings":          0,   # high-beta near-ATH stocks flagged
         "etf_holdings_written":  0,   # rows inserted from ETF holdings pass
         "stale_cleaned":         0,   # discovery rows removed in cleanup pass
@@ -91,20 +90,20 @@ def sync_deepmoney():
     }
     meta_snapshot: dict = {}  # cached API meta for the summary block
 
-    # ML Validation Gate (Ref: doc/deepmoney_sync_workflow.html)
-    # This is the "Gate" that allows a stock to be recorded as a recommendation
-    gate_env = os.getenv('DEEPMONEY_GPS_VALUE')
-    ml_gate_threshold = float(gate_env) if gate_env else 10.0
-    
-    # Qualifying Threshold for Dashboard
-    # This is the "Gold Standard" that pushes it to user portfolios/dashboards
-    rec_env = os.getenv('DEEPMONEY_RECOMMENDATION_GPS_VALUE')
-    dashboard_threshold = float(rec_env) if rec_env else 25.0
-    
-    pred_threshold = 1.5 # Gate: Sequential 1-month ML prediction
-    
-    print(f"  [config] ML Gate (GPS > {ml_gate_threshold}), Dashboard Threshold (GPS > {dashboard_threshold})")
-    print(f"  [config] Prediction Gate (>= {pred_threshold}%)")
+    # Sequential 1-month prediction gate — not driven by DEEPMONEY_ALGORITHM
+    # (kept at 1.5% per legacy behavior); the dashboard push is now gated by
+    # the MLP confidence floor from the resolved algorithm preset instead of
+    # by a GPS threshold.
+    pred_threshold = 1.5
+
+    # ── Algorithm preset (resolved server-side, echoed in meta.algorithm) ──
+    # Defaults are a safety net for old cached API responses that pre-date
+    # the meta.algorithm field; under normal operation the API always emits
+    # the resolved preset and these are never used.
+    algorithm_level         = 5
+    mlp_confidence_floor    = 60.0
+    vol_gate_floor          = 70.0
+    print(f"  [config] Prediction Gate (>= {pred_threshold}%) — gates resolved from meta.algorithm")
     
     # 1. Fetch data from API (V2)
     # Ensure secret is clean
@@ -124,14 +123,30 @@ def sync_deepmoney():
         meta = data.get('meta', {})
         debug = meta.get('debug', {})
         meta_snapshot = meta
+
+        # Resolve the algorithm preset from the API response. Falls back to
+        # the safety-net defaults set above only if meta.algorithm is missing
+        # (e.g. an old cached response).
+        algorithm = meta.get('algorithm') or {}
+        # Fractional levels (e.g. 1.5, 3.7) are accepted server-side and
+        # interpolated linearly into the preset values; the level here is
+        # display-only so we keep it as a float for accurate logging.
+        algorithm_level      = float(algorithm.get('level', algorithm_level))
+        mlp_confidence_floor = float(algorithm.get('mlpConfidenceFloor', mlp_confidence_floor))
+        vol_gate_floor       = float(algorithm.get('volGateFloor', vol_gate_floor))
+        ranker_keep_pct      = float(algorithm.get('rankerKeepPct', 0.25))
+        print(f"  [algorithm] level={algorithm_level:g} rankerKeepPct={ranker_keep_pct:.3f} "
+              f"mlpConfidenceFloor={mlp_confidence_floor:.1f} volGateFloor={vol_gate_floor:.1f}")
+
         if debug:
             print(f"  [debug] Enrichment Rejected: {debug.get('rejectedEnrichment')}")
             print(f"  [debug] Signal Score Rejected: {debug.get('rejectedSignalScore')}")
             print(f"  [debug] History Rejected (<100d): {debug.get('rejectedHistory')}")
-            print(f"  [debug] Passed to AI Analyzer: {debug.get('passedToAnalyzer')}")
-            print(f"  [debug] Rejected by AI (<1.5%): {debug.get('rejectedByAI')}")
+            print(f"  [debug] Passed to Analyzer: {debug.get('passedToAnalyzer')}")
+            print(f"  [debug] Rejected by Ranker: {debug.get('rejectedByRanker')}")
             print(f"  [debug] Final Filtered Count: {debug.get('filteredCount')}")
             print(f"  [debug] ETF Holdings Surfaced: {meta.get('etfHoldingsSurfacedCount')}")
+            print(f"  [debug] Popular-ETF Holdings Merged: {meta.get('etfPopularHoldingsCount')}")
     except Exception as e:
         print(f"Error fetching data from API: {e}")
         return
@@ -240,20 +255,16 @@ def sync_deepmoney():
                 predicted_change_pct = pred_input.get('predicted_change_pct_1m')
             predicted_change_pct = predicted_change_pct or 0
 
-            # 4.1 Apply ML Validation Gate (GPS > DEEPMONEY_GPS_VALUE)
-            if gps <= ml_gate_threshold:
-                # print(f"  [gate] SKIP {ticker}: GPS {gps} <= Gate {ml_gate_threshold}")
-                counters["ml_gate_rejected"] += 1
-                continue
+            # 4.1 (removed) Per-stock GPS gate — the LightGBM ranker already
+            #     filtered the universe server-side via algorithm.rankerKeepPct;
+            #     every stock arriving here is a ranker survivor.
 
-            # 4.2 Volatility-adjusted confidence gate
+            # 4.2 Confidence-vs-beta gate driven by the algorithm preset.
             conf_score = pred_input.get('confidence_score') or pred_input.get('confidence_score_1m') or 0
             beta_val = s.get('beta') or 1.0
-            volatility_gate = conf_score >= 50
-            if beta_val > 2.5:
-                volatility_gate = conf_score >= 65
-            if not volatility_gate:
-                print(f"  [vol-gate] SKIP {ticker}: CS {conf_score} insufficient for beta {beta_val:.2f}")
+            confidence_floor = vol_gate_floor if beta_val > 2.5 else mlp_confidence_floor
+            if conf_score < confidence_floor:
+                print(f"  [vol-gate] SKIP {ticker}: CS {conf_score} < floor {confidence_floor} (beta {beta_val:.2f})")
                 counters["vol_gate_rejected"] += 1
                 continue
 
@@ -324,7 +335,7 @@ def sync_deepmoney():
                 rd_pct,             # 11. rd_spend_pct
                 market_cap_m,       # 12. market_cap_m
                 0,                  # 13. mention_count
-                'v2_engine',        # 14. discovery_source
+                s.get('discovery_source') or 'v2_engine',  # 14. discovery_source ('v2_engine' | 'analyst_consensus')
                 s.get('tradingSignal'), # 15. trading_signal
                 s.get('tradingSignalScore'), # 16. trading_signal_score
                 None,               # 17. upcoming_earnings
@@ -374,10 +385,15 @@ def sync_deepmoney():
                 counters["gps_unchanged"] += 1
                 print(f"    - GPS unchanged ({round(float(gps), 1)}), skipping write")
 
-            # 5b. Dashboard qualification: user_stock_predictions + user_stocks
-            if gps > dashboard_threshold and predicted_change_pct >= pred_threshold:
+            # 5b. Dashboard qualification: gated on the MLP confidence floor
+            # (from the algorithm preset) and the 1-month prediction floor.
+            # GPS-based dashboard gating has been retired.
+            conf_score_for_dash = pred_input.get('confidence_score_1m')
+            if conf_score_for_dash is None:
+                conf_score_for_dash = pred_input.get('confidence_score') or 0
+            if conf_score_for_dash >= mlp_confidence_floor and predicted_change_pct >= pred_threshold:
                 counters["dashboard_qualified"] += 1
-                print(f"    - Qualifying stock found for Dashboard: {ticker} (GPS: {gps})")
+                print(f"    - Qualifying stock found for Dashboard: {ticker} (CS: {conf_score_for_dash}, Pred: {predicted_change_pct}%)")
                 qualifying_stock_ids.add(stock_id)
 
                 # Pull the raw nullable values from pred_input — the existing
@@ -533,7 +549,14 @@ def sync_deepmoney():
             conn.close()
         except Exception:
             pass
-        _print_run_summary(counters, meta_snapshot, ml_gate_threshold, dashboard_threshold, run_start)
+        _print_run_summary(
+            counters,
+            meta_snapshot,
+            algorithm_level,
+            mlp_confidence_floor,
+            vol_gate_floor,
+            run_start,
+        )
 
 
 def _fmt_int(n) -> str:
@@ -554,7 +577,14 @@ def _fmt_duration(elapsed_sec: float) -> str:
     return f"{int(hrs)}h {int(mins)}m {int(secs)}s"
 
 
-def _print_run_summary(counters: dict, meta: dict, ml_gate: float, dashboard_gate: float, run_start: float) -> None:
+def _print_run_summary(
+    counters: dict,
+    meta: dict,
+    algorithm_level: float,
+    mlp_floor: float,
+    vol_floor: float,
+    run_start: float,
+) -> None:
     """Print a structured funnel summary at the end of the run.
 
     Always called from the finally block, so it prints even when an exception
@@ -562,6 +592,7 @@ def _print_run_summary(counters: dict, meta: dict, ml_gate: float, dashboard_gat
     debugging — missing counters just stay at zero.
     """
     debug = (meta or {}).get('debug', {}) or {}
+    algorithm = (meta or {}).get('algorithm', {}) or {}
     elapsed = time.time() - run_start
 
     print()
@@ -569,26 +600,33 @@ def _print_run_summary(counters: dict, meta: dict, ml_gate: float, dashboard_gat
     print("  DEEPMONEY SYNC SUMMARY")
     print("=" * 70)
 
-    # ── Discovery / AI funnel (from API meta.debug) ─────────────────────────
-    print("  DISCOVERY → AI FUNNEL")
+    # ── Algorithm preset ────────────────────────────────────────────────────
+    keep_pct = algorithm.get('rankerKeepPct')
+    keep_pct_str = f"{float(keep_pct):.4g}" if keep_pct is not None else "?"
+    print(f"  ALGORITHM LEVEL: {algorithm_level:g}  "
+          f"(rankerKeepPct={keep_pct_str}, "
+          f"mlpConfidenceFloor={mlp_floor:g}, volGateFloor={vol_floor:g})")
+
+    # ── Discovery → ranker funnel (from API meta.debug) ────────────────────
+    print()
+    print("  DISCOVERY → RANKER FUNNEL")
     print(f"    Total tickers discovered:        {_fmt_int(meta.get('totalDiscovered'))}")
+    print(f"    Popular-ETF holdings merged:     {_fmt_int(meta.get('etfPopularHoldingsCount'))}")
     print(f"    Rejected at enrichment:          {_fmt_int(debug.get('rejectedEnrichment'))}")
     print(f"    Rejected on signal score:        {_fmt_int(debug.get('rejectedSignalScore'))}")
     print(f"    Rejected on history (<100 days): {_fmt_int(debug.get('rejectedHistory'))}")
-    print(f"    Passed to AI analyzer:           {_fmt_int(debug.get('passedToAnalyzer'))}")
-    print(f"    Rejected by AI gate:             {_fmt_int(debug.get('rejectedByAI'))}")
+    print(f"    Passed to analyzer:              {_fmt_int(debug.get('passedToAnalyzer'))}")
+    print(f"    Rejected by ranker:              {_fmt_int(debug.get('rejectedByRanker'))}")
     print(f"    Surfaced by API:                 {_fmt_int(counters.get('stocks_in_api_resp'))}")
 
     # ── Local gating (this script's filters on top of API output) ───────────
     print()
     print("  LOCAL GATING")
-    print(f"    Local GPS gate (>{ml_gate}):"
-          f"{' ':>14}{_fmt_int(counters.get('ml_gate_rejected'))} rejected")
-    print(f"    Volatility gate:"
-          f"{' ':>22}{_fmt_int(counters.get('vol_gate_rejected'))} rejected")
+    print(f"    MLP confidence floor ({mlp_floor}):"
+          f"{' ':>8}{_fmt_int(counters.get('vol_gate_rejected'))} rejected (combined w/ vol gate)")
     print(f"    Written to recommended_stocks:   {_fmt_int(counters.get('stocks_written'))}")
-    print(f"    Dashboard threshold (>{dashboard_gate}):"
-          f"{' ':>10}{_fmt_int(counters.get('dashboard_qualified'))} qualified")
+    print(f"    Dashboard qualified (CS≥{mlp_floor}):"
+          f"{' ':>6}{_fmt_int(counters.get('dashboard_qualified'))} qualified")
     if counters.get('ath_warnings'):
         print(f"    Near-ATH high-beta warnings:     {_fmt_int(counters.get('ath_warnings'))}")
 

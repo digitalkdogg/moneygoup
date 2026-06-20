@@ -420,7 +420,7 @@
       <p style="margin-top:1rem;"><code>getGpsLabel(score)</code> applies these thresholds in descending order: <code>&ge;80</code> returns <strong>Strong Buy</strong>, <code>&ge;65</code> returns <strong>Buy</strong>, <code>&ge;45</code> returns <strong>Hold</strong>, <code>&ge;30</code> returns <strong>Sell</strong>, otherwise <strong>Strong Sell</strong>.</p>
 
       <div class="info-box" style="margin-top:1.5rem;">
-        <strong>DeepMoney sync thresholds:</strong> The <code>deepmoney_sync.py</code> script uses two env-var-controlled GPS gates. Stocks must exceed <code>DEEPMONEY_GPS_VALUE</code> (default <strong>10</strong>) to be recorded in <code>recommended_stocks</code>, and must exceed <code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code> (default <strong>25</strong>) to be pushed to active user dashboards. The <code>deepmoney-picks</code> API route applies its own threshold via <code>GPS_DEEPMONEY_MIN_SCORE</code> (default <strong>65</strong>) on read.
+        <strong>DeepMoney sync thresholds:</strong> The <code>deepmoney_sync.py</code> script no longer applies a per-stock GPS gate — every stock arriving in the API response has already survived the LightGBM ranker filter server-side. Whether a stock is recorded in <code>recommended_stocks</code> and pushed to active user dashboards is now governed by the MLP confidence floor resolved from <code>DEEPMONEY_ALGORITHM</code> (echoed back in <code>meta.algorithm</code>). The read-side <code>deepmoney-picks</code> API route still uses <code>GPS_DEEPMONEY_MIN_SCORE</code> (default <strong>65</strong>).
       </div>
     </section>
 
@@ -769,14 +769,9 @@ bearish_signal = predicted_change_pct &lt; 0</code></pre>
             <td>GPS score required for discovery-scope stocks (not yet purchased or confirmed) to appear as BUY recommendations.</td>
           </tr>
           <tr>
-            <td><code>DEEPMONEY_GPS_VALUE</code></td>
-            <td><code>10</code></td>
-            <td>Minimum GPS score to record a stock in <code>recommended_stocks</code> during the sync cycle (ML gate).</td>
-          </tr>
-          <tr>
-            <td><code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code></td>
-            <td><code>25</code></td>
-            <td>Minimum GPS score to push a stock to active user dashboards during the sync cycle (dashboard threshold).</td>
+            <td><code>DEEPMONEY_ALGORITHM</code></td>
+            <td><code>5</code></td>
+            <td>Integer 1-10 single knob for the deepmoney pipeline (resolves to <code>rankerKeepPct</code>, <code>mlpConfidenceFloor</code>, <code>volGateFloor</code> via <code>models/algorithm_presets.json</code>). Replaces both <code>DEEPMONEY_GPS_VALUE</code> and <code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code> — the recommended_stocks and dashboard gates are now derived from the resolved MLP confidence floor, not from GPS.</td>
           </tr>
         </tbody>
       </table>
