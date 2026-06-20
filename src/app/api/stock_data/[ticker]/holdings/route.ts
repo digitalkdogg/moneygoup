@@ -9,6 +9,7 @@ import { tickerSchema } from '@/utils/validationSchemas';
 import { unauthorizedResponse } from '@/utils/errorResponse';
 import { checkApprovalGuard } from '@/utils/approvalStatus';
 import { fetchETFHoldings } from '@/utils/etfHoldings';
+import { resolveEtfHoldingAlgorithm } from '@/utils/etfHoldingPreset';
 
 const logger = createLogger('api/stock_data/[ticker]/holdings');
 
@@ -88,12 +89,12 @@ export async function GET(
       scoreMap.set(row.ticker.toUpperCase(), row);
     }
 
-    // 3. Surfacing thresholds. ETF_HOLDING_MAX_BETA is kept as an env var for
-    //    backward compatibility but no longer enforced — beta isn't stored in
-    //    stock_gps_scores, and the gps_score threshold already filters most
-    //    high-beta noise via the technical/confidence components.
-    const gpsSurfaceValue  = getEnvFloat('ETF_HOLDING_GPS_SURFACE_VALUE', 60);
-    const minPredChangePct = getEnvFloat('ETF_HOLDING_MIN_PRED_CHANGE', 1.5);
+    // 3. Surfacing thresholds, derived from the same ETF_HOLDING_ALGORITHM
+    //    knob used during scoring so this route agrees with whatever level
+    //    produced the cached scores.
+    const etfAlgorithm     = resolveEtfHoldingAlgorithm(process.env.ETF_HOLDING_ALGORITHM);
+    const gpsSurfaceValue  = etfAlgorithm.gpsSurfaceValue;
+    const minPredChangePct = etfAlgorithm.minPredChangePct;
 
     // The breakdown's `mlpUpside` component is computed as:
     //   clip(predicted_change_pct / GPS_PREDICTION_MAX, -1, 1) * 20

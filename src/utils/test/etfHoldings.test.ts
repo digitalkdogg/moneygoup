@@ -85,8 +85,7 @@ describe('etfHoldings', () => {
   // Next.js route module imports, distorting GPS scores and surfacing gates.
   const _pinnedKeys = [
     'GPS_PREDICTION_MAX',
-    'ETF_HOLDING_GPS_SURFACE_VALUE',
-    'ETF_HOLDING_MIN_PRED_CHANGE',
+    'ETF_HOLDING_ALGORITHM',
     'ETF_HOLDING_MIN_CONFIDENCE',
     'ETF_HOLDING_MAX_BETA',
     'ETF_HOLDING_STALENESS_HOURS',
@@ -299,9 +298,7 @@ describe('etfHoldings', () => {
       expect(mockYahooFinance.chart).toHaveBeenCalledTimes(1);
     });
 
-    test('respects ETF_HOLDING_MAX_TICKERS cap — processes highest-weight first', async () => {
-      process.env.ETF_HOLDING_MAX_TICKERS = '2';
-
+    test('respects maxTickers cap from resolved ETF_HOLDING_ALGORITHM — processes highest-weight first', async () => {
       const holdings = [
         makeHolding('AAPL', 0.13),
         makeHolding('MSFT', 0.09),
@@ -309,7 +306,12 @@ describe('etfHoldings', () => {
         makeHolding('AMZN', 0.05),  // should be cut
       ];
 
-      const results = await scoreETFHoldings(holdings);
+      const results = await scoreETFHoldings(holdings, {
+        etfAlgorithm: {
+          level: 5, etfGpsThreshold: 55, topNEtfs: 10, maxTickers: 2,
+          gpsSurfaceValue: 60, minPredChangePct: 1.5,
+        },
+      });
 
       expect(mockYahooFinance.chart).toHaveBeenCalledTimes(2);
       const scoredTickers = results.map(r => r.ticker);
@@ -317,8 +319,6 @@ describe('etfHoldings', () => {
       expect(scoredTickers).toContain('MSFT');
       expect(scoredTickers).not.toContain('NVDA');
       expect(scoredTickers).not.toContain('AMZN');
-
-      delete process.env.ETF_HOLDING_MAX_TICKERS;
     });
 
     test('silently skips a holding when prediction fails', async () => {

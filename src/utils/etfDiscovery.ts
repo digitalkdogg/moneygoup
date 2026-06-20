@@ -3,12 +3,12 @@ import { yahooFinance, fetchYahooStockSummary, getYahooScreener } from './yahooF
 import etfWatchlist from '../../public/etf_theme_watchlist.json';
 import { createLogger } from './logger';
 import { fetchETFHoldings, scoreETFHoldings } from './etfHoldings';
+import { resolveEtfHoldingAlgorithm } from './etfHoldingPreset';
 
 // --- ETF Constants (moved from config.ts) ---
 const ETF_PRICE_FILTER_MAX = 400;
 const ETF_VOLUME_FLOOR = 50000;
 const ETF_AUM_FLOOR = 50_000_000; // $50M
-const ETF_GPS_THRESHOLD = 55;
 
 const ETF_GPS_WEIGHTS = {
   FIFTY_TWO_WEEK_RETURN: 0.255,
@@ -146,6 +146,11 @@ export async function performETFDiscovery(
   const snapshotDate = new Date().toISOString().split('T')[0];
   const hotStockTickers = new Set(hotStocks.map(s => s.ticker));
   const newsTickerSet = new Set(trendingTickers);
+
+  // ETF_HOLDING_ALGORITHM (1..10) is the single knob for "how many ETF
+  // holdings do we find." Higher level → looser ETF qualification, more
+  // qualifying ETFs processed, more holdings fetched/surfaced.
+  const etfAlgorithm = resolveEtfHoldingAlgorithm(process.env.ETF_HOLDING_ALGORITHM);
   
   logger.info('Starting ETF discovery', { 
     hotStocksCount: hotStocks.length, 
@@ -311,7 +316,7 @@ export async function performETFDiscovery(
 
       const finalScore = Math.min(score, 100);
 
-      if (finalScore >= ETF_GPS_THRESHOLD) {
+      if (finalScore >= etfAlgorithm.etfGpsThreshold) {
         return {
           ticker: candidate.ticker,
           etf_name: summary.price?.longName || summary.price?.shortName || candidate.ticker,
@@ -347,16 +352,15 @@ export async function performETFDiscovery(
     durationMs: Date.now() - startTime 
   });
 
-  const finalResults = qualifyingETFs.sort((a, b) => b.etf_gps_score - a.etf_gps_score).slice(0, 10);
+  const finalResults = qualifyingETFs.sort((a, b) => b.etf_gps_score - a.etf_gps_score).slice(0, etfAlgorithm.topNEtfs);
 
   // --- Phase 3: Score top holdings for each qualifying ETF ------------------
   try {
-    // ETF_HOLDING_MAX_TICKERS is the single knob for "how many holdings do we
-    // care about." It bounds (a) the per-ETF fetch from Yahoo (here) and (b)
-    // the post-dedup global scoring cap inside scoreETFHoldings. Whichever cap
-    // binds first wins — for small N the per-ETF cap dominates, for large N
-    // the dedup cap dominates. See utils/etfHoldings.ts:235.
-    const maxTickers = parseInt(process.env.ETF_HOLDING_MAX_TICKERS ?? '50', 10);
+    // etfAlgorithm.maxTickers bounds (a) the per-ETF fetch from Yahoo (here)
+    // and (b) the post-dedup global scoring cap inside scoreETFHoldings.
+    // Whichever cap binds first wins — for small N the per-ETF cap dominates,
+    // for large N the dedup cap dominates. See utils/etfHoldings.ts.
+    const maxTickers = etfAlgorithm.maxTickers;
 
     // Fetch holdings for all qualifying ETFs in parallel
     const holdingsByETF = await Promise.all(
@@ -382,7 +386,7 @@ export async function performETFDiscovery(
         totalHoldings: allHoldings.length,
       });
     } else if (allHoldings.length > 0) {
-      const scored = await scoreETFHoldings(allHoldings, { wbData });
+      const scored = await scoreETFHoldings(allHoldings, { wbData, etfAlgorithm });
 
       const totalSurfaced = scored.filter(h => h.surfaced).length;
       logger.info(`ETF holdings scoring complete`, { totalScoredHoldings: scored.length, totalSurfaced });

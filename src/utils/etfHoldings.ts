@@ -4,6 +4,7 @@ import { calculateGpsScore } from './gps';
 import { executeRawQuery } from './databaseHelper';
 import { createLogger } from './logger';
 import companyTickersRaw from '../../public/company_tickers.json';
+import { resolveEtfHoldingAlgorithm, type ResolvedEtfHoldingAlgorithm } from './etfHoldingPreset';
 
 const logger = createLogger('utils/etfHoldings');
 
@@ -229,10 +230,11 @@ async function scoreFresh(ticker: string, wbData?: any): Promise<FreshScore | nu
 
 export async function scoreETFHoldings(
   holdings: ETFHolding[],
-  sharedContext?: { wbData?: any; marketIndices?: any }
+  sharedContext?: { wbData?: any; marketIndices?: any; etfAlgorithm?: ResolvedEtfHoldingAlgorithm }
 ): Promise<ScoredETFHolding[]> {
+  const etfAlgorithm   = sharedContext?.etfAlgorithm ?? resolveEtfHoldingAlgorithm(process.env.ETF_HOLDING_ALGORITHM);
   const stalenessHours = parseInt(getEnv('ETF_HOLDING_STALENESS_HOURS', '6'), 10);
-  const maxTickers     = parseInt(getEnv('ETF_HOLDING_MAX_TICKERS',     '50'), 10);
+  const maxTickers     = etfAlgorithm.maxTickers;
   const BATCH_SIZE     = 5;
 
   // --- Deduplication: one score per unique ticker, highest-weight first -----
@@ -306,9 +308,9 @@ export async function scoreETFHoldings(
   }
 
   // --- Surfacing: mark holdings that clear all quality thresholds ------------
-  const gpsSurfaceValue    = parseFloat(getEnv('ETF_HOLDING_GPS_SURFACE_VALUE', '60'));
-  const maxBeta            = parseFloat(getEnv('ETF_HOLDING_MAX_BETA',          '2.0'));
-  const minPredChangePct   = parseFloat(getEnv('ETF_HOLDING_MIN_PRED_CHANGE',   '1.5'));
+  const gpsSurfaceValue    = etfAlgorithm.gpsSurfaceValue;
+  const maxBeta            = parseFloat(getEnv('ETF_HOLDING_MAX_BETA', '2.0'));
+  const minPredChangePct   = etfAlgorithm.minPredChangePct;
 
   for (const r of results) {
     if (

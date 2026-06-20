@@ -1,0 +1,12 @@
+{
+  "1":  { "etfGpsThreshold": 70, "topNEtfs": 5,  "maxTickers": 20,  "gpsSurfaceValue": 75, "minPredChangePct": 3.0 },
+  "2":  { "etfGpsThreshold": 67, "topNEtfs": 6,  "maxTickers": 28,  "gpsSurfaceValue": 72, "minPredChangePct": 2.7 },
+  "3":  { "etfGpsThreshold": 64, "topNEtfs": 8,  "maxTickers": 36,  "gpsSurfaceValue": 69, "minPredChangePct": 2.4 },
+  "4":  { "etfGpsThreshold": 60, "topNEtfs": 9,  "maxTickers": 44,  "gpsSurfaceValue": 65, "minPredChangePct": 2.0 },
+  "5":  { "etfGpsThreshold": 55, "topNEtfs": 10, "maxTickers": 50,  "gpsSurfaceValue": 60, "minPredChangePct": 1.5 },
+  "6":  { "etfGpsThreshold": 53, "topNEtfs": 12, "maxTickers": 60,  "gpsSurfaceValue": 56, "minPredChangePct": 1.3 },
+  "7":  { "etfGpsThreshold": 51, "topNEtfs": 14, "maxTickers": 70,  "gpsSurfaceValue": 52, "minPredChangePct": 1.1 },
+  "8":  { "etfGpsThreshold": 49, "topNEtfs": 16, "maxTickers": 82,  "gpsSurfaceValue": 50, "minPredChangePct": 0.9 },
+  "9":  { "etfGpsThreshold": 47, "topNEtfs": 18, "maxTickers": 92,  "gpsSurfaceValue": 47, "minPredChangePct": 0.7 },
+  "10": { "etfGpsThreshold": 45, "topNEtfs": 20, "maxTickers": 100, "gpsSurfaceValue": 45, "minPredChangePct": 0.5 }
+}
