@@ -9,9 +9,9 @@ import { createLogger } from '@/utils/logger';
 import { createErrorResponse } from '@/utils/errorResponse';
 import { getGpsLabel } from '@/utils/gps';
 import { getUserStrategy, resolveStrategy, DEFAULT_STRATEGY } from '@/utils/strategy';
+import { resolveEtfHoldingAlgorithm } from '@/utils/etfHoldingPreset';
 import YahooFinance from 'yahoo-finance2';
 
-const ETF_GPS_THRESHOLD = 75;
 const logger = createLogger('api/dashboard/deepmoney-picks');
 
 function getStockGpsThreshold(): number {
@@ -105,12 +105,16 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // 4. Fetch ETFs
+    // 4. Fetch ETFs. The minimum etf_gps_score for a hot_etfs row to render
+    // in this widget comes from the same preset that gated qualification at
+    // sync time (ETF_HOLDING_ALGORITHM), so the read-side filter agrees with
+    // whatever level produced the persisted rows.
     let allEtfs: any[] = [];
     if (etfDate) {
+      const etfHoldingAlgorithm = resolveEtfHoldingAlgorithm(process.env.ETF_HOLDING_ALGORITHM);
       const [rows] = await executeRawQuery(
         'SELECT * FROM hot_etfs WHERE snapshot_date = ? AND etf_gps_score >= ? ORDER BY etf_gps_score DESC',
-        [etfDate, ETF_GPS_THRESHOLD]
+        [etfDate, etfHoldingAlgorithm.etfGpsThreshold]
       );
       allEtfs = rows as any[];
     }

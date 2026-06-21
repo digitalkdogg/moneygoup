@@ -4,6 +4,7 @@ import { calculateGpsScore } from './gps';
 import { executeRawQuery } from './databaseHelper';
 import { createLogger } from './logger';
 import companyTickersRaw from '../../public/company_tickers.json';
+import { resolveEtfHoldingAlgorithm, type EtfHoldingPreset } from './etfHoldingPreset';
 
 const logger = createLogger('utils/etfHoldings');
 
@@ -229,11 +230,16 @@ async function scoreFresh(ticker: string, wbData?: any): Promise<FreshScore | nu
 
 export async function scoreETFHoldings(
   holdings: ETFHolding[],
-  sharedContext?: { wbData?: any; marketIndices?: any }
+  sharedContext?: { wbData?: any; marketIndices?: any; etfHoldingPreset?: EtfHoldingPreset }
 ): Promise<ScoredETFHolding[]> {
   const stalenessHours = parseInt(getEnv('ETF_HOLDING_STALENESS_HOURS', '6'), 10);
-  const maxTickers     = parseInt(getEnv('ETF_HOLDING_MAX_TICKERS',     '50'), 10);
-  const BATCH_SIZE     = 5;
+  // Preset resolves once at the entry point of the run (etfDiscovery.ts or
+  // a direct caller). If a caller invokes scoreETFHoldings without passing
+  // it, we fall back to reading ETF_HOLDING_ALGORITHM ourselves.
+  const preset = sharedContext?.etfHoldingPreset
+    ?? resolveEtfHoldingAlgorithm(process.env.ETF_HOLDING_ALGORITHM);
+  const maxTickers = preset.maxTickers;
+  const BATCH_SIZE = 5;
 
   // --- Deduplication: one score per unique ticker, highest-weight first -----
   const byTicker = new Map<string, ETFHolding[]>();
@@ -306,9 +312,11 @@ export async function scoreETFHoldings(
   }
 
   // --- Surfacing: mark holdings that clear all quality thresholds ------------
-  const gpsSurfaceValue    = parseFloat(getEnv('ETF_HOLDING_GPS_SURFACE_VALUE', '60'));
-  const maxBeta            = parseFloat(getEnv('ETF_HOLDING_MAX_BETA',          '2.0'));
-  const minPredChangePct   = parseFloat(getEnv('ETF_HOLDING_MIN_PRED_CHANGE',   '1.5'));
+  // gpsSurfaceValue + minPredChangePct come from the preset (ETF_HOLDING_ALGORITHM);
+  // maxBeta is kept as an independent env knob (not part of the preset).
+  const gpsSurfaceValue  = preset.gpsSurfaceValue;
+  const minPredChangePct = preset.minPredChangePct;
+  const maxBeta          = parseFloat(getEnv('ETF_HOLDING_MAX_BETA', '2.0'));
 
   for (const r of results) {
     if (

@@ -11,6 +11,7 @@ from strategy_config import (
     get_all_user_strategies,
     strategy_bucket_key,
 )  # aggressiveness-only after the timeframe removal
+from etf_holding_preset import resolve_etf_holding_algorithm
 
 # ---------------------------------------------------------------------------
 # GPS v3.0 — mirrors src/utils/gps.ts exactly (8 components, 100 pts).
@@ -728,14 +729,17 @@ def sync_portfolio_predictions():
             )
  
     # --- ETF Holdings: scan each user's ETF positions for hot holdings --------
-    # Env-var thresholds are the baseline; each user's strategy can tighten/loosen
-    # them via the gates resolved from their (timeframe, aggressiveness).
-    env_gps_threshold  = float(os.getenv('ETF_HOLDING_GPS_SURFACE_VALUE', '60'))
-    env_pred_threshold = float(os.getenv('ETF_HOLDING_MIN_PRED_CHANGE',   '1.5'))
-    env_conf_threshold = float(os.getenv('ETF_HOLDING_MIN_CONFIDENCE',    '60'))
+    # Baseline thresholds come from the ETF_HOLDING_ALGORITHM preset (same
+    # source the Next.js routes use, so per-user strictness layers cleanly on
+    # top of run-wide aggressiveness). ETF_HOLDING_MIN_CONFIDENCE remains an
+    # independent env knob — it isn't part of the preset.
+    _etf_preset        = resolve_etf_holding_algorithm()
+    env_gps_threshold  = float(_etf_preset['gpsSurfaceValue'])
+    env_pred_threshold = float(_etf_preset['minPredChangePct'])
+    env_conf_threshold = float(os.getenv('ETF_HOLDING_MIN_CONFIDENCE', '60'))
 
-    print(f"\n[ETF Holdings] Baseline thresholds: "
-          f"GPS≥{env_gps_threshold}, pred≥{env_pred_threshold}%, conf≥{env_conf_threshold}%")
+    print(f"\n[ETF Holdings] Baseline thresholds (level={_etf_preset['level']:g}): "
+          f"GPS≥{env_gps_threshold:g}, pred≥{env_pred_threshold:g}%, conf≥{env_conf_threshold:g}%")
 
     # ETF detection cache: ticker → (is_etf, [holding_tickers])
     etf_cache: dict[str, tuple[bool, list[str]]] = {}

@@ -598,7 +598,7 @@ DB_HOST=mysql-primary.internal</pre>
                 </div>
             </div>
 
-            <div class="env-category" id="env-vars-deepmoney">DeepMoney sync pipeline</div>
+            <div class="env-category" id="env-vars-deepmoney">DeepMoney sync pipeline + ETF holdings</div>
 
             <div class="env-var-card">
                 <span class="name">DEEPMONEY_ALGORITHM</span>
@@ -610,6 +610,54 @@ DB_HOST=mysql-primary.internal</pre>
                     <pre class="example">DEEPMONEY_ALGORITHM=1.5   # very strict: top ~7% by ranker, CS ≥ 72.5 (only top-bucket picks)
 DEEPMONEY_ALGORITHM=5     # default: top 25%, CS ≥ 60
 DEEPMONEY_ALGORITHM=8     # loose: top 60%, CS ≥ 45</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">ETF_HOLDING_ALGORITHM</span>
+                <span class="default">optional · 5</span>
+                <div class="field"><span class="field-label">Overview</span>The <strong>single knob</strong> controlling ETF qualification + holdings surfacing aggressiveness end-to-end. Float 1.0–10.0; lower = stricter, higher = more permissive. Resolves through <code>models/etf_holding_presets.json</code> into five fields: <code>etfGpsThreshold</code> (minimum ETF GPS to qualify as "hot"), <code>topNEtfs</code> (how many qualifying ETFs survive), <code>maxTickers</code> (per-ETF holdings fetch + scoring cap), <code>gpsSurfaceValue</code> (minimum holding GPS to surface), <code>minPredChangePct</code> (minimum predicted-change % for a holding to surface). Fractional values (e.g. 1.5) interpolate linearly. Replaces the retired <code>ETF_GPS_THRESHOLD</code> (in-code constant), <code>ETF_HOLDING_MAX_TICKERS</code>, <code>ETF_HOLDING_GPS_SURFACE_VALUE</code>, and <code>ETF_HOLDING_MIN_PRED_CHANGE</code>.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/utils/etfHoldingPreset.ts</code> (single read), <code>src/utils/etfDiscovery.ts</code> (qualification + top-N + per-ETF cap), <code>src/utils/etfHoldings.ts</code> (post-dedup cap + surfacing thresholds), <code>src/app/api/stock_data/[ticker]/holdings/route.ts</code> (read-side surfacing), <code>src/app/api/dashboard/deepmoney-picks/route.ts</code> (widget read-side filter), <code>scripts/update_predictions.py</code> (per-user ETF holding sync, via <code>scripts/etf_holding_preset.py</code>).</div>
+                <div class="field"><span class="field-label">Visible on</span>The <strong>ETF Holding cards on <code>/portfolio</code></strong> when the user owns an ETF (e.g. SPY, QQQ, VGT), the dashboard's <strong>DeepMoney Picks widget</strong> (which ETFs render), and the per-ETF holdings response served by <code>/api/stock_data/&lt;TICKER&gt;/holdings</code>. Lower the number = stricter qualification + fewer holdings surface across all three; higher = more.</div>
+                <div class="field"><span class="field-label">Tuning</span>Move the whole ETF pipeline in one direction with one number:
+                    <pre class="example">ETF_HOLDING_ALGORITHM=1     # strictest: GPS≥70 to qualify, top 5 ETFs, 20 holdings each, surface≥75, pred≥3%
+ETF_HOLDING_ALGORITHM=5     # default:   GPS≥58, top 11, 56 holdings, surface≥60, pred≥1.8%
+ETF_HOLDING_ALGORITHM=10    # loosest:   GPS≥45, top 20, 100 holdings, surface≥45, pred≥0.5%</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">ETF_HOLDING_MIN_CONFIDENCE</span>
+                <span class="default">optional · 60</span>
+                <div class="field"><span class="field-label">Overview</span>Baseline minimum MLP confidence (0–100) for an ETF holding to surface as a recommendation. Scaled per-user by aggressiveness. Independent of <code>ETF_HOLDING_ALGORITHM</code>; layers on top as a third gate (GPS ∧ pred-change ∧ confidence).</div>
+                <div class="field"><span class="field-label">Where used</span><code>scripts/update_predictions.py</code>.</div>
+                <div class="field"><span class="field-label">Visible on</span>Same audience as the ETF Holding cards on <code>/portfolio</code>. Raising it drops the volatile / low-evidence picks first while leaving the GPS-floor untouched.</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">ETF_HOLDING_MIN_CONFIDENCE=55      # accept slightly lower-confidence picks</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">ETF_HOLDING_MAX_BETA</span>
+                <span class="default">optional · 2.0</span>
+                <div class="field"><span class="field-label">Overview</span>Beta cap on ETF holdings — anything above this is dropped before scoring so the surfaced set isn't dominated by volatile names. Independent of <code>ETF_HOLDING_ALGORITHM</code>. Filter is bypassed in some legacy read-side paths; check the call site if you change it.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/utils/etfHoldings.ts</code>, <code>src/app/api/stock_data/[ticker]/holdings/route.ts</code>.</div>
+                <div class="field"><span class="field-label">Visible on</span>Which holdings can appear as ETF Holding cards on <code>/portfolio</code>. Higher = more volatile names allowed (e.g. high-beta semis, biotechs); lower = a more conservative shortlist.</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">ETF_HOLDING_MAX_BETA=2      # default
+ETF_HOLDING_MAX_BETA=3      # accept higher-beta holdings (more risk)</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">ETF_HOLDING_STALENESS_HOURS</span>
+                <span class="default">optional · 4</span>
+                <div class="field"><span class="field-label">Overview</span>How old a cached <code>etf_holding_scores</code> row can be before <code>/holdings</code> re-scores it. Lower = fresher data, more compute; higher = cheaper, more stale. Independent of <code>ETF_HOLDING_ALGORITHM</code>.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/utils/etfHoldings.ts</code>.</div>
+                <div class="field"><span class="field-label">Visible on</span>How fresh the ETF Holding cards on <code>/portfolio</code> are between sync runs. Longer staleness = cards may show yesterday's score even though the market moved; shorter = recomputation hits Yahoo more often.</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">ETF_HOLDING_STALENESS_HOURS=4      # default
+ETF_HOLDING_STALENESS_HOURS=24     # cheaper, daily-only refresh</pre>
                 </div>
             </div>
 
@@ -670,72 +718,6 @@ GPS_BASELINE=75           # stricter: BUY only above 75</pre>
                 <div class="field"><span class="field-label">Tuning</span>Effectively disable the widget filter (rely on the sync's own gates):
                     <pre class="example">GPS_DEEPMONEY_MIN_SCORE=4    # almost everything passes
 GPS_DEEPMONEY_MIN_SCORE=65   # default: only the top tier shows</pre>
-                </div>
-            </div>
-
-            <div class="env-var-card">
-                <span class="name">ETF_HOLDING_GPS_SURFACE_VALUE</span>
-                <span class="default">optional · 60</span>
-                <div class="field"><span class="field-label">Overview</span>Baseline GPS threshold for an ETF holding to be surfaced as a per-user recommendation. Multiplied by the user's <code>envFloorMultiplier</code> per-strategy, so the effective floor is per-user.</div>
-                <div class="field"><span class="field-label">Where used</span><code>scripts/update_predictions.py</code> and <code>src/app/api/stock_data/[ticker]/holdings/route.ts</code>.</div>
-                <div class="field"><span class="field-label">Visible on</span>The <strong>ETF Holding cards</strong> shown on <code>/portfolio</code> when the user owns an ETF (e.g. SPY, QQQ, VGT) — surfaces individual stocks <em>inside</em> those ETFs as picks. Higher = stricter, fewer cards; lower = more cards.</div>
-                <div class="field"><span class="field-label">Tuning</span>
-                    <pre class="example">ETF_HOLDING_GPS_SURFACE_VALUE=60   # neutral users: GPS ≥ 60 surfaces
-                                   # safe users:    GPS ≥ 63 (60 × 1.05)
-                                   # aggressive:    GPS ≥ 57 (60 × 0.95)</pre>
-                </div>
-            </div>
-
-            <div class="env-var-card">
-                <span class="name">ETF_HOLDING_MIN_PRED_CHANGE</span>
-                <span class="default">optional · 1.5</span>
-                <div class="field"><span class="field-label">Overview</span>Minimum predicted-change % for an ETF holding to surface. Scaled per-user by aggressiveness. Read live by the holdings endpoint and by the predictions sync.</div>
-                <div class="field"><span class="field-label">Where used</span><code>src/app/api/stock_data/[ticker]/holdings/route.ts</code>, <code>scripts/update_predictions.py</code>.</div>
-                <div class="field"><span class="field-label">Tuning</span>
-                    <pre class="example">ETF_HOLDING_MIN_PRED_CHANGE=5      # require ≥5% predicted move</pre>
-                </div>
-            </div>
-
-            <div class="env-var-card">
-                <span class="name">ETF_HOLDING_MIN_CONFIDENCE</span>
-                <span class="default">optional · 60</span>
-                <div class="field"><span class="field-label">Overview</span>Baseline minimum MLP confidence (0–100) for an ETF holding to surface as a recommendation. Scaled per-user by aggressiveness.</div>
-                <div class="field"><span class="field-label">Where used</span><code>scripts/update_predictions.py</code>.</div>
-                <div class="field"><span class="field-label">Tuning</span>
-                    <pre class="example">ETF_HOLDING_MIN_CONFIDENCE=55      # accept slightly lower-confidence picks</pre>
-                </div>
-            </div>
-
-            <div class="env-var-card">
-                <span class="name">ETF_HOLDING_MAX_TICKERS</span>
-                <span class="default">optional · 50</span>
-                <div class="field"><span class="field-label">Overview</span>Caps both (a) how many holdings the discovery flow fetches from Yahoo per ETF, and (b) how many unique tickers get scored after dedup. Whichever cap binds first wins.</div>
-                <div class="field"><span class="field-label">Where used</span><code>src/utils/etfDiscovery.ts</code>, <code>src/utils/etfHoldings.ts</code>.</div>
-                <div class="field"><span class="field-label">Tuning</span>Raising means more Yahoo rate-limit pressure but wider coverage:
-                    <pre class="example">ETF_HOLDING_MAX_TICKERS=25     # narrow / cheap
-ETF_HOLDING_MAX_TICKERS=100    # wide / heavier Yahoo load</pre>
-                </div>
-            </div>
-
-            <div class="env-var-card">
-                <span class="name">ETF_HOLDING_MAX_BETA</span>
-                <span class="default">optional · 2.0</span>
-                <div class="field"><span class="field-label">Overview</span>Beta cap on ETF holdings — anything above this is dropped before scoring so the surfaced set isn't dominated by volatile names. Filter is bypassed in some legacy code paths; check the call site if you change it.</div>
-                <div class="field"><span class="field-label">Where used</span><code>src/utils/etfHoldings.ts</code>, <code>src/app/api/stock_data/[ticker]/holdings/route.ts</code>.</div>
-                <div class="field"><span class="field-label">Tuning</span>
-                    <pre class="example">ETF_HOLDING_MAX_BETA=2      # default
-ETF_HOLDING_MAX_BETA=3      # accept higher-beta holdings (more risk)</pre>
-                </div>
-            </div>
-
-            <div class="env-var-card">
-                <span class="name">ETF_HOLDING_STALENESS_HOURS</span>
-                <span class="default">optional · 4</span>
-                <div class="field"><span class="field-label">Overview</span>How old a cached <code>etf_holding_scores</code> row can be before <code>/holdings</code> re-scores it. Lower = fresher data, more compute; higher = cheaper, more stale.</div>
-                <div class="field"><span class="field-label">Where used</span><code>src/utils/etfHoldings.ts</code>.</div>
-                <div class="field"><span class="field-label">Tuning</span>
-                    <pre class="example">ETF_HOLDING_STALENESS_HOURS=4      # default
-ETF_HOLDING_STALENESS_HOURS=24     # cheaper, daily-only refresh</pre>
                 </div>
             </div>
 

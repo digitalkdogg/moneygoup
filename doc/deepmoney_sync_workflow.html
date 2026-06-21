@@ -96,7 +96,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Developer Docs</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-19</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-20</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -168,22 +168,29 @@
 
   <main>
     <p style="font-size:.8rem;color:#94a3b8;margin-bottom:.25rem;">doc / deepmoney_sync_workflow.html</p>
-    <h1>DeepMoney Analysis Workflow (v2.7)</h1>
+    <h1>DeepMoney Analysis Workflow (v2.8)</h1>
     <div class="meta">
       <span>scripts/deepmoney_sync.py</span>
+      <span>scripts/update_predictions.py</span>
       <span>scripts/get_macro_data.py</span>
       <span>scripts/prediction_recorder.py</span>
       <span>scripts/score_ranker.py</span>
       <span>scripts/ranker_features.py</span>
+      <span>scripts/etf_holding_preset.py</span>
       <span>src/app/api/prediction/deepmoney/</span>
       <span>src/utils/rankerInference.ts</span>
       <span>src/utils/algorithmPreset.ts</span>
+      <span>src/utils/etfHoldingPreset.ts</span>
       <span>models/algorithm_presets.json</span>
-      <span>Updated 2026-06-19</span>
+      <span>models/etf_holding_presets.json</span>
+      <span>Updated 2026-06-20</span>
     </div>
 
     <section id="overview">
       <p>The DeepMoney sync is a background batch process (typically run as a cron job) that discovers, validates, and persists AI-curated stock recommendations and ETF picks to the database. The results power the dashboard's "AI Picks" panel, the discovery recommendations feed, and the macro context snapshot visible to all approved users.</p>
+      <div class="highlight-box">
+        <strong>v2.8 changes (2026-06-20):</strong> Same single-knob pattern extended to the ETF holdings pipeline. New env var <code>ETF_HOLDING_ALGORITHM</code> (float 1.0–10.0, default 5) resolves via <code>models/etf_holding_presets.json</code> into five fields — <code>etfGpsThreshold</code>, <code>topNEtfs</code>, <code>maxTickers</code>, <code>gpsSurfaceValue</code>, <code>minPredChangePct</code> — all used by ETF qualification in <code>etfDiscovery.ts</code>, holdings scoring in <code>etfHoldings.ts</code>, the read-side <code>/holdings</code> route, the DeepMoney Picks widget, and the per-user predictions sync (via <code>scripts/etf_holding_preset.py</code>). Fractional levels interpolate linearly; count fields round to integers. Retired: <code>ETF_GPS_THRESHOLD</code> (in-code constant), <code>ETF_HOLDING_MAX_TICKERS</code>, <code>ETF_HOLDING_GPS_SURFACE_VALUE</code>, <code>ETF_HOLDING_MIN_PRED_CHANGE</code>.
+      </div>
       <div class="highlight-box">
         <strong>v2.7 changes (2026-06-19):</strong> Collapsed all pipeline tuning to a single integer env var, <code>DEEPMONEY_ALGORITHM</code> (1–10, default 5), resolved via <code>models/algorithm_presets.json</code> into four fields: <code>rankerKeepPct</code>, <code>mlpConfidenceFloor</code>, <code>volGateFloor</code>, <code>analystStrongBuyThreshold</code>. The LightGBM ranker is now mandatory and is the primary stock-level filter (keep top <code>rankerKeepPct</code> by rank percentile). An <strong>analyst-strongBuy override lane</strong> runs alongside the ranker — any pre-filtered stock with analyst strongBuy count ≥ <code>analystStrongBuyThreshold</code> (also scaled by level) bypasses the ranker keep-cut and the <code>mlGate</code> floor (still must yield positive predicted change). Stage 1 additionally merges holdings of ~20 popular ETFs into the candidate pool and scrapes the Yahoo Finance earnings calendar; new feeds added for oilprice.com, Defense News (land+space JSON), DIA, and a simpler SEC Form 4 endpoint. The GPS-Light path is gone; <code>gps_score_type</code> is always <code>'full'</code>. Retired env vars: <code>DEEPMONEY_GPS_VALUE</code>, <code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code>, <code>DEEPMONEY_ANALYST_THRESHOLD</code>, <code>DEEPMONEY_USE_RANKER_GATE</code>, <code>DEEPMONEY_TIER2_TOPK</code>.
       </div>
@@ -421,10 +428,10 @@ if hi_ratio &gt; 0.97 and beta_val &gt; 2.0:
         </div>
         <p>Surfacing criteria (in <code>holdings/route.ts</code>):</p>
         <ul>
-          <li><code>gps_score &ge; ETF_HOLDING_GPS_SURFACE_VALUE</code> (env, default 60)</li>
-          <li>Breakdown's <code>mlpUpside</code> component clears <code>(ETF_HOLDING_MIN_PRED_CHANGE / GPS_PREDICTION_MAX) &times; 20</code>. With defaults (1.5% / 3), this is <code>mlpUpside &ge; 10</code>. The proxy works because <code>mlpUpside = clip(predicted_change_pct / GPS_PREDICTION_MAX, -1, 1) &times; 20</code> in <code>calculateGpsScore</code>, so the inverse recovers a <code>predicted_change_pct</code> threshold from the stored breakdown alone — no extra columns required.</li>
+          <li><code>gps_score &ge; preset.gpsSurfaceValue</code> — resolved from <code>ETF_HOLDING_ALGORITHM</code> via <code>models/etf_holding_presets.json</code> (default level 5 = 60).</li>
+          <li>Breakdown's <code>mlpUpside</code> component clears <code>(preset.minPredChangePct / GPS_PREDICTION_MAX) &times; 20</code>. With level-5 defaults (1.8% / 3), this is <code>mlpUpside &ge; 12</code>. The proxy works because <code>mlpUpside = clip(predicted_change_pct / GPS_PREDICTION_MAX, -1, 1) &times; 20</code> in <code>calculateGpsScore</code>, so the inverse recovers a <code>predicted_change_pct</code> threshold from the stored breakdown alone — no extra columns required.</li>
         </ul>
-        <p><code>predicted_change_pct</code> and <code>bearish_signal</code> are still returned in the response shape (recovered from <code>mlpUpside</code>) so existing consumers don't break. <code>beta</code> is always <code>null</code> now — it isn't stored in <code>stock_gps_scores</code>, and the surfacing logic no longer enforces a beta cap. The <code>ETF_HOLDING_MAX_BETA</code> env var is kept for backward compatibility but is no longer read.</p>
+        <p><code>predicted_change_pct</code> and <code>bearish_signal</code> are still returned in the response shape (recovered from <code>mlpUpside</code>) so existing consumers don't break. <code>beta</code> is always <code>null</code> now — it isn't stored in <code>stock_gps_scores</code>, and the surfacing logic no longer enforces a beta cap. The <code>ETF_HOLDING_MAX_BETA</code> env var is kept for backward compatibility but is no longer read by the read-side route.</p>
         <p>For each holding flagged <code>surfaced: true</code>, a row is inserted into <code>recommended_stocks</code> with:</p>
         <ul>
           <li><code>type = 'etf_holding'</code></li>
@@ -437,7 +444,7 @@ if hi_ratio &gt; 0.97 and beta_val &gt; 2.0:
         </ul>
         <p>A counter (<code>holdings_written</code>) is printed at the end of the loop. Holding rows share the same <code>recommended_stocks</code> table as hot stocks and are distinguished only by <code>type</code>.</p>
         <div class="highlight-box">
-          <strong>Tuning note:</strong> If holdings rarely surface in your environment, check the distribution of <code>stock_gps_scores.gps_score</code> against <code>ETF_HOLDING_GPS_SURFACE_VALUE</code>. Production-tuned ceilings above ~70 will produce empty holding sets on most market days since the analyzer's GPS output peaks in the 50–60 range during typical conditions.
+          <strong>Tuning note:</strong> If holdings rarely surface in your environment, check the distribution of <code>stock_gps_scores.gps_score</code> against <code>preset.gpsSurfaceValue</code> (resolved from <code>ETF_HOLDING_ALGORITHM</code>). Levels ≤ 2 set the floor to 72–75 and produce near-empty holding sets on most market days since the analyzer's GPS output peaks in the 50–60 range during typical conditions. Raise <code>ETF_HOLDING_ALGORITHM</code> (toward 10) to loosen all five ETF gates at once.
         </div>
       </div>
     </section>
@@ -699,10 +706,11 @@ if hi_ratio &gt; 0.97 and beta_val &gt; 2.0:
             <tr><td><code>pred_threshold</code> (hardcoded)</td><td>1.5%</td><td>Prediction Gate: minimum <code>predicted_change_pct</code> required alongside the dashboard MLP-confidence floor. Matches the neutral / 1-month <code>mlGate</code> in <code>TIMEFRAME_CONFIG</code>.</td></tr>
             <tr><td><code>NEXTAUTH_URL</code></td><td>http://localhost:3001</td><td>Read but not used for the discovery call. The deepmoney URL is hardcoded to <code>localhost:3001</code> regardless of this variable.</td></tr>
             <tr><td><code>DB_HOST</code>, <code>DB_USER</code>, <code>DB_PASSWORD</code>, <code>DB_DATABASE</code></td><td>—</td><td>MySQL connection for the sync script and for <code>prediction_recorder.py</code>.</td></tr>
-            <tr><td colspan="3" style="background:#f0fdf4;font-weight:600;color:#166534;padding-top:.6rem;">ETF Holdings (read by /holdings endpoint, indirectly via the sync's holdings fetch)</td></tr>
-            <tr><td><code>ETF_HOLDING_GPS_SURFACE_VALUE</code></td><td>60</td><td>Minimum GPS score for a holding to surface. v2.6 raised practical relevance — the endpoint now reads from <code>stock_gps_scores</code> directly, so the threshold gates whatever the analyzer actually produced this run.</td></tr>
-            <tr><td><code>ETF_HOLDING_MIN_PRED_CHANGE</code></td><td>1.5</td><td>Minimum predicted change % implied by the breakdown's <code>mlpUpside</code> component. Surface gate: <code>mlpUpside &ge; (MIN_PRED_CHANGE / GPS_PREDICTION_MAX) &times; 20</code>.</td></tr>
-            <tr><td><code>ETF_HOLDING_MAX_BETA</code></td><td>2.0</td><td>Kept for backward compat; <strong>no longer enforced</strong> as of v2.6. <code>beta</code> is not stored in <code>stock_gps_scores</code> and the surfacing logic skips this check.</td></tr>
+            <tr><td colspan="3" style="background:#f0fdf4;font-weight:600;color:#166534;padding-top:.6rem;">ETF Holdings (read by /holdings endpoint + the per-user predictions sync)</td></tr>
+            <tr><td><code>ETF_HOLDING_ALGORITHM</code></td><td><code>5</code></td><td><strong>Single knob (v2.8).</strong> Float 1.0–10.0 resolved via <code>models/etf_holding_presets.json</code> into <code>{etfGpsThreshold, topNEtfs, maxTickers, gpsSurfaceValue, minPredChangePct}</code>. Fractional levels interpolate linearly (count fields rounded to int). Level 1 is strictest (GPS≥70 to qualify, top 5 ETFs, 20 holdings each, surface≥75, pred≥3%); level 10 is most permissive (GPS≥45, top 20, 100 holdings, surface≥45, pred≥0.5%). Read by <code>src/utils/etfDiscovery.ts</code>, <code>src/utils/etfHoldings.ts</code>, <code>src/app/api/stock_data/[ticker]/holdings/route.ts</code>, <code>src/app/api/dashboard/deepmoney-picks/route.ts</code>, and (via <code>scripts/etf_holding_preset.py</code>) <code>scripts/update_predictions.py</code>. Replaces the retired <code>ETF_GPS_THRESHOLD</code> (in-code constant), <code>ETF_HOLDING_MAX_TICKERS</code>, <code>ETF_HOLDING_GPS_SURFACE_VALUE</code>, and <code>ETF_HOLDING_MIN_PRED_CHANGE</code>.</td></tr>
+            <tr><td><code>ETF_HOLDING_MIN_CONFIDENCE</code></td><td>60</td><td>Baseline minimum MLP confidence (0–100) for an ETF holding to surface — independent of the preset; layers on top as a third gate (GPS ∧ pred-change ∧ confidence). Scaled per-user by aggressiveness in <code>scripts/update_predictions.py</code>.</td></tr>
+            <tr><td><code>ETF_HOLDING_MAX_BETA</code></td><td>2.0</td><td>Independent of the preset. Beta cap applied in <code>src/utils/etfHoldings.ts</code> surfacing. The read-side <code>/holdings</code> route skips this check (no beta column on <code>stock_gps_scores</code>); kept for backward compat there.</td></tr>
+            <tr><td><code>ETF_HOLDING_STALENESS_HOURS</code></td><td>4</td><td>Independent of the preset. How old a cached <code>etf_holding_scores</code> row can be before <code>/holdings</code> re-scores it.</td></tr>
             <tr><td><code>GPS_PREDICTION_MAX</code></td><td>3</td><td>Used by <code>calculateGpsScore</code> for the <code>mlpUpside</code> component, and by the <code>/holdings</code> endpoint to invert <code>mlpUpside → predicted_change_pct</code>. Production-tuned values (e.g. 15) reduce <code>mlpUpside</code> magnitude proportionally.</td></tr>
           </tbody>
         </table>
@@ -724,6 +732,23 @@ if hi_ratio &gt; 0.97 and beta_val &gt; 2.0:
             <tr><td>10</td><td>1.00</td><td>30</td><td>35</td><td>1</td></tr>
           </tbody>
         </table>
+        <h3 style="margin-top:1.5rem;">ETF Holding Preset Table</h3>
+        <p>Full level → preset mapping (from <code>models/etf_holding_presets.json</code>). Higher level = looser ETF qualification AND looser holdings surfacing. <strong>Fractional levels interpolate linearly</strong> — e.g. <code>ETF_HOLDING_ALGORITHM=1.5</code> resolves to <code>{etfGpsThreshold: 68.5, topNEtfs: 6, maxTickers: 24, gpsSurfaceValue: 73.5, minPredChangePct: 2.85}</code> (midpoint of L1 and L2, with the count fields rounded to the nearest integer).</p>
+        <table>
+          <thead><tr><th>Level</th><th><code>etfGpsThreshold</code></th><th><code>topNEtfs</code></th><th><code>maxTickers</code></th><th><code>gpsSurfaceValue</code></th><th><code>minPredChangePct</code></th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>70</td><td>5</td><td>20</td><td>75</td><td>3.0</td></tr>
+            <tr><td>2</td><td>67</td><td>6</td><td>29</td><td>72</td><td>2.7</td></tr>
+            <tr><td>3</td><td>64</td><td>8</td><td>38</td><td>68</td><td>2.4</td></tr>
+            <tr><td>4</td><td>61</td><td>9</td><td>47</td><td>64</td><td>2.1</td></tr>
+            <tr><td>5 <em>(default)</em></td><td>58</td><td>11</td><td>56</td><td>60</td><td>1.8</td></tr>
+            <tr><td>6</td><td>55</td><td>12</td><td>65</td><td>56</td><td>1.5</td></tr>
+            <tr><td>7</td><td>53</td><td>14</td><td>74</td><td>52</td><td>1.2</td></tr>
+            <tr><td>8</td><td>50</td><td>16</td><td>83</td><td>49</td><td>0.9</td></tr>
+            <tr><td>9</td><td>47</td><td>18</td><td>92</td><td>47</td><td>0.7</td></tr>
+            <tr><td>10</td><td>45</td><td>20</td><td>100</td><td>45</td><td>0.5</td></tr>
+          </tbody>
+        </table>
         <p style="margin-top:.75rem;"><strong>Dashboard threshold env vars</strong> (<code>GPS_BASELINE</code>, <code>GPS_SELL_OFFSET</code>, <code>GPS_DISCOVERY_OFFSET</code>) are read by the dashboard renderer, not by this sync script. They determine which of the <code>dashboard_qualified</code> stocks actually render as BUY/SELL/DISCOVERY cards. See <a href="strategy_system.html">Strategy System</a> for the renderer's gate logic.</p>
       </div>
     </section>
@@ -734,7 +759,8 @@ if hi_ratio &gt; 0.97 and beta_val &gt; 2.0:
         <table>
           <thead><tr><th>Date</th><th>Change</th><th>Detail</th></tr></thead>
           <tbody>
-            <tr><td>2026-06-19</td><td>Single-knob revamp (v2.7) <span class="new-badge">new</span></td><td>Replaced five tuning env vars with a single integer <code>DEEPMONEY_ALGORITHM</code> (1–10) resolved via <code>models/algorithm_presets.json</code> into four fields. The LightGBM ranker is now mandatory: sort by <code>rank_pct</code> desc, keep top <code>rankerKeepPct</code>. Analyst-strongBuy override lane added back (threshold also scaled by level) — pre-filtered stocks with <code>analystStrongBuy ≥ threshold</code> bypass the ranker keep-cut and the mlGate floor, surfaced as <code>discovery_source='analyst_consensus'</code>. Stage 1 also merges holdings of ~20 popular ETFs into the candidate pool and scrapes the Yahoo Finance earnings calendar; new feeds: oilprice.com, Defense News (land+space JSON), DIA RSS, simpler SEC Form 4 atom. Arc Publishing <code>content_elements</code> handler added to the JSON branch. The GPS-Light tier is gone; <code>gps_score_type</code> is always <code>'full'</code>. <code>deepmoney_sync.py</code> now writes the analyzer's <code>discovery_source</code> verbatim instead of hardcoding <code>'v2_engine'</code>. Retired: <code>DEEPMONEY_GPS_VALUE</code>, <code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code>, <code>DEEPMONEY_ANALYST_THRESHOLD</code>, <code>DEEPMONEY_USE_RANKER_GATE</code>, <code>DEEPMONEY_TIER2_TOPK</code>.</td></tr>
+            <tr><td>2026-06-20</td><td>ETF holdings single-knob (v2.8) <span class="new-badge">new</span></td><td>New <code>ETF_HOLDING_ALGORITHM</code> (float 1.0–10.0, default 5) resolves via <code>models/etf_holding_presets.json</code> into <code>{etfGpsThreshold, topNEtfs, maxTickers, gpsSurfaceValue, minPredChangePct}</code>. Wired into <code>etfDiscovery.ts</code> (qualification + top-N + per-ETF cap), <code>etfHoldings.ts</code> (post-dedup cap + surfacing thresholds via <code>sharedContext.etfHoldingPreset</code>), the <code>/holdings</code> read-side route, the <code>deepmoney-picks</code> dashboard widget (<code>etf_gps_score</code> filter), and <code>scripts/update_predictions.py</code> via a new Python mirror <code>scripts/etf_holding_preset.py</code>. Retired: <code>ETF_GPS_THRESHOLD</code> in-code constant, <code>ETF_HOLDING_MAX_TICKERS</code>, <code>ETF_HOLDING_GPS_SURFACE_VALUE</code>, <code>ETF_HOLDING_MIN_PRED_CHANGE</code>. <code>ETF_HOLDING_MIN_CONFIDENCE</code>, <code>ETF_HOLDING_MAX_BETA</code>, <code>ETF_HOLDING_STALENESS_HOURS</code> kept as independent knobs.</td></tr>
+            <tr><td>2026-06-19</td><td>Single-knob revamp (v2.7)</td><td>Replaced five tuning env vars with a single integer <code>DEEPMONEY_ALGORITHM</code> (1–10) resolved via <code>models/algorithm_presets.json</code> into four fields. The LightGBM ranker is now mandatory: sort by <code>rank_pct</code> desc, keep top <code>rankerKeepPct</code>. Analyst-strongBuy override lane added back (threshold also scaled by level) — pre-filtered stocks with <code>analystStrongBuy ≥ threshold</code> bypass the ranker keep-cut and the mlGate floor, surfaced as <code>discovery_source='analyst_consensus'</code>. Stage 1 also merges holdings of ~20 popular ETFs into the candidate pool and scrapes the Yahoo Finance earnings calendar; new feeds: oilprice.com, Defense News (land+space JSON), DIA RSS, simpler SEC Form 4 atom. Arc Publishing <code>content_elements</code> handler added to the JSON branch. The GPS-Light tier is gone; <code>gps_score_type</code> is always <code>'full'</code>. <code>deepmoney_sync.py</code> now writes the analyzer's <code>discovery_source</code> verbatim instead of hardcoding <code>'v2_engine'</code>. Retired: <code>DEEPMONEY_GPS_VALUE</code>, <code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code>, <code>DEEPMONEY_ANALYST_THRESHOLD</code>, <code>DEEPMONEY_USE_RANKER_GATE</code>, <code>DEEPMONEY_TIER2_TOPK</code>.</td></tr>
             <tr><td>2026-06-18</td><td>Path-A ranker integration (v2.6) <em>— superseded by v2.7</em></td><td>Two-pass flow in <code>analyzer.ts</code> feature-flagged via <code>DEEPMONEY_USE_RANKER_GATE</code>. LightGBM cross-sectional ranker scores the full universe in Phase 2; only the top-<code>DEEPMONEY_TIER2_TOPK</code> by GPS-Light gets Monte Carlo. New schema columns (<code>gps_score_type</code>, <code>ranker_score</code>, <code>hist_vol_30</code>), and a structured end-of-run summary block printed from the <code>finally</code> clause.</td></tr>
             <tr><td>2026-06-18</td><td>ETF holdings endpoint rewrite</td><td><code>/api/stock_data/[ticker]/holdings</code> now reads from <code>stock_gps_scores</code> joined to <code>stocks</code> instead of the deprecated <code>etf_holding_scores</code> cache (which the <code>/deepmoney</code> route stopped populating). Surfacing criteria recover <code>predicted_change_pct</code> and <code>bearish_signal</code> from <code>gps_breakdown.mlpUpside</code>. <code>beta</code> cap no longer enforced (not in source data).</td></tr>
             <tr><td>2026-06-15</td><td>Documented strategy-driven server-side <code>mlGate</code></td><td>API route resolves <code>getUserStrategy()</code> &rarr; <code>resolveStrategy().timeframe</code> for <code>outlook</code> + <code>mlGate</code>. Cache is bucketed by outlook. Linked to <a href="strategy_system.html">Strategy System</a> for gate / timeframe tables.</td></tr>

@@ -78,15 +78,22 @@ function makeGpsResult(score = 72) {
 describe('etfHoldings', () => {
   let fetchETFHoldings:  typeof import('../etfHoldings').fetchETFHoldings;
   let scoreETFHoldings:  typeof import('../etfHoldings').scoreETFHoldings;
+  type EtfHoldingPreset = import('../etfHoldingPreset').EtfHoldingPreset;
 
-  // Pin GPS_PREDICTION_MAX + all ETF_HOLDING_* surfacing thresholds to the
-  // code defaults. The test fixtures assume default behavior; .env.local
-  // (production tuning) overrides them and leaks into the Jest process via
-  // Next.js route module imports, distorting GPS scores and surfacing gates.
+  // Pin GPS_PREDICTION_MAX + remaining ETF_HOLDING_* knobs to code defaults.
+  // The test fixtures assume default behavior; .env.local (production tuning)
+  // overrides them and leaks into the Jest process via Next.js route module
+  // imports, distorting GPS scores and surfacing gates.
+  //
+  // ETF_HOLDING_ALGORITHM is also stripped — when the preset module loads
+  // models/etf_holding_presets.json with no env override, it resolves to
+  // level 5: gpsSurfaceValue=60, minPredChangePct=1.8, maxTickers=56.
+  // Tests that need different thresholds inject an `etfHoldingPreset` on
+  // the scoreETFHoldings sharedContext arg directly (see the maxTickers
+  // test below for an example).
   const _pinnedKeys = [
     'GPS_PREDICTION_MAX',
-    'ETF_HOLDING_GPS_SURFACE_VALUE',
-    'ETF_HOLDING_MIN_PRED_CHANGE',
+    'ETF_HOLDING_ALGORITHM',
     'ETF_HOLDING_MIN_CONFIDENCE',
     'ETF_HOLDING_MAX_BETA',
     'ETF_HOLDING_STALENESS_HOURS',
@@ -299,8 +306,17 @@ describe('etfHoldings', () => {
       expect(mockYahooFinance.chart).toHaveBeenCalledTimes(1);
     });
 
-    test('respects ETF_HOLDING_MAX_TICKERS cap — processes highest-weight first', async () => {
-      process.env.ETF_HOLDING_MAX_TICKERS = '2';
+    test('respects preset.maxTickers cap — processes highest-weight first', async () => {
+      // Inject a preset with maxTickers=2 directly. Equivalent to setting
+      // ETF_HOLDING_ALGORITHM to a level whose maxTickers resolves to 2,
+      // but more explicit and decoupled from the JSON table calibration.
+      const preset: EtfHoldingPreset = {
+        etfGpsThreshold:   58,
+        topNEtfs:          11,
+        maxTickers:        2,
+        gpsSurfaceValue:   60,
+        minPredChangePct:  1.8,
+      };
 
       const holdings = [
         makeHolding('AAPL', 0.13),
@@ -309,7 +325,7 @@ describe('etfHoldings', () => {
         makeHolding('AMZN', 0.05),  // should be cut
       ];
 
-      const results = await scoreETFHoldings(holdings);
+      const results = await scoreETFHoldings(holdings, { etfHoldingPreset: preset });
 
       expect(mockYahooFinance.chart).toHaveBeenCalledTimes(2);
       const scoredTickers = results.map(r => r.ticker);
@@ -317,8 +333,6 @@ describe('etfHoldings', () => {
       expect(scoredTickers).toContain('MSFT');
       expect(scoredTickers).not.toContain('NVDA');
       expect(scoredTickers).not.toContain('AMZN');
-
-      delete process.env.ETF_HOLDING_MAX_TICKERS;
     });
 
     test('silently skips a holding when prediction fails', async () => {
@@ -357,14 +371,14 @@ describe('etfHoldings', () => {
     });
 
     test('surfaced: false when GPS score below threshold', async () => {
-      mockCalculateGpsScore.mockReturnValue(makeGpsResult(55)); // below default 60
+      mockCalculateGpsScore.mockReturnValue(makeGpsResult(55)); // below L5 default 60
       const results = await scoreETFHoldings([makeHolding('AAPL', 0.10)]);
       expect(results[0].surfaced).toBe(false);
     });
 
     test('surfaced: false when predicted change below threshold', async () => {
       mockRunPredictionInternal.mockResolvedValue({
-        predicted_change_pct: 1.0, // below 1.5
+        predicted_change_pct: 1.0, // below L5 default 1.8
         confidence_score: 70,
         predicted_price_1m: 155,
       });
