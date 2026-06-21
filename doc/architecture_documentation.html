@@ -104,11 +104,11 @@
   </div>
   <nav class="top-bar-nav">
     <a href="moneygoup_overview.html">Overview</a>
+    <a href="business_rules.html">Business Rules</a>
     <a href="api_documentation.html">API Docs</a>
     <a href="architecture_documentation.html" class="active">Architecture</a>
     <a href="authentication_flow.html">Auth Flow</a>
     <a href="admin_user_management.html">Admin User Mgmt</a>
-    <a href="recommendation_buckets.html">Rec Buckets</a>
     <a href="components_documentation.html">Components</a>
     <a href="database_documentation.html">Database</a>
     <a href="prediction_workflow.html">Prediction Flow</a>
@@ -129,6 +129,7 @@
   <nav class="sidebar" aria-label="Architecture sections">
     <h3>GrowMyStocks Docs</h3>
     <a href="moneygoup_overview.html">App Overview</a>
+    <a href="business_rules.html">Business Rules</a>
     <a href="architecture_documentation.html" class="active">Architecture</a>
     <a href="components_documentation.html">Components</a>
     <a href="api_documentation.html">API Routes</a>
@@ -149,7 +150,6 @@
     <a href="authentication_flow.html">Auth Flow (detail)</a>
     <a href="database_documentation.html">Database</a>
     <a href="prediction_workflow.html">Prediction Workflow</a>
-    <a href="recommendation_buckets.html">Recommendation Buckets</a>
     <a href="technical_indicators_guide.html">Technical Indicators</a>
     <a href="admin_user_management.html">Admin User Mgmt</a>
     <a href="style_guide.html">Style Guide</a>
@@ -262,14 +262,14 @@
 ├── lib/
 │   └── auth.ts                     NextAuth authOptions
 │
-├── middleware.ts                   Route protection (withAuth)
+├── proxy.ts                        Route protection (withAuth)
 │
 ├── types/
 │   └── portfolio.d.ts              PortfolioItem — includes is_etf?: boolean
 │
 └── utils/
     ├── databaseHelper.ts           executeRawQuery, insert, upsert, update, remove
-    ├── etfDiscovery.ts             ETF scoring + holdings phase (ETF_HOLDING_TOP_N env)
+    ├── etfDiscovery.ts             ETF scoring + holdings phase (uses ETF_HOLDING_ALGORITHM preset)
     ├── etfHoldings.ts              fetchETFHoldings, scoreETFHoldings
     ├── rateLimiter.ts              loginLimiter, registerLimiter, etc.
     ├── limitService.ts             Role-based resource quotas
@@ -281,9 +281,9 @@
 scripts/
 ├── deepmoney_sync.py              Full discovery + ETF sync orchestrator
 ├── update_predictions.py          Portfolio prediction sync + ETF holdings scan
-│                                   Reads ETF_HOLDING_GPS_SURFACE_VALUE,
-│                                   ETF_HOLDING_MIN_PRED_CHANGE,
-│                                   ETF_HOLDING_MIN_CONFIDENCE env vars
+│                                   Uses ETF_HOLDING_ALGORITHM preset (via
+│                                   scripts/etf_holding_preset.py) +
+│                                   ETF_HOLDING_MIN_CONFIDENCE env var
 └── predict_weighted_analysis.py   Python ML prediction model
 
 public/
@@ -374,7 +374,7 @@ doc/                               All HTML documentation files</pre>
 
       <div class="arch-card">
         <h4>Session &amp; Middleware <span style="font-size:.75rem;font-weight:400;color:#64748b;">(updated May 2026)</span></h4>
-        <p>All routes except public ones are protected by NextAuth <code>withAuth</code> middleware defined in <code>src/middleware.ts</code>. The middleware reads the JWT session token from the cookie and redirects unauthenticated requests to <code>/login</code>. Server-to-server internal calls bypass authentication using an <code>x-api-key</code> header matching <code>DEEPMONEY_INTERNAL_SECRET</code>.</p>
+        <p>All routes except public ones are protected by NextAuth <code>withAuth</code> middleware defined in <code>src/proxy.ts</code>. The middleware reads the JWT session token from the cookie and redirects unauthenticated requests to <code>/login</code>. Server-to-server internal calls bypass authentication using an <code>x-api-key</code> header matching <code>DEEPMONEY_INTERNAL_SECRET</code>.</p>
         <p style="margin-top:.5rem;">The middleware also generates a per-request cryptographic nonce and sets a <code>Content-Security-Policy</code> header on every response. The nonce is passed to page components via the <code>x-nonce</code> request header to enable inline script execution.</p>
         <div class="note" style="margin-top:.75rem;"><strong>Two-layer session verification:</strong> The JWT session token carries <code>id</code>, <code>role</code>, and <code>approvalStatus</code> (set at login time). For every authenticated API request, all protected endpoints additionally call <code>checkApprovalGuard(userId)</code> which re-queries the database to verify the account is still approved. This prevents stale sessions from accessing data after an account is suspended. The guard fails closed: on DB error, access is denied.</div>
       </div>

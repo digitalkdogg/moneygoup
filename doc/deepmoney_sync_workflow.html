@@ -103,11 +103,11 @@
   </div>
   <nav class="top-bar-nav">
     <a href="moneygoup_overview.html">Overview</a>
+    <a href="business_rules.html">Business Rules</a>
     <a href="api_documentation.html">API Docs</a>
     <a href="architecture_documentation.html">Architecture</a>
     <a href="authentication_flow.html">Auth Flow</a>
     <a href="admin_user_management.html">Admin User Mgmt</a>
-    <a href="recommendation_buckets.html">Rec Buckets</a>
     <a href="components_documentation.html">Components</a>
     <a href="database_documentation.html">Database</a>
     <a href="prediction_workflow.html">Prediction Flow</a>
@@ -128,6 +128,7 @@
   <nav class="sidebar" aria-label="DeepMoney Sync sections">
     <h3>GrowMyStocks Docs</h3>
     <a href="moneygoup_overview.html">App Overview</a>
+    <a href="business_rules.html">Business Rules</a>
     <a href="architecture_documentation.html">Architecture</a>
     <a href="components_documentation.html">Components</a>
     <a href="api_documentation.html">API Routes</a>
@@ -162,7 +163,6 @@
     <a href="authentication_flow.html">Auth Flow</a>
     <a href="database_documentation.html">Database</a>
     <a href="prediction_workflow.html">Prediction Workflow</a>
-    <a href="recommendation_buckets.html">Recommendation Buckets</a>
     <a href="technical_indicators_guide.html">Technical Indicators</a>
   </nav>
 
@@ -192,7 +192,7 @@
         <strong>v2.8 changes (2026-06-20):</strong> Same single-knob pattern extended to the ETF holdings pipeline. New env var <code>ETF_HOLDING_ALGORITHM</code> (float 1.0–10.0, default 5) resolves via <code>models/etf_holding_presets.json</code> into five fields — <code>etfGpsThreshold</code>, <code>topNEtfs</code>, <code>maxTickers</code>, <code>gpsSurfaceValue</code>, <code>minPredChangePct</code> — all used by ETF qualification in <code>etfDiscovery.ts</code>, holdings scoring in <code>etfHoldings.ts</code>, the read-side <code>/holdings</code> route, the DeepMoney Picks widget, and the per-user predictions sync (via <code>scripts/etf_holding_preset.py</code>). Fractional levels interpolate linearly; count fields round to integers. Retired: <code>ETF_GPS_THRESHOLD</code> (in-code constant), <code>ETF_HOLDING_MAX_TICKERS</code>, <code>ETF_HOLDING_GPS_SURFACE_VALUE</code>, <code>ETF_HOLDING_MIN_PRED_CHANGE</code>.
       </div>
       <div class="highlight-box">
-        <strong>v2.7 changes (2026-06-19):</strong> Collapsed all pipeline tuning to a single integer env var, <code>DEEPMONEY_ALGORITHM</code> (1–10, default 5), resolved via <code>models/algorithm_presets.json</code> into four fields: <code>rankerKeepPct</code>, <code>mlpConfidenceFloor</code>, <code>volGateFloor</code>, <code>analystStrongBuyThreshold</code>. The LightGBM ranker is now mandatory and is the primary stock-level filter (keep top <code>rankerKeepPct</code> by rank percentile). An <strong>analyst-strongBuy override lane</strong> runs alongside the ranker — any pre-filtered stock with analyst strongBuy count ≥ <code>analystStrongBuyThreshold</code> (also scaled by level) bypasses the ranker keep-cut and the <code>mlGate</code> floor (still must yield positive predicted change). Stage 1 additionally merges holdings of ~20 popular ETFs into the candidate pool and scrapes the Yahoo Finance earnings calendar; new feeds added for oilprice.com, Defense News (land+space JSON), DIA, and a simpler SEC Form 4 endpoint. The GPS-Light path is gone; <code>gps_score_type</code> is always <code>'full'</code>. Retired env vars: <code>DEEPMONEY_GPS_VALUE</code>, <code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code>, <code>DEEPMONEY_ANALYST_THRESHOLD</code>, <code>DEEPMONEY_USE_RANKER_GATE</code>, <code>DEEPMONEY_TIER2_TOPK</code>.
+        <strong>v2.7 changes (2026-06-19):</strong> Collapsed all pipeline tuning to a single env var, <code>DEEPMONEY_ALGORITHM</code> (float 1.0–10.0, default 5), resolved via <code>models/algorithm_presets.json</code> into five fields: <code>rankerKeepPct</code>, <code>mlpConfidenceFloor</code>, <code>volGateFloor</code>, <code>analystStrongBuyThreshold</code>, <code>signalScoreFloor</code>. The LightGBM ranker is now mandatory and is the primary stock-level filter (keep top <code>rankerKeepPct</code> by rank percentile). An <strong>analyst-strongBuy override lane</strong> runs alongside the ranker — any pre-filtered stock with analyst strongBuy count ≥ <code>analystStrongBuyThreshold</code> (also scaled by level) bypasses the ranker keep-cut and the <code>mlGate</code> floor (still must yield positive predicted change). Stage 1 additionally merges holdings of ~20 popular ETFs into the candidate pool and scrapes the Yahoo Finance earnings calendar; new feeds added for oilprice.com, Defense News (land+space JSON), DIA, and a simpler SEC Form 4 endpoint. The GPS-Light path is gone; <code>gps_score_type</code> is always <code>'full'</code>. Retired env vars: <code>DEEPMONEY_GPS_VALUE</code>, <code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code>, <code>DEEPMONEY_ANALYST_THRESHOLD</code>, <code>DEEPMONEY_USE_RANKER_GATE</code>, <code>DEEPMONEY_TIER2_TOPK</code>.
       </div>
       <div class="highlight-box">
         <strong>v2.6 changes (2026-06-18):</strong> Added the Path-A cross-sectional ranker integration (feature-flagged via <code>DEEPMONEY_USE_RANKER_GATE</code>). Two-pass flow in <code>analyzer.ts</code>: Tier-1 GPS-Light + ranker score for the full universe, Tier-2 Monte Carlo only on the top-K promoted set. Schema additions to <code>recommended_stocks</code> and <code>stock_gps_scores</code>: <code>gps_score_type</code>, <code>ranker_score</code>, <code>hist_vol_30</code>. End-of-run funnel summary block. ETF holdings endpoint now reads from <code>stock_gps_scores</code> directly (retiring the dead <code>etf_holding_scores</code> cache). <em>Superseded by v2.7 — the feature flag and tier-K env vars no longer exist.</em>
@@ -223,7 +223,7 @@
           <li><code>.env.local</code> (if present)</li>
           <li><code>.env</code></li>
         </ol>
-        <p>Required env vars: <code>DB_HOST</code>, <code>DB_USER</code>, <code>DB_PASSWORD</code>, <code>DB_DATABASE</code>, <code>DEEPMONEY_INTERNAL_SECRET</code>. Optional knobs: <code>DEEPMONEY_ALGORITHM</code> (integer 1–10, default 5), <code>NEXTAUTH_URL</code> (read but not used for the discovery call).</p>
+        <p>Required env vars: <code>DB_HOST</code>, <code>DB_USER</code>, <code>DB_PASSWORD</code>, <code>DB_DATABASE</code>, <code>DEEPMONEY_INTERNAL_SECRET</code>. Optional knobs: <code>DEEPMONEY_ALGORITHM</code> (float 1.0–10.0, default 5), <code>NEXTAUTH_URL</code> (read but not used for the discovery call).</p>
         <p><strong>Module-level cache:</strong> <code>_indices_cache</code> is a process-local variable used by <code>get_market_indices()</code>. The first call hits <code>/api/market/indices</code>; subsequent calls inside the same run return the memoized payload. The function is currently <em>defined but not called</em> inside <code>sync_deepmoney()</code> — it is exported infrastructure for future use or for callers that import the module.</p>
       </div>
     </section>
@@ -255,7 +255,7 @@
           <li><strong>Authorization:</strong> Uses <code>DEEPMONEY_INTERNAL_SECRET</code> via the <code>x-api-key</code> header. The secret is stripped of surrounding quotes before use to handle environment variable formatting quirks (<code>secret = INTERNAL_SECRET.strip('"')</code>).</li>
           <li><strong>Internal URL:</strong> All calls use <code>INTERNAL_API_URL = 'http://localhost:3001'</code> (hardcoded). This bypasses nginx and its 60-second proxy timeout — the discovery route can take over 2 minutes.</li>
           <li><strong>Endpoint called:</strong> <code>GET /api/prediction/deepmoney?refresh=true</code></li>
-          <li><strong>Discovery methods (server-side, Stage 1):</strong> Primary tickers come from ~28 RSS / screener / atom / JSON sources (Yahoo, MarketBeat, TheStreet, Motley Fool, CNBC, MarketWatch, Seeking Alpha, SEC EDGAR 8-K + two Form-4 endpoints, ApeWisdom, sector verticals, oilprice.com, Defense News land/space JSON via Arc Publishing, DIA). The set is then expanded by a secondary Yahoo per-ticker-feed pass (capped at 30). Two additional Stage-1 sources merge in parallel with the secondary pass: the top holdings of ~20 popular ETFs (<code>POPULAR_ETF_TICKERS</code>, fetched via the internal <code>/holdings</code> endpoint) and the Yahoo Finance earnings calendar (HTML scraped for <code>/quote/&lt;TICKER&gt;</code> links). Everything dedups into a single <code>Set&lt;string&gt;</code> before enrichment. ETFs themselves are surfaced via <code>performETFDiscovery()</code>.</li>
+          <li><strong>Discovery methods (server-side, Stage 1):</strong> Primary tickers come from ~28 RSS / screener / atom / JSON sources (Yahoo, MarketBeat, TheStreet, Motley Fool, CNBC, MarketWatch, Seeking Alpha, SEC EDGAR 8-K + two Form-4 endpoints, ApeWisdom, sector verticals, oilprice.com, Defense News land/space JSON via Arc Publishing, DIA). The set is then expanded by a secondary Yahoo per-ticker-feed pass (capped at 30). Three additional Stage-1 sources merge in parallel with the secondary pass: the top holdings of ~20 popular ETFs (<code>POPULAR_ETF_TICKERS</code>, fetched via the internal <code>/holdings</code> endpoint), the Yahoo Finance earnings calendar (HTML scraped for <code>/quote/&lt;TICKER&gt;</code> links), and the internal trending feed (<code>fetchTrendingTickers</code> calls <code>GET /api/market/trending?window=48h&amp;limit=50</code>). Everything dedups into a single <code>allTickersSet</code> before enrichment. ETFs themselves are surfaced via <code>performETFDiscovery()</code>.</li>
         </ul>
         <div class="warning-box">
           <strong>Maintenance note:</strong> If the Next.js server port ever changes from 3001, <code>INTERNAL_API_URL</code> must be updated manually in each Python script — it is not controlled by an environment variable. The same hardcoded constant exists in <code>scripts/get_macro_data.py</code> and other sync scripts.
@@ -301,6 +301,7 @@
               <tr><td colspan="4" style="background:#f0fdf4;font-weight:600;color:#166534;padding-top:.6rem;">Non-feed Stage-1 sources (run in parallel with the secondary Yahoo pass)</td></tr>
               <tr><td>A</td><td>Popular ETFs — top holdings of <code>POPULAR_ETF_TICKERS</code> (20 ETFs)</td><td>JSON via internal <code>/holdings</code></td><td>Index/sector exposure</td></tr>
               <tr><td>B</td><td>Yahoo Finance — earnings calendar</td><td>HTML scrape (<code>/quote/&lt;TICKER&gt;</code> links)</td><td>Earnings season</td></tr>
+              <tr><td>C</td><td>Internal trending feed — <code>fetchTrendingTickers(50)</code> calls <code>/api/market/trending?window=48h</code></td><td>JSON via internal route</td><td>48h trending stocks</td></tr>
             </tbody>
           </table>
           <p style="margin-top:.75rem;"><strong>Parsing branches in <code>fetchPrimaryTickers</code>:</strong></p>
@@ -345,10 +346,10 @@
           &darr;<br>
           <strong>Gate 1 (removed):</strong> per-stock GPS gate no longer applied — the ranker is the sole filter<br>
           &darr;<br>
+          <strong>Analytics fire-and-forget: <code>record_prediction()</code></strong> (written BEFORE the vol-gate so rejected ranker survivors are still recorded for accuracy auditing)<br>
+          &darr;<br>
           <strong>Gate 2: MLP Confidence Floor (algorithm preset)</strong><br>
           <code>conf_score &ge; mlpConfidenceFloor</code> (or <code>&ge; volGateFloor</code> if <code>beta &gt; 2.5</code>)<br>
-          &darr;<br>
-          <strong>Analytics fire-and-forget: <code>record_prediction()</code></strong><br>
           &darr;<br>
           <strong>Written to <code>recommended_stocks</code></strong><br>
           &darr;<br>
@@ -493,7 +494,7 @@ if hi_ratio &gt; 0.97 and beta_val &gt; 2.0:
             <tr><td><code>stale_cleaned</code></td><td>Discovery rows removed in the post-sync cleanup</td></tr>
           </tbody>
         </table>
-        <p>API-side debug counts from <code>meta.debug</code> (rejections at enrichment, signal score, history, ranker keep-cut) are echoed in the summary's "Discovery → Ranker Funnel" block, along with the resolved algorithm preset (<code>level</code>, <code>rankerKeepPct</code>, <code>mlpConfidenceFloor</code>, <code>volGateFloor</code>) and the count of popular-ETF holdings merged. Local gating, GPS history, ETF holdings & cleanup, and run-timing sections follow.</p>
+        <p>API-side debug counts from <code>meta.debug</code> (rejections at enrichment, signal score, history, ranker keep-cut) are echoed in the summary's "Discovery → Ranker Funnel" block, along with the resolved algorithm preset (<code>level</code>, <code>rankerKeepPct</code>, <code>mlpConfidenceFloor</code>, <code>volGateFloor</code>, <code>signalScoreFloor</code>) and the count of popular-ETF holdings merged. Local gating, GPS history, ETF holdings & cleanup, and run-timing sections follow.</p>
         <div class="highlight-box">
           <strong>Reading the summary:</strong> The <code>dashboard_qualified</code> count reflects eligibility (stocks written to <code>user_stocks</code>), <em>not</em> what ultimately renders on user dashboards. The dashboard renderer applies its own strategy-driven thresholds (<code>GPS_BASELINE</code>, <code>GPS_SELL_OFFSET</code>, <code>GPS_DISCOVERY_OFFSET</code>) on top of this set. See <a href="#env-config">Environment Config</a> for the threshold variables.
         </div>
@@ -551,9 +552,10 @@ if hi_ratio &gt; 0.97 and beta_val &gt; 2.0:
     "algorithm": {
       "level": 5,
       "rankerKeepPct": 0.25,
-      "mlpConfidenceFloor": 60,
-      "volGateFloor": 70,
-      "analystStrongBuyThreshold": 4
+      "mlpConfidenceFloor": 65,
+      "volGateFloor": 65,
+      "analystStrongBuyThreshold": 4,
+      "signalScoreFloor": 0
     },
     "debug": {
       "rejectedEnrichment": 14,
@@ -592,7 +594,7 @@ if hi_ratio &gt; 0.97 and beta_val &gt; 2.0:
         <h3>Flow</h3>
         <div class="step-card">
           <div class="gate-flow">
-            Pre-filter (unchanged: <code>tradingSignalScore &ge; 0</code> AND <code>historyRows &ge; 100</code>)<br>
+            Pre-filter: <code>tradingSignalScore &ge; preset.signalScoreFloor</code> AND <code>historyRows &ge; 100</code><br>
             &darr;<br>
             <strong>Phase 1 — Fetch payloads for entire pre-filtered universe</strong><br>
             <code>getStockDataForPrediction()</code> per ticker (cheap, OHLCV only)<br>
@@ -702,7 +704,7 @@ if hi_ratio &gt; 0.97 and beta_val &gt; 2.0:
           <thead><tr><th>Variable</th><th>Default</th><th>Purpose</th></tr></thead>
           <tbody>
             <tr><td><code>DEEPMONEY_INTERNAL_SECRET</code></td><td>—</td><td>Shared secret for internal API calls (<code>x-api-key</code>). Surrounding quotes are stripped at use time, so either quoted or unquoted forms in the env file work.</td></tr>
-            <tr><td><code>DEEPMONEY_ALGORITHM</code></td><td><code>5</code></td><td><strong>Single pipeline knob (v2.7).</strong> Float 1.0–10.0 resolved via <code>models/algorithm_presets.json</code> into <code>{rankerKeepPct, mlpConfidenceFloor, volGateFloor, analystStrongBuyThreshold}</code>. Integer levels return the table row directly; fractional levels (e.g. <code>1.5</code>, <code>3.7</code>) are <strong>linearly interpolated</strong> between the two adjacent integer rows — <code>analystStrongBuyThreshold</code> is rounded to the nearest integer since strongBuy counts are integer. Level 1 is strictest (top 5% by ranker, CS ≥ 75, 10 strongBuys to override); level 10 is most permissive (keep all, CS ≥ 30, 1 strongBuy to override). Echoed back in <code>meta.algorithm</code> so the Python sync reads the resolved values, never the env var itself. Replaces the retired <code>DEEPMONEY_GPS_VALUE</code>, <code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code>, <code>DEEPMONEY_ANALYST_THRESHOLD</code>, <code>DEEPMONEY_USE_RANKER_GATE</code>, and <code>DEEPMONEY_TIER2_TOPK</code>.</td></tr>
+            <tr><td><code>DEEPMONEY_ALGORITHM</code></td><td><code>5</code></td><td><strong>Single pipeline knob (v2.7).</strong> Float 1.0–10.0 resolved via <code>models/algorithm_presets.json</code> into <code>{rankerKeepPct, mlpConfidenceFloor, volGateFloor, analystStrongBuyThreshold, signalScoreFloor}</code>. Integer levels return the table row directly; fractional levels (e.g. <code>1.5</code>, <code>3.7</code>) are <strong>linearly interpolated</strong> between the two adjacent integer rows — <code>analystStrongBuyThreshold</code> is rounded to the nearest integer; <code>mlpConfidenceFloor</code> / <code>volGateFloor</code> are <strong>snapped UP to the next discrete MLP bucket</strong> in <code>{35, 50, 65, 75}</code> via <code>snapToBucketCeiling</code> (so e.g. an interpolated 72.5 becomes 75). <code>signalScoreFloor</code> is the pre-filter floor on <code>tradingSignalScore</code>: stocks below the floor are dropped before the ranker runs; lower levels demand bullish technicals (≥ 0), higher levels tolerate weakly-bearish scores so contrarian picks can reach the ranker. Echoed back in <code>meta.algorithm</code> so the Python sync reads the resolved values, never the env var itself. Replaces the retired <code>DEEPMONEY_GPS_VALUE</code>, <code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code>, <code>DEEPMONEY_ANALYST_THRESHOLD</code>, <code>DEEPMONEY_USE_RANKER_GATE</code>, and <code>DEEPMONEY_TIER2_TOPK</code>.</td></tr>
             <tr><td><code>pred_threshold</code> (hardcoded)</td><td>1.5%</td><td>Prediction Gate: minimum <code>predicted_change_pct</code> required alongside the dashboard MLP-confidence floor. Matches the neutral / 1-month <code>mlGate</code> in <code>TIMEFRAME_CONFIG</code>.</td></tr>
             <tr><td><code>NEXTAUTH_URL</code></td><td>http://localhost:3001</td><td>Read but not used for the discovery call. The deepmoney URL is hardcoded to <code>localhost:3001</code> regardless of this variable.</td></tr>
             <tr><td><code>DB_HOST</code>, <code>DB_USER</code>, <code>DB_PASSWORD</code>, <code>DB_DATABASE</code></td><td>—</td><td>MySQL connection for the sync script and for <code>prediction_recorder.py</code>.</td></tr>
@@ -715,21 +717,21 @@ if hi_ratio &gt; 0.97 and beta_val &gt; 2.0:
           </tbody>
         </table>
         <h3 style="margin-top:1.5rem;">Algorithm Preset Table</h3>
-        <p>Full level → preset mapping (from <code>models/algorithm_presets.json</code>). Higher level = more aggressive (more candidates surface). <strong>Fractional levels interpolate linearly</strong> — e.g. <code>DEEPMONEY_ALGORITHM=1.5</code> resolves to <code>{rankerKeepPct: 0.075, mlpConfidenceFloor: 72.5, volGateFloor: 75, analystStrongBuyThreshold: 9}</code> (midpoint of L1 and L2, with the analyst threshold rounded to the nearest integer).</p>
-        <p>Confidence-floor values are calibrated to the actual MLP confidence-score distribution observed at runtime (the model emits discrete buckets around <code>{35, 50, 65, 75}</code>). A floor of 75 keeps only top-bucket picks; a floor of 35 keeps everything.</p>
+        <p>Full level → preset mapping (from <code>models/algorithm_presets.json</code>). Higher level = more aggressive (more candidates surface). <strong>Fractional levels interpolate linearly</strong> — e.g. <code>DEEPMONEY_ALGORITHM=1.5</code> midpoints the raw rows of L1 and L2 before snapping floors to buckets and rounding count fields.</p>
+        <p>The MLP only emits four discrete confidence-score values <code>{35, 50, 65, 75}</code>. The <code>mlpConfidenceFloor</code> and <code>volGateFloor</code> resolved from the preset (or from interpolation) are <strong>snapped UP to the next bucket</strong> via <code>snapToBucketCeiling</code> in <code>src/utils/algorithmPreset.ts</code> — e.g. raw <code>60</code> becomes effective <code>65</code>, raw <code>72.5</code> becomes <code>75</code>. The "Effective floor" columns below reflect the post-snap value; the JSON-raw value is shown in parentheses when different.</p>
         <table>
-          <thead><tr><th>Level</th><th><code>rankerKeepPct</code></th><th><code>mlpConfidenceFloor</code></th><th><code>volGateFloor</code></th><th><code>analystStrongBuyThreshold</code></th></tr></thead>
+          <thead><tr><th>Level</th><th><code>rankerKeepPct</code></th><th><code>mlpConfidenceFloor</code> (effective)</th><th><code>volGateFloor</code> (effective)</th><th><code>analystStrongBuyThreshold</code></th><th><code>signalScoreFloor</code></th></tr></thead>
           <tbody>
-            <tr><td>1</td><td>0.05</td><td>75</td><td>75</td><td>10</td></tr>
-            <tr><td>2</td><td>0.10</td><td>70</td><td>75</td><td>8</td></tr>
-            <tr><td>3</td><td>0.15</td><td>65</td><td>75</td><td>6</td></tr>
-            <tr><td>4</td><td>0.20</td><td>65</td><td>70</td><td>5</td></tr>
-            <tr><td>5 <em>(default)</em></td><td>0.25</td><td>60</td><td>65</td><td>4</td></tr>
-            <tr><td>6</td><td>0.35</td><td>55</td><td>60</td><td>3</td></tr>
-            <tr><td>7</td><td>0.45</td><td>50</td><td>55</td><td>3</td></tr>
-            <tr><td>8</td><td>0.60</td><td>45</td><td>50</td><td>2</td></tr>
-            <tr><td>9</td><td>0.80</td><td>35</td><td>45</td><td>1</td></tr>
-            <tr><td>10</td><td>1.00</td><td>30</td><td>35</td><td>1</td></tr>
+            <tr><td>1</td><td>0.05</td><td>75</td><td>75</td><td>10</td><td>0</td></tr>
+            <tr><td>2</td><td>0.10</td><td>75 (raw 70)</td><td>75</td><td>8</td><td>0</td></tr>
+            <tr><td>3</td><td>0.15</td><td>65</td><td>75</td><td>6</td><td>0</td></tr>
+            <tr><td>4</td><td>0.20</td><td>65</td><td>75 (raw 70)</td><td>5</td><td>0</td></tr>
+            <tr><td>5 <em>(default)</em></td><td>0.25</td><td>65 (raw 60)</td><td>65</td><td>4</td><td>0</td></tr>
+            <tr><td>6</td><td>0.35</td><td>65 (raw 55)</td><td>65 (raw 60)</td><td>3</td><td>-3</td></tr>
+            <tr><td>7</td><td>0.45</td><td>50</td><td>65 (raw 55)</td><td>3</td><td>-7</td></tr>
+            <tr><td>8</td><td>0.60</td><td>50 (raw 45)</td><td>50</td><td>2</td><td>-12</td></tr>
+            <tr><td>9</td><td>0.80</td><td>35</td><td>50 (raw 45)</td><td>1</td><td>-18</td></tr>
+            <tr><td>10</td><td>1.00</td><td>35 (raw 30)</td><td>35</td><td>1</td><td>-25</td></tr>
           </tbody>
         </table>
         <h3 style="margin-top:1.5rem;">ETF Holding Preset Table</h3>

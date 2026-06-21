@@ -354,6 +354,40 @@ async function fetchYahooEarningsTickers(): Promise<Set<string>> {
 }
 
 /**
+ * Pull the same Trending-48h feed the /search page renders so the discovery
+ * pool includes whatever the market is currently moving on. Set semantics
+ * dedup automatically when this is merged with the other feed sources.
+ * Non-fatal: a failed fetch returns an empty set, the pipeline proceeds.
+ */
+async function fetchTrendingTickers(limit: number = 50): Promise<Set<string>> {
+    const found = new Set<string>();
+    try {
+        const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3001';
+        const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
+        const headers: HeadersInit = {};
+        if (internalSecret) headers['x-api-key'] = internalSecret;
+
+        const res = await fetch(`${baseUrl}/api/market/trending?window=48h&limit=${limit}`, {
+            headers,
+            signal: AbortSignal.timeout(15_000),
+        });
+        if (!res.ok) {
+            logger.warn(`Trending feed returned ${res.status}`);
+            return found;
+        }
+        const json = await res.json();
+        const stocks = Array.isArray(json?.stocks) ? json.stocks : [];
+        for (const s of stocks) {
+            const t = (s?.symbol || '').toUpperCase();
+            if (t && !TICKER_STOPLIST.has(t)) found.add(t);
+        }
+    } catch (err) {
+        logger.warn('Trending 48h fetch failed', { error: String(err) });
+    }
+    return found;
+}
+
+/**
  * Pull the top holdings of each popular ETF via the internal /holdings
  * endpoint and return the union of holding tickers across them. A single
  * ETF failure is non-fatal — we surface whatever the successful calls
@@ -619,14 +653,16 @@ export async function GET(request: NextRequest) {
 
         const allTickersSet = await fetchSecondaryTickers(primaryTickers);
 
-        // --- Merge popular-ETF holdings + Yahoo earnings calendar (Stage 1) ---
+        // --- Merge popular-ETF holdings + Yahoo earnings + Trending-48h (Stage 1) ---
         // Set semantics dedup automatically with feed-discovered tickers.
-        const [popularEtfHoldingTickers, yahooEarningsTickers] = await Promise.all([
+        const [popularEtfHoldingTickers, yahooEarningsTickers, trendingTickers] = await Promise.all([
             fetchEtfHoldingTickers(POPULAR_ETF_TICKERS),
             fetchYahooEarningsTickers(),
+            fetchTrendingTickers(50),
         ]);
         for (const t of popularEtfHoldingTickers) allTickersSet.add(t);
         for (const t of yahooEarningsTickers) allTickersSet.add(t);
+        for (const t of trendingTickers) allTickersSet.add(t);
 
         const newsTickerArray = Array.from(allTickersSet).sort();
 
@@ -718,6 +754,7 @@ export async function GET(request: NextRequest) {
                     predictionThreshold: `${mlGate}%`,
                     analystConsensusSurfaced: filteredStocks.filter(s => s.discovery_source === 'analyst_consensus').length,
                     newsTickerCount: newsTickerArray.length,
+                    trendingTickerCount: trendingTickers.size,
                     etfHoldingTickerCount: etfHoldingTickers.size,
                     etfHoldingTickerNewlyEnriched: newHoldingTickers.length,
                     predictionSample: filteredStocks.slice(0, 5).map(s => ({ ticker: s.ticker, pred: s.prediction_1m, source: s.discovery_source })),

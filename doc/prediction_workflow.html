@@ -111,11 +111,11 @@
   </div>
   <nav class="top-bar-nav">
     <a href="moneygoup_overview.html">Overview</a>
+    <a href="business_rules.html">Business Rules</a>
     <a href="api_documentation.html">API Docs</a>
     <a href="architecture_documentation.html">Architecture</a>
     <a href="authentication_flow.html">Auth Flow</a>
     <a href="admin_user_management.html">Admin User Mgmt</a>
-    <a href="recommendation_buckets.html">Rec Buckets</a>
     <a href="components_documentation.html">Components</a>
     <a href="database_documentation.html">Database</a>
     <a href="prediction_workflow.html" class="active">Prediction Flow</a>
@@ -136,6 +136,7 @@
   <nav class="sidebar" aria-label="Prediction workflow sections">
     <h3>GrowMyStocks Docs</h3>
     <a href="moneygoup_overview.html">App Overview</a>
+    <a href="business_rules.html">Business Rules</a>
     <a href="architecture_documentation.html">Architecture</a>
     <a href="components_documentation.html">Components</a>
     <a href="api_documentation.html">API Routes</a>
@@ -177,7 +178,6 @@
     <div class="section-divider"></div>
     <a href="authentication_flow.html">Auth Flow</a>
     <a href="database_documentation.html">Database</a>
-    <a href="recommendation_buckets.html">Recommendation Buckets</a>
     <a href="technical_indicators_guide.html">Technical Indicators</a>
     <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
     <a href="style_guide.html">Style Guide</a>
@@ -704,7 +704,7 @@ Body:
       <section id="etf-holdings-scan">
         <h3>ETF Holdings Scan</h3>
         <div class="step-card">
-          <p>After the main portfolio loop, the script iterates over each user's positions to detect ETFs. For each ETF, it calls <code>GET /api/stock_data/{ticker}/holdings?limit=10</code> to get the top 10 holdings. For each holding, it runs a full prediction + GPS calculation (using the shared <code>prediction_cache</code> to avoid redundant model runs).</p>
+          <p>After the main portfolio loop, the script iterates over each user's positions to detect ETFs. For each ETF, it calls <code>GET /api/stock_data/{ticker}/holdings?limit=10</code> to get the top 10 holdings. For each holding, it runs a full prediction + GPS calculation inside <code>run_prediction_for_holding()</code> (using the shared <code>prediction_cache</code> to avoid redundant model runs). The function also calls <code>record_prediction()</code> internally so every ETF-holding prediction is persisted to <code>prediction_records</code> for accuracy auditing — without this, holdings predictions would be computed and discarded for analytics purposes.</p>
           <p>A holding is saved as a recommendation (<code>POST /api/etf/holdings-recommendation</code>) only if it passes all three threshold gates:</p>
           <ul>
             <li><code>gps &gt;= gps_threshold</code></li>

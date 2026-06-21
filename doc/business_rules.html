@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GrowMyStocks — Business Rules</title>
+    <style>
+        :root {
+            --primary: #15803d;
+            --primary-dark: #166534;
+            --warning: #b45309;
+            --danger: #dc2626;
+            --bg: #f8fafc;
+            --text: #1e293b;
+            --border: #e2e8f0;
+            --code-bg: #1e293b;
+            --code-text: #f8fafc;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background-color: var(--bg);
+            margin: 0;
+        }
+        main { padding: 3rem; max-width: 1100px; width: 100%; }
+        h1 { color: var(--primary-dark); border-bottom: 2px solid var(--primary); padding-bottom: 0.5rem; margin-bottom: 1.5rem; }
+        h2 { color: var(--primary); margin-top: 3rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; scroll-margin-top: 100px; }
+        h3 { color: #334155; margin-top: 2rem; background: #f1f5f9; padding: 0.5rem 1rem; border-radius: 6px; scroll-margin-top: 100px; }
+
+        code { padding: .15rem .4rem; border-radius: 4px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: .85rem; background: #f1f5f9; }
+
+        p { margin: .75rem 0; }
+        ul { margin: .5rem 0 .75rem 0; padding-left: 1.25rem; }
+        li { margin-bottom: .3rem; }
+
+        /* Rule card */
+        .rule { display: grid; grid-template-columns: 110px 1fr; gap: 0.9rem; padding: 0.85rem 1rem; background: white; border: 1px solid var(--border); border-left: 4px solid var(--primary); border-radius: 8px; margin: 0.65rem 0; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+        .rule .rid { font-family: ui-monospace, SFMono-Regular, monospace; font-size: .82rem; font-weight: 700; color: var(--primary-dark); letter-spacing: .03em; align-self: start; padding-top: 1px; white-space: nowrap; }
+        .rule .body { font-size: .92rem; line-height: 1.6; color: #1e293b; }
+        .rule .body p:first-child { margin-top: 0; }
+        .rule .body p:last-child { margin-bottom: 0; }
+        .rule .src { display: block; margin-top: .4rem; font-size: .76rem; color: #64748b; font-family: ui-monospace, SFMono-Regular, monospace; }
+        .rule.warn  { border-left-color: var(--warning); }
+        .rule.danger { border-left-color: var(--danger); }
+        .rule.note  { border-left-color: #3b82f6; }
+
+        .tag { display: inline-block; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 1px 8px; border-radius: 999px; background: #dcfce7; color: #166534; margin-right: .25rem; vertical-align: middle; }
+        .tag.app  { background: #dbeafe; color: #1e40af; }
+        .tag.py   { background: #fef3c7; color: #92400e; }
+        .tag.db   { background: #ede9fe; color: #6d28d9; }
+        .tag.cfg  { background: #ccfbf1; color: #0f766e; }
+
+        .intro-note { background: #f0fdf4; border-left: 4px solid var(--primary); padding: 0.8rem 1rem; border-radius: 0 6px 6px 0; font-size: .9rem; color: #166534; margin: 1.25rem 0; line-height: 1.6; }
+        .danger-note { background: #fef2f2; border-left: 4px solid var(--danger); padding: 0.8rem 1rem; border-radius: 0 6px 6px 0; font-size: .88rem; color: #7f1d1d; margin: 1rem 0; line-height: 1.6; }
+
+        table.rule-table { width: 100%; border-collapse: collapse; font-size: .85rem; margin: .75rem 0; }
+        table.rule-table th { text-align: left; color: #64748b; font-weight: 600; padding: .45rem .65rem; border-bottom: 1px solid var(--border); background: #f8fafc; }
+        table.rule-table td { padding: .45rem .65rem; vertical-align: top; border-bottom: 1px solid #f1f5f9; }
+        table.rule-table tr:last-child td { border-bottom: none; }
+
+        footer { margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: .85rem; text-align: center; }
+
+        @media (max-width: 768px) {
+            main { padding: 1.5rem; }
+            .rule { grid-template-columns: 1fr; }
+            .rule .rid { font-size: .75rem; }
+        }
+
+        /* ── Top Bar ── */
+        .top-bar { background: #017e3b; color: #fff; padding: 0 2rem; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.25); position: relative;}
+        .top-bar-header { display: flex; align-items: center; justify-content: space-between; height: 56px; }
+        .top-bar .brand { font-size: 1.2rem; font-weight: 700; letter-spacing: .02em; }
+        .top-bar .brand span { color: #bbf7d0; }
+        .top-bar .subtitle { font-size: .8rem; opacity: .8; }
+        .top-bar-nav { display: flex; gap: 1.75rem; overflow-x: auto; scrollbar-width: none; padding: 6px 0 8px; border-top: 1px solid rgba(255,255,255,0.15); }
+        .top-bar-nav::-webkit-scrollbar { display: none; }
+        .top-bar-nav a { white-space: nowrap; color: rgba(255,255,255,0.72); text-decoration: none; font-size: .8rem; font-weight: 600; padding-bottom: 3px; border-bottom: 2px solid transparent; transition: color .15s, border-color .15s; flex-shrink: 0; }
+        .top-bar-nav a:hover { color: #fff; }
+        .top-bar-nav a.active { color: #fff; border-bottom-color: #86efac; }
+
+        .layout { display: flex; flex: 1; }
+        .sidebar { width: 260px; min-width: 260px; background: #fff; border-right: 1px solid #e2e8f0; padding: 1.5rem 0; position: sticky; top: 92px; height: calc(100vh - 92px); overflow-y: auto; }
+        .sidebar h3 { font-size: .65rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #94a3b8; padding: .25rem 1.25rem .5rem; margin-top: .5rem; background: transparent; border-radius: 0; }
+        .sidebar a { display: block; padding: .45rem 1.25rem; font-size: .85rem; color: #475569; text-decoration: none; border-left: 3px solid transparent; transition: all .15s; line-height: 1.4; }
+        .sidebar a:hover { background: #f0fdf4; color: #017e3b; border-left-color: #86efac; }
+        .sidebar a.active { background: #f0fdf4; color: #017e3b; font-weight: 600; border-left-color: #017e3b; }
+        .sidebar .section-divider { border-top: 1px solid #f1f5f9; margin: .5rem 0; }
+
+        .nav-scroll-controls { position: absolute; top: 50%; transform: translateY(-50%); z-index: 50; padding: 0 4px; display: flex; align-items: center; }
+        .nav-scroll-controls:first-of-type { left: 0; }
+        .nav-scroll-controls:last-of-type { right: 0; }
+        .nav-scroll-btn { background: rgba(0,0,0,0.1); border: none; color: #475569; cursor: pointer; font-size: 1.5rem; padding: 0.5rem 0.25rem; border-radius: 4px; transition: background .15s, color .15s; line-height: 1; }
+        .nav-scroll-btn:hover { background: rgba(0,0,0,0.15); color: #1e293b; }
+    </style>
+</head>
+<body>
+<div class="top-bar">
+  <div class="top-bar-header">
+    <div>
+      <div class="brand">Grow<span>MY</span>Stocks</div>
+      <div class="subtitle">Business Rules</div>
+    </div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-21</div>
+  </div>
+  <div class="nav-scroll-controls"><button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">&lsaquo;</button></div>
+  <nav class="top-bar-nav">
+    <a href="moneygoup_overview.html">Overview</a>
+    <a href="business_rules.html" class="active">Business Rules</a>
+    <a href="api_documentation.html">API Docs</a>
+    <a href="architecture_documentation.html">Architecture</a>
+    <a href="authentication_flow.html">Auth Flow</a>
+    <a href="admin_user_management.html">Admin User Mgmt</a>
+    <a href="components_documentation.html">Components</a>
+    <a href="database_documentation.html">Database</a>
+    <a href="prediction_workflow.html">Prediction Flow</a>
+    <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
+    <a href="technical_indicators_guide.html">Technical Guide</a>
+    <a href="gps_score.html">GPS Score</a>
+    <a href="strategy_system.html">Strategy System</a>
+    <a href="style_guide.html">Style Guide</a>
+    <a href="SEO.html">SEO</a>
+  </nav>
+  <div class="nav-scroll-controls"><button class="nav-scroll-btn nav-scroll-right" aria-label="Scroll nav right">&rsaquo;</button></div>
+</div>
+<div class="layout">
+  <nav class="sidebar" aria-label="Business rules sections">
+    <h3>GrowMyStocks Docs</h3>
+    <a href="moneygoup_overview.html">App Overview</a>
+    <a href="architecture_documentation.html">Architecture</a>
+    <a href="api_documentation.html">API Routes</a>
+    <a href="database_documentation.html">Database</a>
+    <div class="section-divider"></div>
+    <h3>On this page</h3>
+    <a href="#how-to-read">How to read this</a>
+    <a href="#users">1. Users &amp; Access</a>
+    <a href="#authz">2. Authorization</a>
+    <a href="#strategy">3. Strategy &amp; Personalization</a>
+    <a href="#gps">4. GPS Score</a>
+    <a href="#predictions">5. Predictions</a>
+    <a href="#deepmoney">6. DeepMoney Discovery</a>
+    <a href="#etf-holdings">7. ETF Holdings</a>
+    <a href="#recommendations">8. Recommendation Buckets</a>
+    <a href="#rate-limits">9. Rate Limits</a>
+    <a href="#caching">10. Caching</a>
+    <a href="#db">11. Database Invariants</a>
+    <a href="#jobs">12. Background Jobs</a>
+    <a href="#validation">13. Validation &amp; Drops</a>
+    <a href="#external">14. External Data</a>
+    <a href="#security">15. Security &amp; PII</a>
+    <div class="section-divider"></div>
+    <a href="authentication_flow.html">Auth Flow</a>
+    <a href="strategy_system.html">Strategy System</a>
+    <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
+    <a href="prediction_workflow.html">Prediction Workflow</a>
+  </nav>
+
+  <main>
+    <h1>Business Rules</h1>
+    <p>This is the authoritative, code-grounded list of business rules that govern GrowMyStocks. Each rule is derived from the actual production codebase — Next.js app routes, Python sync scripts, and MySQL schema — not from policy intent.</p>
+
+    <section id="how-to-read">
+      <h2>How to read this</h2>
+      <div class="intro-note">
+        Every rule has a stable ID (e.g. <code>BR-4.2</code>) you can quote in tickets, PRDs, or stand-up. The ID is the section number plus a sequence number within that section. Tags identify whether the rule is enforced by the <span class="tag app">Web App</span>, a <span class="tag py">Python script</span>, the <span class="tag db">Database</span> schema, or via <span class="tag cfg">Config / Env</span>. Each rule cites the file(s) where it's enforced so an engineer can verify it in one hop. Rules outlined in red are <span style="color:#dc2626;font-weight:700;">data-integrity-critical</span> — breaking them produces silent data loss or wrong answers in the UI.
+      </div>
+    </section>
+
+    <!-- ─────────────────────────── 1. USERS & ACCESS ─────────────────────────── -->
+    <section id="users">
+      <h2>1. Users &amp; Access</h2>
+
+      <div class="rule">
+        <div class="rid">BR-1.1</div>
+        <div class="body">
+          <span class="tag app">Web App</span> <span class="tag cfg">Config</span>
+          <p>Registration requires a username (3–50 chars), a valid email, and a password 8–100 chars containing at least one digit. Submissions are rejected with a generic validation error if any constraint fails.</p>
+          <span class="src">src/app/api/auth/register/route.ts · register validator</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-1.2</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>Every new registration enters <code>approval_status = 'pending'</code> and cannot log in until an admin promotes the row to <code>approved</code>. There is no auto-approval path.</p>
+          <span class="src">src/app/api/auth/register/route.ts · users.approval_status</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-1.3</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>If a previously <code>rejected</code> account tries to re-register with the same email or username, the old row is auto-archived (renamed with an <code>_archived</code> suffix) and the new registration proceeds. This prevents permanent lockout from a wrong-button-click rejection.</p>
+          <span class="src">src/app/api/auth/register/route.ts · archive-on-conflict path</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-1.4</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>Approval gate distinguishes <strong>five states</strong>: <code>pending</code>, <code>approved</code>, <code>rejected</code>, <code>unsubscribed</code>, <code>archived</code>. Only <code>approved</code> users can hit authenticated routes. The four denial states each produce a distinct status code so the frontend can show the right message.</p>
+          <span class="src">src/utils/approvalStatus.ts · checkApprovalGuard</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-1.5</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>The approval check re-queries the database on every protected API route — not just at login — so revoking access takes effect immediately for any user already holding a session token.</p>
+          <span class="src">src/utils/approvalStatus.ts · re-query pattern</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-1.6</div>
+        <div class="body">
+          <span class="tag app">Web App</span> <span class="tag cfg">Config</span>
+          <p>Session TTL defaults to <strong>30 days</strong>. Override via <code>SESSION_MAX_AGE</code> env var (seconds). When the TTL expires, the user is bounced from whichever page they're on to <code>/login</code>.</p>
+          <span class="src">src/lib/auth.ts · NextAuth options</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-1.7</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>Failed login responses are timing-equalized: unknown usernames still trigger a bcrypt hash on a dummy value so attackers can't enumerate which usernames exist by measuring response time.</p>
+          <span class="src">src/lib/auth.ts · authorize()</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-1.8</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p><code>users.last_login</code> is updated asynchronously (fire-and-forget) on successful login. A DB failure here does not block the auth response — the user still gets in.</p>
+          <span class="src">src/lib/auth.ts · last_login update</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────── 2. AUTHORIZATION ─────────────────────────── -->
+    <section id="authz">
+      <h2>2. Authorization</h2>
+
+      <div class="rule">
+        <div class="rid">BR-2.1</div>
+        <div class="body">
+          <span class="tag db">Database</span>
+          <p>The schema defines three account roles: <code>user</code>, <code>superuser</code>, <code>admin</code>. <code>admin</code> is the only role allowed to approve or reject pending registrations through <code>/admin/users</code>.</p>
+          <span class="src">doc/moneygoup_schema.sql · users.role</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-2.2</div>
+        <div class="body">
+          <span class="tag app">Web App</span> <span class="tag py">Python</span> <span class="tag cfg">Config</span>
+          <p>Python sync scripts (<code>deepmoney_sync.py</code>, <code>update_predictions.py</code>) authenticate to the Next.js API via the <code>x-api-key</code> header. Value must match <code>DEEPMONEY_INTERNAL_SECRET</code>. The secret must be at least <strong>32 bytes</strong>; shorter values disable internal auth entirely.</p>
+          <span class="src">src/utils/internalAuth.ts · timing-safe SHA256 compare</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-2.3</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>Requests authenticated via the internal <code>x-api-key</code> header <strong>bypass all rate limits</strong>. Browser sessions never carry this header.</p>
+          <span class="src">src/utils/rateLimitMiddleware.ts</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-2.4</div>
+        <div class="body">
+          <span class="tag app">Web App</span> <span class="tag cfg">Config</span>
+          <p>When the app is behind a proxy or CDN, <code>X-Forwarded-For</code> / <code>X-Real-IP</code> / <code>CF-Connecting-IP</code> headers are only trusted if the direct peer IP appears in the <code>TRUSTED_PROXIES</code> comma-separated env var. Otherwise the headers are ignored and the direct peer IP is used. This prevents IP-spoof bypass of rate limits.</p>
+          <span class="src">src/utils/rateLimitMiddleware.ts</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────── 3. STRATEGY ─────────────────────────── -->
+    <section id="strategy">
+      <h2>3. Strategy &amp; Personalization</h2>
+
+      <div class="intro-note">
+        The two-axis strategy is the single source of truth for every personalized number on screen. If the dashboard shows a "wrong" number for a user, the explanation almost always lives in the strategy row.
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-3.1</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>Each user has a strategy made of two axes: <strong>aggressiveness</strong> (<code>safe</code> / <code>neutral</code> / <code>aggressive</code>) and <strong>investment_timeframe</strong> (<code>1_week</code> / <code>1_month</code> / <code>6_month</code> / <code>1_year</code>). All personalized scores, gates, and predictions are derived from this pair.</p>
+          <span class="src">src/utils/strategy.ts</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-3.2</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>Default strategy is <code>neutral</code> + <code>1_month</code>. Missing rows fall back to this default; invalid values snap to the default without raising errors.</p>
+          <span class="src">src/utils/strategy.ts · DEFAULT_STRATEGY</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-3.3</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>Aggressiveness sets five hard gates that every personalized read uses:</p>
+          <table class="rule-table">
+            <thead><tr><th>Axis</th><th>Safe</th><th>Neutral</th><th>Aggressive</th></tr></thead>
+            <tbody>
+              <tr><td>confidenceFloor</td><td>65</td><td>50</td><td>35</td></tr>
+              <tr><td>betaCutoff</td><td>1.5</td><td>2.0</td><td>3.5</td></tr>
+              <tr><td>gpsGate</td><td>75</td><td>65</td><td>55</td></tr>
+              <tr><td>predChangeGate (1m baseline)</td><td>3.0%</td><td>1.5%</td><td>0.5%</td></tr>
+              <tr><td>envFloorMultiplier (applied to env thresholds)</td><td>×1.05</td><td>×1.0</td><td>×0.95</td></tr>
+            </tbody>
+          </table>
+          <div class="intro-note" style="margin-top:.75rem;">
+            <strong>Where this fires:</strong> These gates are applied at <strong>dashboard read time</strong> (<code>src/app/api/dashboard/recommendations/route.ts</code>), not during the deepmoney sync. The sync produces a single global candidate pool using <code>DEEPMONEY_ALGORITHM</code> (BR-6.1) and is unaware of any user's aggressiveness. When a user loads <code>/dashboard</code>, the same sync-produced rows are filtered through that user's gates — so two users with identical portfolios but different aggressiveness see different cards from the same underlying data.
+          </div>
+          <span class="src">src/utils/strategy.ts · STRATEGY_GATES · src/app/api/dashboard/recommendations/route.ts (read-side application)</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-3.4</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>Investment timeframe scales the predicted-change gate: 1w ×0.5, 1m ×1.0, 6m ×1.5, 1y ×2.0. So an aggressive user on a 1-year timeframe needs a stricter percentage move than the same user on 1-week.</p>
+          <span class="src">src/utils/strategy.ts · timeframeMultipliers</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-3.5</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>SELL thresholds are shifted per timeframe: 1w −2, 1m 0, 6m +3, 1y +5. Longer-timeframe users tolerate more downside before a SELL warning fires.</p>
+          <span class="src">src/utils/strategy.ts · timeframeShifts</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────── 4. GPS SCORE ─────────────────────────── -->
+    <section id="gps">
+      <h2>4. GPS Score</h2>
+
+      <div class="rule">
+        <div class="rid">BR-4.1</div>
+        <div class="body">
+          <span class="tag app">Web App</span> <span class="tag py">Python</span>
+          <p>GPS is a 100-point composite of eight components: ML Predicted Change 1m (20), AI Model Confidence (5), Revenue Growth YoY (12), Earnings Growth YoY (12), Technical Signal (20), Analyst Price Target Upside (12), Analyst Consensus (9), 52-Week Momentum (10). The TypeScript implementation (<code>src/utils/gps.ts</code>) and Python mirror (<code>scripts/update_predictions.py · calculate_gps_v3</code>) must stay in lockstep.</p>
+          <span class="src">src/utils/gps.ts · calculateGpsScore</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-4.2</div>
+        <div class="body">
+          <span class="tag app">Web App</span> <span class="tag cfg">Config</span>
+          <p>The ML Predicted Change component saturates at <code>GPS_PREDICTION_MAX</code>% (default 3, production 15). A +<code>GPS_PREDICTION_MAX</code>% prediction earns the full 20 pts; anything beyond clamps. Lower values = component saturates faster.</p>
+          <span class="src">src/utils/gps.ts · mlpUpside</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-4.3</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>A bearish signal flag fires whenever the underlying <code>predicted_change_pct</code> is negative, regardless of the resulting GPS score. The UI uses this flag to override the BUY label even when other components keep the score high.</p>
+          <span class="src">src/utils/gps.ts · bearishSignal</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-4.4</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>GPS labels: <code>≥80 = Strong Buy</code>, <code>≥65 = Buy</code>, <code>≥45 = Hold</code>, <code>≥30 = Sell</code>, <code>&lt;30 = Strong Sell</code>. These bands are independent of the per-user BUY / SELL thresholds — they're the universal label scale.</p>
+          <span class="src">src/utils/gps.ts · classifyScore</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-4.5</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>Per-horizon GPS adjustment patches the <code>mlpUpside</code> and <code>mlpConfidence</code> components after the initial calculation, so the displayed score matches the user's timeframe exactly. No separate GPS row is stored per horizon — one cached score is mutated read-side.</p>
+          <span class="src">src/utils/gps.ts · adjustGpsForHorizon</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-4.6</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>GPS-Light is the fast variant used during the ranker phase (before Monte Carlo). It replaces the MLP block (20 + 5 pts) with rankerScorePct (20 pts) + a vol-based confidence proxy (5 pts). The other 75 pts are identical to GPS-Full.</p>
+          <span class="src">src/utils/gps.ts · calculateGpsLight</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────── 5. PREDICTIONS ─────────────────────────── -->
+    <section id="predictions">
+      <h2>5. Predictions</h2>
+
+      <div class="rule danger">
+        <div class="rid">BR-5.1</div>
+        <div class="body">
+          <span class="tag db">Database</span> <span class="tag py">Python</span>
+          <p>Each (symbol, predicted_at) pair in <code>prediction_records</code> is unique. Writes use <code>ON DUPLICATE KEY UPDATE</code> with <code>COALESCE</code> so that re-running a prediction for the same day updates the row but never overwrites a non-null horizon with NULL.</p>
+          <span class="src">scripts/prediction_recorder.py · record_prediction</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-5.2</div>
+        <div class="body">
+          <span class="tag py">Python</span>
+          <p>Predictions are recorded for <strong>every</strong> ranker survivor in <code>deepmoney_sync.py</code> — including stocks rejected by the local vol-gate. This is intentional: it lets the team measure how often the floor was right to reject.</p>
+          <span class="src">scripts/deepmoney_sync.py · record_prediction before vol-gate</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-5.3</div>
+        <div class="body">
+          <span class="tag py">Python</span>
+          <p>ETF-holding predictions are also recorded to <code>prediction_records</code> via <code>run_prediction_for_holding</code>, so they contribute to the same accuracy statistics as hot-stock predictions.</p>
+          <span class="src">scripts/update_predictions.py · run_prediction_for_holding</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-5.4</div>
+        <div class="body">
+          <span class="tag py">Python</span>
+          <p>Per-horizon predicted prices are persisted in four columns: <code>predicted_price_1w</code>, <code>predicted_price_1m</code>, <code>predicted_price_6m</code>, <code>predicted_price_1y</code>. Only <code>predicted_price_1m</code> is NOT NULL; the others may be missing for short-history symbols.</p>
+          <span class="src">scripts/update_predictions.py · save_prediction</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-5.5</div>
+        <div class="body">
+          <span class="tag py">Python</span>
+          <p>Prediction outputs are sanitized before persistence: prices are floored at <code>0.01</code>; predicted change percentages are clamped per horizon (1w ±15%, 1m ±30%, 6m ±60%, 1y ±100%). Any clamped horizon has its confidence demoted to <code>25</code> to flag downstream readers.</p>
+          <span class="src">scripts/predict_weighted_analysis.py · _sanitize_predictions</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-5.6</div>
+        <div class="body">
+          <span class="tag py">Python</span>
+          <p>The regime vector and the raw feature matrix passed into the scaler are run through <code>numpy.nan_to_num</code> before scoring so that international tickers with NaN macro inputs (e.g. <code>SRU-UN.TO</code>, <code>ENR.DE</code>) don't crash the pipeline.</p>
+          <span class="src">scripts/predict_weighted_analysis.py · nan_to_num passes</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-5.7</div>
+        <div class="body">
+          <span class="tag py">Python</span>
+          <p>A stock must have <strong>at least 365 days</strong> of OHLCV history before any inference runs. Stocks below the floor are silently skipped — no error surfaces to the user, no row is written.</p>
+          <span class="src">scripts/update_predictions.py · 365-day gate</span>
+        </div>
+      </div>
+
+      <div class="rule danger">
+        <div class="rid">BR-5.8</div>
+        <div class="body">
+          <span class="tag py">Python</span>
+          <p><code>resolve_predictions.py</code> loops in 1000-row batches per horizon and skips any row whose <code>predicted_price_*</code> is NULL. Without this filter, older rows with NULL longer-horizon columns would burn one Yahoo fetch per run and stall the resolver.</p>
+          <span class="src">scripts/resolve_predictions.py · WHERE filter</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-5.9</div>
+        <div class="body">
+          <span class="tag py">Python</span>
+          <p>If a target resolution date falls on a non-trading day, <code>resolve_predictions.py</code> looks up to 6 days forward and uses the first available close. This handles weekends and US market holidays without losing data.</p>
+          <span class="src">scripts/resolve_predictions.py · get_trading_day_price</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-5.10</div>
+        <div class="body">
+          <span class="tag py">Python</span>
+          <p>When the GPS pipeline persists a hot-stock recommendation and the symbol is missing from the <code>stocks</code> table, the row is auto-inserted with the ticker as a placeholder company name. Prevents silent data loss when a brand-new ticker surfaces.</p>
+          <span class="src">scripts/update_predictions.py · save_gps_score_to_db</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────── 6. DEEPMONEY DISCOVERY ─────────────────────────── -->
+    <section id="deepmoney">
+      <h2>6. DeepMoney Discovery</h2>
+
+      <div class="rule">
+        <div class="rid">BR-6.1</div>
+        <div class="body">
+          <span class="tag app">Web App</span> <span class="tag cfg">Config</span>
+          <p><code>DEEPMONEY_ALGORITHM</code> (float 1.0–10.0, default 5) is the <strong>single knob</strong> that drives the entire discovery pipeline. Lower = stricter, higher = more permissive. Fractional values (e.g. 1.5) interpolate linearly between adjacent integer rows.</p>
+          <span class="src">src/utils/algorithmPreset.ts · models/algorithm_presets.json</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-6.2</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>The preset resolves into five fields: <code>rankerKeepPct</code>, <code>mlpConfidenceFloor</code>, <code>volGateFloor</code>, <code>analystStrongBuyThreshold</code>, <code>signalScoreFloor</code>. The Next.js route echoes them in <code>meta.algorithm</code>; <code>deepmoney_sync.py</code> reads back from that echo so TS and Python can never drift apart.</p>
+          <span class="src">src/utils/algorithmPreset.ts · loadAlgorithmPreset</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-6.3</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>Interpolated <code>mlpConfidenceFloor</code> and <code>volGateFloor</code> values are <strong>snapped up</strong> to the nearest discrete CS bucket {35, 50, 65, 75}. The MLP only emits those four confidence values, so an unsnapped floor of 71.5 would behave identically to 75 — the snap makes the resolved preset honest.</p>
+          <span class="src">src/utils/algorithmPreset.ts · snapToBucketCeiling</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-6.4</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>Discovery sources merged per run, with Set semantics deduping the union:</p>
+          <ul>
+            <li>~28 RSS / JSON feeds (SEC Form 4, oilprice.com, Defense News, etc.) — <code>PRIMARY_FEED_URLS</code></li>
+            <li>Yahoo earnings calendar HTML scrape</li>
+            <li>Popular-ETF holdings (top holdings of pre-named ETFs)</li>
+            <li>Trending (Last 48h) — internal <code>/api/market/trending?window=48h</code></li>
+          </ul>
+          <span class="src">src/app/api/prediction/deepmoney/route.ts</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-6.5</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>Pre-filter drops any stock whose <code>tradingSignalScore</code> is below <code>preset.signalScoreFloor</code> (or undefined). At L5 the floor is 0 (matches the historic ≥ 0 gate); at L1–4 still 0; L6+ slides negative to surface contrarian picks.</p>
+          <span class="src">src/app/api/prediction/deepmoney/analyzer.ts · pre-filter</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-6.6</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>The LightGBM ranker is the <strong>single hard filter</strong>. After scoring, stocks are sorted by rank percentile descending and the top <code>rankerKeepPct</code> fraction is kept. The rest never run Monte Carlo and never appear in the output.</p>
+          <span class="src">src/app/api/prediction/deepmoney/analyzer.ts</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-6.7</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>The <strong>analyst-strongBuy override lane</strong> lets stocks bypass the ranker keep-cut if their current-month strongBuy count is ≥ <code>preset.analystStrongBuyThreshold</code>. These are tagged <code>discovery_source: 'analyst_consensus'</code> and still require positive predicted change, but skip the mlGate floor.</p>
+          <span class="src">src/app/api/prediction/deepmoney/analyzer.ts</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-6.8</div>
+        <div class="body">
+          <span class="tag py">Python</span>
+          <p>Local vol-gate in <code>deepmoney_sync.py</code> uses <code>volGateFloor</code> for high-beta stocks (beta &gt; 2.5) and <code>mlpConfidenceFloor</code> for everything else. The skip log tags <code>(vol-floor)</code> vs <code>(mlp-floor)</code> so auditing a run is straightforward.</p>
+          <span class="src">scripts/deepmoney_sync.py · vol-gate check</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-6.9</div>
+        <div class="body">
+          <span class="tag py">Python</span>
+          <p>The ranker model loader (<code>score_ranker.py · load_model_and_manifest</code>) accepts order-only manifest drift. If the column SET matches but the order differs, it uses the manifest's order (the order the model was trained with). Set-level drift (added or removed columns) still raises an error.</p>
+          <span class="src">scripts/score_ranker.py</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────── 7. ETF HOLDINGS ─────────────────────────── -->
+    <section id="etf-holdings">
+      <h2>7. ETF Holdings</h2>
+
+      <div class="rule">
+        <div class="rid">BR-7.1</div>
+        <div class="body">
+          <span class="tag app">Web App</span> <span class="tag cfg">Config</span>
+          <p><code>ETF_HOLDING_ALGORITHM</code> (float 1.0–10.0, default 5) is the single knob for ETF qualification + holdings surfacing. Same shape as <code>DEEPMONEY_ALGORITHM</code>; lower = stricter, fractional levels interpolate.</p>
+          <span class="src">src/utils/etfHoldingPreset.ts · models/etf_holding_presets.json</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-7.2</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>Resolves into five fields: <code>etfGpsThreshold</code> (min ETF GPS to qualify as "hot"), <code>topNEtfs</code> (how many qualifying ETFs survive), <code>maxTickers</code> (per-ETF holdings fetch + scoring cap), <code>gpsSurfaceValue</code> (min holding GPS to surface), <code>minPredChangePct</code> (min predicted change %).</p>
+          <span class="src">src/utils/etfHoldingPreset.ts</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-7.3</div>
+        <div class="body">
+          <span class="tag app">Web App</span> <span class="tag cfg">Config</span>
+          <p>A holding is surfaced only if it clears all three thresholds simultaneously: GPS ≥ <code>preset.gpsSurfaceValue</code> × user multiplier, predicted change ≥ <code>max(preset.minPredChangePct × mult, strategy.predChangeGate)</code>, AND confidence ≥ <code>ETF_HOLDING_MIN_CONFIDENCE</code> × user multiplier.</p>
+          <span class="src">scripts/update_predictions.py · ETF holdings scan</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-7.4</div>
+        <div class="body">
+          <span class="tag app">Web App</span> <span class="tag cfg">Config</span>
+          <p>Holdings with beta &gt; <code>ETF_HOLDING_MAX_BETA</code> (default 2.0) are dropped before scoring so the surfaced set isn't dominated by volatile names.</p>
+          <span class="src">src/utils/etfHoldings.ts</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-7.5</div>
+        <div class="body">
+          <span class="tag app">Web App</span> <span class="tag cfg">Config</span>
+          <p>Cached <code>etf_holding_scores</code> rows are recomputed if they're older than <code>ETF_HOLDING_STALENESS_HOURS</code> hours (default 4). Lower = fresher cards, more compute; higher = cheaper, more stale.</p>
+          <span class="src">src/utils/etfHoldings.ts</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-7.6</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>For non-ETF tickers, the holdings API path logs the missing <code>topHoldings</code> module as <code>INFO</code> ("ticker is not an ETF"), not <code>ERROR</code>. Prior behavior was flooding logs for the common-case rejection.</p>
+          <span class="src">src/utils/etfHoldings.ts · fetchETFHoldings logging</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────── 8. RECOMMENDATIONS ─────────────────────────── -->
+    <section id="recommendations">
+      <h2>8. Recommendation Buckets</h2>
+
+      <div class="rule">
+        <div class="rid">BR-8.1</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p><strong>Portfolio</strong> bucket surfaces both BUY and SELL alerts. Membership: <code>is_purchased=1 AND user_confirmed=1 AND shares&gt;0 AND is_active=1</code>. Badge color blue.</p>
+          <span class="src">src/app/api/dashboard/recommendations/route.ts</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-8.2</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p><strong>Watchlist</strong> bucket surfaces BUY alerts only. Membership: <code>is_purchased=0 AND user_confirmed=1 AND is_active=1</code>. Badge color amber.</p>
+          <span class="src">src/app/api/dashboard/recommendations/route.ts</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-8.3</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p><strong>Discovery</strong> bucket surfaces BUY alerts only, for stocks the deepmoney engine surfaced but the user has not yet confirmed. Membership: <code>is_purchased=0 AND user_confirmed=0 AND is_active=1</code>. Badge color purple.</p>
+          <span class="src">src/app/api/dashboard/recommendations/route.ts</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-8.4</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p><strong>ETF Holding</strong> bucket surfaces BUY alerts only and renders <strong>only on <code>/portfolio</code></strong> — never on the home dashboard. Activated only when the user owns at least one ETF; the scope is omitted from the request otherwise. Badge color teal. Card sub-label is "In {ETF ticker}".</p>
+          <span class="src">src/app/api/dashboard/recommendations/route.ts · RecommendationsSection scopes</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-8.5</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>A client-side guard filters <code>etf_holding</code> cards so only those whose <code>etfTicker</code> is in the user's <code>portfolioEtfTickers</code> set render on /portfolio. Prevents watchlist-only ETF holding cards from leaking onto the portfolio grid.</p>
+          <span class="src">src/app/components/RecommendationsSection.tsx</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-8.6</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>BUY thresholds are anchored on <code>GPS_BASELINE</code> (default 65). DISCOVERY threshold = <code>GPS_BASELINE + GPS_DISCOVERY_OFFSET</code>. SELL warning threshold = <code>GPS_BASELINE + GPS_SELL_OFFSET</code>. BUY and DISCOVERY are scaled per user by aggressiveness; SELL is not — warnings fire regardless of strategy.</p>
+          <span class="src">src/app/api/dashboard/recommendations/route.ts</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────── 9. RATE LIMITS ─────────────────────────── -->
+    <section id="rate-limits">
+      <h2>9. Rate Limits</h2>
+
+      <div class="rule">
+        <div class="rid">BR-9.1</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>Per-route rate limits (all per-IP unless noted, sliding window):</p>
+          <table class="rule-table">
+            <thead><tr><th>Route / action</th><th>Limit</th><th>Window</th></tr></thead>
+            <tbody>
+              <tr><td>Login</td><td>10</td><td>15 min</td></tr>
+              <tr><td>Registration</td><td>5</td><td>15 min</td></tr>
+              <tr><td>Forgot-password</td><td>3</td><td>15 min</td></tr>
+              <tr><td>Reset-password</td><td>5</td><td>15 min</td></tr>
+              <tr><td>Contact form</td><td>3</td><td>1 hour</td></tr>
+              <tr><td>Unsubscribe</td><td>5</td><td>15 min</td></tr>
+              <tr><td>Prediction (per-user)</td><td>5</td><td>1 min</td></tr>
+              <tr><td>Stock data</td><td>30</td><td>1 min</td></tr>
+              <tr><td>News</td><td>20</td><td>1 min</td></tr>
+              <tr><td>Quotes</td><td>15</td><td>1 min</td></tr>
+              <tr><td>Historical data</td><td>10</td><td>1 min</td></tr>
+              <tr><td>DeepMoney analysis (per-user)</td><td>2</td><td>1 hour</td></tr>
+              <tr><td>Admin panel</td><td>100</td><td>15 min</td></tr>
+            </tbody>
+          </table>
+          <span class="src">src/utils/rateLimiter.ts</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-9.2</div>
+        <div class="body">
+          <span class="tag app">Web App</span> <span class="tag cfg">Config</span>
+          <p>Production-grade rate limiting requires <code>REDIS_URL</code>. Without Redis, an in-memory fallback runs — safe for single-instance dev but produces inconsistent 429s behind a load balancer.</p>
+          <span class="src">src/utils/redisRateLimiter.ts</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────── 10. CACHING ─────────────────────────── -->
+    <section id="caching">
+      <h2>10. Caching</h2>
+
+      <div class="rule">
+        <div class="rid">BR-10.1</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>In-memory TTLs by domain (defined in <code>src/utils/cache.ts</code>):</p>
+          <table class="rule-table">
+            <thead><tr><th>Cache</th><th>TTL</th></tr></thead>
+            <tbody>
+              <tr><td>SEC company data</td><td>24h</td></tr>
+              <tr><td>Stock data / Historical data</td><td>15m</td></tr>
+              <tr><td>Technical indicators</td><td>10m</td></tr>
+              <tr><td>DeepMoney analysis</td><td>30m</td></tr>
+              <tr><td>Macro data (VIX, TNX)</td><td>24h</td></tr>
+              <tr><td>Market indices</td><td>2m</td></tr>
+              <tr><td>Analyst ratings dashboard</td><td>30m</td></tr>
+              <tr><td>World Bank data</td><td>6h</td></tr>
+              <tr><td>Earnings data</td><td>12h</td></tr>
+              <tr><td>Analyst data</td><td>6h</td></tr>
+              <tr><td>News data</td><td>2h</td></tr>
+              <tr><td>Prediction cache (route-level)</td><td>15m</td></tr>
+              <tr><td>Model accuracy widget</td><td>1h</td></tr>
+              <tr><td>Trending (Last 48h)</td><td>15m</td></tr>
+            </tbody>
+          </table>
+          <span class="src">src/utils/cache.ts</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-10.2</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>Cache bypass is opt-in. Routes honor <code>?refresh=true</code> or <code>?skip_cache=true</code> query params to force a fresh fetch. Internal sync scripts always pass <code>refresh=true</code>.</p>
+          <span class="src">src/app/api/* · cache-aware handlers</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-10.3</div>
+        <div class="body">
+          <span class="tag py">Python</span>
+          <p>The Python feature cache (<code>{ticker}_features_df.pkl</code>) is incremental — only new rows are recomputed across runs. The Python result cache is keyed by <code>MD5(ticker + last_date + data_len + "v2")</code>; bumping <code>CACHE_SCHEMA_VERSION</code> invalidates every stale cache automatically.</p>
+          <span class="src">scripts/predict_weighted_analysis.py</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────── 11. DB INVARIANTS ─────────────────────────── -->
+    <section id="db">
+      <h2>11. Database Invariants</h2>
+
+      <div class="rule">
+        <div class="rid">BR-11.1</div>
+        <div class="body">
+          <span class="tag db">Database</span>
+          <p><code>users.username</code> and <code>users.email</code> are UNIQUE. <code>approval_status</code> is NOT NULL and defaults to <code>'pending'</code>; <code>role</code> defaults to <code>'user'</code>.</p>
+          <span class="src">doc/moneygoup_schema.sql · users</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-11.2</div>
+        <div class="body">
+          <span class="tag db">Database</span>
+          <p><code>user_stocks</code> uses a composite primary key on <code>(user_id, stock_id)</code>. The three flag columns <code>is_purchased</code>, <code>user_confirmed</code>, <code>is_active</code> encode the bucket membership rules in section 8.</p>
+          <span class="src">doc/moneygoup_schema.sql · user_stocks</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-11.3</div>
+        <div class="body">
+          <span class="tag db">Database</span>
+          <p><code>user_stock_predictions</code> has a UNIQUE key on <code>(user_id, stock_id)</code> — one row per user per stock, with all four horizon columns side-by-side.</p>
+          <span class="src">doc/moneygoup_schema.sql · user_stock_predictions</span>
+        </div>
+      </div>
+
+      <div class="rule danger">
+        <div class="rid">BR-11.4</div>
+        <div class="body">
+          <span class="tag db">Database</span>
+          <p><code>prediction_records</code> has a UNIQUE key on <code>(symbol, predicted_at)</code> — exactly one prediction per symbol per day. Re-runs that hit this constraint trigger the <code>ON DUPLICATE KEY UPDATE</code> with <code>COALESCE</code> behavior from BR-5.1.</p>
+          <span class="src">doc/moneygoup_schema.sql · prediction_records</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-11.5</div>
+        <div class="body">
+          <span class="tag db">Database</span>
+          <p><code>recommended_stocks</code> intentionally has no UNIQUE constraint — multiple rows per ticker per date are allowed. Dedup happens in the API layer at read time.</p>
+          <span class="src">doc/moneygoup_schema.sql · recommended_stocks</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────── 12. BACKGROUND JOBS ─────────────────────────── -->
+    <section id="jobs">
+      <h2>12. Background Jobs</h2>
+
+      <div class="rule">
+        <div class="rid">BR-12.1</div>
+        <div class="body">
+          <span class="tag py">Python</span>
+          <p><code>deepmoney_sync.py</code> on each run: fetches macro data → calls <code>/api/prediction/deepmoney?refresh=true</code> → clears existing <code>recommended_stocks</code> rows → re-persists qualifying stocks → records predictions to <code>prediction_records</code> (BR-5.2) → fetches and persists ETF holdings → cleans up stale discovery entries.</p>
+          <span class="src">scripts/deepmoney_sync.py</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-12.2</div>
+        <div class="body">
+          <span class="tag py">Python</span>
+          <p><code>update_predictions.py</code> processes <strong>every approved user</strong> in a per-user loop. For each user's portfolio + watchlist tickers it computes (or cache-hits) the prediction once per ticker per run, then saves per-user. ETF holdings are scanned in a second pass.</p>
+          <span class="src">scripts/update_predictions.py</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-12.3</div>
+        <div class="body">
+          <span class="tag py">Python</span>
+          <p><code>resolve_predictions.py</code> grades predictions whose target date has passed: per-horizon resolution (1w=7d, 1m=30d, 6m=180d, 1y=365d), 1000-row batches, NULL-prediction filter (BR-5.8). Updates <code>actual_price_*</code>, <code>accuracy_pct_*</code>, <code>direction_correct_*</code>, and sets <code>resolved_*</code> to 1.</p>
+          <span class="src">scripts/resolve_predictions.py</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-12.4</div>
+        <div class="body">
+          <span class="tag py">Python</span>
+          <p>The "stale discovery cleanup" at the end of <code>deepmoney_sync.py</code> removes any <code>user_stocks</code> rows that are <code>is_active = 1 AND user_confirmed = 0</code> but whose <code>stock_id</code> is not in today's qualifying set. Prevents yesterday's discoveries from lingering after they no longer qualify.</p>
+          <span class="src">scripts/deepmoney_sync.py · cleanup phase</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────── 13. VALIDATION & DROPS ─────────────────────────── -->
+    <section id="validation">
+      <h2>13. Validation &amp; Silent Drops</h2>
+
+      <div class="rule">
+        <div class="rid">BR-13.1</div>
+        <div class="body">
+          <span class="tag py">Python</span> <span class="tag app">Web App</span>
+          <p>The 365-day history floor (BR-5.7) <strong>silently drops</strong> stocks. There is no error surfaced to the user, no row written, no warning in the UI. The only signal is a log line in the sync run.</p>
+          <span class="src">scripts/update_predictions.py · history check</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-13.2</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>During discovery, stocks that fail enrichment (missing price, market cap, or sector) increment a <code>rejectedEnrichment</code> counter in <code>meta.debug</code>. They never reach the analyzer.</p>
+          <span class="src">src/app/api/prediction/deepmoney/route.ts</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-13.3</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>Stocks that pass enrichment but have &lt;100 days of OHLCV are rejected at the analyzer's pre-filter and counted in <code>meta.debug.rejectedHistory</code>. (Note this is the looser 100-day floor used during discovery scoring; the 365-day floor in BR-5.7 applies to full prediction inference.)</p>
+          <span class="src">src/app/api/prediction/deepmoney/analyzer.ts</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-13.4</div>
+        <div class="body">
+          <span class="tag py">Python</span>
+          <p>If macro data fetch fails, the deepmoney run continues without it — the pipeline degrades gracefully rather than aborting. A WARN log line is emitted but no user-visible error.</p>
+          <span class="src">scripts/deepmoney_sync.py · macro try/except</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-13.5</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>If the LightGBM ranker subprocess fails or returns no scores, every pre-filtered stock is treated as a survivor so the pipeline stays operational. The error is loud in logs; this is a degraded-mode fall-through, not a normal path.</p>
+          <span class="src">src/app/api/prediction/deepmoney/analyzer.ts · ranker fallback</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────── 14. EXTERNAL DATA ─────────────────────────── -->
+    <section id="external">
+      <h2>14. External Data</h2>
+
+      <div class="rule">
+        <div class="rid">BR-14.1</div>
+        <div class="body">
+          <span class="tag app">Web App</span> <span class="tag py">Python</span>
+          <p>All market data flows through <code>yahoo-finance2</code> (TypeScript) or <code>yfinance</code> (Python). Both libraries are wrapped in helpers that translate Yahoo-side rate limits, fetch failures, and missing modules into degraded-mode behavior — never a 5xx to the user.</p>
+          <span class="src">src/utils/yahooFinanceHelper.ts · scripts/predict_weighted_analysis.py</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-14.2</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>Analyst recommendation strings are mapped via <code>normalizeRecommendation</code>: Yahoo's <code>recommendationMean</code> (1.0–5.0) becomes one of <code>strongBuy / buy / hold / underperform / sell</code>. Used by GPS component 7 and the analyst feedback badges on cards.</p>
+          <span class="src">src/utils/formatters.ts · normalizeRecommendation</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-14.3</div>
+        <div class="body">
+          <span class="tag py">Python</span>
+          <p>The Yahoo earnings calendar source (HTML scrape, not API) is treated as best-effort. A failed fetch returns an empty set and logs a WARN; discovery proceeds with the other sources.</p>
+          <span class="src">src/app/api/prediction/deepmoney/route.ts · fetchYahooEarningsTickers</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────── 15. SECURITY & PII ─────────────────────────── -->
+    <section id="security">
+      <h2>15. Security &amp; PII</h2>
+
+      <div class="rule">
+        <div class="rid">BR-15.1</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>Passwords are hashed with <code>bcrypt</code> (10 rounds). The plaintext password is never stored, never logged, never echoed in error responses.</p>
+          <span class="src">src/lib/auth.ts</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-15.2</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>Failed-auth log lines redact usernames to <code>u***</code> (first two characters + asterisks) so that log spelunking can't enumerate which usernames exist on the platform.</p>
+          <span class="src">src/lib/auth.ts · authorize logs</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-15.3</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>Registration includes a honeypot field (<code>website</code>) in the form. If it's filled, the submission is <strong>silently rejected</strong> — no error returned to the bot.</p>
+          <span class="src">src/app/api/auth/register/route.ts · honeypot</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-15.4</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>Auth error responses are intentionally generic ("Failed to authorize"). The specific reason (wrong password vs. unknown user vs. unapproved account) is logged server-side but never sent to the client.</p>
+          <span class="src">src/lib/auth.ts</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-15.5</div>
+        <div class="body">
+          <span class="tag app">Web App</span> <span class="tag cfg">Config</span>
+          <p>Rotating <code>NEXTAUTH_SECRET</code> immediately invalidates every live session — every user bounces to <code>/login</code> on their next request. Treat as an emergency lever, not a routine maintenance task.</p>
+          <span class="src">src/lib/auth.ts</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-15.6</div>
+        <div class="body">
+          <span class="tag app">Web App</span> <span class="tag cfg">Config</span>
+          <p>Rotating <code>DEEPMONEY_INTERNAL_SECRET</code> instantly breaks every Python sync script until they're redeployed with the new value. Sync scripts that hit a 401/403 fall back to the public auth path and get silently redirected to <code>/login</code>; the deepmoney run produces no data and no obvious error.</p>
+          <div class="danger-note">If the dashboard's DeepMoney Picks widget, BUY / SELL / DISCOVERY cards, or ETF Holding cards suddenly all go stale together, suspect a broken internal secret first.</div>
+          <span class="src">src/utils/internalAuth.ts · scripts/deepmoney_sync.py</span>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      GrowMyStocks Business Rules &copy; 2026 · Generated from codebase 2026-06-21
+    </footer>
+  </main>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const nav = document.querySelector('.top-bar-nav');
+  const leftBtns = document.querySelectorAll('.nav-scroll-left');
+  const rightBtns = document.querySelectorAll('.nav-scroll-right');
+  if (!nav || leftBtns.length === 0 || rightBtns.length === 0) return;
+  const scrollAmount = 150;
+  function checkScroll() {
+    if (nav.scrollLeft > 0) leftBtns.forEach(b => b.style.visibility = 'visible');
+    else leftBtns.forEach(b => b.style.visibility = 'hidden');
+    const hasRight = nav.scrollLeft < nav.scrollWidth - nav.clientWidth - 10;
+    if (hasRight) rightBtns.forEach(b => b.style.visibility = 'visible');
+    else rightBtns.forEach(b => b.style.visibility = 'hidden');
+  }
+  leftBtns.forEach(b => b.addEventListener('click', () => { nav.scrollBy({left:-scrollAmount, behavior:'smooth'}); setTimeout(checkScroll,100); }));
+  rightBtns.forEach(b => b.addEventListener('click', () => { nav.scrollBy({left:scrollAmount, behavior:'smooth'}); setTimeout(checkScroll,100); }));
+  nav.addEventListener('scroll', checkScroll);
+  window.addEventListener('resize', checkScroll);
+  setTimeout(checkScroll, 100);
+});
+</script>
+</body>
+</html>

@@ -104,11 +104,11 @@
   </div>
   <nav class="top-bar-nav">
     <a href="moneygoup_overview.html">Overview</a>
+    <a href="business_rules.html">Business Rules</a>
     <a href="api_documentation.html">API Docs</a>
     <a href="architecture_documentation.html">Architecture</a>
     <a href="authentication_flow.html">Auth Flow</a>
     <a href="admin_user_management.html">Admin User Mgmt</a>
-    <a href="recommendation_buckets.html">Rec Buckets</a>
     <a href="components_documentation.html" class="active">Components</a>
     <a href="database_documentation.html">Database</a>
     <a href="prediction_workflow.html">Prediction Flow</a>
@@ -130,6 +130,7 @@
   <nav class="sidebar" aria-label="Component sections">
     <h3>GrowMyStocks Docs</h3>
     <a href="moneygoup_overview.html">App Overview</a>
+    <a href="business_rules.html">Business Rules</a>
     <a href="architecture_documentation.html">Architecture</a>
     <a href="components_documentation.html" class="active">Components</a>
     <a href="api_documentation.html">API Routes</a>
@@ -148,7 +149,6 @@
     <a href="authentication_flow.html">Auth Flow</a>
     <a href="database_documentation.html">Database</a>
     <a href="prediction_workflow.html">Prediction Workflow</a>
-    <a href="recommendation_buckets.html">Recommendation Buckets</a>
     <a href="technical_indicators_guide.html">Technical Indicators</a>
     <a href="admin_user_management.html">Admin User Mgmt</a>
     <a href="style_guide.html">Style Guide</a>
@@ -696,7 +696,7 @@ interface CardActionHandlers {
           <div><div class="comp-name">DeepmoneyCardView</div><div class="comp-file">src/app/components/cards/variants/DeepmoneyCardView.tsx</div></div>
           <span class="badge badge-util">Presentational</span>
         </div>
-        <div class="comp-desc">Renders an AI-curated pick card (hot stocks / hot ETFs). Displays: current price, AI prediction (numeric target price or categorical "Bullish"/"Bearish"/"Neutral" label, with an optional <code>timeframeLabel</code> like "in 6 months"), and GPS score. No action buttons.</div>
+        <div class="comp-desc">Renders an AI-curated pick card (hot stocks / hot ETFs). Visually mirrors <code>SearchTrendingCardView</code> so all search-page cards share one design system: header (ticker/name | price/change), hairline divider, 2-column stats grid, hairline divider, footer with the headline prediction and a chevron affordance. Displays: current price, AI prediction (numeric target price or categorical "Bullish"/"Bearish"/"Neutral" label, with an optional <code>timeframeLabel</code> like "in 6 months"), and GPS score. No action buttons.</div>
         <table class="props-table">
           <thead><tr><th>Prop</th><th>Type</th><th>Required</th></tr></thead>
           <tbody>

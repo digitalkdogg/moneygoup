@@ -278,11 +278,11 @@
   </div>
   <nav class="top-bar-nav">
     <a href="moneygoup_overview.html">Overview</a>
+    <a href="business_rules.html">Business Rules</a>
     <a href="api_documentation.html">API Docs</a>
     <a href="architecture_documentation.html">Architecture</a>
     <a href="authentication_flow.html">Auth Flow</a>
     <a href="admin_user_management.html">Admin User Mgmt</a>
-    <a href="recommendation_buckets.html">Rec Buckets</a>
     <a href="components_documentation.html">Components</a>
     <a href="database_documentation.html">Database</a>
     <a href="prediction_workflow.html">Prediction Flow</a>
@@ -303,6 +303,7 @@
   <nav class="sidebar" aria-label="GPS Score sections">
     <h3>GrowMyStocks Docs</h3>
     <a href="moneygoup_overview.html">App Overview</a>
+    <a href="business_rules.html">Business Rules</a>
     <a href="architecture_documentation.html">Architecture</a>
     <a href="components_documentation.html">Components</a>
     <a href="api_documentation.html">API Routes</a>
@@ -323,7 +324,6 @@
     <a href="gps_utility.html">GPS Utility (src/utils/gps.ts)</a>
     <a href="database_documentation.html">Database</a>
     <a href="prediction_workflow.html">Prediction Workflow</a>
-    <a href="recommendation_buckets.html">Rec Buckets</a>
     <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
     <a href="technical_indicators_guide.html">Technical Indicators</a>
     <a href="deepmoney_picks_route.html">DeepMoney Picks Route</a>
@@ -771,7 +771,7 @@ bearish_signal = predicted_change_pct &lt; 0</code></pre>
           <tr>
             <td><code>DEEPMONEY_ALGORITHM</code></td>
             <td><code>5</code></td>
-            <td>Float 1.0–10.0 single knob for the deepmoney pipeline (resolves to <code>rankerKeepPct</code>, <code>mlpConfidenceFloor</code>, <code>volGateFloor</code>, <code>analystStrongBuyThreshold</code> via <code>models/algorithm_presets.json</code>; fractional levels interpolate). Recommended_stocks and dashboard gates derive from the resolved MLP confidence floor, not GPS. Retired predecessors: <code>DEEPMONEY_GPS_VALUE</code>, <code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code>, <code>DEEPMONEY_ANALYST_THRESHOLD</code>, <code>DEEPMONEY_USE_RANKER_GATE</code>, <code>DEEPMONEY_TIER2_TOPK</code>.</td>
+            <td>Float 1.0–10.0 single knob for the deepmoney pipeline (resolves to <code>rankerKeepPct</code>, <code>mlpConfidenceFloor</code>, <code>volGateFloor</code>, <code>analystStrongBuyThreshold</code>, <code>signalScoreFloor</code> via <code>models/algorithm_presets.json</code>; fractional levels interpolate, then MLP/vol floors snap UP to the next bucket in <code>{35, 50, 65, 75}</code>). Recommended_stocks and dashboard gates derive from the resolved MLP confidence floor, not GPS. Retired predecessors: <code>DEEPMONEY_GPS_VALUE</code>, <code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code>, <code>DEEPMONEY_ANALYST_THRESHOLD</code>, <code>DEEPMONEY_USE_RANKER_GATE</code>, <code>DEEPMONEY_TIER2_TOPK</code>.</td>
           </tr>
           <tr>
             <td><code>ETF_HOLDING_ALGORITHM</code></td>

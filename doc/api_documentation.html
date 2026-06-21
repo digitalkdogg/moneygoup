@@ -104,11 +104,11 @@
   </div>
   <nav class="top-bar-nav">
     <a href="moneygoup_overview.html">Overview</a>
+    <a href="business_rules.html">Business Rules</a>
     <a href="api_documentation.html" class="active">API Docs</a>
     <a href="architecture_documentation.html">Architecture</a>
     <a href="authentication_flow.html">Auth Flow</a>
     <a href="admin_user_management.html">Admin User Mgmt</a>
-    <a href="recommendation_buckets.html">Rec Buckets</a>
     <a href="components_documentation.html">Components</a>
     <a href="database_documentation.html">Database</a>
     <a href="prediction_workflow.html">Prediction Flow</a>
@@ -129,6 +129,7 @@
   <nav class="sidebar" aria-label="API sections">
     <h3>GrowMyStocks Docs</h3>
     <a href="moneygoup_overview.html">App Overview</a>
+    <a href="business_rules.html">Business Rules</a>
     <a href="architecture_documentation.html">Architecture</a>
     <a href="components_documentation.html">Components</a>
     <a href="api_documentation.html" class="active">API Routes</a>
@@ -150,7 +151,6 @@
     <a href="authentication_flow.html">Auth Flow</a>
     <a href="database_documentation.html">Database</a>
     <a href="prediction_workflow.html">Prediction Workflow</a>
-    <a href="recommendation_buckets.html">Recommendation Buckets</a>
     <a href="technical_indicators_guide.html">Technical Indicators</a>
     <a href="admin_user_management.html">Admin User Mgmt</a>
     <a href="gps_score.html">GPS Score</a>
@@ -183,7 +183,7 @@
 
       <div class="route-card">
         <div class="route-header">
-          <span class="route-path">src/middleware.ts</span>
+          <span class="route-path">src/proxy.ts</span>
           <span class="badge badge-cache">Updated May 2026</span>
         </div>
         <div class="route-desc">NextAuth <code>withAuth</code> middleware. Protects all routes by default. The matcher excludes: <code>/api/auth/*</code>, <code>/login</code>, <code>/register</code>, <code>/forgot-password</code>, <code>/reset-password</code>, and all static assets (<code>/_next/*</code>, <code>/favicon.ico</code>, <code>*.svg</code>). Internal server-to-server requests bypass auth via an <code>x-api-key</code> header check. <code>/api/unsubscribe</code> is in the public paths list but is separately secured via HMAC-signed tokens.</div>
@@ -799,7 +799,7 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
           <span class="badge badge-new">Updated 2026-06-09</span>
           <span class="route-file">src/app/api/prediction/deepmoney/route.ts</span>
         </div>
-        <div class="route-desc">Real-time AI discovery engine. Harvests tickers from 24 RSS/JSON/SEC feeds, enriches them with Yahoo Finance fundamentals, filters through technical signal scoring and ML prediction (via the <code>analyzeStocks()</code> function), then runs the ETF discovery phase. Returns filtered stocks with GPS scores.</div>
+        <div class="route-desc">Real-time AI discovery engine. Harvests tickers from ~28 RSS/JSON/SEC feeds plus three non-feed sources (top holdings of popular ETFs, Yahoo earnings calendar, internal <code>/api/market/trending?window=48h</code>), enriches them with Yahoo Finance fundamentals, filters through technical signal scoring (<code>signalScoreFloor</code>) and the LightGBM ranker, runs ML prediction (via the <code>analyzeStocks()</code> function), then runs the ETF discovery phase. Returns filtered stocks with GPS scores.</div>
         <div class="updated"><strong>Strategy-driven outlook + ML gate (June 2026):</strong> For authenticated requests the route resolves the user's <code>investment_timeframe</code> via <code>getUserStrategy()</code>. The resolved <code>outlook</code> (e.g. <code>'6_month'</code>) is forwarded to <code>analyzeStocks()</code> which passes it to the Python prediction engine. The resolved <code>mlGate</code> (e.g. 5.0% for 6-month) is the minimum positive predicted-change threshold a stock must clear to be surfaced. Cache keys are bucketed by outlook, so each timeframe maintains its own 5-minute snapshot.</div>
         <div class="sub-heading">Timeframe ML gates</div>
         <table class="props-table">

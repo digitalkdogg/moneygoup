@@ -147,6 +147,7 @@ def sync_deepmoney():
             print(f"  [debug] Final Filtered Count: {debug.get('filteredCount')}")
             print(f"  [debug] ETF Holdings Surfaced: {meta.get('etfHoldingsSurfacedCount')}")
             print(f"  [debug] Popular-ETF Holdings Merged: {meta.get('etfPopularHoldingsCount')}")
+            print(f"  [debug] Trending 48h Merged: {debug.get('trendingTickerCount')}")
     except Exception as e:
         print(f"Error fetching data from API: {e}")
         return

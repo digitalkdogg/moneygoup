@@ -176,6 +176,34 @@
             white-space: pre-wrap; word-break: break-all;
         }
 
+        /* Recommendation buckets (merged from former recommendation_buckets.html) */
+        .bucket-card { border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin: 1.5rem 0; position: relative; overflow: hidden; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .bucket-card::before { content: ""; position: absolute; top: 0; left: 0; width: 6px; height: 100%; }
+        .portfolio-bucket { border-color: #bfdbfe; background: #eff6ff; }
+        .portfolio-bucket::before { background: #1d4ed8; }
+        .watchlist-bucket { border-color: #fde68a; background: #fffbeb; }
+        .watchlist-bucket::before { background: var(--warning); }
+        .discovery-bucket { border-color: #ddd6fe; background: #f5f3ff; }
+        .discovery-bucket::before { background: var(--purple); }
+        .etf-holding-bucket { border-color: #99f6e4; background: #f0fdfa; }
+        .etf-holding-bucket::before { background: var(--teal); }
+        .bucket-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+        .bucket-title { font-size: 1.15rem; font-weight: 800; text-transform: uppercase; }
+        .portfolio-text { color: #1d4ed8; }
+        .watchlist-text { color: var(--warning); }
+        .discovery-text { color: var(--purple); }
+        .etf-holding-text { color: var(--teal); }
+        .criteria-box { background: rgba(255,255,255,0.65); border-radius: 8px; padding: 0.9rem 1rem; margin-top: 0.9rem; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.82rem; line-height: 1.55; }
+        .threshold-pill { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 20px; font-weight: bold; font-size: 0.75rem; margin-top: 0.5rem; background: white; border: 1px solid var(--border); margin-right: 0.5rem; }
+        .logic-list { margin-top: 0.75rem; padding-left: 1.25rem; }
+        .logic-list li { margin-bottom: 0.4rem; }
+        .updated-note { background: #f0fdf4; border-left: 4px solid #22c55e; padding: 0.75rem 1rem; border-radius: 0 6px 6px 0; font-size: 0.85rem; color: #166534; margin: 1rem 0; line-height: 1.55; }
+        .info-note { background: #eff6ff; border-left: 4px solid #3b82f6; padding: 0.75rem 1rem; border-radius: 0 6px 6px 0; font-size: 0.85rem; color: #1e3a8a; margin: 1rem 0; line-height: 1.55; }
+        .new-badge { display: inline-block; font-size: .65rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 999px; margin-left: .5rem; vertical-align: middle; }
+        .bucket-table { width: 100%; border-collapse: collapse; font-size: .85rem; margin: .75rem 0; }
+        .bucket-table th { text-align: left; color: #64748b; font-weight: 600; padding: .4rem .6rem; border-bottom: 1px solid var(--border); background: #f8fafc; }
+        .bucket-table td { padding: .4rem .6rem; vertical-align: top; border-bottom: 1px solid #f1f5f9; }
+        .bucket-table tr:last-child td { border-bottom: none; }
         </style>
 </head>
 <body>
@@ -196,7 +224,6 @@
     <a href="architecture_documentation.html">Architecture</a>
     <a href="authentication_flow.html">Auth Flow</a>
     <a href="admin_user_management.html">Admin User Mgmt</a>
-    <a href="recommendation_buckets.html">Rec Buckets</a>
     <a href="components_documentation.html">Components</a>
     <a href="database_documentation.html">Database</a>
     <a href="prediction_workflow.html">Prediction Flow</a>
@@ -225,6 +252,7 @@
     <a href="#architecture">Top-Level Architecture</a>
     <a href="#user-flow">Key User Flow</a>
     <a href="#personalization">Personalization Model</a>
+    <a href="#recommendations">Recommendation Buckets</a>
     <a href="#background-jobs">Background Jobs</a>
     <a href="#env-vars">Environment Variables</a>
     <a href="#env-vars-system">— System</a>
@@ -237,7 +265,6 @@
     <a href="authentication_flow.html">Auth Flow</a>
     <a href="database_documentation.html">Database</a>
     <a href="prediction_workflow.html">Prediction Workflow</a>
-    <a href="recommendation_buckets.html">Recommendation Buckets</a>
     <a href="technical_indicators_guide.html">Technical Indicators</a>
     <a href="admin_user_management.html">Admin User Mgmt</a>
     <a href="style_guide.html">Style Guide</a>
@@ -350,7 +377,7 @@
                 <li><strong>User drills into a ticker.</strong> <code>/search/[ticker]</code> renders the GPS signal panel + AI prediction card. Clicking the prediction CTA spawns the Python MLP inline through <code>POST /api/prediction/[ticker]</code>.</li>
                 <li><strong>Predictions are recorded.</strong> Every successful inference fires <code>recordPrediction()</code> as a non-blocking side-effect, writing one row per (symbol, predicted_at) into <code>prediction_records</code> for later grading.</li>
             </ol>
-            <p>Deeper dives: <a href="prediction_workflow.html">Prediction Workflow</a>, <a href="recommendation_buckets.html">Recommendation Buckets</a>, <a href="gps_score.html">GPS Score</a>.</p>
+            <p>Deeper dives: <a href="prediction_workflow.html">Prediction Workflow</a>, <a href="#recommendations">Recommendation Buckets</a>, <a href="gps_score.html">GPS Score</a>.</p>
         </section>
 
         <section id="personalization">
@@ -366,8 +393,115 @@
             </div>
         </section>
 
+        <section id="recommendations">
+            <h2>6. Recommendation Buckets</h2>
+            <p>The recommendation engine classifies stocks into four buckets so that user-owned positions, monitored interests, AI discoveries, and ETF top-holding breakouts each get the right level of urgency and validation. Every BUY / SELL card on the dashboard belongs to one of these four buckets.</p>
+
+            <div class="updated-note"><strong>June 2026:</strong> A fourth bucket — <strong>ETF Holding</strong> — was added. When a user holds ETFs in their portfolio, the <code>/portfolio</code> page surfaces BUY recommendations for high-GPS individual stocks found inside those ETFs.</div>
+
+            <div class="bucket-card portfolio-bucket">
+                <div class="bucket-header">
+                    <span style="font-size: 1.4rem;" role="img" aria-label="chart">&#128202;</span>
+                    <span class="bucket-title portfolio-text">Bucket 1: Portfolio</span>
+                </div>
+                <p>Positions the user has officially purchased and confirmed. Real financial stakes, so signals require the highest precision.</p>
+                <ul class="logic-list">
+                    <li><strong>Signals:</strong> Surfaces both <strong>BUY</strong> (add to position) and <strong>SELL</strong> (exit/trim) alerts.</li>
+                    <li><strong>Logic:</strong> Compares the AI 1-month prediction against the current live market price.</li>
+                    <li><strong>Badge color:</strong> Blue (<code>bg-blue-100 text-blue-700</code>)</li>
+                </ul>
+                <div class="criteria-box">is_purchased = 1 AND user_confirmed = 1 AND shares &gt; 0 AND is_active = 1</div>
+                <div class="threshold-pill">Positive: +3% (default)</div>
+                <div class="threshold-pill">Negative: -3% (default)</div>
+            </div>
+
+            <div class="bucket-card watchlist-bucket">
+                <div class="bucket-header">
+                    <span style="font-size: 1.4rem;" role="img" aria-label="eyes">&#128064;</span>
+                    <span class="bucket-title watchlist-text">Bucket 2: Watchlist</span>
+                </div>
+                <p>Stocks the user is actively monitoring but doesn't yet own. Explicitly "confirmed" by the user (e.g. via "Add to Watchlist").</p>
+                <ul class="logic-list">
+                    <li><strong>Signals:</strong> Surfaces <strong>BUY</strong> alerts only.</li>
+                    <li><strong>Logic:</strong> Monitors for significant upward breakouts predicted by the AI.</li>
+                    <li><strong>Badge color:</strong> Amber (<code>bg-amber-100 text-amber-700</code>)</li>
+                </ul>
+                <div class="criteria-box">is_purchased = 0 AND user_confirmed = 1 AND is_active = 1</div>
+                <div class="threshold-pill">Threshold: +5% (default)</div>
+            </div>
+
+            <div class="bucket-card discovery-bucket">
+                <div class="bucket-header">
+                    <span style="font-size: 1.4rem;" role="img" aria-label="sparkles">&#10024;</span>
+                    <span class="bucket-title discovery-text">Bucket 3: Discovery</span>
+                </div>
+                <p>High-potential stocks identified automatically by the <code>deepmoney_sync.py</code> engine. Appear as "unconfirmed" and don't show in "My Watchlist" until the user interacts with them.</p>
+                <ul class="logic-list">
+                    <li><strong>Discovery logic:</strong> Stocks qualify when they survive the full deepmoney pipeline (<code>signalScoreFloor</code> pre-filter + ranker keep-cut + MLP confidence floor + predicted-change gate). All thresholds are resolved from <code>DEEPMONEY_ALGORITHM</code> via <code>models/algorithm_presets.json</code>.</li>
+                    <li><strong>Target users:</strong> Qualifying stocks are added for every approved user.</li>
+                    <li><strong>Signals:</strong> Surfaces <strong>BUY</strong> alerts only.</li>
+                    <li><strong>Badge color:</strong> Purple (<code>bg-purple-100 text-purple-700</code>)</li>
+                </ul>
+                <div class="criteria-box">is_purchased = 0 AND user_confirmed = 0 AND is_active = 1</div>
+                <div class="threshold-pill">Threshold: +5% (default)</div>
+            </div>
+
+            <div class="bucket-card etf-holding-bucket">
+                <div class="bucket-header">
+                    <span style="font-size: 1.4rem;" role="img" aria-label="building">&#127981;</span>
+                    <span class="bucket-title etf-holding-text">Bucket 4: ETF Holding <span class="new-badge">new</span></span>
+                </div>
+                <p>Individual stocks that are top holdings inside ETFs the user already owns. When the ML pipeline identifies a high-GPS breakout candidate inside one of the user's ETFs, it surfaces that holding as a direct BUY recommendation with a teal "etf holding" badge.</p>
+                <ul class="logic-list">
+                    <li><strong>Signals:</strong> Surfaces <strong>BUY</strong> alerts only (holdings are pre-filtered by the ETF sync before being written to <code>etf_stock_recommendations</code>).</li>
+                    <li><strong>Source:</strong> Written by <code>scripts/update_predictions.py</code> during the ETF Holdings scan phase, which runs after standard portfolio predictions.</li>
+                    <li><strong>Detection:</strong> Each portfolio item is checked against Yahoo Finance's <code>quoteType</code>. If <code>quoteType === 'ETF'</code>, the item is flagged <code>is_etf: true</code> and its top holdings are fetched via <code>GET /api/stock_data/{ticker}/holdings</code>.</li>
+                    <li><strong>Thresholds (all three must be met):</strong>
+                        <ul>
+                            <li>GPS score &ge; <code>preset.gpsSurfaceValue</code> (L5 default 60) — resolved from <code>ETF_HOLDING_ALGORITHM</code> via <code>models/etf_holding_presets.json</code></li>
+                            <li>Predicted price change &ge; <code>preset.minPredChangePct</code>% (L5 default 1.8%) — same source</li>
+                            <li>AI confidence score &ge; <code>ETF_HOLDING_MIN_CONFIDENCE</code> (default 60) — independent of the preset</li>
+                        </ul>
+                    </li>
+                    <li><strong>Card sub-label:</strong> "In {ETF ticker}" (e.g. "In VGT") so the user knows which of their ETFs contains this holding.</li>
+                    <li><strong>Badge color:</strong> Teal (<code>bg-teal-100 text-teal-700</code>) · <strong>Scope:</strong> <code>'etf_holding'</code> · <strong>Extra field:</strong> <code>etfTicker</code></li>
+                </ul>
+                <div class="criteria-box">Source: etf_stock_recommendations table<br>GPS &ge; preset.gpsSurfaceValue (L5=60)<br>predicted_change_pct &ge; preset.minPredChangePct (L5=1.8%)<br>confidence_score &ge; ETF_HOLDING_MIN_CONFIDENCE (default 60)<br>Preset resolved from ETF_HOLDING_ALGORITHM (1.0..10.0, default 5)</div>
+                <div class="threshold-pill">GPS: 60 (L5)</div>
+                <div class="threshold-pill">Pred change: +1.8% (L5)</div>
+                <div class="threshold-pill">Confidence: 60 (default)</div>
+            </div>
+
+            <h4 style="margin-top:2rem;">UI filtering on the Portfolio page</h4>
+            <div class="info-note">The <code>etf_holding</code> scope is only enabled on <code>/portfolio</code> — the dashboard home page (<code>/</code>) doesn't include it. Controlled by the <code>scopes</code> prop on <code>RecommendationsSection</code>.</div>
+            <p>The <code>/portfolio</code> page derives two values from the portfolio API response:</p>
+            <ul>
+                <li><code>portfolioEtfTickers</code> — array of symbols where <code>is_etf === true</code> (e.g. <code>['VGT', 'QQQ']</code>)</li>
+                <li><code>hasEtfInPortfolio</code> — boolean derived from <code>portfolioEtfTickers.length &gt; 0</code></li>
+            </ul>
+            <p>When <code>hasEtfInPortfolio</code> is true, the page passes:</p>
+            <div class="criteria-box">scopes={['portfolio', 'watchlist', 'etf_holding']}<br>portfolioEtfTickers={portfolioEtfTickers}</div>
+            <p>Inside <code>RecommendationsSection</code>, a secondary client-side filter ensures <code>etf_holding</code> cards only show when <code>r.etfTicker</code> is in the <code>portfolioEtfTickers</code> set. This prevents watchlist-only ETF holding cards from leaking onto the portfolio grid. Users without ETFs get the scope omitted entirely, so no ETF holding cards render.</p>
+
+            <h4 style="margin-top:2rem;">Bucket-specific environment knobs</h4>
+            <p>Anchors above this list (in section 7) cover the deepmoney + ETF pipeline knobs. The dedicated bucket thresholds below configure the surfacing rules in <code>src/app/api/dashboard/recommendations/route.ts</code>.</p>
+            <table class="bucket-table">
+                <thead><tr><th>Variable</th><th>Default</th><th>Applies to bucket</th></tr></thead>
+                <tbody>
+                    <tr><td><code>RECOMMENDATION_PORTFOLIO_POSITIVE_THRESHOLD</code></td><td>+3%</td><td>Portfolio (legacy GPS v2; still honoured)</td></tr>
+                    <tr><td><code>RECOMMENDATION_PORTFOLIO_NEGATIVE_THRESHOLD</code></td><td>-3%</td><td>Portfolio (legacy GPS v2; still honoured)</td></tr>
+                    <tr><td><code>RECOMMENDATION_WATCHLIST_THRESHOLD</code></td><td>+5%</td><td>Watchlist &amp; Discovery</td></tr>
+                    <tr><td><a href="#env-vars-deepmoney"><code>ETF_HOLDING_ALGORITHM</code></a></td><td>5</td><td>ETF Holding — single preset knob (1–10). Resolves into <code>etfGpsThreshold</code>, <code>topNEtfs</code>, <code>maxTickers</code>, <code>gpsSurfaceValue</code>, <code>minPredChangePct</code>.</td></tr>
+                    <tr><td><a href="#env-vars-deepmoney"><code>ETF_HOLDING_MIN_CONFIDENCE</code></a></td><td>60</td><td>ETF Holding — confidence gate (independent of the preset)</td></tr>
+                    <tr><td><a href="#env-vars-deepmoney"><code>ETF_HOLDING_MAX_BETA</code></a></td><td>2.0</td><td>ETF Holding — max beta for inclusion (independent of the preset)</td></tr>
+                    <tr><td><a href="#env-vars-deepmoney"><code>ETF_HOLDING_STALENESS_HOURS</code></a></td><td>4</td><td>ETF Holding — cache staleness before re-fetch</td></tr>
+                </tbody>
+            </table>
+            <p style="font-size:.82rem;color:#666;margin-top:.5rem;">Retired (replaced by <code>ETF_HOLDING_ALGORITHM</code>): <code>ETF_HOLDING_GPS_SURFACE_VALUE</code>, <code>ETF_HOLDING_MIN_PRED_CHANGE</code>, <code>ETF_HOLDING_MAX_TICKERS</code>, <code>ETF_HOLDING_TOP_N</code>, in-code <code>ETF_GPS_THRESHOLD</code>.</p>
+        </section>
+
         <section id="background-jobs">
-            <h2>6. Background Jobs</h2>
+            <h2>7. Background Jobs</h2>
             <p>Two Python scripts keep cached predictions and discovery picks fresh. Both authenticate to the Next.js API using the internal <code>x-api-key</code> header (<code>src/utils/internalAuth.ts</code>) and hit <code>http://localhost:3001</code> directly to bypass the nginx 60-second proxy timeout.</p>
             <ul>
                 <li><code>scripts/update_predictions.py</code> — Refreshes cached MLP predictions overnight (and on demand) so the dashboard does not have to spawn Python for every render.</li>
@@ -376,7 +510,7 @@
         </section>
 
         <section id="env-vars">
-            <h2>7. Environment Variables</h2>
+            <h2>8. Environment Variables</h2>
             <p>Every runtime knob the app reads, grouped by concern. Each entry lists what the knob does, its default, where in the code it's read, and one concrete example of turning it. Values shown in red are <strong>required</strong> — the app will fail to start without them. Vars marked <em>(optional)</em> have a code-level default and only need to be set when you want to override it.</p>
 
             <div class="env-category" id="env-vars-system">System (auth, security, session, infrastructure)</div>
@@ -603,13 +737,13 @@ DB_HOST=mysql-primary.internal</pre>
             <div class="env-var-card">
                 <span class="name">DEEPMONEY_ALGORITHM</span>
                 <span class="default">optional · 5</span>
-                <div class="field"><span class="field-label">Overview</span>The <strong>single knob</strong> controlling deepmoney pipeline aggressiveness end-to-end. Float 1.0–10.0; lower = stricter, higher = more permissive. Resolves through <code>models/algorithm_presets.json</code> into four fields: <code>rankerKeepPct</code>, <code>mlpConfidenceFloor</code>, <code>volGateFloor</code>, <code>analystStrongBuyThreshold</code>. Fractional values (e.g. 1.5) interpolate linearly between adjacent integer rows. Replaces the retired <code>DEEPMONEY_GPS_VALUE</code>, <code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code>, <code>DEEPMONEY_ANALYST_THRESHOLD</code>, <code>DEEPMONEY_USE_RANKER_GATE</code>, and <code>DEEPMONEY_TIER2_TOPK</code>.</div>
+                <div class="field"><span class="field-label">Overview</span>The <strong>single knob</strong> controlling deepmoney pipeline aggressiveness end-to-end. Float 1.0–10.0; lower = stricter, higher = more permissive. Resolves through <code>models/algorithm_presets.json</code> into five fields: <code>rankerKeepPct</code>, <code>mlpConfidenceFloor</code>, <code>volGateFloor</code>, <code>analystStrongBuyThreshold</code>, <code>signalScoreFloor</code>. Fractional values (e.g. 1.5) interpolate linearly; <code>mlpConfidenceFloor</code> and <code>volGateFloor</code> are then snapped UP to the next discrete MLP bucket in <code>{35, 50, 65, 75}</code> (the only values the model emits). Replaces the retired <code>DEEPMONEY_GPS_VALUE</code>, <code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code>, <code>DEEPMONEY_ANALYST_THRESHOLD</code>, <code>DEEPMONEY_USE_RANKER_GATE</code>, and <code>DEEPMONEY_TIER2_TOPK</code>.</div>
                 <div class="field"><span class="field-label">Where used</span><code>src/utils/algorithmPreset.ts</code> (single read), <code>src/app/api/prediction/deepmoney/route.ts</code> (echoes the resolved preset in <code>meta.algorithm</code>), <code>scripts/deepmoney_sync.py</code> (reads back from <code>meta.algorithm</code>). Full detail: <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>.</div>
                 <div class="field"><span class="field-label">Visible on</span>The dashboard's <strong>DeepMoney Picks</strong> widget, the <strong>DISCOVERY cards</strong> on <code>/dashboard</code>, and the per-user ETF Holding cards on <code>/portfolio</code> — all three are populated by the nightly <code>deepmoney_sync.py</code> run, which uses the resolved preset to gate every stock written to <code>recommended_stocks</code>. Lower the number = fewer cards everywhere; higher = more.</div>
                 <div class="field"><span class="field-label">Tuning</span>Move the whole pipeline in one direction with one number:
-                    <pre class="example">DEEPMONEY_ALGORITHM=1.5   # very strict: top ~7% by ranker, CS ≥ 72.5 (only top-bucket picks)
-DEEPMONEY_ALGORITHM=5     # default: top 25%, CS ≥ 60
-DEEPMONEY_ALGORITHM=8     # loose: top 60%, CS ≥ 45</pre>
+                    <pre class="example">DEEPMONEY_ALGORITHM=1.5   # very strict: top ~7% by ranker, effective CS ≥ 75 (top bucket only)
+DEEPMONEY_ALGORITHM=5     # default: top 25%, effective CS ≥ 65 (raw 60 snaps up)
+DEEPMONEY_ALGORITHM=8     # loose: top 60%, effective CS ≥ 50 (raw 45 snaps up)</pre>
                 </div>
             </div>
 
@@ -727,7 +861,7 @@ GPS_DEEPMONEY_MIN_SCORE=65   # default: only the top tier shows</pre>
         </section>
 
         <section id="read-next">
-            <h2>8. Where to Read Next</h2>
+            <h2>9. Where to Read Next</h2>
             <p>The overview deliberately stays shallow. Pick the door that matches what you need to know:</p>
             <div class="read-next-grid">
                 <a class="read-next-card" href="architecture_documentation.html">
@@ -757,10 +891,6 @@ GPS_DEEPMONEY_MIN_SCORE=65   # default: only the top tier shows</pre>
                 <a class="read-next-card" href="strategy_system.html">
                     <span class="title">Strategy System</span>
                     <span class="desc">Aggressiveness × timeframe matrix and every gate it controls.</span>
-                </a>
-                <a class="read-next-card" href="recommendation_buckets.html">
-                    <span class="title">Recommendation Buckets</span>
-                    <span class="desc">Portfolio / watchlist / discovery signal generation rules.</span>
                 </a>
                 <a class="read-next-card" href="deepmoney_sync_workflow.html">
                     <span class="title">DeepMoney Sync</span>
