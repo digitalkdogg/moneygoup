@@ -47,7 +47,13 @@ export default function TrendingStocksGrid() {
           throw new Error('Failed to fetch trending stocks')
         }
         const data = await response.json()
-        setStocks(data.stocks || [])
+        // Sort by GPS score desc; missing scores sink to the bottom so the
+        // most-trusted picks always lead the grid.
+        const sortedStocks = (data.stocks || []).slice().sort(
+          (a: TrendingStock, b: TrendingStock) =>
+            (b.gpsScore ?? -Infinity) - (a.gpsScore ?? -Infinity),
+        )
+        setStocks(sortedStocks)
         if (typeof data?.horizonLabel === 'string') {
           setHorizonLabel(data.horizonLabel)
         }

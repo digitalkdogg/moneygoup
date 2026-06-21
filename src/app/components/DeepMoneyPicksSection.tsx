@@ -67,8 +67,8 @@ export default function DeepMoneyPicksSection() {
       if (!res.ok) throw new Error('Failed to fetch DeepMoney picks');
       const json = await res.json();
       
-      const sortedHotStocks = (json.hot_stocks || []).sort((a: RecommendedStock, b: RecommendedStock) => (b.metric_value || 0) - (a.metric_value || 0));
-      const sortedHotEtfs = (json.hot_etfs || []).sort((a: RecommendedETF, b: RecommendedETF) => (b.etf_gps_score || 0) - (a.etf_gps_score || 0)); // Keep ETFs sorted by GPS for now
+      const sortedHotStocks = (json.hot_stocks || []).sort((a: RecommendedStock, b: RecommendedStock) => (b.gps_score || 0) - (a.gps_score || 0));
+      const sortedHotEtfs = (json.hot_etfs || []).sort((a: RecommendedETF, b: RecommendedETF) => (b.etf_gps_score || 0) - (a.etf_gps_score || 0));
 
       setData({
         hot_stocks: sortedHotStocks,
