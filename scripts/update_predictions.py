@@ -405,14 +405,26 @@ def save_etf_recommendation(user_id: int, etf_ticker: str, stock_ticker: str,
 
 def save_gps_score_to_db(cursor, ticker: str, gps_score: float, gps_breakdown: dict) -> bool:
     """Upsert GPS score into stock_gps_scores (global, not per-user).
-    Mirrors what /api/prediction/save does after calling calculate_gps_v3."""
+    Mirrors what /api/prediction/save does after calling calculate_gps_v3.
+    Auto-inserts the ticker into `stocks` if missing (e.g. ETF holdings the
+    user doesn't own directly) so the GPS score actually persists for
+    later /search/[ticker] / dashboard lookups instead of being silently
+    dropped."""
     try:
         cursor.execute("SELECT id FROM stocks WHERE symbol = %s LIMIT 1", (ticker,))
         row = cursor.fetchone()
         if not row:
-            print(f"  [gps-db] SKIP {ticker}: not found in stocks table")
-            return False
-        stock_id = row[0]
+            # Insert with the ticker as company_name placeholder; a later
+            # enrichment pass (deepmoney_sync, portfolio add, etc.) can
+            # backfill the real name. Keeps the GPS write path unblocked.
+            cursor.execute(
+                "INSERT INTO stocks (symbol, company_name) VALUES (%s, %s)",
+                (ticker, ticker)
+            )
+            stock_id = cursor.lastrowid
+            print(f"  [gps-db] INSERTED {ticker} into stocks (was missing)")
+        else:
+            stock_id = row[0]
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         cursor.execute(
             """INSERT INTO stock_gps_scores

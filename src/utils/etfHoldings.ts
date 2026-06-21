@@ -73,10 +73,17 @@ export async function fetchETFHoldings(ticker: string, topN: number): Promise<ET
       .sort((a, b) => b.holdingPercent - a.holdingPercent)
       .slice(0, topN);
   } catch (err) {
-    logger.error('fetchETFHoldings failed', {
-      ticker,
-      error: err instanceof Error ? err.message : String(err),
-    });
+    const msg = err instanceof Error ? err.message : String(err);
+    // "No fundamentals data found" is Yahoo's response when the topHoldings
+    // module doesn't exist for the symbol — i.e. it's not an ETF. Expected
+    // for every non-ETF ticker the dashboard checks (every portfolio stock
+    // is asked for holdings). Don't pollute logs as ERROR; log at INFO so
+    // genuine fetch failures (timeouts, 5xx, parse errors) still stand out.
+    if (msg.includes('No fundamentals data found')) {
+      logger.info('fetchETFHoldings: ticker is not an ETF (no topHoldings module)', { ticker });
+    } else {
+      logger.error('fetchETFHoldings failed', { ticker, error: msg });
+    }
     return [];
   }
 }

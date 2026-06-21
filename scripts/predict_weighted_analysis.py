@@ -1176,6 +1176,56 @@ def metric_analysis(df, stock_metrics, news_sentiment, growth_rate, is_uptrend, 
 # ============================================================================
 # MAIN PREDICTION FUNCTION
 # ============================================================================
+def _sanitize_predictions(result: dict) -> dict:
+    """Clamp predicted_price / predicted_change_pct to physically plausible
+    bounds. Catches the case where the MLP extrapolates wildly (e.g. PLD
+    returning predicted_price=-23 with confidence=90, which would otherwise
+    get persisted as a -116% high-confidence call and corrupt downstream
+    accuracy metrics).
+
+    Floors price at 0.01. Per-horizon change-pct bounds:
+      1w  : ±15%
+      1m  : ±30%
+      6m  : ±60%
+      1y  : ±100%
+
+    When any clamp fires for a horizon, that horizon's confidence_score is
+    knocked down to 25 (a clamped prediction is a low-trust prediction).
+    Writes a one-line stderr note so the clamp event is visible in logs.
+    """
+    horizons = [
+        ('1w', 15.0),
+        ('1m', 30.0),
+        ('6m', 60.0),
+        ('1y', 100.0),
+    ]
+    ticker = result.get('ticker', '?')
+    for h, bound in horizons:
+        price_key = f'predicted_price_{h}'
+        pct_key   = f'predicted_change_pct_{h}'
+        conf_key  = f'confidence_score_{h}'
+        price = result.get(price_key)
+        pct   = result.get(pct_key)
+        if price is None or pct is None:
+            continue
+        clamped = False
+        # Floor price at 0.01 — negative prices are unphysical
+        if isinstance(price, (int, float)) and price < 0.01:
+            print(f"[sanitize] {ticker} {h}: price {price} → 0.01 (was negative)", file=sys.stderr)
+            result[price_key] = 0.01
+            clamped = True
+        # Clamp change pct
+        if isinstance(pct, (int, float)) and abs(pct) > bound:
+            new_pct = max(-bound, min(bound, pct))
+            print(f"[sanitize] {ticker} {h}: change_pct {pct} → {new_pct} (out of ±{bound}% bound)", file=sys.stderr)
+            result[pct_key] = new_pct
+            clamped = True
+        if clamped:
+            # Knock confidence to 25 — a clamped output is low-trust
+            result[conf_key] = 25
+    return result
+
+
 def predict(ticker, input_data):
     historical_data    = input_data.get('historicalData', [])
     stock_metrics      = input_data.get('stockMetrics', {})
@@ -1256,6 +1306,13 @@ def predict(ticker, input_data):
             feat_df[col] = 0.0
 
     regime_vec = feat_df[regime_vec_cols].values.astype(np.float32)
+    # Sanitize: some international/REIT tickers (e.g. SRU-UN.TO, ENR.DE)
+    # produce inf/NaN in one of the macro ratios (DXY_Return_20d divided by
+    # a zero-window sample, etc.) which crashes the downstream sklearn
+    # MinMaxScaler / GaussianMixture with "Input X contains infinity".
+    # Replace inf/-inf/NaN with 0 so the regime detector can proceed
+    # instead of 500-ing the entire prediction.
+    regime_vec = np.nan_to_num(regime_vec, nan=0.0, posinf=0.0, neginf=0.0)
 
     # Select K using gate logic (now returns fitted model)
     k, fitted_regime_model, regime_scaler = select_regime_k(regime_vec)
@@ -1311,6 +1368,12 @@ def predict(ticker, input_data):
 
     n_features = len(extended_feature_cols)
     raw = feat_df.values.astype(np.float32)
+    # Same sanitization as the regime_vec above. ffill/bfill/fillna(0) on the
+    # DataFrame handles NaN but NOT inf/-inf — and some macro ratios (e.g.
+    # FX-relative momentum on .TO / .DE listings against SPY) divide by a
+    # zero-window sample and produce inf, which crashes
+    # MinMaxScaler.fit_transform with "Input X contains infinity".
+    raw = np.nan_to_num(raw, nan=0.0, posinf=0.0, neginf=0.0)
 
     # Store regime info for output
     current_regime_idx = int(regime_labels[-1])
@@ -1641,6 +1704,11 @@ if __name__ == '__main__':
         else:
             result = predict(args.ticker, input_data)
             save_to_cache(ckey, result)
+
+        # Clamp out-of-bounds predictions before anything downstream sees
+        # them (recorder, GPS, dashboard). Run on cached results too in
+        # case an older cached entry has wild values from a prior bug.
+        result = _sanitize_predictions(result)
 
         # Filter result based on outlook if not 'all'
         if args.outlook != 'all':
