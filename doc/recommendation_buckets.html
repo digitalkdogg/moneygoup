@@ -277,9 +277,9 @@
                     <li><strong>Detection:</strong> Each portfolio item is checked against Yahoo Finance's <code>quoteType</code>. If <code>quoteType === 'ETF'</code>, the item is flagged <code>is_etf: true</code> and its top holdings are fetched via <code>GET /api/stock_data/{ticker}/holdings</code>.</li>
                     <li><strong>Thresholds (all three must be met):</strong>
                         <ul>
-                            <li>GPS score &ge; <code>ETF_HOLDING_GPS_SURFACE_VALUE</code> (default 60)</li>
-                            <li>Predicted price change &ge; <code>ETF_HOLDING_MIN_PRED_CHANGE</code>% (default 1.5%)</li>
-                            <li>AI confidence score &ge; <code>ETF_HOLDING_MIN_CONFIDENCE</code> (default 60)</li>
+                            <li>GPS score &ge; <code>preset.gpsSurfaceValue</code> (level 5 default 60) — resolved from <code>ETF_HOLDING_ALGORITHM</code> via <code>models/etf_holding_presets.json</code></li>
+                            <li>Predicted price change &ge; <code>preset.minPredChangePct</code>% (level 5 default 1.8%) — same source</li>
+                            <li>AI confidence score &ge; <code>ETF_HOLDING_MIN_CONFIDENCE</code> (default 60) — independent of the preset</li>
                         </ul>
                     </li>
                     <li><strong>Card sub-label:</strong> Displays "In {ETF ticker}" (e.g., "In VGT") instead of the standard timestamp, so the user knows which of their ETFs contains this holding.</li>
@@ -289,12 +289,13 @@
                 </ul>
                 <div class="criteria-box">
                     Source: etf_stock_recommendations table<br>
-                    GPS &ge; ETF_HOLDING_GPS_SURFACE_VALUE (default 60)<br>
-                    predicted_change_pct &ge; ETF_HOLDING_MIN_PRED_CHANGE (default 1.5%)<br>
-                    confidence_score &ge; ETF_HOLDING_MIN_CONFIDENCE (default 60)
+                    GPS &ge; preset.gpsSurfaceValue (L5=60)<br>
+                    predicted_change_pct &ge; preset.minPredChangePct (L5=1.8%)<br>
+                    confidence_score &ge; ETF_HOLDING_MIN_CONFIDENCE (default 60)<br>
+                    Preset resolved from ETF_HOLDING_ALGORITHM (1.0..10.0, default 5)
                 </div>
-                <div class="threshold-pill">GPS: 60 (default)</div>
-                <div class="threshold-pill">Pred change: +1.5% (default)</div>
+                <div class="threshold-pill">GPS: 60 (L5)</div>
+                <div class="threshold-pill">Pred change: +1.8% (L5)</div>
                 <div class="threshold-pill">Confidence: 60 (default)</div>
             </div>
         </section>
@@ -321,22 +322,20 @@ portfolioEtfTickers={portfolioEtfTickers}
 
         <section id="config">
             <h2>Environment Configuration</h2>
-            <p>The signal thresholds for these buckets are configurable via <code>.env.local</code> / <code>.env.production</code>. The canonical variable names as of June 2026 are:</p>
+            <p>The signal thresholds for these buckets are configurable via <code>.env.local</code> / <code>.env.production</code>. As of v2.8, ETF holding tuning is collapsed under a single integer knob (<code>ETF_HOLDING_ALGORITHM</code>, 1–10, default 5) that resolves through <code>models/etf_holding_presets.json</code>. See <a href="moneygoup_overview.html#env-vars-deepmoney">App Overview · Env Vars</a> for the full preset table and per-level values.</p>
             <table>
                 <thead><tr><th>Variable</th><th>Default</th><th>Applies to bucket</th></tr></thead>
                 <tbody>
                     <tr><td><code>RECOMMENDATION_PORTFOLIO_POSITIVE_THRESHOLD</code></td><td>+3%</td><td>Portfolio (legacy GPS v2; still honoured)</td></tr>
                     <tr><td><code>RECOMMENDATION_PORTFOLIO_NEGATIVE_THRESHOLD</code></td><td>-3%</td><td>Portfolio (legacy GPS v2; still honoured)</td></tr>
                     <tr><td><code>RECOMMENDATION_WATCHLIST_THRESHOLD</code></td><td>+5%</td><td>Watchlist &amp; Discovery</td></tr>
-                    <tr><td><code>ETF_HOLDING_GPS_SURFACE_VALUE</code></td><td>60</td><td>ETF Holding — GPS gate</td></tr>
-                    <tr><td><code>ETF_HOLDING_MIN_PRED_CHANGE</code></td><td>1.5</td><td>ETF Holding — prediction change gate</td></tr>
-                    <tr><td><code>ETF_HOLDING_MIN_CONFIDENCE</code></td><td>60</td><td>ETF Holding — confidence gate</td></tr>
-                    <tr><td><code>ETF_HOLDING_TOP_N</code></td><td>5</td><td>ETF Holding — how many holdings to scan per ETF (TypeScript discovery)</td></tr>
-                    <tr><td><code>ETF_HOLDING_MAX_BETA</code></td><td>2.0</td><td>ETF Holding — max beta for inclusion</td></tr>
-                    <tr><td><code>ETF_HOLDING_STALENESS_HOURS</code></td><td>6</td><td>ETF Holding — cache staleness before re-fetch</td></tr>
-                    <tr><td><code>ETF_HOLDING_MAX_TICKERS</code></td><td>50</td><td>ETF Holding — max distinct tickers per ETF scan</td></tr>
+                    <tr><td><code>ETF_HOLDING_ALGORITHM</code></td><td>5</td><td>ETF Holding — single preset knob (1–10). Resolves into <code>etfGpsThreshold</code>, <code>topNEtfs</code>, <code>maxTickers</code>, <code>gpsSurfaceValue</code>, <code>minPredChangePct</code>.</td></tr>
+                    <tr><td><code>ETF_HOLDING_MIN_CONFIDENCE</code></td><td>60</td><td>ETF Holding — confidence gate (independent of the preset)</td></tr>
+                    <tr><td><code>ETF_HOLDING_MAX_BETA</code></td><td>2.0</td><td>ETF Holding — max beta for inclusion (independent of the preset)</td></tr>
+                    <tr><td><code>ETF_HOLDING_STALENESS_HOURS</code></td><td>4</td><td>ETF Holding — cache staleness before re-fetch</td></tr>
                 </tbody>
             </table>
+            <p style="font-size:.85rem;color:#666;margin-top:.5rem;">Retired (replaced by <code>ETF_HOLDING_ALGORITHM</code>): <code>ETF_HOLDING_GPS_SURFACE_VALUE</code>, <code>ETF_HOLDING_MIN_PRED_CHANGE</code>, <code>ETF_HOLDING_MAX_TICKERS</code>, <code>ETF_HOLDING_TOP_N</code>, in-code <code>ETF_GPS_THRESHOLD</code>.</p>
         </section>
 
         <footer>

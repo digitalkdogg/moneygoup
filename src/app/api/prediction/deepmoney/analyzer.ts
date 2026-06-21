@@ -76,6 +76,10 @@ export interface AnalyzeOptions {
      *  to bypass the ranker keep-cut. Also driven by DEEPMONEY_ALGORITHM —
      *  higher levels lower this threshold, surfacing more analyst picks. */
     analystStrongBuyThreshold?: number;
+    /** Pre-filter floor on the technical signal score. Stocks with
+     *  tradingSignalScore below this floor are dropped before the ranker.
+     *  Defaults to 0 (preserves the historic >= 0 gate). */
+    signalScoreFloor?: number;
 }
 
 const BATCH_SIZE = 3;
@@ -109,9 +113,11 @@ export async function analyzeStocks(
     const mlGate                    = options.mlGate                    ?? 1.5;
     const rankerKeepPct             = options.rankerKeepPct             ?? 0.25;
     const analystStrongBuyThreshold = options.analystStrongBuyThreshold ?? 4;
+    const signalScoreFloor          = options.signalScoreFloor          ?? 0;
 
-    // Pre-filter: skip enrichment failures, negative technical signals, or
-    // tickers with too little OHLCV history for the ranker / MC to work.
+    // Pre-filter: skip enrichment failures, technical signals below the
+    // preset-driven floor, or tickers with too little OHLCV history for
+    // the ranker / MC to work.
     const initialFilteredStocks = stocks.filter(stock => {
         if (stock.error || stock.tradingSignalScore === undefined) {
             return false;
@@ -119,7 +125,7 @@ export async function analyzeStocks(
         if (stock.historyRows !== undefined && stock.historyRows < 100) {
             return false;
         }
-        return stock.tradingSignalScore >= 0;
+        return stock.tradingSignalScore >= signalScoreFloor;
     });
 
     if (initialFilteredStocks.length === 0) {

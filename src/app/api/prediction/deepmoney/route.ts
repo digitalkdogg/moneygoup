@@ -681,6 +681,7 @@ export async function GET(request: NextRequest) {
                 mlGate,
                 rankerKeepPct: algorithm.rankerKeepPct,
                 analystStrongBuyThreshold: algorithm.analystStrongBuyThreshold,
+                signalScoreFloor: algorithm.signalScoreFloor,
             },
         );
 
@@ -709,10 +710,10 @@ export async function GET(request: NextRequest) {
                 algorithm,
                 debug: {
                     rejectedEnrichment: enrichedStocks.filter(s => s.error).length,
-                    rejectedSignalScore: enrichedStocks.filter(s => !s.error && (s.tradingSignalScore === undefined || s.tradingSignalScore < 0)).length,
-                    rejectedHistory: enrichedStocks.filter(s => !s.error && s.tradingSignalScore >= 0 && s.historyRows < 100).length,
-                    passedToAnalyzer: enrichedStocks.filter(s => !s.error && s.tradingSignalScore >= 0 && s.historyRows >= 100).length,
-                    rejectedByRanker: enrichedStocks.filter(s => !s.error && s.tradingSignalScore >= 0 && s.historyRows >= 100).length - filteredStocks.length,
+                    rejectedSignalScore: enrichedStocks.filter(s => !s.error && (s.tradingSignalScore === undefined || s.tradingSignalScore < algorithm.signalScoreFloor)).length,
+                    rejectedHistory: enrichedStocks.filter(s => !s.error && s.tradingSignalScore !== undefined && s.tradingSignalScore >= algorithm.signalScoreFloor && s.historyRows < 100).length,
+                    passedToAnalyzer: enrichedStocks.filter(s => !s.error && s.tradingSignalScore !== undefined && s.tradingSignalScore >= algorithm.signalScoreFloor && s.historyRows >= 100).length,
+                    rejectedByRanker: enrichedStocks.filter(s => !s.error && s.tradingSignalScore !== undefined && s.tradingSignalScore >= algorithm.signalScoreFloor && s.historyRows >= 100).length - filteredStocks.length,
                     filteredCount: filteredStocks.length,
                     predictionThreshold: `${mlGate}%`,
                     analystConsensusSurfaced: filteredStocks.filter(s => s.discovery_source === 'analyst_consensus').length,

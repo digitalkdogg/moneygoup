@@ -181,22 +181,31 @@ def load_model_and_manifest(model_path: Path, manifest_path: Path) -> Tuple[lgb.
         )
     booster = lgb.Booster(model_file=str(model_path))
 
+    # When a manifest is present, return the columns *in manifest order* so the
+    # feature matrix fed to booster.predict matches the column positions used
+    # at training time. Order-only drift from ranker_features.FEATURE_COLUMNS
+    # is recoverable; set-level drift (added/removed columns) is not.
+    feature_cols: List[str] = FEATURE_COLUMNS
     if manifest_path.exists():
         manifest = json.loads(manifest_path.read_text())
         manifest_cols = manifest.get("feature_columns")
-        if manifest_cols and manifest_cols != FEATURE_COLUMNS:
-            raise RuntimeError(
-                f"Feature column drift: model was trained with "
-                f"{len(manifest_cols)} columns but ranker_features.py exposes "
-                f"{len(FEATURE_COLUMNS)}. Retrain or align before scoring."
-            )
+        if manifest_cols:
+            if set(manifest_cols) != set(FEATURE_COLUMNS):
+                added = set(FEATURE_COLUMNS) - set(manifest_cols)
+                removed = set(manifest_cols) - set(FEATURE_COLUMNS)
+                raise RuntimeError(
+                    f"Feature column drift: model trained with {len(manifest_cols)} cols, "
+                    f"ranker_features.py exposes {len(FEATURE_COLUMNS)}. "
+                    f"Added={sorted(added)} Removed={sorted(removed)}. Retrain or align."
+                )
+            feature_cols = list(manifest_cols)
         if manifest.get("feature_set_version") and manifest["feature_set_version"] != FEATURE_SET_VERSION:
             raise RuntimeError(
                 f"Feature-set version mismatch: model='{manifest['feature_set_version']}' "
                 f"vs ranker_features.py='{FEATURE_SET_VERSION}'."
             )
 
-    return booster, FEATURE_COLUMNS
+    return booster, feature_cols
 
 
 # ─── Scoring ────────────────────────────────────────────────────────────────

@@ -718,26 +718,28 @@ Body:
       <section id="strategy-gates-etf">
         <h3>Strategy-Aware ETF Gates</h3>
         <div class="step-card">
-          <p>ETF holding thresholds are computed per user using three layers:</p>
+          <p>ETF holding thresholds are computed per user using three layers (v2.8 — preset-driven):</p>
           <ol style="margin-left:1.5rem;">
-            <li style="margin-bottom:.5rem;"><strong>Environment baseline:</strong> <code>ETF_HOLDING_GPS_SURFACE_VALUE</code> (default 60), <code>ETF_HOLDING_MIN_PRED_CHANGE</code> (default 1.5%), <code>ETF_HOLDING_MIN_CONFIDENCE</code> (default 60).</li>
-            <li style="margin-bottom:.5rem;"><strong>Aggressiveness multiplier</strong> from <code>resolve_strategy(user_strategy)</code>: <code>safe=1.05</code>, <code>neutral=1.0</code>, <code>aggressive=0.95</code>. Applied to all three baseline thresholds. Safe users require higher scores; aggressive users accept lower scores.</li>
-            <li style="margin-bottom:.5rem;"><strong>Predicted-change floor:</strong> <code>max(env_pred_threshold * mult, gates['predChangeGate'])</code>. If the strategy's own absolute gate (safe=3%, neutral=1.5%, aggressive=0.5%) is stricter than the env-scaled baseline, it takes priority.</li>
+            <li style="margin-bottom:.5rem;"><strong>Preset baseline:</strong> <code>preset.gpsSurfaceValue</code> and <code>preset.minPredChangePct</code> resolved from <code>ETF_HOLDING_ALGORITHM</code> (1.0–10.0, default 5) via <code>scripts/etf_holding_preset.py</code> → <code>models/etf_holding_presets.json</code>. The independent env var <code>ETF_HOLDING_MIN_CONFIDENCE</code> (default 60) is the third floor.</li>
+            <li style="margin-bottom:.5rem;"><strong>Aggressiveness multiplier</strong> from <code>resolve_strategy(user_strategy)</code>: <code>safe=1.05</code>, <code>neutral=1.0</code>, <code>aggressive=0.95</code>. Applied to all three baselines. Safe users require higher scores; aggressive users accept lower scores.</li>
+            <li style="margin-bottom:.5rem;"><strong>Predicted-change floor:</strong> <code>max(preset.minPredChangePct * mult, gates['predChangeGate'])</code>. If the strategy's own absolute gate (safe=3%, neutral=1.5%, aggressive=0.5%) is stricter than the preset-scaled baseline, it takes priority.</li>
           </ol>
           <div class="formula">
-gps_threshold  = ETF_HOLDING_GPS_SURFACE_VALUE * mult
-pred_threshold = max(ETF_HOLDING_MIN_PRED_CHANGE * mult, gates.predChangeGate)
+gps_threshold  = preset.gpsSurfaceValue  * mult
+pred_threshold = max(preset.minPredChangePct * mult, gates.predChangeGate)
 conf_threshold = ETF_HOLDING_MIN_CONFIDENCE * mult
 
-# Example: safe user (mult=1.05, predChangeGate=3.0)
+# Example: safe user (mult=1.05, predChangeGate=3.0), ETF_HOLDING_ALGORITHM=5
+# preset.gpsSurfaceValue=60, preset.minPredChangePct=1.8
 # gps_threshold  = 60 * 1.05 = 63.0
-# pred_threshold = max(1.5 * 1.05, 3.0) = max(1.575, 3.0) = 3.0%
+# pred_threshold = max(1.8 * 1.05, 3.0) = max(1.89, 3.0) = 3.0%
 # conf_threshold = 60 * 1.05 = 63.0
 
-# Example: aggressive user (mult=0.95, predChangeGate=0.5)
+# Example: aggressive user (mult=0.95, predChangeGate=0.5), ETF_HOLDING_ALGORITHM=5
 # gps_threshold  = 60 * 0.95 = 57.0
-# pred_threshold = max(1.5 * 0.95, 0.5) = max(1.425, 0.5) = 1.425%
+# pred_threshold = max(1.8 * 0.95, 0.5) = max(1.71, 0.5) = 1.71%
 # conf_threshold = 60 * 0.95 = 57.0</div>
+          <p style="font-size:.85rem;color:#666;margin-top:.5rem;"><strong>Retired:</strong> Direct env vars <code>ETF_HOLDING_GPS_SURFACE_VALUE</code> and <code>ETF_HOLDING_MIN_PRED_CHANGE</code> are no longer read — they're sourced from the preset instead. Tune via <code>ETF_HOLDING_ALGORITHM</code>.</p>
         </div>
       </section>
     </section>

@@ -470,7 +470,7 @@ alternates: {
 http://localhost:3001/login/opengraph-image
 http://localhost:3001/register/opengraph-image</pre>
       <div class="note">
-        These paths must be in <code>PUBLIC_PATHS</code> in <code>src/middleware.ts</code>, otherwise the auth middleware will redirect them to login — breaking social sharing.
+        These paths must be in <code>PUBLIC_PATHS</code> in <code>src/proxy.ts</code>, otherwise the auth middleware will redirect them to login — breaking social sharing.
       </div>
 
       <h3 class="subsection-title">How they work</h3>
@@ -553,7 +553,7 @@ http://localhost:3001/register/opengraph-image</pre>
       </p>
 
       <h3 class="subsection-title">File location</h3>
-      <pre>src/middleware.ts</pre>
+      <pre>src/proxy.ts</pre>
 
       <h3 class="subsection-title">How it works</h3>
       <div class="arch-card">
@@ -613,7 +613,7 @@ http://localhost:3001/register/opengraph-image</pre>
         <li>
           <div class="step-body">
             <strong>Add to PUBLIC_PATHS</strong>
-            <p>In <code>src/middleware.ts</code>, add the path to the <code>PUBLIC_PATHS</code> array so unauthenticated visitors (and crawlers) can reach it.</p>
+            <p>In <code>src/proxy.ts</code>, add the path to the <code>PUBLIC_PATHS</code> array so unauthenticated visitors (and crawlers) can reach it.</p>
           </div>
         </li>
         <li>

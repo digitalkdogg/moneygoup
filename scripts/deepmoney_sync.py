@@ -260,11 +260,16 @@ def sync_deepmoney():
             #     every stock arriving here is a ranker survivor.
 
             # 4.2 Confidence-vs-beta gate driven by the algorithm preset.
+            # High-beta stocks (beta > 2.5) face the stricter volGateFloor;
+            # everything else faces the mlpConfidenceFloor. The skip tag in
+            # the log distinguishes which floor fired so we can audit runs.
             conf_score = pred_input.get('confidence_score') or pred_input.get('confidence_score_1m') or 0
             beta_val = s.get('beta') or 1.0
-            confidence_floor = vol_gate_floor if beta_val > 2.5 else mlp_confidence_floor
+            high_beta = beta_val > 2.5
+            confidence_floor = vol_gate_floor if high_beta else mlp_confidence_floor
+            floor_label = "vol-floor" if high_beta else "mlp-floor"
             if conf_score < confidence_floor:
-                print(f"  [vol-gate] SKIP {ticker}: CS {conf_score} < floor {confidence_floor} (beta {beta_val:.2f})")
+                print(f"  [vol-gate] SKIP {ticker} ({floor_label}): CS {conf_score} < floor {confidence_floor} (beta {beta_val:.2f})")
                 counters["vol_gate_rejected"] += 1
                 continue
 

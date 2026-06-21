@@ -706,7 +706,7 @@
                     </tbody>
                 </table>
                 <div class="highlight-box">
-                    <strong>Surfacing thresholds (env-configurable):</strong> A holding is flagged <code>surfaced = true</code> in the API response — and therefore eligible to be written to <code>etf_stock_recommendations</code> — when all of the following conditions pass: <code>gps_score &gt;= ETF_HOLDING_GPS_SURFACE_VALUE</code> (default 60), <code>predicted_change_pct &gt;= ETF_HOLDING_MIN_PRED_CHANGE</code> (default 1.5 %), <code>bearish_signal = false</code>, and <code>beta &lt;= ETF_HOLDING_MAX_BETA</code> (default 2.0) or beta is null.
+                    <strong>Surfacing thresholds (preset-driven, v2.8):</strong> A holding is flagged <code>surfaced = true</code> in the API response — and therefore eligible to be written to <code>etf_stock_recommendations</code> — when all of the following conditions pass: <code>gps_score &gt;= preset.gpsSurfaceValue</code> (L5 default 60), <code>predicted_change_pct &gt;= preset.minPredChangePct</code> (L5 default 1.8 %), <code>bearish_signal = false</code>, and <code>beta &lt;= ETF_HOLDING_MAX_BETA</code> (default 2.0) or beta is null. The first two come from <code>ETF_HOLDING_ALGORITHM</code> resolved via <code>models/etf_holding_presets.json</code>; <code>ETF_HOLDING_MAX_BETA</code> stays as an independent env knob.
                 </div>
             </div>
 

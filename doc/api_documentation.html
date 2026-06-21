@@ -616,7 +616,7 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
           <thead><tr><th>Category</th><th>Threshold</th><th>Source</th></tr></thead>
           <tbody>
             <tr><td>Hot stocks</td><td><code>GPS_DEEPMONEY_MIN_SCORE</code> env var (default 65)</td><td><code>getStockGpsThreshold()</code></td></tr>
-            <tr><td>Hot ETFs</td><td>75 (hard-coded constant <code>ETF_GPS_THRESHOLD</code>)</td><td>Module constant</td></tr>
+            <tr><td>Hot ETFs</td><td><code>preset.etfGpsThreshold</code> (L5 default 58) resolved from <code>ETF_HOLDING_ALGORITHM</code></td><td><code>resolveEtfHoldingAlgorithm()</code></td></tr>
             <tr><td>ETF holdings</td><td>No GPS filter — all <code>type='etf_holding'</code> rows for the snapshot date</td><td>Deduplicated by ticker</td></tr>
           </tbody>
         </table>

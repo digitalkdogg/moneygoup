@@ -771,7 +771,12 @@ bearish_signal = predicted_change_pct &lt; 0</code></pre>
           <tr>
             <td><code>DEEPMONEY_ALGORITHM</code></td>
             <td><code>5</code></td>
-            <td>Integer 1-10 single knob for the deepmoney pipeline (resolves to <code>rankerKeepPct</code>, <code>mlpConfidenceFloor</code>, <code>volGateFloor</code> via <code>models/algorithm_presets.json</code>). Replaces both <code>DEEPMONEY_GPS_VALUE</code> and <code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code> — the recommended_stocks and dashboard gates are now derived from the resolved MLP confidence floor, not from GPS.</td>
+            <td>Float 1.0–10.0 single knob for the deepmoney pipeline (resolves to <code>rankerKeepPct</code>, <code>mlpConfidenceFloor</code>, <code>volGateFloor</code>, <code>analystStrongBuyThreshold</code> via <code>models/algorithm_presets.json</code>; fractional levels interpolate). Recommended_stocks and dashboard gates derive from the resolved MLP confidence floor, not GPS. Retired predecessors: <code>DEEPMONEY_GPS_VALUE</code>, <code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code>, <code>DEEPMONEY_ANALYST_THRESHOLD</code>, <code>DEEPMONEY_USE_RANKER_GATE</code>, <code>DEEPMONEY_TIER2_TOPK</code>.</td>
+          </tr>
+          <tr>
+            <td><code>ETF_HOLDING_ALGORITHM</code></td>
+            <td><code>5</code></td>
+            <td>Float 1.0–10.0 single knob for ETF qualification + holdings surfacing (resolves to <code>etfGpsThreshold</code>, <code>topNEtfs</code>, <code>maxTickers</code>, <code>gpsSurfaceValue</code>, <code>minPredChangePct</code> via <code>models/etf_holding_presets.json</code>). Retired predecessors: in-code <code>ETF_GPS_THRESHOLD</code>, <code>ETF_HOLDING_MAX_TICKERS</code>, <code>ETF_HOLDING_GPS_SURFACE_VALUE</code>, <code>ETF_HOLDING_MIN_PRED_CHANGE</code>.</td>
           </tr>
         </tbody>
       </table>

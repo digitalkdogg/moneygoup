@@ -27,6 +27,12 @@ export interface AlgorithmPreset {
      *  picks. Stocks routed via this lane still need positive predicted
      *  change to be surfaced (mlGate is bypassed, the > 0 floor is not). */
     analystStrongBuyThreshold: number;
+    /** Pre-filter floor on the technical signal score. Stocks with
+     *  tradingSignalScore below this floor are dropped before the ranker
+     *  runs. Lower levels demand bullish technicals (positive scores);
+     *  higher levels tolerate weakly-bearish stocks so contrarian picks
+     *  can reach the ranker. */
+    signalScoreFloor: number;
 }
 
 export interface ResolvedAlgorithm extends AlgorithmPreset {
@@ -62,23 +68,44 @@ function lerp(a: number, b: number, t: number): number {
     return a + (b - a) * t;
 }
 
+/** MLP confidence score is emitted as one of four discrete buckets. Any
+ *  floor that falls between two buckets is functionally equivalent to the
+ *  next bucket up — e.g. floor=71.5 only ever lets CS=75 through, the
+ *  same as floor=75. Snap interpolated floors up so the resolved preset
+ *  reflects the *effective* threshold rather than the raw lerp output. */
+const CONFIDENCE_BUCKETS = [35, 50, 65, 75] as const;
+function snapToBucketCeiling(value: number): number {
+    for (const bucket of CONFIDENCE_BUCKETS) {
+        if (value <= bucket) return bucket;
+    }
+    return CONFIDENCE_BUCKETS[CONFIDENCE_BUCKETS.length - 1];
+}
+
 /** Return the preset for the given level. Integer levels return the table
  *  entry directly; fractional levels are linearly interpolated between the
  *  two adjacent integer entries. analystStrongBuyThreshold is rounded to the
- *  nearest integer at the end since strongBuy counts from Yahoo are integers. */
+ *  nearest integer at the end since strongBuy counts from Yahoo are integers.
+ *  MLP/vol floors are snapped to discrete CS buckets {35,50,65,75}. */
 export function loadAlgorithmPreset(level: number): AlgorithmPreset {
     const table = loadTable();
     const lowerKey = Math.floor(level);
     const upperKey = Math.ceil(level);
     const lowerEntry = table[String(lowerKey)] ?? table[String(DEFAULT_LEVEL)];
-    if (lowerKey === upperKey) return lowerEntry;
+    if (lowerKey === upperKey) {
+        return {
+            ...lowerEntry,
+            mlpConfidenceFloor: snapToBucketCeiling(lowerEntry.mlpConfidenceFloor),
+            volGateFloor:       snapToBucketCeiling(lowerEntry.volGateFloor),
+        };
+    }
     const upperEntry = table[String(upperKey)] ?? lowerEntry;
     const t = level - lowerKey; // 0..1 interpolation factor
     return {
         rankerKeepPct:             lerp(lowerEntry.rankerKeepPct,             upperEntry.rankerKeepPct,             t),
-        mlpConfidenceFloor:        lerp(lowerEntry.mlpConfidenceFloor,        upperEntry.mlpConfidenceFloor,        t),
-        volGateFloor:              lerp(lowerEntry.volGateFloor,              upperEntry.volGateFloor,              t),
+        mlpConfidenceFloor:        snapToBucketCeiling(lerp(lowerEntry.mlpConfidenceFloor, upperEntry.mlpConfidenceFloor, t)),
+        volGateFloor:              snapToBucketCeiling(lerp(lowerEntry.volGateFloor,       upperEntry.volGateFloor,       t)),
         analystStrongBuyThreshold: Math.round(lerp(lowerEntry.analystStrongBuyThreshold, upperEntry.analystStrongBuyThreshold, t)),
+        signalScoreFloor:          lerp(lowerEntry.signalScoreFloor,          upperEntry.signalScoreFloor,          t),
     };
 }
 
