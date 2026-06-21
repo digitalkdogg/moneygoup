@@ -478,6 +478,21 @@ def run_prediction_for_holding(ticker: str,
     predicted_price_1y   = prediction_result.get('predicted_price_1y')
 
     sm = stock_data.get('stockMetrics', {})
+
+    # Record to analytics prediction_records — mirrors the hot-stock path so
+    # ETF holdings contribute to the same accuracy stats. Without this,
+    # holdings predictions are computed and discarded for analytics purposes.
+    price_at_prediction = sm.get('regularMarketPrice', predicted_price)
+    if price_at_prediction and (predicted_price_1w or predicted_price or predicted_price_6m or predicted_price_1y):
+        record_prediction(
+            symbol=ticker,
+            price_at_prediction=price_at_prediction,
+            predicted_price_1w=predicted_price_1w,
+            predicted_price_1m=predicted_price,
+            predicted_price_6m=predicted_price_6m,
+            predicted_price_1y=predicted_price_1y,
+        )
+
     rec_key = (stock_data.get('recommendationKey')
                or sm.get('recommendationKey')
                or _recommendation_mean_to_key(sm.get('recommendationMean')))

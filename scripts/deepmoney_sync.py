@@ -248,12 +248,36 @@ def sync_deepmoney():
             gps = s.get('gps_score', 0)
             gps_breakdown = s.get('gps_breakdown') or {}
             pred_input = s.get('prediction_input') or {}
-            
+
             # Prediction metrics (Extraction from prediction_input)
             predicted_change_pct = pred_input.get('predicted_change_pct')
             if predicted_change_pct is None:
                 predicted_change_pct = pred_input.get('predicted_change_pct_1m')
             predicted_change_pct = predicted_change_pct or 0
+
+            # Per-horizon predicted prices — pulled up here so we can persist
+            # them to analytics *before* any gating drops the stock.
+            price = s.get('price')
+            predicted_price_1w = pred_input.get('predicted_price_1w')
+            predicted_price_1m = pred_input.get('predicted_price_1m')
+            if predicted_price_1m is None:
+                predicted_price_1m = pred_input.get('predicted_price')
+            predicted_price_6m = pred_input.get('predicted_price_6m')
+            predicted_price_1y = pred_input.get('predicted_price_1y')
+
+            # Record to analytics prediction_records table BEFORE the vol-gate
+            # check. Every ranker survivor has a real per-horizon prediction;
+            # recording the rejects too lets us audit how well the floor was
+            # calibrated (was the model right to be confident?).
+            if price and (predicted_price_1w or predicted_price_1m or predicted_price_6m or predicted_price_1y):
+                record_prediction(
+                    symbol=ticker,
+                    price_at_prediction=price,
+                    predicted_price_1w=predicted_price_1w,
+                    predicted_price_1m=predicted_price_1m,
+                    predicted_price_6m=predicted_price_6m,
+                    predicted_price_1y=predicted_price_1y,
+                )
 
             # 4.1 (removed) Per-stock GPS gate — the LightGBM ranker already
             #     filtered the universe server-side via algorithm.rankerKeepPct;
@@ -275,41 +299,22 @@ def sync_deepmoney():
 
             counters["stocks_written"] += 1
             print(f"  > {ticker} (GPS: {gps}, Pred: {predicted_change_pct}%)")
-            
+
             # Map V2 fields to DB variables
             stock_type = "hot_stocks"
             name = s.get('name')
-            price = s.get('price')
             classification = s.get('sector', 'Unknown')
-            
+
             # Scaling
             upside = (s.get('analystUpside') or 0) * 100
             rev_growth = (s.get('revenueGrowth') or 0) * 100
             margin = (s.get('grossMargins') or 0) * 100
-            
+
             total_rev = s.get('totalRevenue') or 0
             rd_spend = s.get('researchDevelopment') or 0
             rd_pct = min((rd_spend / total_rev) * 100, 999999.99) if total_rev > 0 else 0
-            
-            market_cap_m = (s.get('marketCap') or 0) / 1e6
-            
-            predicted_price_1w = pred_input.get('predicted_price_1w')
-            predicted_price_1m = pred_input.get('predicted_price_1m')
-            if predicted_price_1m is None:
-                predicted_price_1m = pred_input.get('predicted_price')
-            predicted_price_6m = pred_input.get('predicted_price_6m')
-            predicted_price_1y = pred_input.get('predicted_price_1y')
 
-            # Record to analytics prediction_records table (fire-and-forget)
-            if price and (predicted_price_1w or predicted_price_1m or predicted_price_6m or predicted_price_1y):
-                record_prediction(
-                    symbol=ticker,
-                    price_at_prediction=price,
-                    predicted_price_1w=predicted_price_1w,
-                    predicted_price_1m=predicted_price_1m,
-                    predicted_price_6m=predicted_price_6m,
-                    predicted_price_1y=predicted_price_1y,
-                )
+            market_cap_m = (s.get('marketCap') or 0) / 1e6
 
             metric_val = predicted_change_pct
             metric_lbl = f"CS: {pred_input.get('confidence_score')}" if pred_input.get('confidence_score') is not None else None

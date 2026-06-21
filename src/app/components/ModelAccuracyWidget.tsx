@@ -114,25 +114,58 @@ export default function ModelAccuracyWidget() {
         </span>
       </div>
 
-      {/* Horizon Selector */}
-      <div className="flex gap-2 mb-6 flex-wrap">
-        {(Object.keys(HORIZON_LABELS) as HorizonKey[]).map((horizon) => (
-          <button
-            key={horizon}
-            onClick={() => setSelectedHorizon(horizon)}
-            className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-              selectedHorizon === horizon
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            {HORIZON_LABELS[horizon]}
-          </button>
-        ))}
+      {/* Horizon Selector — native <select> on mobile, button group on md+.
+          Both pathways advertise their active selection to assistive tech
+          (aria-pressed on the buttons, native semantics on the select) and
+          carry a visible label for screen readers. */}
+      <div className="mb-6 md:hidden">
+        <label
+          htmlFor="model-accuracy-horizon"
+          className="block text-xs font-medium text-gray-700 mb-1"
+        >
+          Prediction horizon
+        </label>
+        <select
+          id="model-accuracy-horizon"
+          value={selectedHorizon}
+          onChange={(e) => setSelectedHorizon(e.target.value as HorizonKey)}
+          className="block w-full min-h-[44px] rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:border-blue-600"
+        >
+          {(Object.keys(HORIZON_LABELS) as HorizonKey[]).map((horizon) => (
+            <option key={horizon} value={horizon}>
+              {HORIZON_LABELS[horizon]}
+            </option>
+          ))}
+        </select>
       </div>
 
-      {/* Three-Column Metrics Row */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div
+        role="group"
+        aria-label="Prediction horizon"
+        className="hidden md:flex gap-2 mb-6 flex-wrap"
+      >
+        {(Object.keys(HORIZON_LABELS) as HorizonKey[]).map((horizon) => {
+          const isActive = selectedHorizon === horizon;
+          return (
+            <button
+              key={horizon}
+              type="button"
+              onClick={() => setSelectedHorizon(horizon)}
+              aria-pressed={isActive}
+              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 ${
+                isActive
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {HORIZON_LABELS[horizon]}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Three-Column Metrics Row — stacks on mobile, 3-up on md+ */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         {/* Overall Total Accuracy */}
         {typeof data.total_accuracy_pct === 'number' && data.total_accuracy_pct !== null && (
           <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-6 border border-green-200">
