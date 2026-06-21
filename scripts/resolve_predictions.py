@@ -77,10 +77,15 @@ def resolve_horizon(conn, horizon: str, days_offset: int) -> tuple[int, int]:
     cursor = conn.cursor(dictionary=True)
     resolved = horizon.replace('_', '')  # '1w' -> 'resolved_1w'
 
+    # Filter out rows where the prediction itself is NULL — those rows can
+    # never be "resolved" (nothing to compare against), so loading them just
+    # wastes a Yahoo fetch per run. Older prediction_records inserts
+    # sometimes left longer-horizon columns NULL.
     query = f"""
     SELECT id, symbol, predicted_at, price_at_prediction, predicted_price_{horizon}
     FROM prediction_records
     WHERE resolved_{horizon} = 0
+      AND predicted_price_{horizon} IS NOT NULL
       AND DATE_ADD(predicted_at, INTERVAL {days_offset} DAY) < CURDATE()
     LIMIT 1000
     """
