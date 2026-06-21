@@ -53,6 +53,11 @@
         .tag.cfg  { background: #ccfbf1; color: #0f766e; }
 
         .intro-note { background: #f0fdf4; border-left: 4px solid var(--primary); padding: 0.8rem 1rem; border-radius: 0 6px 6px 0; font-size: .9rem; color: #166534; margin: 1.25rem 0; line-height: 1.6; }
+        .see-also { font-size: .82rem; color: #64748b; margin: .5rem 0 1rem; padding: .45rem .75rem; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0; }
+        .see-also strong { color: #334155; font-weight: 600; margin-right: .4rem; }
+        .see-also a { color: var(--primary-dark); text-decoration: none; font-weight: 500; }
+        .see-also a:hover { text-decoration: underline; }
+        .see-also .sep { color: #cbd5e1; margin: 0 .35rem; }
         .danger-note { background: #fef2f2; border-left: 4px solid var(--danger); padding: 0.8rem 1rem; border-radius: 0 6px 6px 0; font-size: .88rem; color: #7f1d1d; margin: 1rem 0; line-height: 1.6; }
 
         table.rule-table { width: 100%; border-collapse: collapse; font-size: .85rem; margin: .75rem 0; }
@@ -170,6 +175,7 @@
     <!-- ─────────────────────────── 1. USERS & ACCESS ─────────────────────────── -->
     <section id="users">
       <h2>1. Users &amp; Access</h2>
+      <p class="see-also"><strong>See also:</strong> <a href="authentication_flow.html">Auth Flow</a> <span class="sep">·</span> <a href="admin_user_management.html">Admin User Mgmt</a></p>
 
       <div class="rule">
         <div class="rid">BR-1.1</div>
@@ -247,6 +253,7 @@
     <!-- ─────────────────────────── 2. AUTHORIZATION ─────────────────────────── -->
     <section id="authz">
       <h2>2. Authorization</h2>
+      <p class="see-also"><strong>See also:</strong> <a href="authentication_flow.html">Auth Flow</a> <span class="sep">·</span> <a href="admin_user_management.html">Admin User Mgmt</a> <span class="sep">·</span> <a href="moneygoup_overview.html#env-vars-system">App Overview · Env Vars (System)</a></p>
 
       <div class="rule">
         <div class="rid">BR-2.1</div>
@@ -288,6 +295,7 @@
     <!-- ─────────────────────────── 3. STRATEGY ─────────────────────────── -->
     <section id="strategy">
       <h2>3. Strategy &amp; Personalization</h2>
+      <p class="see-also"><strong>See also:</strong> <a href="strategy_system.html">Strategy System</a> <span class="sep">·</span> <a href="moneygoup_overview.html#personalization">App Overview · Personalization Model</a></p>
 
       <div class="intro-note">
         The two-axis strategy is the single source of truth for every personalized number on screen. If the dashboard shows a "wrong" number for a user, the explanation almost always lives in the strategy row.
@@ -355,6 +363,7 @@
     <!-- ─────────────────────────── 4. GPS SCORE ─────────────────────────── -->
     <section id="gps">
       <h2>4. GPS Score</h2>
+      <p class="see-also"><strong>See also:</strong> <a href="gps_score.html">GPS Score</a> <span class="sep">·</span> <a href="technical_indicators_guide.html">Technical Indicators</a> <span class="sep">·</span> <a href="moneygoup_overview.html#env-vars-prediction">App Overview · Env Vars (Prediction / GPS)</a></p>
 
       <div class="rule">
         <div class="rid">BR-4.1</div>
@@ -414,6 +423,7 @@
     <!-- ─────────────────────────── 5. PREDICTIONS ─────────────────────────── -->
     <section id="predictions">
       <h2>5. Predictions</h2>
+      <p class="see-also"><strong>See also:</strong> <a href="prediction_workflow.html">Prediction Workflow</a> <span class="sep">·</span> <a href="database_documentation.html">Database</a> <span class="sep">·</span> <a href="gps_score.html">GPS Score</a></p>
 
       <div class="rule danger">
         <div class="rid">BR-5.1</div>
@@ -509,6 +519,7 @@
     <!-- ─────────────────────────── 6. DEEPMONEY DISCOVERY ─────────────────────────── -->
     <section id="deepmoney">
       <h2>6. DeepMoney Discovery</h2>
+      <p class="see-also"><strong>See also:</strong> <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a> <span class="sep">·</span> <a href="moneygoup_overview.html#env-vars-deepmoney">App Overview · Env Vars (DeepMoney)</a></p>
 
       <div class="rule">
         <div class="rid">BR-6.1</div>
@@ -601,6 +612,7 @@
     <!-- ─────────────────────────── 7. ETF HOLDINGS ─────────────────────────── -->
     <section id="etf-holdings">
       <h2>7. ETF Holdings</h2>
+      <p class="see-also"><strong>See also:</strong> <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a> <span class="sep">·</span> <a href="moneygoup_overview.html#recommendations">App Overview · Bucket 4: ETF Holding</a> <span class="sep">·</span> <a href="moneygoup_overview.html#env-vars-deepmoney">App Overview · ETF Env Vars</a></p>
 
       <div class="rule">
         <div class="rid">BR-7.1</div>
@@ -660,6 +672,7 @@
     <!-- ─────────────────────────── 8. RECOMMENDATIONS ─────────────────────────── -->
     <section id="recommendations">
       <h2>8. Recommendation Buckets</h2>
+      <p class="see-also"><strong>See also:</strong> <a href="moneygoup_overview.html#recommendations">App Overview · Recommendation Buckets</a> <span class="sep">·</span> <a href="components_documentation.html">Components</a> <span class="sep">·</span> <a href="strategy_system.html">Strategy System</a></p>
 
       <div class="rule">
         <div class="rid">BR-8.1</div>
@@ -719,6 +732,7 @@
     <!-- ─────────────────────────── 9. RATE LIMITS ─────────────────────────── -->
     <section id="rate-limits">
       <h2>9. Rate Limits</h2>
+      <p class="see-also"><strong>See also:</strong> <a href="api_documentation.html">API Docs</a> <span class="sep">·</span> <a href="moneygoup_overview.html#env-vars-system">App Overview · TRUSTED_PROXIES / REDIS_URL</a></p>
 
       <div class="rule">
         <div class="rid">BR-9.1</div>
@@ -760,6 +774,7 @@
     <!-- ─────────────────────────── 10. CACHING ─────────────────────────── -->
     <section id="caching">
       <h2>10. Caching</h2>
+      <p class="see-also"><strong>See also:</strong> <a href="architecture_documentation.html">Architecture</a> <span class="sep">·</span> <a href="prediction_workflow.html">Prediction Workflow</a></p>
 
       <div class="rule">
         <div class="rid">BR-10.1</div>
@@ -811,6 +826,7 @@
     <!-- ─────────────────────────── 11. DB INVARIANTS ─────────────────────────── -->
     <section id="db">
       <h2>11. Database Invariants</h2>
+      <p class="see-also"><strong>See also:</strong> <a href="database_documentation.html">Database</a> <span class="sep">·</span> <a href="architecture_documentation.html">Architecture</a></p>
 
       <div class="rule">
         <div class="rid">BR-11.1</div>
@@ -861,6 +877,7 @@
     <!-- ─────────────────────────── 12. BACKGROUND JOBS ─────────────────────────── -->
     <section id="jobs">
       <h2>12. Background Jobs</h2>
+      <p class="see-also"><strong>See also:</strong> <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a> <span class="sep">·</span> <a href="prediction_workflow.html">Prediction Workflow</a> <span class="sep">·</span> <a href="moneygoup_overview.html#background-jobs">App Overview · Background Jobs</a></p>
 
       <div class="rule">
         <div class="rid">BR-12.1</div>
@@ -902,6 +919,7 @@
     <!-- ─────────────────────────── 13. VALIDATION & DROPS ─────────────────────────── -->
     <section id="validation">
       <h2>13. Validation &amp; Silent Drops</h2>
+      <p class="see-also"><strong>See also:</strong> <a href="prediction_workflow.html">Prediction Workflow</a> <span class="sep">·</span> <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a></p>
 
       <div class="rule">
         <div class="rid">BR-13.1</div>
@@ -952,6 +970,7 @@
     <!-- ─────────────────────────── 14. EXTERNAL DATA ─────────────────────────── -->
     <section id="external">
       <h2>14. External Data</h2>
+      <p class="see-also"><strong>See also:</strong> <a href="api_documentation.html">API Docs</a> <span class="sep">·</span> <a href="deepmoney_sync_workflow.html">DeepMoney Sync (discovery sources)</a> <span class="sep">·</span> <a href="technical_indicators_guide.html">Technical Indicators</a></p>
 
       <div class="rule">
         <div class="rid">BR-14.1</div>
@@ -984,6 +1003,7 @@
     <!-- ─────────────────────────── 15. SECURITY & PII ─────────────────────────── -->
     <section id="security">
       <h2>15. Security &amp; PII</h2>
+      <p class="see-also"><strong>See also:</strong> <a href="authentication_flow.html">Auth Flow</a> <span class="sep">·</span> <a href="SEO.html">SEO</a> <span class="sep">·</span> <a href="moneygoup_overview.html#env-vars-system">App Overview · System Env Vars</a></p>
 
       <div class="rule">
         <div class="rid">BR-15.1</div>
