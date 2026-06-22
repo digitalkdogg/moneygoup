@@ -107,18 +107,25 @@ export async function GET(request: NextRequest) {
     // 8-component breakdown. update_predictions.py writes the breakdown to
     // stock_gps_scores for every holding via save_gps_score_to_db; without this
     // join the modal sees null and renders the empty-state branch.
+    // Also pull the user's per-horizon change% + confidence for each holding
+    // when they exist in user_stock_predictions (the user owns/watches the
+    // holding directly). If not, the LEFT JOIN returns NULL and we keep the
+    // raw baseline GPS — same fallback the dashboard already uses elsewhere.
     const [etfRecRows] = await executeRawQuery(
       `SELECT esr.stock_ticker, esr.etf_ticker, esr.gps_score, esr.predicted_change_pct,
-              esr.confidence_score, esr.created_at, sgs.gps_breakdown
+              esr.confidence_score, esr.created_at, sgs.gps_breakdown,
+              usp.predicted_change_pct_${sfx} AS holding_change_pct_horizon,
+              usp.confidence_score_${sfx}     AS holding_confidence_horizon
        FROM etf_stock_recommendations esr
        LEFT JOIN stocks s ON s.symbol = esr.stock_ticker
        LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = s.id
+       LEFT JOIN user_stock_predictions usp ON usp.stock_id = s.id AND usp.user_id = ?
        WHERE esr.user_id = ?
          AND esr.snapshot_date = (
            SELECT MAX(snapshot_date) FROM etf_stock_recommendations WHERE user_id = ?
          )
        ORDER BY esr.gps_score DESC`,
-      [userId, userId]
+      [userId, userId, userId]
     );
     const etfRecs = etfRecRows as Record<string, unknown>[];
 
@@ -287,9 +294,33 @@ export async function GET(request: NextRequest) {
       // when the join misses (ticker not in the stocks table — auto-inserted
       // on next update_predictions.py run via BR-5.10).
       const rawBreakdown = rec.gps_breakdown;
-      const gpsBreakdown = rawBreakdown
+      const baselineBreakdown = rawBreakdown
         ? (typeof rawBreakdown === 'string' ? JSON.parse(rawBreakdown as string) : rawBreakdown)
         : null;
+
+      // If the user owns/watches this holding directly, user_stock_predictions
+      // has a row with per-horizon change% + confidence — same data the
+      // portfolio/watchlist code path uses. Adjust the GPS so the ETF holding
+      // card shows the user's timeframe view, not the 1m baseline. Falls back
+      // to baseline when no per-user prediction exists for the holding.
+      let holdingGps = gps;
+      let holdingBreakdown = baselineBreakdown;
+      if (baselineBreakdown) {
+        const holdingStoredChangePct = rec.holding_change_pct_horizon != null
+          ? parseFloat(String(rec.holding_change_pct_horizon))
+          : null;
+        const holdingStoredConfidence = rec.holding_confidence_horizon != null
+          ? parseFloat(String(rec.holding_confidence_horizon))
+          : undefined;
+        // For holdings not in user_stock_predictions, fall back to the
+        // esr.predicted_change_pct value the sync persisted at scan time.
+        const changePctForAdjust = holdingStoredChangePct != null ? holdingStoredChangePct : predChangePct;
+        if (changePctForAdjust != null) {
+          const adjusted = adjustGpsForHorizon(baselineBreakdown, changePctForAdjust, holdingStoredConfidence);
+          holdingGps = adjusted.score;
+          holdingBreakdown = adjusted.breakdown;
+        }
+      }
 
       recommendations.push({
         stockId:         0,
@@ -298,8 +329,8 @@ export async function GET(request: NextRequest) {
         currentPrice,
         predictedPrice1m,
         deltaPct:        predChangePct,
-        gpsScore:        gps,
-        gpsBreakdown,
+        gpsScore:        holdingGps,
+        gpsBreakdown:    holdingBreakdown,
         lastRequestedAt: rec.created_at as string,
         scope:           'etf_holding',
         etfTicker:       (rec.etf_ticker as string).toUpperCase(),

@@ -7,7 +7,7 @@ import { checkOrigin } from '@/utils/originCheck';
 import { checkApprovalGuard } from '@/utils/approvalStatus';
 import { createLogger } from '@/utils/logger';
 import { createErrorResponse } from '@/utils/errorResponse';
-import { getGpsLabel } from '@/utils/gps';
+import { getGpsLabel, adjustGpsForHorizon, type GpsBreakdown } from '@/utils/gps';
 import { getUserStrategy, resolveStrategy, DEFAULT_STRATEGY } from '@/utils/strategy';
 import { resolveEtfHoldingAlgorithm } from '@/utils/etfHoldingPreset';
 import YahooFinance from 'yahoo-finance2';
@@ -47,12 +47,14 @@ export async function GET(request: NextRequest) {
     const stockDate = (stockDateRows as any[])[0]?.d;
     const etfDate = (etfDateRows as any[])[0]?.d;
 
-    // Resolve user's investment timeframe for the UI label. The underlying ML
-    // data comes from the latest sync (currently a 1_month baseline run) — this
-    // is purely for labeling so users see "Predicted +X% in 1 week" etc.
+    // Resolve user's investment timeframe so we can both label correctly AND
+    // patch each card's GPS via adjustGpsForHorizon (same approach as the
+    // dashboard recommendations route) instead of serving the 1m baseline.
     const userStrategy = await getUserStrategy(userId).catch(() => DEFAULT_STRATEGY);
-    const timeframeLabel = resolveStrategy(userStrategy).timeframe.displayLabel;
+    const tfCfg = resolveStrategy(userStrategy).timeframe;
+    const timeframeLabel = tfCfg.displayLabel;
     const timeframe = userStrategy.investment_timeframe;
+    const sfx = tfCfg.predictedPriceColumn.replace('predicted_price_', '');
 
     if (!stockDate && !etfDate) {
       return NextResponse.json({
@@ -172,10 +174,25 @@ export async function GET(request: NextRequest) {
         }
       })
     );
+    // Batch-fetch the user's per-horizon change% + confidence for every
+    // ticker we're about to show — hot stocks AND ETF holdings. Tickers
+    // the user owns or watches will have a row; everything else falls back
+    // to the raw 1m baseline. Lets the widget honor the user's timeframe
+    // for the tickers it has data for, the same way the portfolio /
+    // watchlist / recommendations routes already do.
+    const cardTickers = [
+      ...enrichedHotStocks.map(s => s.ticker as string),
+      ...etfHoldings.map(h => h.ticker as string),
+    ].filter(Boolean);
+    const horizonByTicker = await fetchHorizonDataForTickers(userId, cardTickers, sfx);
+
+    const adjustedHotStocks = enrichedHotStocks.map(s => applyHorizonAdjustment(s, horizonByTicker));
+    const adjustedEtfHoldings = etfHoldings.map(h => applyHorizonAdjustment(h, horizonByTicker));
+
     return NextResponse.json({
-      hot_stocks: enrichedHotStocks,
+      hot_stocks: adjustedHotStocks,
       hot_etfs: enrichedHotEtfs,
-      etf_holdings: etfHoldings,
+      etf_holdings: adjustedEtfHoldings,
       timeframe,
       timeframe_label: timeframeLabel,
     });
@@ -184,4 +201,72 @@ export async function GET(request: NextRequest) {
     logger.error('Error fetching DeepMoney picks', { error });
     return createErrorResponse(error, 'Failed to fetch DeepMoney picks');
   }
+}
+
+interface HorizonRow { change_pct: number | null; confidence: number | null }
+
+async function fetchHorizonDataForTickers(
+  userId: string | number,
+  tickers: string[],
+  sfx: string,
+): Promise<Map<string, HorizonRow>> {
+  const out = new Map<string, HorizonRow>();
+  if (tickers.length === 0) return out;
+  const unique = Array.from(new Set(tickers.map(t => t.toUpperCase())));
+  const placeholders = unique.map(() => '?').join(',');
+  try {
+    const [rows] = await executeRawQuery(
+      `SELECT s.symbol,
+              usp.predicted_change_pct_${sfx} AS change_pct,
+              usp.confidence_score_${sfx}     AS confidence
+       FROM user_stock_predictions usp
+       JOIN stocks s ON s.id = usp.stock_id
+       WHERE usp.user_id = ? AND s.symbol IN (${placeholders})`,
+      [userId, ...unique],
+    );
+    for (const r of rows as Array<{ symbol: string; change_pct: number | null; confidence: number | null }>) {
+      out.set((r.symbol as string).toUpperCase(), {
+        change_pct: r.change_pct != null ? Number(r.change_pct) : null,
+        confidence: r.confidence != null ? Number(r.confidence) : null,
+      });
+    }
+  } catch (err) {
+    logger.warn('Failed to fetch per-horizon data for deepmoney-picks adjustment', { error: err });
+  }
+  return out;
+}
+
+function applyHorizonAdjustment<T extends { ticker?: string; gps_score?: number | string | null; gps_breakdown?: unknown }>(
+  card: T,
+  horizonByTicker: Map<string, HorizonRow>,
+): T {
+  const ticker = (card.ticker || '').toUpperCase();
+  const row = horizonByTicker.get(ticker);
+  if (!row || row.change_pct == null) return card;
+  const breakdown = parseBreakdown(card.gps_breakdown);
+  if (!breakdown) return card;
+  try {
+    const adjusted = adjustGpsForHorizon(
+      breakdown as GpsBreakdown,
+      row.change_pct,
+      row.confidence ?? undefined,
+    );
+    return {
+      ...card,
+      gps_score: adjusted.score,
+      gps_breakdown: adjusted.breakdown,
+      recommendationLabel: getGpsLabel(adjusted.score),
+    } as T;
+  } catch {
+    return card;
+  }
+}
+
+function parseBreakdown(val: unknown): GpsBreakdown | null {
+  if (!val) return null;
+  if (typeof val === 'string') {
+    try { return JSON.parse(val) as GpsBreakdown; } catch { return null; }
+  }
+  if (typeof val === 'object') return val as GpsBreakdown;
+  return null;
 }
