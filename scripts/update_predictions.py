@@ -2,6 +2,7 @@ import json
 import os
 import requests
 import mysql.connector
+import yfinance as yf
 from datetime import datetime
 from dotenv import load_dotenv
 from prediction_recorder import record_prediction
@@ -840,8 +841,15 @@ def sync_portfolio_predictions():
 
     print(f"\n[ETF Holdings] Recommendations generated: {etf_recs_saved}")
 
+    # --- Build the dashboard-card preview BEFORE closing the connection.
+    # This replicates the /api/dashboard/recommendations filter logic so the
+    # summary table reflects what users actually see on /dashboard, not just
+    # what we wrote to user_stock_predictions. Macro adjustment (±3 GPS pts)
+    # is omitted for simplicity — the table is otherwise faithful.
+    conn.commit()
+    dashboard_cards = _build_dashboard_card_preview(cursor, list(unique_users))
+
     # --- Wrap up ---------------------------------------------------------
-    conn.commit()  # flush direct GPS writes from ETF holdings scan
     cursor.close()
     conn.close()
 
@@ -852,7 +860,300 @@ def sync_portfolio_predictions():
     print(f"  Skipped (history): {stats['skipped']}")
     print(f"  Errors           : {stats['errors']}")
     print(f"  ETF recs saved   : {etf_recs_saved}")
- 
- 
+
+    _print_dashboard_qualified_table(dashboard_cards)
+
+
+# Mirrors src/utils/strategy.ts so the summary table can apply the same
+# gates/thresholds the dashboard's read path uses. Keep in sync when the TS
+# constants drift. (Aggressiveness-only strategy_config.py doesn't carry
+# investment_timeframe, so we read it directly from user_investment_strategy.)
+_DASHBOARD_STRATEGY_GATES = {
+    'safe':       {'predChangeGate': 3.0, 'envFloorMultiplier': 1.05},
+    'neutral':    {'predChangeGate': 1.5, 'envFloorMultiplier': 1.0},
+    'aggressive': {'predChangeGate': 0.5, 'envFloorMultiplier': 0.95},
+}
+_DASHBOARD_TIMEFRAME_CONFIG = {
+    '1_week':  {'predChangeMultiplier': 0.5, 'sellThresholdShift': -2, 'col_sfx': '1w'},
+    '1_month': {'predChangeMultiplier': 1.0, 'sellThresholdShift':  0, 'col_sfx': '1m'},
+    '6_month': {'predChangeMultiplier': 1.5, 'sellThresholdShift':  3, 'col_sfx': '6m'},
+    '1_year':  {'predChangeMultiplier': 2.0, 'sellThresholdShift':  5, 'col_sfx': '1y'},
+}
+
+
+def _adjust_gps_for_horizon(breakdown: dict, change_pct: float, confidence: float | None) -> float:
+    """Mirror src/utils/gps.ts adjustGpsForHorizon. Patches the two
+    horizon-dependent components (mlpUpside + mlpConfidence) using the
+    user's per-horizon predicted change% + confidence, then sums."""
+    prediction_max = float(os.getenv('GPS_PREDICTION_MAX', '3'))
+    new_mlp_upside = max(-1.0, min(1.0, change_pct / prediction_max)) * 20.0
+    if confidence is not None:
+        new_mlp_confidence = (max(0.0, min(100.0, confidence)) / 100.0) * 5.0
+    else:
+        new_mlp_confidence = float(breakdown.get('mlpConfidence', 0) or 0)
+    total = (
+        round(new_mlp_upside, 1)
+        + round(new_mlp_confidence, 1)
+        + float(breakdown.get('revenueGrowth', 0) or 0)
+        + float(breakdown.get('earningsGrowth', 0) or 0)
+        + float(breakdown.get('technicalSignal', 0) or 0)
+        + float(breakdown.get('analystUpside', 0) or 0)
+        + float(breakdown.get('analystConsensus', 0) or 0)
+        + float(breakdown.get('priceChange52w', 0) or breakdown.get('fiftyTwoWeekChange', 0) or 0)
+    )
+    return round(max(0.0, min(100.0, total)), 1)
+
+
+def _fetch_live_prices_batch(tickers: list[str]) -> dict[str, float]:
+    """Fetch the latest live price for each ticker via yfinance's fast_info
+    endpoint. Matches what fetchYahooQuotesForSymbols gives the dashboard
+    (`yahooFinance.quote(...)`). Per-ticker because batched yf.download with
+    period='1d' silently drops tickers for non-trading-day edge cases and
+    .KS/.HK listings. fast_info is the right realtime endpoint, equivalent
+    to the TS-side quote() call. Missing tickers are silently omitted —
+    the caller drops the card, matching the dashboard's behavior."""
+    if not tickers:
+        return {}
+    out: dict[str, float] = {}
+    missing: list[str] = []
+    for t in tickers:
+        try:
+            fi = yf.Ticker(t).fast_info
+            # fast_info exposes last_price (snake_case attr) or 'lastPrice' (dict-style key).
+            price = None
+            try:
+                price = fi.last_price
+            except AttributeError:
+                pass
+            if price is None:
+                try:
+                    price = fi['lastPrice']
+                except (KeyError, TypeError):
+                    pass
+            if price is None or not (price > 0):
+                missing.append(t)
+                continue
+            out[t] = float(price)
+        except Exception:
+            missing.append(t)
+            continue
+    if missing:
+        print(f"  [preview] No live price for: {', '.join(missing)}")
+    return out
+
+
+def _build_dashboard_card_preview(cursor, user_ids: list[int]) -> list[dict]:
+    """Re-query the DB and apply the same logic as
+    src/app/api/dashboard/recommendations/route.ts so the summary table at
+    the end of the sync reflects what each user will actually see on their
+    dashboard. Returns one card per (user_id, ticker) that would render.
+
+    Uses live current prices (batch-fetched from Yahoo) for the deltaPct
+    gate so the answer matches the dashboard exactly. Macro adjustment
+    (±3 GPS pts) is still omitted — flagged in the footer note."""
+    if not user_ids:
+        return []
+
+    placeholders = ','.join(['%s'] * len(user_ids))
+    cards: list[dict] = []
+
+    # Env-driven dashboard thresholds (defaults match the TS route).
+    env_buy_threshold       = float(os.getenv('GPS_BASELINE',           '65'))
+    env_sell_threshold      = env_buy_threshold + float(os.getenv('GPS_SELL_OFFSET',      '-20'))
+    env_discovery_threshold = env_buy_threshold + float(os.getenv('GPS_DISCOVERY_OFFSET', '5'))
+
+    # ── Portfolio / watchlist / discovery candidates ────────────────────────
+    cursor.execute(f"""
+        SELECT usp.user_id, s.symbol,
+               us.is_purchased, us.user_confirmed, us.shares,
+               usp.predicted_price_1w, usp.predicted_price_1m,
+               usp.predicted_price_6m, usp.predicted_price_1y,
+               usp.predicted_change_pct_1w, usp.predicted_change_pct_1m,
+               usp.predicted_change_pct_6m, usp.predicted_change_pct_1y,
+               usp.confidence_score_1w, usp.confidence_score_1m,
+               usp.confidence_score_6m, usp.confidence_score_1y,
+               sgs.gps_score, sgs.gps_breakdown,
+               uis.aggressiveness, uis.investment_timeframe
+        FROM user_stock_predictions usp
+        JOIN user_stocks us ON us.user_id = usp.user_id AND us.stock_id = usp.stock_id
+        JOIN stocks s ON s.id = usp.stock_id
+        LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = s.id
+        LEFT JOIN user_investment_strategy uis ON uis.user_id = usp.user_id
+        WHERE usp.user_id IN ({placeholders}) AND us.is_active = 1
+    """, list(user_ids))
+    rows = cursor.fetchall()
+
+    # ── ETF holding candidates from the latest per-user snapshot ────────────
+    cursor.execute(f"""
+        SELECT esr.user_id, esr.stock_ticker, esr.etf_ticker, esr.gps_score, esr.predicted_change_pct
+        FROM etf_stock_recommendations esr
+        WHERE esr.user_id IN ({placeholders})
+          AND esr.snapshot_date = (
+            SELECT MAX(snapshot_date) FROM etf_stock_recommendations WHERE user_id = esr.user_id
+          )
+    """, list(user_ids))
+    etf_rows = cursor.fetchall()
+
+    # Batch fetch live prices for every unique ticker we might need to score.
+    # The dashboard route uses fetchYahooQuotesForSymbols for this exact set.
+    all_tickers = {r[1] for r in rows} | {r[1] for r in etf_rows}
+    print(f"\n  [preview] Fetching live prices for {len(all_tickers)} unique ticker(s)...")
+    live_prices = _fetch_live_prices_batch(sorted(all_tickers))
+    print(f"  [preview] Got live prices for {len(live_prices)}/{len(all_tickers)} ticker(s).")
+
+    for r in rows:
+        (user_id, symbol, is_purchased, user_confirmed, shares,
+         pp1w, pp1m, pp6m, pp1y,
+         pc1w, pc1m, pc6m, pc1y,
+         cs1w, cs1m, cs6m, cs1y,
+         sgs_gps, sgs_breakdown,
+         aggressiveness, timeframe) = r
+
+        gates  = _DASHBOARD_STRATEGY_GATES.get(aggressiveness or 'neutral', _DASHBOARD_STRATEGY_GATES['neutral'])
+        tf_cfg = _DASHBOARD_TIMEFRAME_CONFIG.get(timeframe or '1_month',     _DASHBOARD_TIMEFRAME_CONFIG['1_month'])
+        sfx    = tf_cfg['col_sfx']
+        mult   = gates['envFloorMultiplier']
+        buy_threshold       = env_buy_threshold       * mult
+        sell_threshold      = env_sell_threshold      + tf_cfg['sellThresholdShift']
+        discovery_threshold = env_discovery_threshold * mult
+        pred_change_gate    = gates['predChangeGate'] * tf_cfg['predChangeMultiplier']
+
+        # Mirror the dashboard route exactly: predictedPrice =
+        # COALESCE(predicted_price_{horizon}, predicted_price_1m); deltaPct
+        # uses the LIVE current price.
+        price_by_sfx       = {'1w': pp1w, '1m': pp1m, '6m': pp6m, '1y': pp1y}
+        change_pct_by_sfx  = {'1w': pc1w, '1m': pc1m, '6m': pc6m, '1y': pc1y}
+        confidence_by_sfx  = {'1w': cs1w, '1m': cs1m, '6m': cs6m, '1y': cs1y}
+
+        predicted_price = price_by_sfx[sfx] if price_by_sfx[sfx] is not None else price_by_sfx['1m']
+        current_price = live_prices.get(symbol)
+        if predicted_price is None or current_price is None or current_price <= 0:
+            continue  # matches the dashboard's `if (!quote || quote.price === null) continue`
+        predicted_price_f = float(predicted_price)
+        delta_pct = ((predicted_price_f - current_price) / current_price) * 100.0
+
+        # storedChangePct is preferred for the GPS adjustment (matches model's
+        # baked-in horizon view); falls back to live deltaPct when null.
+        stored_change_pct = change_pct_by_sfx[sfx]
+        change_pct_for_adjust = float(stored_change_pct) if stored_change_pct is not None else delta_pct
+        confidence = confidence_by_sfx[sfx]
+        confidence_f = float(confidence) if confidence is not None else None
+
+        # Adjust GPS using the per-horizon change% (matches the dashboard).
+        if sgs_breakdown is not None:
+            try:
+                breakdown = json.loads(sgs_breakdown) if isinstance(sgs_breakdown, (str, bytes, bytearray)) else sgs_breakdown
+                adjusted_gps = _adjust_gps_for_horizon(breakdown, change_pct_for_adjust, confidence_f)
+            except Exception:
+                adjusted_gps = float(sgs_gps) if sgs_gps is not None else None
+        else:
+            adjusted_gps = float(sgs_gps) if sgs_gps is not None else None
+        if adjusted_gps is None:
+            continue
+
+        passes_pred_gate = delta_pct >= pred_change_gate
+        is_purch  = is_purchased == 1
+        is_conf   = user_confirmed == 1
+        has_shares = (shares or 0) > 0
+
+        action = None
+        scope  = None
+        if is_purch and is_conf and has_shares:
+            scope = 'portfolio'
+            if adjusted_gps >= buy_threshold and passes_pred_gate:
+                action = 'BUY'
+            elif adjusted_gps < sell_threshold:
+                action = 'SELL'
+        elif not is_purch and is_conf:
+            scope = 'watchlist'
+            if adjusted_gps >= buy_threshold and passes_pred_gate:
+                action = 'BUY'
+        elif not is_purch and not is_conf:
+            scope = 'discovery'
+            if adjusted_gps >= discovery_threshold and passes_pred_gate:
+                action = 'BUY'
+
+        if action and scope:
+            cards.append({
+                'user_id':  user_id,
+                'ticker':   symbol,
+                'action':   action,
+                'scope':    scope,
+                'gps':      adjusted_gps,
+                'pred_pct': delta_pct,
+            })
+
+    # ETF holding dedup against portfolio/watchlist/discovery cards
+    existing_keys = {(c['user_id'], c['ticker']) for c in cards}
+    etf_dedup: dict[tuple[int, str], dict] = {}
+    for er in etf_rows:
+        uid, symbol, parent_etf, gps, pred = er
+        if gps is None: continue
+        key = (uid, symbol)
+        if key in existing_keys:
+            continue
+        gps_f  = float(gps)
+        pred_f = float(pred) if pred is not None else 0.0
+        if key not in etf_dedup or gps_f > etf_dedup[key]['gps']:
+            etf_dedup[key] = {
+                'user_id':    uid,
+                'ticker':     symbol,
+                'action':     'BUY',
+                'scope':      'etf_holding',
+                'gps':        gps_f,
+                'pred_pct':   pred_f,
+                'parent_etf': parent_etf,
+            }
+    cards.extend(etf_dedup.values())
+    return cards
+
+
+def _print_dashboard_qualified_table(cards: list[dict]) -> None:
+    """Deduplicate the per-user card list by ticker and print a single
+    summary table — what's about to render on user dashboards, sorted by
+    GPS desc (BR-8.6 ordering)."""
+    if not cards:
+        return
+
+    # Aggregate per ticker — keep the highest-GPS card as the representative,
+    # but remember every distinct user_id so we can report reach.
+    agg: dict[str, dict] = {}
+    for c in cards:
+        key = c['ticker']
+        if key not in agg or c['gps'] > agg[key]['gps']:
+            prev_users = agg[key]['users'] if key in agg else set()
+            agg[key] = {
+                'ticker':   c['ticker'],
+                'action':   c['action'],
+                'scope':    c['scope'],
+                'gps':      c['gps'],
+                'pred_pct': c['pred_pct'],
+                'users':    prev_users | {c['user_id']},
+                'detail':   c.get('parent_etf', ''),
+            }
+        else:
+            agg[key]['users'].add(c['user_id'])
+
+    sorted_rows = sorted(agg.values(), key=lambda x: x['gps'], reverse=True)
+
+    print()
+    print("=" * 86)
+    print(f"  DASHBOARD-QUALIFIED STOCKS ({len(sorted_rows)})  — what users will see on /dashboard")
+    print("=" * 86)
+    print(f"  {'TICKER':<10}  {'ACT':<4}  {'SCOPE':<11}  {'GPS':>6}  {'PRED':>7}  {'USERS':>5}  DETAIL")
+    print(f"  {'-'*10}  {'-'*4}  {'-'*11}  {'-'*6}  {'-'*7}  {'-'*5}  {'-'*22}")
+    for r in sorted_rows:
+        ticker   = str(r['ticker'])[:10]
+        action   = str(r['action'])[:4]
+        scope    = str(r['scope'])[:11]
+        gps      = r['gps']
+        pred_pct = r['pred_pct']
+        users    = len(r['users'])
+        detail   = (f"in {r['detail']}" if r.get('detail') else '')[:22]
+        print(f"  {ticker:<10}  {action:<4}  {scope:<11}  {gps:>6.1f}  {pred_pct:>+6.2f}%  {users:>5}  {detail}")
+    print("=" * 86)
+    print("  Note: macro GPS adjustment (±3 pts) is not applied to this preview.")
+
+
 if __name__ == "__main__":
     sync_portfolio_predictions()

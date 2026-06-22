@@ -89,6 +89,10 @@ def sync_deepmoney():
         "stocks_in_api_resp":    0,
     }
     meta_snapshot: dict = {}  # cached API meta for the summary block
+    # Captures per-stock detail for the final summary table. Initialized here
+    # (not inside the try) so the finally block can always read it even when
+    # an exception fires before any stock qualifies.
+    qualifying_stocks_details: list[dict] = []
 
     # Sequential 1-month prediction gate — not driven by DEEPMONEY_ALGORITHM
     # (kept at 1.5% per legacy behavior); the dashboard push is now gated by
@@ -406,6 +410,13 @@ def sync_deepmoney():
                 counters["dashboard_qualified"] += 1
                 print(f"    - Qualifying stock found for Dashboard: {ticker} (CS: {conf_score_for_dash}, Pred: {predicted_change_pct}%)")
                 qualifying_stock_ids.add(stock_id)
+                qualifying_stocks_details.append({
+                    'ticker': ticker,
+                    'gps': float(gps) if gps is not None else 0.0,
+                    'cs': float(conf_score_for_dash),
+                    'pred_pct': float(predicted_change_pct),
+                    'source': s.get('discovery_source') or 'v2_engine',
+                })
 
                 # Pull the raw nullable values from pred_input — the existing
                 # `predicted_change_pct` / `conf_score` locals above were coerced
@@ -567,6 +578,7 @@ def sync_deepmoney():
             mlp_confidence_floor,
             vol_gate_floor,
             run_start,
+            qualifying_stocks_details,
         )
 
 
@@ -595,6 +607,7 @@ def _print_run_summary(
     mlp_floor: float,
     vol_floor: float,
     run_start: float,
+    qualifying_stocks: list[dict] | None = None,
 ) -> None:
     """Print a structured funnel summary at the end of the run.
 
@@ -659,6 +672,24 @@ def _print_run_summary(
     print("  RUN")
     print(f"    Approved users notified:         {_fmt_int(counters.get('active_users'))}")
     print(f"    Sync duration:                   {_fmt_duration(elapsed):>6}")
+
+    # ── Per-stock detail of what actually surfaced to the dashboard ────────
+    # Sorted by GPS desc so the strongest picks are at the top — matches the
+    # dashboard sort order (BR-8.6). Source column distinguishes ranker
+    # survivors (v2_engine) from analyst-override picks (analyst_consensus).
+    if qualifying_stocks:
+        print()
+        print(f"  DASHBOARD-QUALIFIED STOCKS ({len(qualifying_stocks)})")
+        print(f"    {'TICKER':<10} {'GPS':>6}  {'CS':>5}  {'PRED':>7}  SOURCE")
+        print(f"    {'-'*10} {'-'*6}  {'-'*5}  {'-'*7}  {'-'*17}")
+        for q in sorted(qualifying_stocks, key=lambda x: x.get('gps', 0), reverse=True):
+            ticker   = str(q.get('ticker', '?'))[:10]
+            gps      = q.get('gps', 0)
+            cs       = q.get('cs', 0)
+            pred_pct = q.get('pred_pct', 0)
+            source   = str(q.get('source', 'v2_engine'))[:17]
+            print(f"    {ticker:<10} {gps:>6.1f}  {cs:>5.0f}  {pred_pct:>+6.2f}%  {source}")
+
     print("=" * 70)
 
 if __name__ == "__main__":
