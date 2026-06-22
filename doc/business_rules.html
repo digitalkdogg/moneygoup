@@ -418,6 +418,23 @@
           <span class="src">src/utils/gps.ts · calculateGpsLight</span>
         </div>
       </div>
+
+      <div class="rule">
+        <div class="rid">BR-4.7</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>The user's <code>investment_timeframe</code> is honored at <strong>read time</strong>, not write time. Every authenticated card-rendering surface applies <code>adjustGpsForHorizon</code> using the user's per-horizon change% + confidence from <code>user_stock_predictions</code>. Surfaces that do this:</p>
+          <ul>
+            <li><code>/api/dashboard/recommendations</code> — Portfolio / Watchlist / Discovery cards</li>
+            <li><code>/api/dashboard/recommendations</code> — ETF Holding cards (joins to <code>user_stock_predictions</code> when the user owns/watches the holding directly; falls back to <code>esr.predicted_change_pct</code> otherwise)</li>
+            <li><code>/api/dashboard/deepmoney-picks</code> — hot stocks AND ETF holdings in the DeepMoney Picks widget; <code>hot_etfs</code> rows are not adjusted</li>
+            <li><code>/api/user/portfolio</code> · <code>/api/user/watchlist</code> · <code>/api/market/trending</code></li>
+            <li><code>/api/stock_data/[ticker]/gps</code> — feeds the <code>/search/[ticker]</code> GPS panel + "View score" modal</li>
+          </ul>
+          <p>For tickers the user has no <code>user_stock_predictions</code> row for, every surface falls back gracefully to the raw 1-month baseline from <code>stock_gps_scores</code>. The DB-stored GPS values (<code>stock_gps_scores</code>, <code>recommended_stocks</code>, <code>etf_stock_recommendations</code>) are always the 1-month baseline — no per-horizon rows exist.</p>
+          <span class="src">multiple routes · src/utils/gps.ts:adjustGpsForHorizon</span>
+        </div>
+      </div>
     </section>
 
     <!-- ─────────────────────────── 5. PREDICTIONS ─────────────────────────── -->
@@ -642,6 +659,15 @@
       </div>
 
       <div class="rule">
+        <div class="rid">BR-7.7</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>ETF Holding cards apply <code>adjustGpsForHorizon</code> at read time using the user's per-horizon change% + confidence (BR-4.7). When the user doesn't directly own/watch the holding, no <code>user_stock_predictions</code> row exists — the route falls back to <code>esr.predicted_change_pct</code> (the value the sync persisted at scan time) so the breakdown still patches against a horizon-appropriate change% rather than displaying the unpatched 1m baseline.</p>
+          <span class="src">src/app/api/dashboard/recommendations/route.ts · etfRecs loop</span>
+        </div>
+      </div>
+
+      <div class="rule">
         <div class="rid">BR-7.4</div>
         <div class="body">
           <span class="tag app">Web App</span> <span class="tag cfg">Config</span>
@@ -705,7 +731,7 @@
         <div class="rid">BR-8.4</div>
         <div class="body">
           <span class="tag app">Web App</span>
-          <p><strong>ETF Holding</strong> bucket surfaces BUY alerts only and renders <strong>only on <code>/portfolio</code></strong> — never on the home dashboard. Activated only when the user owns at least one ETF; the scope is omitted from the request otherwise. Badge color teal. Card sub-label is "In {ETF ticker}".</p>
+          <p><strong>ETF Holding</strong> bucket surfaces BUY alerts only and renders <strong>only on <code>/portfolio</code></strong> — never on the home dashboard. Activated only when the user owns at least one ETF; the scope is omitted from the request otherwise. Badge color teal. Card sub-label is "In {ETF ticker}". GPS shown is horizon-adjusted per BR-7.7.</p>
           <span class="src">src/app/api/dashboard/recommendations/route.ts · RecommendationsSection scopes</span>
         </div>
       </div>
