@@ -8,6 +8,8 @@ import { tickerSchema } from '@/utils/validationSchemas'
 import { unauthorizedResponse } from '@/utils/errorResponse'
 import { checkApprovalGuard } from '@/utils/approvalStatus'
 import { fetchYahooStockSummary } from '@/utils/yahooFinanceHelper'
+import { getUserStrategy, resolveStrategy, DEFAULT_STRATEGY } from '@/utils/strategy'
+import { adjustGpsForHorizon, type GpsBreakdown } from '@/utils/gps'
 
 const logger = createLogger('api/stock_data/[ticker]/gps')
 
@@ -108,8 +110,63 @@ export async function GET(
   const recommendationKey = (analystData as Record<string, Record<string, unknown>> | null)
     ?.financialData?.recommendationKey as string | null ?? null
 
+  const enrichedBreakdown = enrichBreakdown(dbResult.gpsBreakdown, recommendationKey)
+
+  // Patch the score + breakdown using the user's per-horizon prediction the
+  // same way the dashboard recommendations route does, so the detail page and
+  // the card never disagree. Falls back to the raw stock_gps_scores baseline
+  // when no per-user prediction exists (e.g. a ticker the user doesn't own
+  // and isn't watching).
+  let gpsScore = dbResult.gpsScore
+  let gpsBreakdown = enrichedBreakdown
+
+  if (enrichedBreakdown) {
+    try {
+      const userStrategy = await getUserStrategy(session.user.id).catch(() => DEFAULT_STRATEGY)
+      const sfx = resolveStrategy(userStrategy).timeframe.predictedPriceColumn.replace('predicted_price_', '')
+      // Pull the per-horizon change%, the per-horizon confidence, AND the
+      // per-horizon predicted_price (with a 1m fallback inside SQL). The
+      // dashboard route reads exactly these three so the adjustment math
+      // can use the same fallbacks.
+      const [uspRows] = await executeRawQuery(
+        `SELECT
+            usp.predicted_change_pct_${sfx}                              AS change_pct,
+            usp.confidence_score_${sfx}                                  AS confidence,
+            COALESCE(usp.predicted_price_${sfx}, usp.predicted_price_1m) AS predicted_price
+         FROM user_stock_predictions usp
+         JOIN stocks s ON s.id = usp.stock_id
+         WHERE usp.user_id = ? AND s.symbol = ?
+         LIMIT 1`,
+        [session.user.id, ticker]
+      )
+      const uspRow = (uspRows as Record<string, unknown>[])[0]
+      const storedChangePct = uspRow?.change_pct != null ? parseFloat(String(uspRow.change_pct)) : null
+      const confidence = uspRow?.confidence != null ? parseFloat(String(uspRow.confidence)) : undefined
+      const predictedPrice = uspRow?.predicted_price != null ? parseFloat(String(uspRow.predicted_price)) : null
+
+      // Match dashboard fallback exactly: prefer the stored per-horizon
+      // change%; otherwise derive from (predictedPrice - currentPrice) /
+      // currentPrice. currentPrice from Yahoo financialData when available.
+      const currentPrice = (analystData as Record<string, Record<string, unknown>> | null)
+        ?.financialData?.currentPrice as number | null ?? null
+      const derivedChangePct = (predictedPrice != null && currentPrice != null && currentPrice > 0)
+        ? ((predictedPrice - currentPrice) / currentPrice) * 100
+        : null
+      const changePct = storedChangePct != null ? storedChangePct : derivedChangePct
+
+      if (changePct != null && Number.isFinite(changePct)) {
+        const adjusted = adjustGpsForHorizon(enrichedBreakdown as GpsBreakdown, changePct, confidence)
+        gpsScore = adjusted.score
+        gpsBreakdown = adjusted.breakdown
+      }
+    } catch (err) {
+      logger.warn('Horizon adjustment failed, returning baseline score', { ticker, error: err instanceof Error ? err.message : String(err) })
+    }
+  }
+
   return NextResponse.json({
     ...dbResult,
-    gpsBreakdown: enrichBreakdown(dbResult.gpsBreakdown, recommendationKey),
+    gpsScore,
+    gpsBreakdown,
   })
 }

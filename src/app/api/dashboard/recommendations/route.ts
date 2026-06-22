@@ -102,14 +102,22 @@ export async function GET(request: NextRequest) {
     // Mirrors the deepmoney-picks pattern: rows accumulate across update_predictions.py
     // runs, but we only ever surface the most recent one to avoid mixing stale picks
     // from prior days with the current set.
+    //
+    // LEFT JOIN to stock_gps_scores so the "View score" modal can render the full
+    // 8-component breakdown. update_predictions.py writes the breakdown to
+    // stock_gps_scores for every holding via save_gps_score_to_db; without this
+    // join the modal sees null and renders the empty-state branch.
     const [etfRecRows] = await executeRawQuery(
-      `SELECT stock_ticker, etf_ticker, gps_score, predicted_change_pct, confidence_score, created_at
-       FROM etf_stock_recommendations
-       WHERE user_id = ?
-         AND snapshot_date = (
+      `SELECT esr.stock_ticker, esr.etf_ticker, esr.gps_score, esr.predicted_change_pct,
+              esr.confidence_score, esr.created_at, sgs.gps_breakdown
+       FROM etf_stock_recommendations esr
+       LEFT JOIN stocks s ON s.symbol = esr.stock_ticker
+       LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = s.id
+       WHERE esr.user_id = ?
+         AND esr.snapshot_date = (
            SELECT MAX(snapshot_date) FROM etf_stock_recommendations WHERE user_id = ?
          )
-       ORDER BY gps_score DESC`,
+       ORDER BY esr.gps_score DESC`,
       [userId, userId]
     );
     const etfRecs = etfRecRows as Record<string, unknown>[];
@@ -274,6 +282,15 @@ export async function GET(request: NextRequest) {
       const predChangePct = rec.predicted_change_pct != null ? parseFloat(String(rec.predicted_change_pct)) : 0;
       const predictedPrice1m = currentPrice > 0 ? currentPrice * (1 + predChangePct / 100) : 0;
 
+      // Parse the breakdown JSON pulled in via the stock_gps_scores join.
+      // Null for the small set of holdings that haven't been scored yet, or
+      // when the join misses (ticker not in the stocks table — auto-inserted
+      // on next update_predictions.py run via BR-5.10).
+      const rawBreakdown = rec.gps_breakdown;
+      const gpsBreakdown = rawBreakdown
+        ? (typeof rawBreakdown === 'string' ? JSON.parse(rawBreakdown as string) : rawBreakdown)
+        : null;
+
       recommendations.push({
         stockId:         0,
         symbol,
@@ -282,7 +299,7 @@ export async function GET(request: NextRequest) {
         predictedPrice1m,
         deltaPct:        predChangePct,
         gpsScore:        gps,
-        gpsBreakdown:    null,
+        gpsBreakdown,
         lastRequestedAt: rec.created_at as string,
         scope:           'etf_holding',
         etfTicker:       (rec.etf_ticker as string).toUpperCase(),
