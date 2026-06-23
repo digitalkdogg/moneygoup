@@ -4,6 +4,7 @@ import { useMemo } from 'react'
 import type { PortfolioItem } from '@/types/portfolio'
 import type { PortfolioTotals } from '@/types/dashboard'
 import GainsBreakdownCard from '@/app/components/GainsBreakdownCard'
+import { getSectorColor } from '@/utils/sectorTaxonomy'
 
 interface Props {
   portfolio: PortfolioItem[]
@@ -33,21 +34,6 @@ interface Metrics {
   sectorAlloc: { name: string; pct: number; color: string }[]
   insights: { severity: 'alert' | 'info' | 'success'; html: string }[]
   hasAlerts: boolean
-}
-
-const SECTOR_COLORS: Record<string, string> = {
-  Technology: '#3b82f6',
-  Automotive: '#f97316',
-  'Consumer Cyclical': '#8b5cf6',
-  'Consumer Defensive': '#84cc16',
-  'Financial Services': '#06b6d4',
-  Energy: '#eab308',
-  Healthcare: '#ec4899',
-  Industrials: '#10b981',
-  'Real Estate': '#f43f5e',
-  'Communication Services': '#a855f7',
-  'Basic Materials': '#d97706',
-  Utilities: '#64748b',
 }
 
 function computeMetrics(portfolio: PortfolioItem[]): Metrics {
@@ -121,7 +107,7 @@ function computeMetrics(portfolio: PortfolioItem[]): Metrics {
     .map(([name, val]) => ({
       name,
       pct: totalMarketValue > 0 ? (val / totalMarketValue) * 100 : 0,
-      color: SECTOR_COLORS[name] ?? '#94a3b8',
+      color: getSectorColor(name),
     }))
 
   const insights: { severity: 'alert' | 'info' | 'success'; html: string }[] = []

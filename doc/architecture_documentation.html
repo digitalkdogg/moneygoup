@@ -306,7 +306,7 @@ doc/                               All HTML documentation files</pre>
             <tr><td><code>/portfolio</code></td><td>Portfolio page</td><td>Required</td><td>Full portfolio view: history chart, KPIs, gains breakdown, compare chart, holdings sidebar, and Recommendations section. Passes <code>etf_holding</code> scope + <code>portfolioEtfTickers</code> to <code>RecommendationsSection</code> when user holds ETFs.</td></tr>
             <tr><td><code>/search</code></td><td>Search page</td><td>Required</td><td>Search component + TrendingStocksGrid + SectorExplorer</td></tr>
             <tr><td><code>/search/[ticker]</code></td><td>Stock detail page</td><td>Required</td><td>Renders Stock component for a single ticker</td></tr>
-            <tr><td><code>/search/industry/[sector]</code></td><td>Industry page</td><td>Required</td><td>Renders IndustryStocks component</td></tr>
+            <tr><td><code>/search/industry/[sector]</code></td><td>Sector page</td><td>Required</td><td>Renders IndustryStocks for a canonical Yahoo sector (Technology, Financial Services, etc.)</td></tr>
             <tr><td><code>/profile</code></td><td>Profile page</td><td>Required</td><td>Profile component — stats, account type</td></tr>
             <tr><td><code>/admin/users</code></td><td>Admin Users page</td><td>Required + admin role</td><td>User management table with approve/reject/role controls</td></tr>
             <tr><td><code>/login</code></td><td>Login page</td><td>Public</td><td>NextAuth sign-in form</td></tr>

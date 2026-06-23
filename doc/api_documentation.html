@@ -173,7 +173,7 @@
       <div class="stat-card"><div class="value">6h</div><div class="label">Max Cache TTL</div></div>
     </div>
 
-    <div class="updated"><strong>June 2026 changes summary:</strong> Horizon-aware response shapes are now standard across <code>/api/user/portfolio</code>, <code>/api/user/watchlist</code>, and <code>/api/dashboard/recommendations</code> — each returns a top-level <code>horizonLabel</code> matching the user's <code>investment_timeframe.shortLabel</code>. Portfolio and watchlist rows additionally expose <code>predicted_price_horizon</code>, <code>predicted_change_pct_horizon</code>, and <code>confidence_score_horizon</code> picked from the per-horizon columns in <code>user_stock_predictions</code>. <code>POST /api/prediction/save</code> accepts 8 new optional fields (<code>predicted_change_pct_{1w,1m,6m,1y}</code> and <code>confidence_score_{1w,1m,6m,1y}</code>) and writes them to <code>user_stock_predictions</code>; <code>POST /api/prediction/[ticker]</code> now forwards all 4 horizons of prices + 4 change_pct + 4 confidence to <code>/api/prediction/save</code> via <code>savePredictionAsync</code>. The user profile endpoint accepts PATCH to update the strategy. A new <code>/api/analytics/model-accuracy</code> endpoint powers the dashboard's <code>ModelAccuracyWidget</code>. See the <a href="strategy_system.html">Strategy System</a> doc for the full strategy model.</div>
+    <div class="updated"><strong>June 2026 changes summary:</strong> Horizon-aware response shapes are now standard across <code>/api/user/portfolio</code>, <code>/api/user/watchlist</code>, and <code>/api/dashboard/recommendations</code> — each returns a top-level <code>horizonLabel</code> matching the user's <code>investment_timeframe.shortLabel</code>. Portfolio and watchlist rows additionally expose <code>predicted_price_horizon</code>, <code>predicted_change_pct_horizon</code>, and <code>confidence_score_horizon</code> picked from the per-horizon columns in <code>user_stock_predictions</code>. <code>POST /api/prediction/save</code> accepts 8 new optional fields (<code>predicted_change_pct_{1w,1m,6m,1y}</code> and <code>confidence_score_{1w,1m,6m,1y}</code>) and writes them to <code>user_stock_predictions</code>; <code>POST /api/prediction/[ticker]</code> now forwards all 4 horizons of prices + 4 change_pct + 4 confidence to <code>/api/prediction/save</code> via <code>savePredictionAsync</code>. The user profile endpoint accepts PATCH to update the strategy. A new <code>/api/analytics/model-accuracy</code> endpoint powers the dashboard's <code>ModelAccuracyWidget</code>. <code>/api/stock_data/[sector]/industry</code> is now sector-only — symbols are sourced from Yahoo's <code>ms_&lt;sector&gt;</code> predefined screener for the 11 canonical sectors shared with <code>/portfolio</code>; legacy themed inputs (cybersecurity, hospitality, gold, etc.) return empty. See <a href="business_rules.html#external">BR-14.4 / BR-14.5</a>. See the <a href="strategy_system.html">Strategy System</a> doc for the full strategy model.</div>
 
     <div class="info">All routes are Next.js App Router Route Handlers (<code>route.ts</code> files). All authenticated routes validate the NextAuth JWT session. The <code>checkOrigin()</code> middleware is applied to most mutation endpoints. An internal bypass using the <code>x-api-key</code> header allows server-to-server calls. All authenticated data endpoints call <code>checkApprovalGuard(userId)</code> to re-verify approval status against the database on every request.</div>
 
@@ -984,6 +984,37 @@ total_accuracy_pct     = ROUND(100 × AVG(accuracy_score across all horizons), 2
           <span class="route-file">src/app/api/stock_data/[ticker]/data/route.ts</span>
         </div>
         <div class="route-desc">Returns an enriched payload specifically formatted as input for the Python prediction model. Used in step 1 of the two-step prediction flow. Calls Yahoo Finance for 5 years of OHLCV data, fundamentals, earnings, options, and 11 macro symbols in parallel.</div>
+      </div>
+
+      <div class="route-card">
+        <div class="route-header">
+          <span class="method method-GET">GET</span>
+          <span class="route-path">/api/stock_data/[sector]/industry</span>
+          <span class="badge badge-auth">Auth required</span>
+          <span class="route-file">src/app/api/stock_data/[ticker]/industry/route.ts</span>
+        </div>
+        <div class="route-desc">Returns the top 10 heat-scored stocks for a canonical Yahoo sector. The <code>[sector]</code> path segment must URL-decode to one of the 11 canonical Yahoo sector strings (see <a href="business_rules.html#external">BR-14.4</a>) — e.g. <code>Technology</code>, <code>Financial%20Services</code>, <code>Basic%20Materials</code>. Non-canonical input (e.g. legacy themed routes like <code>cybersecurity</code>) returns <code>{ stocks: [] }</code> with a "No specific matches" message. Symbols are sourced from Yahoo's predefined sector screener (<code>ms_&lt;sector_slug&gt;</code>) via <code>getSectorStocks</code>; each is then re-fetched with <code>yahooFinance.quote</code> and ranked by a weighted heat score (price change 35% + volume ratio 30% + 52-week position 20% + analyst upside 15%). Results are filtered to <code>regularMarketPrice &lt; $300</code> before scoring.</div>
+        <div class="sub-heading">Response</div>
+        <pre>{
+  "input":    string,   // decoded sector name, e.g. "Financial Services"
+  "industry": string,   // same as input on the canonical path
+  "stocks": [ {
+    "symbol":             string,
+    "name":               string,
+    "price":              number,
+    "change":             number,
+    "changePercent":      number,
+    "marketCap":          number,
+    "volume":             number,
+    "avgVolume":          number,
+    "volumeRatio":        number,
+    "fiftyTwoWeekHigh":   number,
+    "fiftyTwoWeekLow":    number,
+    "fiftyTwoWeekPosition": number,  // 0-100, position within 52w range
+    "heatScore":          number     // 0-100, weighted composite
+  } ],
+  "message"?: string    // only present when stocks is empty
+}</pre>
       </div>
     </div>
 

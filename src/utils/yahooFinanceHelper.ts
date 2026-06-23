@@ -1,16 +1,23 @@
 import YahooFinance from 'yahoo-finance2';
+import { SECTOR_TO_SCRID, isCanonicalSector } from './sectorTaxonomy';
 
 // Instantiate once at module load time
 let yahooFinanceInstance: any = null;
 
 function getYahooFinance() {
   if (!yahooFinanceInstance) {
-    yahooFinanceInstance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
+    yahooFinanceInstance = new YahooFinance({
+  suppressNotices: ['yahooSurvey'],
+  validation: { logOptionsErrors: false },
+});
   }
   return yahooFinanceInstance;
 }
 
-export const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
+export const yahooFinance = new YahooFinance({
+  suppressNotices: ['yahooSurvey'],
+  validation: { logOptionsErrors: false },
+});
 
 export async function getTrendingStocks(count: number = 12) {
   try {
@@ -78,18 +85,21 @@ export async function getTickerSector(ticker: string) {
   }
 }
 
-export async function getSectorStocks(sectorName: string) {
+export async function getSectorStocks(sectorName: string, count: number = 25) {
+  if (!isCanonicalSector(sectorName)) {
+    console.warn(`getSectorStocks called with non-canonical sector: "${sectorName}"`);
+    return [];
+  }
+  const scrId = SECTOR_TO_SCRID[sectorName];
   try {
-    const result = await (yahooFinance.screener as any)({
-      scrIds: 'most_actives',
-      query: {
-        operator: 'AND',
-        operands: [{ operator: 'EQ', operands: ['sector', sectorName] }]
-      }
-    }, undefined, { validateOptions: false });
-    return result.quotes || [];
+    const result = await (yahooFinance.screener as any)(
+      { scrIds: scrId, count },
+      undefined,
+      { validateOptions: false, validateResult: false }
+    );
+    return (result as any)?.quotes || [];
   } catch (error) {
-    console.error(`Error fetching stocks for sector ${sectorName}:`, error);
+    console.error(`Error fetching stocks for sector ${sectorName} (scrId=${scrId}):`, error);
     return [];
   }
 }

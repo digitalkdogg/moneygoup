@@ -1,15 +1,13 @@
-import { GET } from '@/app/api/stock_data/[ticker]/industry/route'; // Adjusted import path
+import { GET } from '@/app/api/stock_data/[ticker]/industry/route';
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { checkOrigin } from '@/utils/originCheck';
 import { createErrorResponse, unauthorizedResponse } from '@/utils/errorResponse';
-import { yahooFinance } from '@/utils/yahooFinanceHelper';
-import { categorizeByTaxonomy, getCategoryStrategy, getCategoryKeywords } from '@/utils/industryTaxonomy';
+import { yahooFinance, getSectorStocks } from '@/utils/yahooFinanceHelper';
 import { checkApprovalGuard } from '@/utils/approvalStatus';
 
-// Mock Next.js and utility functions
 jest.mock('next/server', () => ({
-  NextRequest: jest.fn(() => ({ url: 'http://localhost/api/stock_data/some_ticker/industry' })), // Mock NextRequest constructor
+  NextRequest: jest.fn(() => ({ url: 'http://localhost/api/stock_data/some_ticker/industry' })),
   NextResponse: {
     json: jest.fn((data, options) => ({
       json: () => Promise.resolve(data),
@@ -36,7 +34,6 @@ jest.mock('@/utils/errorResponse', () => ({
   unauthorizedResponse: jest.fn(() => ({ status: 401, json: () => Promise.resolve({ message: 'Unauthorized' }) })),
 }));
 
-// Mock yahooFinanceHelper and industryTaxonomy (initially just the modules)
 jest.mock('@/utils/yahooFinanceHelper', () => ({
   yahooFinance: {
     search: jest.fn(),
@@ -44,33 +41,27 @@ jest.mock('@/utils/yahooFinanceHelper', () => ({
     screener: jest.fn(),
     quote: jest.fn(),
   },
+  getSectorStocks: jest.fn(),
 }));
 
-jest.mock('@/utils/industryTaxonomy', () => ({
-  categorizeByTaxonomy: jest.fn(),
-  getCategoryStrategy: jest.fn(),
-  getCategoryKeywords: jest.fn(),
-}));
 jest.mock('@/utils/approvalStatus', () => ({
   checkApprovalGuard: jest.fn().mockResolvedValue({ allowed: true }),
 }));
 
 
-describe('Industry Search API', () => {
-  // Before each test, reset mocks
+describe('Industry Sector API', () => {
   beforeEach(() => {
     jest.resetAllMocks();
     (checkApprovalGuard as jest.Mock).mockResolvedValue({ allowed: true });
 
-    // Reset mock implementations for NextResponse.json and unauthorizedResponse
     (NextResponse.json as jest.Mock).mockImplementation((data, options) => ({
       json: () => Promise.resolve(data),
       status: options?.status || 200,
     }));
-    
-    (unauthorizedResponse as jest.Mock).mockReturnValue({ 
-      status: 401, 
-      json: () => Promise.resolve({ message: 'Unauthorized' }) 
+
+    (unauthorizedResponse as jest.Mock).mockReturnValue({
+      status: 401,
+      json: () => Promise.resolve({ message: 'Unauthorized' })
     });
 
     (createErrorResponse as jest.Mock).mockImplementation((error, message) => ({
@@ -83,8 +74,8 @@ describe('Industry Search API', () => {
     (getServerSession as jest.Mock).mockResolvedValue(null);
     (checkOrigin as jest.Mock).mockReturnValue(null);
 
-    const request = new NextRequest('http://localhost/api/stock_data/some_ticker/industry');
-    const response = await GET(request, { params: { ticker: 'some_ticker' } });
+    const request = new NextRequest('http://localhost/api/stock_data/Technology/industry');
+    const response = await GET(request, { params: Promise.resolve({ ticker: 'Technology' }) });
 
     expect(getServerSession).toHaveBeenCalled();
     expect(unauthorizedResponse).toHaveBeenCalled();
@@ -98,8 +89,8 @@ describe('Industry Search API', () => {
       json: () => Promise.resolve({ message: 'Invalid Origin' })
     });
 
-    const request = new NextRequest('http://localhost/api/stock_data/some_ticker/industry');
-    const response = await GET(request, { params: { ticker: 'some_ticker' } });
+    const request = new NextRequest('http://localhost/api/stock_data/Technology/industry');
+    const response = await GET(request, { params: Promise.resolve({ ticker: 'Technology' }) });
 
     expect(checkOrigin).toHaveBeenCalledWith(request);
     expect(response.status).toBe(403);
@@ -107,28 +98,15 @@ describe('Industry Search API', () => {
     expect(body).toEqual({ message: 'Invalid Origin' });
   });
 
-  it('should return a successful response with industry stocks and heat scores', async () => {
+  it('should return scored stocks for a canonical sector', async () => {
     (getServerSession as jest.Mock).mockResolvedValue({ user: { email: 'test@example.com' } });
     (checkOrigin as jest.Mock).mockReturnValue(null);
 
-    // Mock categorizeByTaxonomy to match a category
-    (categorizeByTaxonomy as jest.Mock).mockReturnValue('Technology');
+    (getSectorStocks as jest.Mock).mockResolvedValueOnce([
+      { symbol: 'MSFT' },
+      { symbol: 'GOOG' },
+    ]);
 
-    // Mock getCategoryStrategy (no screenerId, so keywords path)
-    (getCategoryStrategy as jest.Mock).mockReturnValue({
-      title: 'Technology Sector Stocks',
-      screenerId: null,
-    });
-
-    // Mock getCategoryKeywords
-    (getCategoryKeywords as jest.Mock).mockReturnValue(['Software', 'Internet']);
-
-    // Mock yahooFinance.search for keywords
-    (yahooFinance.search as jest.Mock)
-      .mockResolvedValueOnce({ quotes: [{ symbol: 'MSFT', quoteType: 'EQUITY' }] })
-      .mockResolvedValueOnce({ quotes: [{ symbol: 'GOOG', quoteType: 'EQUITY' }] });
-
-    // Mock yahooFinance.quote for detailed quotes
     (yahooFinance.quote as jest.Mock).mockResolvedValueOnce([
       {
         symbol: 'MSFT',
@@ -160,98 +138,99 @@ describe('Industry Search API', () => {
       },
     ]);
 
-    const request = new NextRequest('http://localhost/api/stock_data/technology/industry');
-    const response = await GET(request, { params: { ticker: 'technology' } });
+    const request = new NextRequest('http://localhost/api/stock_data/Technology/industry');
+    const response = await GET(request, { params: Promise.resolve({ ticker: 'Technology' }) });
 
     expect(response.status).toBe(200);
-    const body = await response.json();
+    expect(getSectorStocks).toHaveBeenCalledWith('Technology', 50);
 
-    expect(body.input).toBe('technology');
-    expect(body.industry).toBe('Technology Sector Stocks');
+    const body = await response.json();
+    expect(body.input).toBe('Technology');
+    expect(body.industry).toBe('Technology');
     expect(body.stocks).toHaveLength(2);
     expect(body.stocks[0]).toHaveProperty('heatScore');
-    expect(body.stocks[0].symbol).toBe('MSFT');
-    expect(body.stocks[1].symbol).toBe('GOOG');
+    expect(body.stocks.map((s: any) => s.symbol).sort()).toEqual(['GOOG', 'MSFT']);
   });
 
-  it('should handle no top equities found by yahooFinance.search', async () => {
+  it('should return empty for non-canonical input without calling Yahoo', async () => {
     (getServerSession as jest.Mock).mockResolvedValue({ user: { email: 'test@example.com' } });
     (checkOrigin as jest.Mock).mockReturnValue(null);
 
-    (categorizeByTaxonomy as jest.Mock).mockReturnValue(null); // No category resolved
-
-    (yahooFinance.search as jest.Mock).mockResolvedValueOnce({
-      quotes: [{
-        symbol: 'NOTEQ',
-        shortName: 'Not an Equity',
-        quoteType: 'ETF', // Not an EQUITY
-      }],
-    });
-
-    const request = new NextRequest('http://localhost/api/stock_data/nonexistent/industry');
-    const response = await GET(request, { params: { ticker: 'nonexistent' } });
+    const request = new NextRequest('http://localhost/api/stock_data/cybersecurity/industry');
+    const response = await GET(request, { params: Promise.resolve({ ticker: 'cybersecurity' }) });
 
     expect(response.status).toBe(200);
+    expect(getSectorStocks).not.toHaveBeenCalled();
+    expect(yahooFinance.search).not.toHaveBeenCalled();
+    expect(yahooFinance.quote).not.toHaveBeenCalled();
+
     const body = await response.json();
-    expect(body.input).toBe('nonexistent');
+    expect(body.input).toBe('cybersecurity');
     expect(body.stocks).toHaveLength(0);
-    expect(body.message).toBe('No specific matches found for "nonexistent".');
+    expect(body.message).toContain('cybersecurity');
   });
 
-  it('should handle no category resolved and fall back to original search results', async () => {
+  it('should decode URL-encoded multi-word sectors before dispatching', async () => {
     (getServerSession as jest.Mock).mockResolvedValue({ user: { email: 'test@example.com' } });
     (checkOrigin as jest.Mock).mockReturnValue(null);
 
-    (categorizeByTaxonomy as jest.Mock).mockReturnValue(null); // Explicitly no category
+    (getSectorStocks as jest.Mock).mockResolvedValueOnce([
+      { symbol: 'JPM' },
+      { symbol: 'V' },
+    ]);
 
-    // Fallback search returns an equity
-    (yahooFinance.search as jest.Mock).mockResolvedValueOnce({
-      quotes: [{
-        symbol: 'AAPL',
-        shortName: 'Apple Inc.',
-        quoteType: 'EQUITY',
-      }],
-    });
-
-    // yahooFinance.quote for the fallback symbols
     (yahooFinance.quote as jest.Mock).mockResolvedValueOnce([
       {
-        symbol: 'AAPL',
-        longName: 'Apple Inc.',
-        regularMarketPrice: 170,
-        regularMarketChange: 1.7,
-        regularMarketChangePercent: 1.0,
-        marketCap: 2800000000000,
-        regularMarketVolume: 80000000,
-        averageDailyVolume3Month: 70000000,
-        fiftyTwoWeekHigh: 180,
-        fiftyTwoWeekLow: 120,
-        targetMedianPrice: 190,
-        targetMeanPrice: 195,
+        symbol: 'JPM',
+        longName: 'JPMorgan Chase & Co',
+        regularMarketPrice: 200,
+        regularMarketChange: 1.2,
+        regularMarketChangePercent: 0.6,
+        marketCap: 580000000000,
+        regularMarketVolume: 15000000,
+        averageDailyVolume3Month: 12000000,
+        fiftyTwoWeekHigh: 215,
+        fiftyTwoWeekLow: 140,
+        targetMedianPrice: 220,
+        targetMeanPrice: 222,
+      },
+      {
+        symbol: 'V',
+        longName: 'Visa Inc',
+        regularMarketPrice: 280,
+        regularMarketChange: 0.8,
+        regularMarketChangePercent: 0.3,
+        marketCap: 580000000000,
+        regularMarketVolume: 8000000,
+        averageDailyVolume3Month: 7000000,
+        fiftyTwoWeekHigh: 290,
+        fiftyTwoWeekLow: 220,
+        targetMedianPrice: 305,
+        targetMeanPrice: 308,
       },
     ]);
 
-    const request = new NextRequest('http://localhost/api/stock_data/apple/industry');
-    const response = await GET(request, { params: { ticker: 'apple' } });
+    const request = new NextRequest('http://localhost/api/stock_data/Financial%20Services/industry');
+    const response = await GET(request, { params: Promise.resolve({ ticker: 'Financial%20Services' }) });
 
     expect(response.status).toBe(200);
+    expect(getSectorStocks).toHaveBeenCalledWith('Financial Services', 50);
+
     const body = await response.json();
-    expect(body.input).toBe('apple');
-    expect(body.stocks).toHaveLength(1);
-    expect(body.stocks[0].symbol).toBe('AAPL');
+    expect(body.input).toBe('Financial Services');
+    expect(body.industry).toBe('Financial Services');
+    expect(body.stocks).toHaveLength(2);
   });
 
   it('should handle errors gracefully', async () => {
     (getServerSession as jest.Mock).mockResolvedValue({ user: { email: 'test@example.com' } });
     (checkOrigin as jest.Mock).mockReturnValue(null);
 
-    (categorizeByTaxonomy as jest.Mock).mockReturnValue(null);
+    const mockError = new Error('Yahoo sector screener failed');
+    (getSectorStocks as jest.Mock).mockRejectedValueOnce(mockError);
 
-    const mockError = new Error('Yahoo Finance search failed');
-    (yahooFinance.search as jest.Mock).mockRejectedValue(mockError);
-
-    const request = new NextRequest('http://localhost/api/stock_data/error_ticker/industry');
-    const response = await GET(request, { params: { ticker: 'error_ticker' } });
+    const request = new NextRequest('http://localhost/api/stock_data/Technology/industry');
+    const response = await GET(request, { params: Promise.resolve({ ticker: 'Technology' }) });
 
     expect(response.status).toBe(500);
     const body = await response.json();

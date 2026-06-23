@@ -947,7 +947,7 @@ interface CardActionHandlers {
           <div><div class="comp-name">SectorExplorer</div><div class="comp-file">src/app/components/SectorExplorer.tsx</div></div>
           <span class="badge badge-util">Presentational</span>
         </div>
-        <div class="comp-desc">5-column grid of sector buttons. Each button navigates to <code>/search/industry/{sector}</code>. Fires analytics tracking events on click.</div>
+        <div class="comp-desc">Up-to-4-column responsive grid of buttons for the 11 canonical Yahoo sectors (sourced from <code>CANONICAL_SECTORS</code>). Each button is colored on the left edge using <code>getSectorColor()</code> so the palette matches <code>/portfolio</code>'s Sector Exposure panel, and navigates to <code>/search/industry/{encodeURIComponent(sector)}</code>. Fires analytics tracking events on click.</div>
       </div>
 
       <div class="comp-card">
@@ -955,7 +955,7 @@ interface CardActionHandlers {
           <div><div class="comp-name">IndustryStocks</div><div class="comp-file">src/app/components/IndustryStocks.tsx</div></div>
           <span class="badge badge-client">Client</span>
         </div>
-        <div class="comp-desc">Fetches industry peer stocks from <code>GET /api/stock_data/{ticker}/industry</code> and renders them in a stock table. Used on the industry/sector drill-down pages.</div>
+        <div class="comp-desc">Fetches the top heat-scored stocks for a canonical sector from <code>GET /api/stock_data/{sector}/industry</code> (URL-encoded so spaces in sector names round-trip as <code>%20</code>) and renders them in a stock table. Used on the <code>/search/industry/[sector]</code> drill-down pages.</div>
         <table class="props-table">
           <thead><tr><th>Prop</th><th>Type</th><th>Required</th></tr></thead>
           <tbody>

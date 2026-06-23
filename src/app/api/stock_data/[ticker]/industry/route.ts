@@ -4,8 +4,8 @@ import { authOptions } from '@/lib/auth';
 import { checkOrigin } from '@/utils/originCheck';
 import { createErrorResponse, unauthorizedResponse } from '@/utils/errorResponse';
 import { checkApprovalGuard } from '@/utils/approvalStatus';
-import { yahooFinance } from '@/utils/yahooFinanceHelper';
-import { categorizeByTaxonomy, getCategoryStrategy, getCategoryKeywords } from '@/utils/industryTaxonomy';
+import { yahooFinance, getSectorStocks } from '@/utils/yahooFinanceHelper';
+import { isCanonicalSector } from '@/utils/sectorTaxonomy';
 
 export async function GET(
   request: NextRequest,
@@ -30,64 +30,15 @@ export async function GET(
     const { ticker: rawInput } = await params;
     const decodedInput = decodeURIComponent(rawInput).replace(/_/g, ' ');
 
-    // 4. Resolve industry from user input via trigger matching
-    // e.g. "insurance" → "finance", "solar" → "energy", "ransomware" → "cybersecurity"
-    const category = categorizeByTaxonomy(decodedInput);
-
+    // 4. Resolve symbols via Yahoo's sector-specific predefined screener
+    //    (ms_<sector>) so results match assetProfile.sector exactly — the same
+    //    bucketing /portfolio's "Sector Exposure" uses.
     let targetSymbols: string[] = [];
-    let resolvedTitle = decodedInput;
+    const resolvedTitle = decodedInput;
 
-    if (category) {
-      const strategy = getCategoryStrategy(category);
-      resolvedTitle = strategy.title;
-
-      if (strategy.screenerId) {
-        // Use Yahoo Finance screener where available (e.g. technology)
-        const screenerRes = await yahooFinance.screener({ scrIds: strategy.screenerId as any, count: 50 });
-        targetSymbols = (screenerRes.quotes || []).map((q: any) => q.symbol);
-      } else {
-        // Search every Yahoo Finance keyword defined for this industry
-        const allKeywords = getCategoryKeywords(category);
-
-        const searchPromises = allKeywords.map((keyword: string) => {
-          return (yahooFinance as any)
-            .search(keyword, { quotesCount: 5 }, { validateOptions: false })
-            .catch((err: any) => {
-              if (err?.result?.quotes) {
-                console.log(`[Industry Search] Validation error for "${keyword}", using partial results`);
-                return err.result;
-              }
-              console.warn(`[Industry Search] Search failed for "${keyword}":`, err?.message);
-              return { quotes: [] };
-            });
-        });
-
-        const allResults = await Promise.all(searchPromises);
-
-        targetSymbols = allResults.flatMap((res: any) =>
-          (res.quotes || [])
-            .filter((q: any) => q.quoteType === 'EQUITY')
-            .map((q: any) => q.symbol as string)
-        );
-
-      }
-    }
-
-    // Fallback: no category matched — do a direct Yahoo search on the raw input
-    if (targetSymbols.length === 0) {
-      let fallbackRes: any;
-      try {
-        fallbackRes = await (yahooFinance as any).search(decodedInput, { quotesCount: 10 }, { validateOptions: false });
-      } catch (err: any) {
-        if (err?.result?.quotes) {
-          fallbackRes = err.result;
-        } else {
-          throw err;
-        }
-      }
-      targetSymbols = (fallbackRes?.quotes || [])
-        .filter((q: any) => q.quoteType === 'EQUITY')
-        .map((q: any) => q.symbol as string);
+    if (isCanonicalSector(decodedInput)) {
+      const sectorQuotes = await getSectorStocks(decodedInput, 50);
+      targetSymbols = (sectorQuotes as any[]).map((q: any) => q.symbol).filter(Boolean);
     }
 
     if (targetSymbols.length === 0) {
@@ -196,7 +147,7 @@ export async function GET(
     });
 
   } catch (error) {
-    console.error('=== ERROR in taxonomy keyword search API ===');
+    console.error('=== ERROR in industry sector API ===');
     if (error instanceof Error) {
       console.error('Error message:', error.message);
     } else {
