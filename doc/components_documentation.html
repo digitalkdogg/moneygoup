@@ -955,7 +955,7 @@ interface CardActionHandlers {
           <div><div class="comp-name">IndustryStocks</div><div class="comp-file">src/app/components/IndustryStocks.tsx</div></div>
           <span class="badge badge-client">Client</span>
         </div>
-        <div class="comp-desc">Fetches the top heat-scored stocks for a canonical sector from <code>GET /api/stock_data/{sector}/industry</code> (URL-encoded so spaces in sector names round-trip as <code>%20</code>) and renders them in a stock table. Used on the <code>/search/industry/[sector]</code> drill-down pages.</div>
+        <div class="comp-desc">Fetches the top stocks for a canonical sector from <code>GET /api/stock_data/{sector}/industry</code> (URL-encoded so spaces in sector names round-trip as <code>%20</code>) sorted by GPS score and renders them in a stock table. The GPS column reuses the shared <code>GpsTooltip</code> "View score" modal for breakdown drill-down; null GPS renders as "—" (sector leader not yet covered by the nightly DeepMoney sync). Used on the <code>/search/industry/[sector]</code> drill-down pages.</div>
         <table class="props-table">
           <thead><tr><th>Prop</th><th>Type</th><th>Required</th></tr></thead>
           <tbody>

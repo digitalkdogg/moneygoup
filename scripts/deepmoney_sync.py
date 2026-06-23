@@ -288,6 +288,13 @@ def sync_deepmoney():
             #     filtered the universe server-side via algorithm.rankerKeepPct;
             #     every stock arriving here is a ranker survivor.
 
+            # Sector-leader stocks bypass the vol-gate and skip both the
+            # recommended_stocks insert and the dashboard gate. They're here
+            # solely to refresh stock_gps_scores so /search/industry/[sector]
+            # can render a real GPS column. Jump straight to the stocks/GPS
+            # upsert block.
+            is_sector_leader = s.get('discovery_source') == 'sector_leader'
+
             # 4.2 Confidence-vs-beta gate driven by the algorithm preset.
             # High-beta stocks (beta > 2.5) face the stricter volGateFloor;
             # everything else faces the mlpConfidenceFloor. The skip tag in
@@ -297,9 +304,36 @@ def sync_deepmoney():
             high_beta = beta_val > 2.5
             confidence_floor = vol_gate_floor if high_beta else mlp_confidence_floor
             floor_label = "vol-floor" if high_beta else "mlp-floor"
-            if conf_score < confidence_floor:
+            if conf_score < confidence_floor and not is_sector_leader:
                 print(f"  [vol-gate] SKIP {ticker} ({floor_label}): CS {conf_score} < floor {confidence_floor} (beta {beta_val:.2f})")
                 counters["vol_gate_rejected"] += 1
+                continue
+
+            if is_sector_leader:
+                # Fast-path: refresh stocks + stock_gps_scores only, skip
+                # recommended_stocks insert + dashboard gate.
+                cursor.execute("SELECT id FROM stocks WHERE symbol = %s", (ticker,))
+                stock_row = cursor.fetchone()
+                if stock_row:
+                    stock_id = stock_row[0]
+                else:
+                    print(f"    - [sector-leader] Adding {ticker} to stocks table...")
+                    cursor.execute(
+                        "INSERT INTO stocks (symbol, company_name, price) VALUES (%s, %s, %s)",
+                        (ticker, s.get('name'), s.get('price'))
+                    )
+                    stock_id = cursor.lastrowid
+                cursor.execute("""
+                    INSERT INTO stock_gps_scores (stock_id, as_of, gps_score, gps_breakdown, source)
+                    VALUES (%s, NOW(), %s, %s, 'deepmoney_sync')
+                    ON DUPLICATE KEY UPDATE
+                        as_of         = VALUES(as_of),
+                        gps_score     = VALUES(gps_score),
+                        gps_breakdown = VALUES(gps_breakdown),
+                        source        = VALUES(source)
+                """, (stock_id, gps, json.dumps(gps_breakdown)))
+                counters["gps_updated"] += 1
+                print(f"  > [sector-leader] {ticker} GPS {round(float(gps), 1)} (pred {predicted_change_pct:+.2f}%, CS {conf_score})")
                 continue
 
             counters["stocks_written"] += 1
@@ -642,6 +676,19 @@ def _print_run_summary(
     print(f"    Passed to analyzer:              {_fmt_int(debug.get('passedToAnalyzer'))}")
     print(f"    Rejected by ranker:              {_fmt_int(debug.get('rejectedByRanker'))}")
     print(f"    Surfaced by API:                 {_fmt_int(counters.get('stocks_in_api_resp'))}")
+
+    # ── Sector-leader override lane (powers /search/industry/[sector] GPS) ──
+    sl_injected      = debug.get('sectorLeadersInjected')
+    sl_skipped_fresh = debug.get('sectorLeadersSkippedFresh')
+    sl_computed      = debug.get('sectorLeadersComputed')
+    sl_surfaced      = debug.get('sectorLeadersSurfaced')
+    if sl_injected is not None:
+        print()
+        print("  SECTOR-LEADER OVERRIDE LANE")
+        print(f"    Injected (top-25 per sector):    {_fmt_int(sl_injected)}")
+        print(f"    Skipped (GPS fresh <7d):         {_fmt_int(sl_skipped_fresh)}")
+        print(f"    Ran MC + GPS this pass:          {_fmt_int(sl_computed)}")
+        print(f"    Surfaced in API response:        {_fmt_int(sl_surfaced)}")
 
     # ── Local gating (this script's filters on top of API output) ───────────
     print()

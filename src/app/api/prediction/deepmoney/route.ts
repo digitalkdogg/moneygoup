@@ -17,6 +17,9 @@ import { checkApprovalGuard } from '@/utils/approvalStatus';
 import { performETFDiscovery } from '@/utils/etfDiscovery';
 import { getUserStrategy, resolveStrategy, DEFAULT_STRATEGY } from '@/utils/strategy';
 import { resolveAlgorithm } from '@/utils/algorithmPreset';
+import { getSectorStocks } from '@/utils/yahooFinanceHelper';
+import { CANONICAL_SECTORS } from '@/utils/sectorTaxonomy';
+import { getDbConnection } from '@/utils/db';
 
 const logger = createLogger('api/prediction/deepmoney');
 const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
@@ -388,6 +391,69 @@ async function fetchTrendingTickers(limit: number = 50): Promise<Set<string>> {
 }
 
 /**
+ * Pull the top ~25 sector leaders per canonical Yahoo sector via the
+ * ms_<sector> predefined screener. Powers GPS coverage on the
+ * /search/industry/[sector] page — every leader needs a fresh GPS row in
+ * stock_gps_scores so the UI can render the canonical sector tile without
+ * computing on-demand. A single-sector failure is non-fatal.
+ */
+async function fetchSectorLeaderTickers(): Promise<Set<string>> {
+    const found = new Set<string>();
+    const results = await Promise.allSettled(CANONICAL_SECTORS.map(async (sector) => {
+        const quotes = await getSectorStocks(sector, 25);
+        return (quotes as any[]).map((q: any) => q.symbol).filter(Boolean);
+    }));
+    for (const r of results) {
+        if (r.status !== 'fulfilled') continue;
+        for (const sym of r.value) {
+            const t = (sym || '').toUpperCase();
+            if (t && !TICKER_STOPLIST.has(t)) found.add(t);
+        }
+    }
+    return found;
+}
+
+/**
+ * Given a set of sector-leader tickers, return only those whose
+ * `stock_gps_scores.as_of` is missing or older than `freshDays`. These are
+ * the tickers the analyzer must run MC + GPS on to refresh; the rest still
+ * have a valid recent score and can be skipped.
+ *
+ * Returns the input set on DB failure (degraded-mode: re-compute everything).
+ */
+async function filterStaleSectorLeaders(
+    tickers: Set<string>,
+    freshDays: number = 7,
+): Promise<Set<string>> {
+    if (tickers.size === 0) return new Set();
+    try {
+        const pool = await getDbConnection();
+        const [rows] = await pool.query(
+            `SELECT s.symbol, sgs.as_of
+             FROM stocks s
+             LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = s.id
+             WHERE s.symbol IN (?)`,
+            [Array.from(tickers)],
+        ) as any;
+        const freshBy = Date.now() - freshDays * 24 * 60 * 60 * 1000;
+        const fresh = new Set<string>();
+        for (const r of rows) {
+            if (r.as_of && new Date(r.as_of).getTime() >= freshBy) {
+                fresh.add(r.symbol);
+            }
+        }
+        const stale = new Set<string>();
+        for (const t of tickers) {
+            if (!fresh.has(t)) stale.add(t);
+        }
+        return stale;
+    } catch (err) {
+        logger.warn('filterStaleSectorLeaders DB query failed — falling back to re-compute all', { error: String(err) });
+        return tickers;
+    }
+}
+
+/**
  * Pull the top holdings of each popular ETF via the internal /holdings
  * endpoint and return the union of holding tickers across them. A single
  * ETF failure is non-fatal — we surface whatever the successful calls
@@ -653,16 +719,26 @@ export async function GET(request: NextRequest) {
 
         const allTickersSet = await fetchSecondaryTickers(primaryTickers);
 
-        // --- Merge popular-ETF holdings + Yahoo earnings + Trending-48h (Stage 1) ---
+        // --- Merge popular-ETF holdings + Yahoo earnings + Trending-48h + Sector leaders (Stage 1) ---
         // Set semantics dedup automatically with feed-discovered tickers.
-        const [popularEtfHoldingTickers, yahooEarningsTickers, trendingTickers] = await Promise.all([
+        // Sector leaders are the top-25 by market-cap for each of the 11 canonical
+        // Yahoo sectors; injected so /search/industry/[sector] always has fresh GPS.
+        const [popularEtfHoldingTickers, yahooEarningsTickers, trendingTickers, sectorLeaderTickers] = await Promise.all([
             fetchEtfHoldingTickers(POPULAR_ETF_TICKERS),
             fetchYahooEarningsTickers(),
             fetchTrendingTickers(50),
+            fetchSectorLeaderTickers(),
         ]);
         for (const t of popularEtfHoldingTickers) allTickersSet.add(t);
         for (const t of yahooEarningsTickers) allTickersSet.add(t);
         for (const t of trendingTickers) allTickersSet.add(t);
+        for (const t of sectorLeaderTickers) allTickersSet.add(t);
+
+        // Freshness gate: skip MC + GPS for sector leaders that already have a
+        // GPS row newer than 7 days. Steady-state, this drops the override-lane
+        // workload from ~275 to ~20-40 per nightly run.
+        const staleSectorLeaderTickers = await filterStaleSectorLeaders(sectorLeaderTickers, 7);
+        logger.info(`Sector leaders: ${sectorLeaderTickers.size} injected, ${staleSectorLeaderTickers.size} stale (need MC+GPS), ${sectorLeaderTickers.size - staleSectorLeaderTickers.size} skipped fresh`);
 
         const newsTickerArray = Array.from(allTickersSet).sort();
 
@@ -718,6 +794,7 @@ export async function GET(request: NextRequest) {
                 rankerKeepPct: algorithm.rankerKeepPct,
                 analystStrongBuyThreshold: algorithm.analystStrongBuyThreshold,
                 signalScoreFloor: algorithm.signalScoreFloor,
+                sectorLeaderTickers: staleSectorLeaderTickers,
             },
         );
 
@@ -753,6 +830,10 @@ export async function GET(request: NextRequest) {
                     filteredCount: filteredStocks.length,
                     predictionThreshold: `${mlGate}%`,
                     analystConsensusSurfaced: filteredStocks.filter(s => s.discovery_source === 'analyst_consensus').length,
+                    sectorLeadersSurfaced: filteredStocks.filter(s => s.discovery_source === 'sector_leader').length,
+                    sectorLeadersInjected: sectorLeaderTickers.size,
+                    sectorLeadersSkippedFresh: sectorLeaderTickers.size - staleSectorLeaderTickers.size,
+                    sectorLeadersComputed: staleSectorLeaderTickers.size,
                     newsTickerCount: newsTickerArray.length,
                     trendingTickerCount: trendingTickers.size,
                     etfHoldingTickerCount: etfHoldingTickers.size,

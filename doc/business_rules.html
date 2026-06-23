@@ -1038,8 +1038,17 @@
         <div class="rid">BR-14.5</div>
         <div class="body">
           <span class="tag app">Web App</span>
-          <p><code>/api/stock_data/[sector]/industry</code> sources symbols only via Yahoo's sector-specific predefined screener (<code>ms_&lt;sector_slug&gt;</code>) for canonical inputs. Non-canonical input (e.g. legacy themed routes like <code>cybersecurity</code>, <code>hospitality</code>, <code>gold</code>) returns an empty <code>stocks: []</code> with a "No specific matches" message — no keyword search, no taxonomy fallback. Sector tiles in <code>SectorExplorer</code> are the only entry point that produces a populated list.</p>
+          <p><code>/api/stock_data/[sector]/industry</code> sources symbols only via Yahoo's sector-specific predefined screener (<code>ms_&lt;sector_slug&gt;</code>) for canonical inputs, then joins each symbol against <code>stock_gps_scores</code> by stock_id and returns up to 10 stocks <strong>sorted by GPS score descending</strong> (nulls last). The previous min-max-normalized "Heat Score" is gone — GPS is now the canonical ranking metric across <code>/portfolio</code>, <code>/search/[ticker]</code>, and <code>/search/industry/[sector]</code>. Non-canonical input (e.g. legacy themed routes like <code>cybersecurity</code>, <code>hospitality</code>, <code>gold</code>) returns an empty <code>stocks: []</code> with a "No specific matches" message — no keyword search, no taxonomy fallback. Stocks without a <code>stock_gps_scores</code> row are returned with <code>gps_score: null</code> and render a placeholder ("—") in the UI so users see which leaders the nightly sync hasn't covered yet.</p>
           <span class="src">src/app/api/stock_data/[ticker]/industry/route.ts · src/utils/yahooFinanceHelper.ts (getSectorStocks)</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-14.6</div>
+        <div class="body">
+          <span class="tag app">Web App</span> <span class="tag py">Python</span>
+          <p>The DeepMoney discovery pass injects the top-25 stocks for each of the 11 canonical Yahoo sectors (via <code>fetchSectorLeaderTickers()</code>) into <code>allTickersSet</code> and adds a <strong>sector-leader override lane</strong> in <code>analyzer.ts</code> (parallel to the analyst-strongBuy lane) so these tickers bypass the ranker keep-cut and the <code>mlGate</code>. Each survivor still runs MC + GPS-Full so a real <code>stock_gps_scores</code> row gets written; their <code>discovery_source</code> is tagged <code>'sector_leader'</code> and they skip the <code>recommended_stocks</code> insert + dashboard gate in <code>deepmoney_sync.py</code> (GPS-only fast path). A 7-day freshness gate in the route (<code>filterStaleSectorLeaders()</code>) skips MC for leaders whose <code>stock_gps_scores.as_of</code> is recent — steady-state nightly cost is ~2-3 min for the override lane (cold warmup ~13-17 min for all 275 leaders at <code>BATCH_SIZE=3</code>).</p>
+          <span class="src">src/app/api/prediction/deepmoney/route.ts · src/app/api/prediction/deepmoney/analyzer.ts · scripts/deepmoney_sync.py</span>
         </div>
       </div>
     </section>

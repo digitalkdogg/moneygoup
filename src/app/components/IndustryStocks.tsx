@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import StockTable from './StockTable';
-import { formatCurrency, formatNumber } from '@/utils/formatters';
+import { GpsTooltip } from './cards/GpsTooltip';
+import { formatCurrency } from '@/utils/formatters';
+import { getGpsLabel } from '@/utils/gps';
 
 interface IndustryStocksProps {
   ticker: string;
@@ -17,14 +19,34 @@ interface IndustryStock {
   changePercent: number;
   marketCap: number;
   volume: number;
-  heatScore: number;
-  volumeRatio: number;
+  fiftyTwoWeekHigh: number;
+  fiftyTwoWeekLow: number;
   fiftyTwoWeekPosition: number;
+  gps_score: number | null;
+  gps_breakdown: any | null;
+  gps_as_of: string | null;
+}
+
+interface IndustryResponse {
+  input: string;
+  industry: string;
+  horizonLabel?: string;
+  stocks: IndustryStock[];
+  message?: string;
+}
+
+// GPS bands match getGpsLabel thresholds: Strong Buy >=80, Buy >=65, Hold >=45, Sell >=30
+function gpsBadgeClass(score: number): string {
+  if (score >= 80) return 'bg-green-100 text-green-800 border-green-300';
+  if (score >= 65) return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+  if (score >= 45) return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+  if (score >= 30) return 'bg-orange-100 text-orange-800 border-orange-200';
+  return 'bg-red-100 text-red-800 border-red-200';
 }
 
 export default function IndustryStocks({ ticker }: IndustryStocksProps) {
   const router = useRouter();
-  const [data, setData] = useState<{ industry: string; stocks: IndustryStock[] } | null>(null);
+  const [data, setData] = useState<IndustryResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,15 +55,12 @@ export default function IndustryStocks({ ticker }: IndustryStocksProps) {
       try {
         setLoading(true);
         setError(null);
-        // Correct API path
         const response = await fetch(`/api/stock_data/${encodeURIComponent(ticker)}/industry`);
-        
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(errorData.message || 'Failed to fetch industry stocks');
         }
-
-        const json = await response.json();
+        const json: IndustryResponse = await response.json();
         setData(json);
       } catch (err) {
         console.error('Error fetching industry stocks:', err);
@@ -50,10 +69,7 @@ export default function IndustryStocks({ ticker }: IndustryStocksProps) {
         setLoading(false);
       }
     }
-
-    if (ticker) {
-      fetchIndustryStocks();
-    }
+    if (ticker) fetchIndustryStocks();
   }, [ticker]);
 
   const handleRowClick = (symbol: string) => {
@@ -63,48 +79,49 @@ export default function IndustryStocks({ ticker }: IndustryStocksProps) {
   const columns = [
     { key: 'symbol', label: 'Symbol' },
     { key: 'name', label: 'Company Name' },
-    { 
-      key: 'heatScore', 
-      label: 'Heat 🔥', 
+    {
+      key: 'gps_score',
+      label: 'GPS',
       align: 'center' as const,
-      format: (val: number) => {
-        const colorClass = 
-          val >= 80 ? 'bg-red-100 text-red-800 border-red-200' :
-          val >= 60 ? 'bg-orange-100 text-orange-800 border-orange-200' :
-          val >= 40 ? 'bg-yellow-100 text-yellow-800 border-yellow-200' :
-          'bg-gray-100 text-gray-800 border-gray-200';
+      format: (val: number | null, row: any) => {
+        if (val == null) {
+          return <span className="text-gray-400 text-sm">—</span>;
+        }
+        const score = typeof val === 'string' ? parseFloat(val) : val;
         return (
-          <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${colorClass}`}>
-            {val}
-          </span>
+          <div className="inline-flex items-center gap-2">
+            <span
+              className={`px-2.5 py-1 rounded-full text-xs font-bold border ${gpsBadgeClass(score)}`}
+              title={`${getGpsLabel(score)} (${score.toFixed(1)})`}
+            >
+              {score.toFixed(1)}
+            </span>
+            {row.gps_breakdown && (
+              <GpsTooltip score={score} breakdown={row.gps_breakdown} symbol={row.symbol} />
+            )}
+          </div>
         );
-      }
+      },
     },
-    { 
-      key: 'price', 
-      label: 'Price', 
+    {
+      key: 'price',
+      label: 'Price',
       align: 'right' as const,
-      format: (val: number) => formatCurrency(val)
+      format: (val: number) => formatCurrency(val),
     },
-    { 
-      key: 'changePercent', 
-      label: 'Change %', 
+    {
+      key: 'changePercent',
+      label: 'Change %',
       align: 'right' as const,
       format: (val: number) => (
         <span className={val >= 0 ? 'text-green-600' : 'text-red-600'}>
           {val >= 0 ? '+' : ''}{val.toFixed(2)}%
         </span>
-      )
+      ),
     },
     {
-      key: 'volumeRatio',
-      label: 'Vol Ratio',
-      align: 'right' as const,
-      format: (val: number) => <span className="font-medium text-indigo-600">{val.toFixed(1)}x</span>
-    },
-    { 
-      key: 'marketCap', 
-      label: 'Market Cap', 
+      key: 'marketCap',
+      label: 'Market Cap',
       align: 'right' as const,
       format: (val: number) => {
         if (!val) return 'N/A';
@@ -112,7 +129,7 @@ export default function IndustryStocks({ ticker }: IndustryStocksProps) {
         if (val >= 1e9) return `$${(val / 1e9).toFixed(2)}B`;
         if (val >= 1e6) return `$${(val / 1e6).toFixed(2)}M`;
         return formatCurrency(val);
-      }
+      },
     },
     {
       key: 'fiftyTwoWeekPosition',
@@ -123,45 +140,42 @@ export default function IndustryStocks({ ticker }: IndustryStocksProps) {
           <div
             className="bg-blue-600 h-1.5 rounded-full"
             style={{ width: `${Math.min(100, Math.max(0, val))}%` }}
-          ></div>
+          />
         </div>
-      )
-    }
+      ),
+    },
   ];
 
-  const decodedTicker = decodeURIComponent(ticker).replace(/_/g, ' ');
-  const isTicker = decodedTicker.length <= 5 && !decodedTicker.includes(' ');
+  const sectorName = data?.industry ?? decodeURIComponent(ticker).replace(/_/g, ' ');
+  const horizonLabel = data?.horizonLabel ?? '1-month baseline';
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-6">
-        <button 
+        <button
           onClick={() => router.back()}
           className="text-green-600 hover:text-green-800 flex items-center mb-4 transition-colors"
         >
           <span className="mr-1">←</span> Back
         </button>
         <h1 className="text-3xl font-bold text-gray-900">
-          {data ? `${data.industry} Industry` : 'Industry Search'}
+          {sectorName} Sector
         </h1>
         <p className="text-gray-600 mt-2">
-          {isTicker 
-            ? `Top active stocks in the same industry as ` 
-            : `Top active stocks in the `}
-          <span className="font-bold">{decodedTicker}</span>
-          {!isTicker && ` industry`}
+          Top stocks in <span className="font-bold">{sectorName}</span> sorted by GPS Score
+          <span className="text-gray-400 text-sm"> · {horizonLabel}</span>
         </p>
       </div>
 
       <StockTable
-        title={data ? `${data.industry} Stocks` : 'Industry Stocks'}
+        title={`${sectorName} Stocks`}
         icon="📊"
         data={data?.stocks || []}
         columns={columns}
         onRowClick={handleRowClick}
         loading={loading}
         error={error}
-        emptyMessage={`No other stocks found in the ${data?.industry || 'same'} industry.`}
+        emptyMessage={`No stocks found in the ${sectorName} sector.`}
       />
     </div>
   );
