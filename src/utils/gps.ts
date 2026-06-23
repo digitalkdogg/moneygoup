@@ -65,6 +65,52 @@ export function getGpsLabel(score: number): string {
 }
 
 /**
+ * Card-only Buy/Sell label using the variant-B band scheme:
+ *
+ *   0 – 25    Strong Sell
+ *   25 – 45   Sell
+ *   45 – 55   Hold    (10-pt narrow neutral zone)
+ *   55 – 75   Buy
+ *   75 – 100  Strong Buy
+ *
+ * Used by <GpsCallLabel> on the portfolio, watchlist, and trending card
+ * surfaces (and forwarded to GpsBreakdownModal's Rating badge when opened
+ * from a portfolio card via GpsTooltip variant="card").
+ *
+ * IMPORTANT: do NOT use this for the recommendations engine, DeepMoney
+ * picks, /search/industry/[sector], the stock detail page's GPS panel, or
+ * any backend gating. Those surfaces use the canonical `getGpsLabel` above,
+ * which aligns with the env-var thresholds (BUY=65, SELL=45,
+ * DEEPMONEY_MIN=65, DISCOVERY=70). Mixing the two functions in those
+ * surfaces would silently shift behavior tied to those env vars.
+ *
+ * Returns '—' for null input so the same call site can render a placeholder
+ * when the sector-leader pre-warm sync hasn't covered a stock yet.
+ */
+export function getCardCallLabel(score: number | null): string {
+  if (score === null) return '—'
+  if (score >= 75) return 'Strong Buy'
+  if (score >= 55) return 'Buy'
+  if (score >= 45) return 'Hold'
+  if (score >= 25) return 'Sell'
+  return 'Strong Sell'
+}
+
+/**
+ * Tailwind class string for the card Buy/Sell badge — 5-tier color ramp
+ * aligned with `getCardCallLabel` thresholds. Mirrors the GPS column style
+ * used on /search/industry/[sector]. Null → grey placeholder.
+ */
+export function getCardBadgeClass(score: number | null): string {
+  if (score === null) return 'bg-gray-100 text-gray-400 border-gray-200'
+  if (score >= 75) return 'bg-green-100 text-green-800 border-green-300'
+  if (score >= 55) return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+  if (score >= 45) return 'bg-yellow-100 text-yellow-800 border-yellow-200'
+  if (score >= 25) return 'bg-orange-100 text-orange-800 border-orange-200'
+  return 'bg-red-100 text-red-800 border-red-200'
+}
+
+/**
  * Patch the two horizon-dependent components (`mlpUpside`, `mlpConfidence`) of
  * a cached breakdown using the model's own per-horizon outputs. The other 6
  * components (revenue, earnings, technical, analyst signals, 52w momentum) are

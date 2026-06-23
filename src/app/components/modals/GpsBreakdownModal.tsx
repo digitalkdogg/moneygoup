@@ -1,7 +1,7 @@
 // src/app/components/modals/GpsBreakdownModal.tsx
 
 import React from 'react'
-import { getGpsLabel } from '@/utils/gps'
+import { getGpsLabel, getCardCallLabel } from '@/utils/gps'
 
 interface GpsBreakdownModalProps {
   isOpen: boolean
@@ -13,6 +13,13 @@ interface GpsBreakdownModalProps {
   /** Which prediction horizon the mlpUpside component reflects.
    *  Defaults to '1_month' for back-compat with callers that don't pass it. */
   horizon?: '1_week' | '1_month' | '6_month' | '1_year'
+  /** When 'card', the headline Rating badge label uses the card-only
+   *  variant-B thresholds (Hold 45-55, Buy 55-75) and the footer tone
+   *  color flips its Buy anchor from 65 to 55. Keeps the modal consistent
+   *  with the calling card on PortfolioCardView. Defaults to 'default'
+   *  so all existing modal callers (IndustryStocks, RecommendationsSection,
+   *  DeepmoneyCardView, stock detail page) are unaffected. */
+  variant?: 'default' | 'card'
 }
 
 const HORIZON_LABEL: Record<string, string> = {
@@ -30,8 +37,17 @@ export const GpsBreakdownModal: React.FC<GpsBreakdownModalProps> = ({
   score,
   breakdown,
   horizon = '1_month',
+  variant = 'default',
 }) => {
   const mlpLabel = `ML Prediction (${HORIZON_LABEL[horizon] ?? '1m'})`
+  const isCardVariant = variant === 'card'
+  // Card variant uses getCardCallLabel (Hold 45-55 / Buy 55-75) so the
+  // Rating badge matches the headline on the calling card. Default uses
+  // the canonical getGpsLabel (Hold 45-64 / Buy 65-79) — env-var aligned.
+  const ratingLabel = isCardVariant ? getCardCallLabel(score ?? 0) : getGpsLabel(score ?? 0)
+  // Footer tone color: in card variant the green threshold drops from 65 → 55
+  // so the tone matches the new Buy band. The amber/red 45 anchor is shared.
+  const toneGreenThreshold = isCardVariant ? 55 : 65
   if (!isOpen) return null
 
   const getBarColor = (pct: number) => {
@@ -41,7 +57,7 @@ export const GpsBreakdownModal: React.FC<GpsBreakdownModalProps> = ({
   }
 
   const getToneColor = (s: number) => {
-    if (s >= 65) return 'text-[#17a346]'
+    if (s >= toneGreenThreshold) return 'text-[#17a346]'
     if (s >= 45) return 'text-[#b45309]'
     return 'text-[#b91c1c]'
   }
@@ -118,7 +134,7 @@ export const GpsBreakdownModal: React.FC<GpsBreakdownModalProps> = ({
                 </div>
                 <div className="bg-[#fef3c7] border border-[#fde68a] rounded-lg px-4 py-1.5 text-center">
                   <div className="text-xs font-semibold letter-spacing-widest text-[#92400e] uppercase">Rating</div>
-                  <div className="text-base font-bold text-[#b45309]">{getGpsLabel(score ?? 0)}</div>
+                  <div className="text-base font-bold text-[#b45309]">{ratingLabel}</div>
                 </div>
               </div>
 

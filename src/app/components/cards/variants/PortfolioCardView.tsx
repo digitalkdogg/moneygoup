@@ -13,6 +13,7 @@ import {
 } from '../formatters'
 import { GpsTooltip } from '../GpsTooltip'
 import { BrandLogo } from '../BrandLogo'
+import { GpsCallLabel } from '../../GpsCallLabel'
 
 interface PortfolioCardViewProps {
   card: PortfolioCard
@@ -47,12 +48,6 @@ export const PortfolioCardView: React.FC<PortfolioCardViewProps> = ({ card }) =>
     ? card.changeAmount / card.sharesHeld
     : null
   const horizonLabel = card.horizonLabel ?? '1M'
-
-  const analystBadgeClass = card.analystFeedback?.toLowerCase().includes('strong buy')
-    ? 'bg-green-100 text-green-700 border-green-200'
-    : card.analystFeedback?.toLowerCase().includes('buy')
-    ? 'bg-blue-50 text-blue-600 border-blue-100'
-    : 'bg-gray-100 text-gray-600 border-gray-200'
 
   return (
     <>
@@ -100,7 +95,7 @@ export const PortfolioCardView: React.FC<PortfolioCardViewProps> = ({ card }) =>
           {card.gpsScore != null ? (
             <div className="flex items-center gap-1">
               <span className="text-sm font-bold text-gray-900">{card.gpsScore.toFixed(1)}</span>
-              <GpsTooltip score={card.gpsScore} breakdown={card.gpsBreakdown} symbol={card.symbol} horizon={card.gpsHorizon} />
+              <GpsTooltip score={card.gpsScore} breakdown={card.gpsBreakdown} symbol={card.symbol} horizon={card.gpsHorizon} variant="card" />
             </div>
           ) : (
             <span className="text-sm text-gray-400">—</span>
@@ -108,10 +103,11 @@ export const PortfolioCardView: React.FC<PortfolioCardViewProps> = ({ card }) =>
         </div>
 
         <div>
-          <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Analyst</div>
-          <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold border ${card.analystFeedback ? analystBadgeClass : 'bg-gray-100 text-gray-400 border-gray-200'}`}>
-            {card.analystFeedback ?? 'None'}
-          </span>
+          <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Rating</div>
+          <GpsCallLabel score={card.gpsScore ?? null} showScore={false} />
+          {card.analystFeedback && (
+            <div className="text-[10px] text-gray-400 mt-0.5 truncate">Analysts: {card.analystFeedback}</div>
+          )}
         </div>
       </div>
 

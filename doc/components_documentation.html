@@ -614,7 +614,7 @@ interface CardActionHandlers {
           <div><div class="comp-name">GpsTooltip</div><div class="comp-file">src/app/components/cards/GpsTooltip.tsx</div></div>
           <span class="badge badge-client">Client</span>
         </div>
-        <div class="comp-desc">Small inline button rendered next to GPS score displays on stock cards. On click, opens <code>GpsBreakdownModal</code> passing the breakdown data. Updated May 2026: the trigger was changed from a circled-i icon (&#9432;) to a text button labeled <strong>"View score"</strong> for improved accessibility and clarity. Forwards the optional <code>horizon</code> prop straight through to the modal so the ML Prediction row label matches the horizon the <code>mlpUpside</code> component was actually computed for.</div>
+        <div class="comp-desc">Small inline button rendered next to GPS score displays on stock cards. On click, opens <code>GpsBreakdownModal</code> passing the breakdown data. Updated May 2026: the trigger was changed from a circled-i icon (&#9432;) to a text button labeled <strong>"View score"</strong> for improved accessibility and clarity. Forwards the optional <code>horizon</code> prop straight through to the modal so the ML Prediction row label matches the horizon the <code>mlpUpside</code> component was actually computed for. Also forwards an optional <code>variant</code> prop (<code>'default' | 'card'</code>) — when <code>'card'</code>, the modal's headline Rating badge + green tone threshold use the variant-B band scheme matching the calling card's badge.</div>
         <table class="props-table">
           <thead><tr><th>Prop</th><th>Type</th><th>Required</th></tr></thead>
           <tbody>
@@ -622,10 +622,28 @@ interface CardActionHandlers {
             <tr><td><code>breakdown</code></td><td>any | null</td><td><span class="required">required</span></td></tr>
             <tr><td><code>symbol</code></td><td>string</td><td><span class="required">required</span></td></tr>
             <tr><td><code>horizon</code></td><td>'1_week' | '1_month' | '6_month' | '1_year'</td><td><span class="optional">optional</span></td></tr>
+            <tr><td><code>variant</code></td><td>'default' | 'card'</td><td><span class="optional">optional</span></td></tr>
           </tbody>
         </table>
         <div class="dep-list"><span class="dep-tag">GpsBreakdownModal</span></div>
-        <div class="updated"><strong>June 2026:</strong> Added <code>horizon</code> prop. Callers that drive cards from a user's selected investment timeframe (portfolio, watchlist, ETF holdings) now pass it so the modal's ML Prediction row matches the horizon the breakdown was scored against.</div>
+        <div class="updated"><strong>June 2026:</strong> Added <code>horizon</code> prop. Callers that drive cards from a user's selected investment timeframe (portfolio, watchlist, ETF holdings) now pass it so the modal's ML Prediction row matches the horizon the breakdown was scored against. Also added <code>variant="card"</code> for the portfolio card click-through; see <a href="business_rules.html#recommendations">BR-8.7</a>.</div>
+      </div>
+
+      <div class="comp-card">
+        <div class="comp-header">
+          <div><div class="comp-name">GpsCallLabel</div><div class="comp-file">src/app/components/GpsCallLabel.tsx</div></div>
+          <span class="badge badge-client">Client</span>
+        </div>
+        <div class="comp-desc">Card-only Buy/Sell badge rendered under the "Rating" column on portfolio, watchlist, and trending cards — matching the same terminology used by <code>GpsBreakdownModal</code>'s headline badge. Color-banded label sourced from <code>getCardCallLabel(score)</code> using the variant-B thresholds: Strong Sell (&lt;25), Sell (&lt;45), Hold (&lt;55), Buy (&lt;75), Strong Buy (&ge;75). Used by <code>PortfolioCardView</code>, <code>WatchlistCardView</code>, and <code>SearchTrendingCardView</code> as the headline rating where Yahoo's <code>recommendationKey</code> badge used to sit. Renders "—" placeholder for null GPS (sector-leader pre-warm gap). Numeric score appears next to the label by default to disambiguate inside the wide 20-point Buy band; pass <code>showScore=false</code> in tight layouts where the score is already shown elsewhere on the card.</div>
+        <table class="props-table">
+          <thead><tr><th>Prop</th><th>Type</th><th>Required</th></tr></thead>
+          <tbody>
+            <tr><td><code>score</code></td><td>number | null</td><td><span class="required">required</span></td></tr>
+            <tr><td><code>showScore</code></td><td>boolean (default true)</td><td><span class="optional">optional</span></td></tr>
+            <tr><td><code>size</code></td><td>'sm' | 'md' (default 'sm')</td><td><span class="optional">optional</span></td></tr>
+          </tbody>
+        </table>
+        <div class="dep-list"><span class="dep-tag">getCardCallLabel (gps utility)</span><span class="dep-tag">getCardBadgeClass (gps utility)</span></div>
       </div>
 
       <div class="comp-card">

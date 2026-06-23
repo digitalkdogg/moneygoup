@@ -29,6 +29,13 @@ INTERNAL_API_URL = 'http://localhost:3001'
 API_URL = f"{INTERNAL_API_URL}/api/prediction/deepmoney?refresh=true"
 WB_API_URL = f"{INTERNAL_API_URL}/api/worldbank"
 
+# Drop stocks priced above this floor. BRK-A trades ~$700k/share and similar
+# class-A names show up via the sector-leader override lane; their GPS is
+# irrelevant to anyone who can't afford one share. Filter is applied to both
+# the regular ranker-survivor path and the sector-leader fast path, so these
+# stocks never reach recommended_stocks or stock_gps_scores.
+PRICE_CEILING_USD = 100_000
+
 # Global cache for market indices
 _indices_cache = None
 
@@ -76,6 +83,7 @@ def sync_deepmoney():
     # short-circuits the work before they'd otherwise be set.
     run_start = time.time()
     counters = {
+        "price_ceiling_rejected":0,   # dropped because price > PRICE_CEILING_USD
         "vol_gate_rejected":     0,   # MLP confidence-vs-beta gate
         "stocks_written":        0,   # rows inserted into recommended_stocks
         "gps_updated":           0,   # stock_gps_scores rows updated (score changed)
@@ -263,6 +271,15 @@ def sync_deepmoney():
             # Per-horizon predicted prices — pulled up here so we can persist
             # them to analytics *before* any gating drops the stock.
             price = s.get('price')
+
+            # Price-ceiling gate — drop class-A / ultra-high-share-price names
+            # (e.g. BRK-A) before any downstream write. Applies to both the
+            # regular path and the sector-leader fast path.
+            if price and price > PRICE_CEILING_USD:
+                print(f"  [price-ceiling] SKIP {ticker}: ${price:,.0f} > ${PRICE_CEILING_USD:,}")
+                counters["price_ceiling_rejected"] += 1
+                continue
+
             predicted_price_1w = pred_input.get('predicted_price_1w')
             predicted_price_1m = pred_input.get('predicted_price_1m')
             if predicted_price_1m is None:
@@ -693,6 +710,8 @@ def _print_run_summary(
     # ── Local gating (this script's filters on top of API output) ───────────
     print()
     print("  LOCAL GATING")
+    print(f"    Price ceiling (>${PRICE_CEILING_USD:,}):"
+          f"{' ':>5}{_fmt_int(counters.get('price_ceiling_rejected'))} rejected")
     print(f"    MLP confidence floor ({mlp_floor}):"
           f"{' ':>8}{_fmt_int(counters.get('vol_gate_rejected'))} rejected (combined w/ vol gate)")
     print(f"    Written to recommended_stocks:   {_fmt_int(counters.get('stocks_written'))}")

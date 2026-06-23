@@ -753,6 +753,15 @@
           <span class="src">src/app/api/dashboard/recommendations/route.ts</span>
         </div>
       </div>
+
+      <div class="rule">
+        <div class="rid">BR-8.7</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>The headline Buy / Sell <strong>Rating</strong> on <code>PortfolioCardView</code>, <code>WatchlistCardView</code>, and <code>SearchTrendingCardView</code> is <strong>GPS-derived</strong>, not from Yahoo's <code>recommendationKey</code>. The card surfaces use the variant-B label helper <code>getCardCallLabel</code> (Strong Sell &lt; 25, Sell &lt; 45, Hold &lt; 55, Buy &lt; 75, Strong Buy ≥ 75) via the <code>&lt;GpsCallLabel&gt;</code> component, rendered under a "Rating" column header — matching the same terminology used by <code>GpsBreakdownModal</code>'s headline badge. The analyst recommendation is preserved as small supporting text ("Analysts: Strong Buy") below the GPS rating. When <code>PortfolioCardView</code> opens <code>GpsBreakdownModal</code> via "View score", the modal's headline Rating badge + green tone threshold use the same variant-B bands so the click-through stays consistent. Every other GPS-label surface — stock detail GPS panel, dashboard recommendations engine, DeepMoney picks, <code>/search/industry/[sector]</code> — keeps the canonical <code>getGpsLabel</code> aligned with the env-var thresholds (<code>GPS_RECOMMENDATION_BUY_THRESHOLD</code>, <code>GPS_DEEPMONEY_MIN_SCORE</code>, etc.).</p>
+          <span class="src">src/utils/gps.ts · src/app/components/GpsCallLabel.tsx · src/app/components/modals/GpsBreakdownModal.tsx</span>
+        </div>
+      </div>
     </section>
 
     <!-- ─────────────────────────── 9. RATE LIMITS ─────────────────────────── -->
@@ -1049,6 +1058,15 @@
           <span class="tag app">Web App</span> <span class="tag py">Python</span>
           <p>The DeepMoney discovery pass injects the top-25 stocks for each of the 11 canonical Yahoo sectors (via <code>fetchSectorLeaderTickers()</code>) into <code>allTickersSet</code> and adds a <strong>sector-leader override lane</strong> in <code>analyzer.ts</code> (parallel to the analyst-strongBuy lane) so these tickers bypass the ranker keep-cut and the <code>mlGate</code>. Each survivor still runs MC + GPS-Full so a real <code>stock_gps_scores</code> row gets written; their <code>discovery_source</code> is tagged <code>'sector_leader'</code> and they skip the <code>recommended_stocks</code> insert + dashboard gate in <code>deepmoney_sync.py</code> (GPS-only fast path). A 7-day freshness gate in the route (<code>filterStaleSectorLeaders()</code>) skips MC for leaders whose <code>stock_gps_scores.as_of</code> is recent — steady-state nightly cost is ~2-3 min for the override lane (cold warmup ~13-17 min for all 275 leaders at <code>BATCH_SIZE=3</code>).</p>
           <span class="src">src/app/api/prediction/deepmoney/route.ts · src/app/api/prediction/deepmoney/analyzer.ts · scripts/deepmoney_sync.py</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-14.7</div>
+        <div class="body">
+          <span class="tag py">Python</span>
+          <p><code>deepmoney_sync.py</code> drops any stock with <code>price &gt; $100,000</code> per share before either the analytics record, the vol-gate, the <code>recommended_stocks</code> insert, or the <code>stock_gps_scores</code> upsert. Catches class-A names like BRK-A (~$700k) that surface through the sector-leader override lane but are unaffordable per share. Applies uniformly to both the regular ranker-survivor path and the sector-leader fast path — these stocks never write any row anywhere. Counted in the run summary's "LOCAL GATING" block as <code>price_ceiling_rejected</code>.</p>
+          <span class="src">scripts/deepmoney_sync.py · PRICE_CEILING_USD</span>
         </div>
       </div>
     </section>

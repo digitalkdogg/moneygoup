@@ -422,6 +422,24 @@
       <div class="info-box" style="margin-top:1.5rem;">
         <strong>DeepMoney sync thresholds:</strong> The <code>deepmoney_sync.py</code> script no longer applies a per-stock GPS gate — every stock arriving in the API response has already survived the LightGBM ranker filter server-side. Whether a stock is recorded in <code>recommended_stocks</code> and pushed to active user dashboards is now governed by the MLP confidence floor resolved from <code>DEEPMONEY_ALGORITHM</code> (echoed back in <code>meta.algorithm</code>). The read-side <code>deepmoney-picks</code> API route still uses <code>GPS_DEEPMONEY_MIN_SCORE</code> (default <strong>65</strong>).
       </div>
+
+      <h3 style="margin-top:2.5rem;">Card-only label variant (variant B)</h3>
+      <p>The portfolio, watchlist, and trending cards use a separate, tighter scheme via <code>getCardCallLabel(score)</code> rendered under a "Rating" column — Hold is narrowed to a 10-point neutral zone so cards make a more decisive Buy / Sell rating at a glance. The Buy threshold drops to 55 and the Strong Buy threshold to 75 so the headline badge fires more often (~10.7% Buy vs ~2.6% under the canonical scheme, measured against the live <code>stock_gps_scores</code> distribution).</p>
+      <table class="schema-table">
+        <thead>
+          <tr><th>Range</th><th>Label</th><th>Width</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="range-pill range-low">0 – 25</span></td><td><strong>Strong Sell</strong></td><td>25 pts</td></tr>
+          <tr><td><span class="range-pill range-below">25 – 45</span></td><td><strong>Sell</strong></td><td>20 pts</td></tr>
+          <tr><td><span class="range-pill range-moderate">45 – 55</span></td><td><strong>Hold</strong></td><td>10 pts</td></tr>
+          <tr><td><span class="range-pill range-strong">55 – 75</span></td><td><strong>Buy</strong></td><td>20 pts</td></tr>
+          <tr><td><span class="range-pill range-exceptional">75 – 100</span></td><td><strong>Strong Buy</strong></td><td>25 pts</td></tr>
+        </tbody>
+      </table>
+      <div class="warn-box" style="margin-top:1.25rem;">
+        <strong>Scope.</strong> The variant-B scheme applies <em>only</em> to <code>PortfolioCardView</code>, <code>WatchlistCardView</code>, and <code>SearchTrendingCardView</code> via the <code>&lt;GpsCallLabel&gt;</code> component, and to <code>GpsBreakdownModal</code> when opened via <code>GpsTooltip</code> with <code>variant=&quot;card&quot;</code>. The canonical <code>getGpsLabel</code> (30/45/65/80) remains in use on the stock detail GPS panel, the recommendations engine, <code>/api/dashboard/deepmoney-picks</code>, and <code>/search/industry/[sector]</code> — those surfaces are aligned with the env-var thresholds (<code>GPS_RECOMMENDATION_BUY_THRESHOLD</code>, <code>GPS_DEEPMONEY_MIN_SCORE</code>, etc.) and must not drift. A stock scored 60 will therefore show as <strong>Buy</strong> on a portfolio card but <strong>Hold</strong> on the stock detail GPS panel — this is deliberate, not a bug.
+      </div>
     </section>
 
     <!-- ── Components ─────────────────────────────────────────────────── -->

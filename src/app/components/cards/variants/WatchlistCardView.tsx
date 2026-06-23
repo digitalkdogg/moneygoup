@@ -10,6 +10,7 @@ import {
   calculatePredictionChange,
   getPredictionColor,
 } from '../formatters'
+import { GpsCallLabel } from '../../GpsCallLabel'
 
 interface WatchlistCardViewProps {
   card: WatchlistCard
@@ -17,19 +18,8 @@ interface WatchlistCardViewProps {
   onClick?: () => void
 }
 
-const analystBadgeClasses = (feedback: string | null | undefined): string => {
-  const f = feedback?.toLowerCase() ?? ''
-  if (f.includes('strong buy')) return 'bg-green-100 text-green-700'
-  if (f.includes('buy')) return 'bg-blue-100 text-blue-700'
-  if (f.includes('hold')) return 'bg-yellow-100 text-amber-800'
-  if (f.includes('strong sell')) return 'bg-red-100 text-red-700'
-  if (f.includes('sell')) return 'bg-red-50 text-red-600'
-  return 'bg-gray-100 text-gray-500'
-}
-
 export const WatchlistCardView: React.FC<WatchlistCardViewProps> = ({ card, onClick }) => {
   const predictionChange = calculatePredictionChange(card.price, card.predictedPriceHorizon ?? null)
-  const analystLabel = card.analystFeedback ?? 'None'
   const ma6mPositive = card.ma6m != null && card.ma6m > 0
   const horizonLabel = card.horizonLabel ?? '1M'
 
@@ -89,14 +79,13 @@ export const WatchlistCardView: React.FC<WatchlistCardViewProps> = ({ card, onCl
 
         <div>
           <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-500 mb-1">
-            Analyst
+            Rating
           </div>
-          <span className={`inline-block text-[12px] font-bold tracking-[0.03em] px-1.5 py-0.5 rounded ${analystBadgeClasses(card.analystFeedback)}`}>
-            {analystLabel}
-          </span>
-          {card.analysts != null && card.analysts > 0 && (
-            <div className="text-[12px] text-gray-600 mt-0.5">
-              {card.analysts} analyst{card.analysts === 1 ? '' : 's'}
+          <GpsCallLabel score={card.gpsScore ?? null} showScore={false} />
+          {card.analystFeedback && (
+            <div className="text-[10px] text-gray-400 mt-0.5 truncate">
+              Analysts: {card.analystFeedback}
+              {card.analysts != null && card.analysts > 0 && ` (${card.analysts})`}
             </div>
           )}
         </div>
