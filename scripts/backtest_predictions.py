@@ -36,6 +36,8 @@ Usage:
     python3 backtest_predictions.py AAPL MSFT --as-of-date 2024-01-15
     python3 backtest_predictions.py AAPL --start-date 2022-01-01 --end-date 2024-01-01 --step-days 30
     python3 backtest_predictions.py AAPL --as-of-date 2024-01-15 --dry-run
+    python3 backtest_predictions.py AAPL --from-date 2025-01-01           # every trading day since, capped at 1y
+    python3 backtest_predictions.py AAPL --from-date 2025-01-01 --max-days 180
 """
 import os
 import sys
@@ -396,6 +398,8 @@ def main():
     )
     parser.add_argument('tickers', nargs='+', help='Stock ticker symbol(s)')
     parser.add_argument('--as-of-date', type=str, help='Single historical date to simulate (YYYY-MM-DD)')
+    parser.add_argument('--from-date', type=str, help='Run one prediction per trading day from this date through today (or --max-days out, whichever is sooner)')
+    parser.add_argument('--max-days', type=int, default=365, help='With --from-date, cap how many calendar days forward of that date to backtest (default: 365)')
     parser.add_argument('--start-date', type=str, help='Start of date range (YYYY-MM-DD)')
     parser.add_argument('--end-date', type=str, help='End of date range (YYYY-MM-DD)')
     parser.add_argument('--step-days', type=int, default=30, help='Days between simulated dates in a range (default: 30)')
@@ -404,20 +408,37 @@ def main():
     parser.add_argument('--overwrite', action='store_true', help='Replace an existing backtest row for the same (symbol, date) instead of skipping it')
     args = parser.parse_args()
 
-    if not args.as_of_date and not (args.start_date and args.end_date):
-        parser.error('Provide either --as-of-date, or both --start-date and --end-date')
+    mode_count = sum([bool(args.as_of_date), bool(args.from_date), bool(args.start_date or args.end_date)])
+    if mode_count != 1:
+        parser.error('Provide exactly one of: --as-of-date, --from-date, or --start-date/--end-date')
+    if bool(args.start_date) != bool(args.end_date):
+        parser.error('--start-date and --end-date must be used together')
 
-    as_of_dates = generate_dates(args)
     today = date.today()
-    for d in as_of_dates:
-        if datetime.strptime(d, '%Y-%m-%d').date() >= today:
-            parser.error(f'as-of date {d} must be in the past')
+    as_of_dates = None
+    from_date = cap_date = None
 
-    earliest_date = datetime.strptime(min(as_of_dates), '%Y-%m-%d').date()
+    if args.from_date:
+        from_date = datetime.strptime(args.from_date, '%Y-%m-%d').date()
+        if from_date >= today:
+            parser.error(f'--from-date {args.from_date} must be in the past')
+        cap_date = min(today - timedelta(days=1), from_date + timedelta(days=args.max_days))
+        earliest_date = from_date
+    else:
+        as_of_dates = generate_dates(args)
+        for d in as_of_dates:
+            if datetime.strptime(d, '%Y-%m-%d').date() >= today:
+                parser.error(f'as-of date {d} must be in the past')
+        earliest_date = datetime.strptime(min(as_of_dates), '%Y-%m-%d').date()
+
     download_start = earliest_date - timedelta(days=365 * args.lookback_years + 30)
     download_end = today + timedelta(days=1)  # yfinance end is exclusive
 
-    print(f"[{datetime.now().isoformat()}] Backtesting {len(args.tickers)} ticker(s) x {len(as_of_dates)} date(s)...")
+    if args.from_date:
+        print(f"[{datetime.now().isoformat()}] Backtesting {len(args.tickers)} ticker(s), "
+              f"one prediction per trading day from {from_date.isoformat()} through {cap_date.isoformat()}...")
+    else:
+        print(f"[{datetime.now().isoformat()}] Backtesting {len(args.tickers)} ticker(s) x {len(as_of_dates)} date(s)...")
     print("  Lookahead-bias note: fundamentals neutralized to sector-median; "
           "options/insider/analyst-revision/institution-ownership fields neutralized to model defaults.")
     if args.dry_run:
@@ -446,7 +467,13 @@ def main():
             ticker_macro = dict(macro_full)
             ticker_macro['sectorEtf'] = sector_etf_cache[sector_etf_sym]
 
-            for as_of in as_of_dates:
+            if args.from_date:
+                ticker_dates = [r['date'] for r in full_hist if from_date.isoformat() <= r['date'] <= cap_date.isoformat()]
+                print(f"  {len(ticker_dates)} trading day(s) to backtest in range.")
+            else:
+                ticker_dates = as_of_dates
+
+            for as_of in ticker_dates:
                 row = backtest_one(ticker, as_of, full_hist, ticker_macro, conn, args.dry_run, args.overwrite)
                 if row is not None:
                     all_results.append(row)
