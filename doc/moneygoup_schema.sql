@@ -279,7 +279,7 @@ CREATE TABLE `portfolio_transactions` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `user_id` int NOT NULL,
   `stock_id` int NOT NULL,
-  `transaction_type` enum('buy','sell','dividend','split','deposit','withdrawal') NOT NULL,
+  `transaction_type` enum('buy','sell','dividend','split','deposit','withdrawal','rsu_vest') NOT NULL,
   `shares` decimal(14,6) DEFAULT NULL,
   `price_per_share` decimal(14,4) DEFAULT NULL,
   `total_amount` decimal(14,2) NOT NULL,

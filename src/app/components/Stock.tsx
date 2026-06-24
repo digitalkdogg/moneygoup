@@ -14,6 +14,7 @@ import StockSignalPanel, { GpsData } from './StockSignalPanel'
 import SymbolAccuracyIndicator from './SymbolAccuracyIndicator'
 import BuyMoreModal from './modals/BuyMoreModal'
 import SellModal from './modals/SellModal'
+import RsuVestModal from './modals/RsuVestModal'
 import PurchaseFromWatchlistModal from './modals/PurchaseFromWatchlistModal'
 import { formatNumber, formatCurrency } from '@/utils/formatters' // Added import
 
@@ -129,7 +130,7 @@ export default function Stock({
   const [portfolioStatus, setPortfolioStatus] = useState<Record<string, boolean>>({})
   const [portfolioData, setPortfolioData] = useState<Record<string, { stockId: number | null; shares: number; purchaseDate: string | null; purchasePrice: number }>>({})
   const [watchlistData, setWatchlistData] = useState<Record<string, { addedDate: string | null; priceAdded: number }>>({})
-  const [manageAction, setManageAction] = useState<'buy' | 'sell' | null>(null)
+  const [manageAction, setManageAction] = useState<'buy' | 'sell' | 'rsu_vest' | null>(null)
   const [showBuyFromWatchlist, setShowBuyFromWatchlist] = useState(false)
   const [earningsData, setEarningsData] = useState<EarningsData | null>(null);
   const [showFullSummary, setShowFullSummary] = useState(false); // State for showing full summary
@@ -795,6 +796,14 @@ export default function Stock({
                       </svg>
                       Sell shares
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setManageAction('rsu_vest')}
+                      disabled={pos.stockId == null}
+                      className="inline-flex items-center gap-1.5 px-3 sm:px-5 py-2 rounded-md text-[13px] font-semibold whitespace-nowrap bg-white text-blue-700 border-[1.5px] border-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      RSU vest
+                    </button>
                   </div>
                   {pos.purchaseDate && (
                     <span className="text-xs text-gray-500 font-medium sm:ml-auto">
@@ -952,7 +961,9 @@ export default function Stock({
               }
               return manageAction === 'buy'
                 ? <BuyMoreModal stock={stockShape} onClose={closeAndRefresh} />
-                : <SellModal stock={stockShape} onClose={closeAndRefresh} />
+                : manageAction === 'sell'
+                ? <SellModal stock={stockShape} onClose={closeAndRefresh} />
+                : <RsuVestModal stock={stockShape} onClose={closeAndRefresh} />
             })()
           )}
 

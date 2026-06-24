@@ -11,9 +11,12 @@ import { checkApprovalGuard } from '@/utils/approvalStatus';
 
 const logger = createLogger('api/user/stocks/[stock_id]');
 
-// Schema for buy/sell operations
+// Schema for buy/sell operations.
+// 'rsu_vest' shares the same math as 'buy' (FMV at vest IS the cost basis) —
+// only the recorded transaction_type differs so RSU vests stay distinguishable
+// in the transaction history.
 const tradeSchema = z.object({
-  action: z.enum(['buy', 'sell_partial', 'sell_all']),
+  action: z.enum(['buy', 'rsu_vest', 'sell_partial', 'sell_all']),
   shares: z.number().positive('Shares must be positive').optional(),
   price: z.number().positive('Price must be positive'),
 });
@@ -71,9 +74,9 @@ export const PATCH = validate(tradeSchema)(
         ? parseFloat(position.average_cost_basis)
         : currentPrice;
 
-      if (action === 'buy') {
+      if (action === 'buy' || action === 'rsu_vest') {
         if (!sharesToTrade) {
-          return createErrorResponse(null, 'Shares required for buy action', { status: 400 });
+          return createErrorResponse(null, `Shares required for ${action} action`, { status: 400 });
         }
 
         const newAvgPrice = (currentShares * currentPrice + sharesToTrade * price) / (currentShares + sharesToTrade);
@@ -93,8 +96,8 @@ export const PATCH = validate(tradeSchema)(
 
         await executeRawQuery(
           `INSERT INTO portfolio_transactions (user_id, stock_id, transaction_type, shares, price_per_share, total_amount, fees, transaction_date)
-           VALUES (?, ?, 'buy', ?, ?, ?, 0, NOW())`,
-          [userId, stockId, sharesToTrade, price, sharesToTrade * price]
+           VALUES (?, ?, ?, ?, ?, ?, 0, NOW())`,
+          [userId, stockId, action, sharesToTrade, price, sharesToTrade * price]
         );
 
         return NextResponse.json(

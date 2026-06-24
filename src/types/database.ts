@@ -39,7 +39,7 @@ export interface PortfolioTransactionRow {
   id: number;
   user_id: number;
   stock_id: number;
-  transaction_type: 'buy' | 'sell' | 'dividend' | 'split' | 'deposit' | 'withdrawal';
+  transaction_type: 'buy' | 'sell' | 'dividend' | 'split' | 'deposit' | 'withdrawal' | 'rsu_vest';
   shares: number | null;
   price_per_share: number | null;
   total_amount: number;
