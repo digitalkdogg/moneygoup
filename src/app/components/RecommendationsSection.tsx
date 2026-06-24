@@ -119,7 +119,11 @@ const RecommendationsSection: React.FC<RecommendationsSectionProps> = ({ scopes,
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filtered.map((rec) => (
-              <Link key={`${rec.scope}-${rec.symbol}`} href={`/search/${rec.symbol}`}>
+              <Link
+                key={`${rec.scope}-${rec.symbol}`}
+                href={`/search/${rec.symbol}`}
+                className="block rounded-lg hover:shadow-md hover:-translate-y-1 transition-all duration-200 focus-ring"
+              >
                 <MiniDataCard
                   label={rec.symbol}
                   badge={getBadgeText(rec)}

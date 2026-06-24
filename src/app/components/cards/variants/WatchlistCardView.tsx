@@ -36,7 +36,7 @@ export const WatchlistCardView: React.FC<WatchlistCardViewProps> = ({ card, onCl
       tabIndex={onClick ? 0 : undefined}
       onClick={onClick}
       onKeyDown={handleKeyDown}
-      className="w-full h-full bg-white border border-gray-200 rounded-[10px] px-[18px] pt-4 pb-3.5 cursor-pointer hover:shadow-[0_4px_16px_rgba(0,0,0,0.09)] hover:border-gray-300 transition-all duration-150 flex flex-col gap-2.5 focus-ring"
+      className="w-full h-full bg-white border border-gray-200 rounded-[10px] px-[18px] pt-4 pb-3.5 cursor-pointer hover:shadow-[0_4px_16px_rgba(0,0,0,0.09)] hover:border-gray-300 hover:-translate-y-1 transition-all duration-200 flex flex-col gap-2.5 focus-ring"
     >
       {/* Header: ticker + company | price + change */}
       <div className="flex items-start justify-between gap-2">
