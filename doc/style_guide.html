@@ -103,7 +103,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Style Guide</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-15</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-23</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">&lsaquo;</button>
@@ -475,11 +475,12 @@
                 </div>
                 <p>The shared outer container. Renders as <code>role="button"</code> and is keyboard-activatable when <code>onClick</code> is passed.</p>
                 <div class="type-sample">
-                    <code>w-full h-full bg-white border border-gray-100 rounded-2xl shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer flex flex-col overflow-hidden focus-ring</code>
+                    <code>w-full h-full bg-white border border-gray-100 rounded-2xl shadow-md hover:shadow-lg hover:-translate-y-1 transition-all duration-200 cursor-pointer flex flex-col overflow-hidden focus-ring</code>
                 </div>
                 <ul>
                     <li><strong>Radius:</strong> <code>rounded-2xl</code> (16px).</li>
                     <li><strong>Shadow:</strong> <code>shadow-md</code> &rarr; <code>hover:shadow-lg</code>.</li>
+                    <li><strong>Lift:</strong> <code>hover:-translate-y-1</code> — the universal "clickable card" affordance applied to every clickable card across the app (BaseCardShell, WatchlistCardView, SectorExplorer tiles, Recommendations Link-wrapper). Matches the sector-tile hover effect on <code>/search</code>.</li>
                     <li><strong>Border:</strong> 1px <code>border-gray-100</code>.</li>
                     <li><strong>Layout:</strong> <code>flex flex-col</code> + <code>h-full</code> so the footer can pin to the bottom via <code>mt-auto</code>.</li>
                     <li><strong>Focus:</strong> uses the global <code>.focus-ring</code> (2px blue outline + 2px white offset).</li>
@@ -502,9 +503,9 @@
                         </div>
                     </div>
                 </div>
-                <p>The Watchlist variant owns its own outer container instead of using <code>BaseCardShell</code> — it ships as a compact tile with a 10px radius and a lighter hover shadow.</p>
+                <p>The Watchlist variant owns its own outer container instead of using <code>BaseCardShell</code> — it ships as a compact tile with a 10px radius, a lighter hover shadow, and the same <code>hover:-translate-y-1</code> lift used everywhere else.</p>
                 <div class="type-sample">
-                    <code>w-full h-full bg-white border border-gray-200 rounded-[10px] px-[18px] pt-4 pb-3.5 hover:shadow-[0_4px_16px_rgba(0,0,0,0.09)] hover:border-gray-300 transition-all duration-150 flex flex-col gap-2.5 focus-ring</code>
+                    <code>w-full h-full bg-white border border-gray-200 rounded-[10px] px-[18px] pt-4 pb-3.5 cursor-pointer hover:shadow-[0_4px_16px_rgba(0,0,0,0.09)] hover:border-gray-300 hover:-translate-y-1 transition-all duration-200 flex flex-col gap-2.5 focus-ring</code>
                 </div>
             </div>
 
@@ -569,12 +570,12 @@
                         <tr>
                             <td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;"><code>portfolio</code></td>
                             <td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;"><code>BaseCardShell</code> + top accent strip</td>
-                            <td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;">Logo, symbol, price, 3-column metrics (Shares / GPS / Analyst), horizon prediction footer with optional downside-flag triangle.</td>
+                            <td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;">Logo, symbol, price, 3-column metrics (Shares / GPS Score with "View score" / <strong>Rating</strong> via <code>&lt;GpsCallLabel&gt;</code>), horizon prediction footer with optional downside-flag triangle. Analyst recommendation demoted to small grey text under the Rating badge.</td>
                         </tr>
                         <tr>
                             <td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;"><code>watchlist</code></td>
                             <td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;">Custom 10px tile (no <code>BaseCardShell</code>)</td>
-                            <td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;">Symbol/name, price, 3-column stats (GPS / Analyst / MA 6M), horizon prediction + chevron.</td>
+                            <td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;">Symbol/name, price, 3-column stats (GPS Score / <strong>Rating</strong> via <code>&lt;GpsCallLabel&gt;</code> / MA 6M), horizon prediction + chevron. Analyst rec demoted to grey supporting line.</td>
                         </tr>
                         <tr>
                             <td style="padding:0.6rem;border-bottom:1px solid #e2e8f0;"><code>deepmoney</code></td>
@@ -584,7 +585,7 @@
                         <tr>
                             <td style="padding:0.6rem;"><code>search-trending</code></td>
                             <td style="padding:0.6rem;"><code>BaseCardShell</code></td>
-                            <td style="padding:0.6rem;">Shared <code>CardHeader</code> + Price + Hot Rating (blue accent).</td>
+                            <td style="padding:0.6rem;">Symbol/name, price, 3-column stats (GPS Score / <strong>Rating</strong> via <code>&lt;GpsCallLabel&gt;</code> / MA 6M), horizon prediction footer. Mirrors the Watchlist layout so /search-page cards read as a unified family.</td>
                         </tr>
                     </tbody>
                 </table>
@@ -597,7 +598,8 @@
                     <li><code>CardMetricRow</code> — label/value row used by DeepMoney + Search-Trending. Label is uppercase 12px gray-500; value is 14px bold.</li>
                     <li><code>CardActions</code> — footer with <code>mt-auto</code>, top border, and stacked <code>ActionButton</code>s. Supports <code>compact</code> and <code>justify</code>.</li>
                     <li><code>BrandLogo</code> — 40px logo (Portfolio header), falls back to a colored tile when no SVG is available.</li>
-                    <li><code>GpsTooltip</code> — info icon trigger that opens a breakdown panel for the GPS score.</li>
+                    <li><code>GpsTooltip</code> — "View score" text trigger that opens <code>GpsBreakdownModal</code>. Accepts an optional <code>variant="card"</code> prop that flips the modal's headline Rating badge + green tone threshold to the variant-B band scheme so the card click-through stays consistent. Used by the Portfolio card; default variant retained by IndustryStocks, RecommendationsSection, and DeepmoneyCardView.</li>
+                    <li><code>GpsCallLabel</code> — card-only headline Buy/Sell Rating badge. Renders <code>getCardCallLabel(score)</code> + <code>getCardBadgeClass(score)</code> using the variant-B thresholds (Strong Sell &lt; 25, Sell &lt; 45, Hold &lt; 55, Buy &lt; 75, Strong Buy ≥ 75). Used by Portfolio / Watchlist / Search-Trending cards as the new "Rating" column where the analyst recommendationKey badge used to sit. See <a href="gps_score.html#score-ranges">GPS Score · Score Ranges</a> for the bands.</li>
                 </ul>
             </div>
         </section>
@@ -605,17 +607,27 @@
         <section id="badges">
             <h2>Badges &amp; Indicators</h2>
 
-            <h3>Analyst Badge</h3>
+            <h3>GPS Rating Badge (<code>&lt;GpsCallLabel&gt;</code>)</h3>
             <div class="component-section">
                 <div class="demo-box" style="display:flex;gap:0.5rem;flex-wrap:wrap;">
-                    <span style="background:#dcfce7;color:#15803d;padding:0.125rem 0.5rem;border-radius:4px;font-size:12px;font-weight:700;border:1px solid #bbf7d0;">Strong Buy</span>
-                    <span style="background:#dbeafe;color:#1d4ed8;padding:0.125rem 0.5rem;border-radius:4px;font-size:12px;font-weight:700;">Buy</span>
-                    <span style="background:#fef9c3;color:#92400e;padding:0.125rem 0.5rem;border-radius:4px;font-size:12px;font-weight:700;">Hold</span>
-                    <span style="background:#fee2e2;color:#b91c1c;padding:0.125rem 0.5rem;border-radius:4px;font-size:12px;font-weight:700;">Strong Sell</span>
-                    <span style="background:#fef2f2;color:#dc2626;padding:0.125rem 0.5rem;border-radius:4px;font-size:12px;font-weight:700;">Sell</span>
-                    <span style="background:#f3f4f6;color:#6b7280;padding:0.125rem 0.5rem;border-radius:4px;font-size:12px;font-weight:700;">None</span>
+                    <span style="background:#dcfce7;color:#166534;border:1px solid #86efac;padding:0.125rem 0.5rem;border-radius:4px;font-size:12px;font-weight:700;">Strong Buy <span style="opacity:0.7;font-weight:600;margin-left:6px;">82.0</span></span>
+                    <span style="background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;padding:0.125rem 0.5rem;border-radius:4px;font-size:12px;font-weight:700;">Buy <span style="opacity:0.7;font-weight:600;margin-left:6px;">63.0</span></span>
+                    <span style="background:#fef9c3;color:#854d0e;border:1px solid #fef08a;padding:0.125rem 0.5rem;border-radius:4px;font-size:12px;font-weight:700;">Hold <span style="opacity:0.7;font-weight:600;margin-left:6px;">50.0</span></span>
+                    <span style="background:#ffedd5;color:#9a3412;border:1px solid #fed7aa;padding:0.125rem 0.5rem;border-radius:4px;font-size:12px;font-weight:700;">Sell <span style="opacity:0.7;font-weight:600;margin-left:6px;">35.0</span></span>
+                    <span style="background:#fee2e2;color:#991b1b;border:1px solid #fecaca;padding:0.125rem 0.5rem;border-radius:4px;font-size:12px;font-weight:700;">Strong Sell <span style="opacity:0.7;font-weight:600;margin-left:6px;">15.0</span></span>
+                    <span style="background:#f3f4f6;color:#9ca3af;border:1px solid #e5e7eb;padding:0.125rem 0.5rem;border-radius:4px;font-size:12px;font-weight:700;">&mdash;</span>
                 </div>
-                <p>Color mapping is centralized in each card variant. Watchlist uses solid background classes (<code>bg-green-100 text-green-700</code>, etc.); Portfolio uses tinted background + matching border (e.g. <code>bg-green-100 text-green-700 border-green-200</code>) for "Strong Buy".</p>
+                <p>The headline Buy/Sell call on Portfolio, Watchlist, and Search-Trending cards. Rendered under a <strong>"Rating"</strong> column header — matching the same terminology used by <code>GpsBreakdownModal</code>'s headline badge so the card &rarr; modal click-through stays visually consistent. Color ramp + label come from <code>getCardBadgeClass(score)</code> + <code>getCardCallLabel(score)</code> in <code>src/utils/gps.ts</code>. Numeric score appears next to the label by default (<code>showScore=true</code>) to disambiguate inside the wide 20-point Buy band; pass <code>showScore=false</code> when the score is already displayed in an adjacent column. Null GPS renders the grey "—" placeholder so sector-leader pre-warm gaps don't break layout.</p>
+                <p>Thresholds (variant B): <code>&lt;25</code> Strong Sell, <code>&lt;45</code> Sell, <code>&lt;55</code> Hold, <code>&lt;75</code> Buy, <code>&ge;75</code> Strong Buy. See <a href="gps_score.html#score-ranges">GPS Score · Card-only Label Variant</a> for the rationale.</p>
+            </div>
+
+            <h3>Analyst Recommendation (supporting text, demoted)</h3>
+            <div class="component-section">
+                <div class="demo-box" style="display:flex;flex-direction:column;gap:0.25rem;">
+                    <span style="background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;padding:0.125rem 0.5rem;border-radius:4px;font-size:12px;font-weight:700;width:fit-content;">Buy <span style="opacity:0.7;font-weight:600;margin-left:6px;">63.0</span></span>
+                    <span style="font-size:10px;color:#9ca3af;">Analysts: Strong Buy (12)</span>
+                </div>
+                <p>Yahoo's <code>recommendationKey</code> is no longer the card headline. It's preserved as a small grey supporting line ("Analysts: Strong Buy") directly below the GPS Rating badge. Renders only when an analyst recommendation is present; suppressed otherwise. Lets users see the analyst signal at a glance without giving it visual primacy over the model-derived call.</p>
             </div>
 
             <h3>Change / Prediction Color Helpers</h3>
@@ -657,10 +669,10 @@ getPredictionColor(value)  // null|0=text-black, &gt;0=text-green-600, &lt;0=tex
 
                 <h3>Transitions</h3>
                 <ul>
-                    <li><code>transition-all duration-200</code> — card hover (shadow).</li>
+                    <li><code>transition-all duration-200</code> — universal clickable-card hover (shadow + <code>hover:-translate-y-1</code> lift). Applies to <code>BaseCardShell</code>, <code>WatchlistCardView</code>, <code>SectorExplorer</code> tiles, and the <code>&lt;Link&gt;</code> wrapper around <code>MiniDataCard</code> in <code>RecommendationsSection</code>.</li>
                     <li><code>transition-colors duration-200</code> — button hover.</li>
-                    <li><code>transition-all duration-150</code> — Watchlist tile hover (border + shadow).</li>
                 </ul>
+                <p style="font-size:0.88rem;color:#475569;margin-top:0.5rem;"><strong>Hover affordance rule:</strong> if the whole tile is clickable, it lifts with <code>hover:-translate-y-1</code> + an expanded shadow. Table rows, presentational mini-cards (<code>MiniDataCard</code> in <code>MarketOverviewCard</code>), and informational tiles (Profile sections, <code>IndexCard</code> in <code>MajorIndicesStrip</code>) do <em>not</em> lift — the absence of the lift is itself a cue that the area is non-navigable.</p>
 
                 <h3>Animation</h3>
                 <p>The card grid animates each card in with a staggered <code>slideUp</code> keyframe (<code>0.4s ease-out</code> with a <code>0.05s</code> delay per index) — defined inline in <code>StockCardSection.tsx</code>.</p>
