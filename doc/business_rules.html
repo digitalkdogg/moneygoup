@@ -624,6 +624,15 @@
           <span class="src">scripts/score_ranker.py</span>
         </div>
       </div>
+
+      <div class="rule">
+        <div class="rid">BR-6.10</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p>The <strong>trending-48h override lane</strong> is a <em>full-coverage</em> feed: every ticker from <code>fetchTrendingTickers(50)</code> with valid enrichment and ≥100 days of OHLCV history gets Monte Carlo + GPS-Full, regardless of technical signal score or predicted direction. The lane bypasses (a) the <code>signalScoreFloor</code> pre-filter — bearish-technical trending stocks reach MC via a parallel <code>trendingPreFiltered</code> pool, (b) the ranker keep-cut, (c) the <code>mlGate</code> floor, and (d) the positive-prediction requirement used by the analyst override. Survivors are tagged <code>discovery_source: 'trending_48h'</code> (unless they also clear the mlGate, in which case they're tagged <code>v2_engine</code>). In <code>deepmoney_sync.py</code> the vol-gate is <strong>split</strong> for trending: pass → regular path (writes both <code>recommended_stocks</code> and <code>stock_gps_scores</code>); fail → GPS-only fast path (writes <code>stock_gps_scores</code> only, skips <code>recommended_stocks</code> + dashboard). Together these guarantees ensure that <em>every</em> ticker on the /search trending grid renders a GPS rating. Surfaced count is exposed via <code>meta.debug.trending48hSurfaced</code>.</p>
+          <span class="src">src/app/api/prediction/deepmoney/route.ts · src/app/api/prediction/deepmoney/analyzer.ts (trendingPreFiltered + Phase 3c) · scripts/deepmoney_sync.py (split vol-gate)</span>
+        </div>
+      </div>
     </section>
 
     <!-- ─────────────────────────── 7. ETF HOLDINGS ─────────────────────────── -->

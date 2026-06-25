@@ -795,6 +795,7 @@ export async function GET(request: NextRequest) {
                 analystStrongBuyThreshold: algorithm.analystStrongBuyThreshold,
                 signalScoreFloor: algorithm.signalScoreFloor,
                 sectorLeaderTickers: staleSectorLeaderTickers,
+                trendingTickers,
             },
         );
 
@@ -830,6 +831,7 @@ export async function GET(request: NextRequest) {
                     filteredCount: filteredStocks.length,
                     predictionThreshold: `${mlGate}%`,
                     analystConsensusSurfaced: filteredStocks.filter(s => s.discovery_source === 'analyst_consensus').length,
+                    trending48hSurfaced: filteredStocks.filter(s => s.discovery_source === 'trending_48h').length,
                     sectorLeadersSurfaced: filteredStocks.filter(s => s.discovery_source === 'sector_leader').length,
                     sectorLeadersInjected: sectorLeaderTickers.size,
                     sectorLeadersSkippedFresh: sectorLeaderTickers.size - staleSectorLeaderTickers.size,

@@ -54,8 +54,12 @@ export interface EnrichedStock {
      *  'sector_leader' = a top-25 stock in one of the 11 canonical Yahoo
      *  sectors, injected to keep /search/industry/[sector] supplied with
      *  fresh GPS scores. Bypasses ranker keep-cut and mlGate entirely;
-     *  always runs MC + GPS so the row is written regardless of outlook. */
-    discovery_source?: 'v2_engine' | 'analyst_consensus' | 'sector_leader';
+     *  always runs MC + GPS so the row is written regardless of outlook.
+     *  'trending_48h' = surfaced from the Yahoo trending-48h feed; bypasses
+     *  the signal-score pre-filter, the ranker keep-cut, the mlGate, AND the
+     *  predicted-change-positive requirement. Coverage feed — every trending
+     *  ticker with valid enrichment + ≥100 days history gets a GPS row. */
+    discovery_source?: 'v2_engine' | 'analyst_consensus' | 'sector_leader' | 'trending_48h';
 
     /** gps_score_type is always 'full' now — every survivor of the ranker
      *  hard filter runs through Monte Carlo + GPS-Full. ranker_score is the
@@ -89,6 +93,11 @@ export interface AnalyzeOptions {
      *  pre-filter this set down to stocks whose existing stock_gps_scores row
      *  is missing or older than the configured freshness window. */
     sectorLeaderTickers?: Set<string>;
+    /** Tickers from the Yahoo trending-48h feed. Coverage feed: bypass the
+     *  signal-score pre-filter, the ranker keep-cut, the mlGate, AND the
+     *  positive-prediction requirement. Surfaces unconditionally (like
+     *  sector_leader) provided enrichment is valid and ≥100 days history. */
+    trendingTickers?: Set<string>;
 }
 
 const BATCH_SIZE = 3;
@@ -124,6 +133,7 @@ export async function analyzeStocks(
     const analystStrongBuyThreshold = options.analystStrongBuyThreshold ?? 4;
     const signalScoreFloor          = options.signalScoreFloor          ?? 0;
     const sectorLeaderTickers       = options.sectorLeaderTickers       ?? new Set<string>();
+    const trendingTickers           = options.trendingTickers           ?? new Set<string>();
 
     // Pre-filter: skip enrichment failures, technical signals below the
     // preset-driven floor, or tickers with too little OHLCV history for
@@ -138,14 +148,34 @@ export async function analyzeStocks(
         return stock.tradingSignalScore >= signalScoreFloor;
     });
 
-    if (initialFilteredStocks.length === 0) {
+    // Trending pre-filter: same as above MINUS the signal-score floor. Trending
+    // is a coverage feed — we want every Yahoo-trending ticker to get a GPS
+    // row so the /search trending card shows a score, even when the technical
+    // signal is bearish. Still require valid enrichment + 100 days history so
+    // MC can actually run.
+    const trendingPreFiltered = stocks.filter(stock => {
+        if (!trendingTickers.has(stock.ticker)) return false;
+        if (stock.error || stock.tradingSignalScore === undefined) return false;
+        if (stock.historyRows !== undefined && stock.historyRows < 100) return false;
+        return true;
+    });
+
+    if (initialFilteredStocks.length === 0 && trendingPreFiltered.length === 0) {
         return [];
     }
 
-    // ─── Phase 1 — fetch OHLCV payloads for every pre-filtered stock ───────
+    // ─── Phase 1 — fetch OHLCV payloads for every candidate stock ──────────
+    // Includes both the main pre-filter pool and the trending-only pool;
+    // dedup by ticker so a trending stock that also cleared signal-score
+    // only fetches once.
+    const payloadCandidates = new Map<string, EnrichedStock>();
+    for (const s of initialFilteredStocks) payloadCandidates.set(s.ticker, s);
+    for (const s of trendingPreFiltered)   payloadCandidates.set(s.ticker, s);
+    const stocksForPayload = Array.from(payloadCandidates.values());
+
     const payloads = new Map<string, any>();
-    for (let i = 0; i < initialFilteredStocks.length; i += BATCH_SIZE) {
-        const batch = initialFilteredStocks.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < stocksForPayload.length; i += BATCH_SIZE) {
+        const batch = stocksForPayload.slice(i, i + BATCH_SIZE);
         await Promise.all(batch.map(async (stock) => {
             try {
                 const payload = await getStockDataForPrediction(stock.ticker, sharedContext?.wbData);
@@ -205,12 +235,27 @@ export async function analyzeStocks(
         logger.info(`Analyst override added ${analystOverrideStocks.length} stocks (threshold=${analystStrongBuyThreshold})`);
     }
 
-    // ─── Phase 3c — sector-leader override lane ────────────────────────────
+    // ─── Phase 3c — trending-48h override lane ─────────────────────────────
+    // Full-coverage feed: every Yahoo-trending ticker that has valid enrichment
+    // + ≥100 days history gets MC + GPS, regardless of signal score or
+    // predicted direction. Skips the ranker keep-cut, the signal-score floor,
+    // and the mlGate so /search trending cards always render a GPS rating.
+    // Sourced from trendingPreFiltered (broader pool than initialFilteredStocks).
+    const trendingAlreadySurfaced = new Set([...rankerTickers, ...analystOverrideTickers]);
+    const trendingOverrideStocks = trendingPreFiltered.filter(s =>
+        !trendingAlreadySurfaced.has(s.ticker),
+    );
+    const trendingOverrideTickers = new Set(trendingOverrideStocks.map(s => s.ticker));
+    if (trendingOverrideStocks.length > 0) {
+        logger.info(`Trending-48h override added ${trendingOverrideStocks.length} stocks (out of ${trendingTickers.size} trending tickers)`);
+    }
+
+    // ─── Phase 3d — sector-leader override lane ────────────────────────────
     // Stocks that are top-25 in any canonical Yahoo sector AND don't already
     // have a fresh stock_gps_scores row. They bypass both the ranker keep-cut
     // and the mlGate so /search/industry/[sector] always has GPS coverage.
     // Caller is responsible for the freshness pre-filter.
-    const alreadySurfaced = new Set([...rankerTickers, ...analystOverrideTickers]);
+    const alreadySurfaced = new Set([...rankerTickers, ...analystOverrideTickers, ...trendingOverrideTickers]);
     const sectorLeaderOverrideStocks = initialFilteredStocks.filter(s =>
         !alreadySurfaced.has(s.ticker) && sectorLeaderTickers.has(s.ticker),
     );
@@ -219,7 +264,7 @@ export async function analyzeStocks(
         logger.info(`Sector-leader override added ${sectorLeaderOverrideStocks.length} stocks (out of ${sectorLeaderTickers.size} stale leaders)`);
     }
 
-    const survivors = [...rankerSurvivors, ...analystOverrideStocks, ...sectorLeaderOverrideStocks];
+    const survivors = [...rankerSurvivors, ...analystOverrideStocks, ...trendingOverrideStocks, ...sectorLeaderOverrideStocks];
 
     // ─── Phase 4 — Monte Carlo + GPS-Full on ranker survivors only ─────────
     const filteredStocks: EnrichedStock[] = [];
@@ -249,14 +294,18 @@ export async function analyzeStocks(
                 stock.prediction_1m = predictedChangePct;
 
                 const isAnalystOverride      = analystOverrideTickers.has(stock.ticker);
+                const isTrendingOverride     = trendingOverrideTickers.has(stock.ticker);
                 const isSectorLeaderOverride = sectorLeaderOverrideTickers.has(stock.ticker);
                 const passesMlGate           = predictedChangePct >= mlGate && predictedChangePct > 0;
                 const passesAnalystGate      = isAnalystOverride && predictedChangePct > 0;
-                // Sector-leader override unconditionally surfaces — the goal is
-                // to write a GPS row for the sector tile UI, regardless of
-                // whether today's prediction is bullish.
+                // Trending and sector-leader overrides unconditionally surface
+                // — both are coverage feeds: trending writes a GPS row for the
+                // /search trending card, sector-leader for /search/industry/[sector].
+                // Bearish predictions are still persisted so the card has a
+                // score; the dashboard gate downstream filters by predicted_change.
+                const passesTrendingGate     = isTrendingOverride;
                 const passesSectorLeaderGate = isSectorLeaderOverride;
-                if (!(passesMlGate || passesAnalystGate || passesSectorLeaderGate)) {
+                if (!(passesMlGate || passesAnalystGate || passesTrendingGate || passesSectorLeaderGate)) {
                     return;
                 }
 
@@ -301,14 +350,16 @@ export async function analyzeStocks(
                     predicted_price_6m: predictions['6_month']?.predicted_price,
                     predicted_price_1y: predictions['1_year']?.predicted_price,
                 };
-                // Priority: v2_engine (true ranker survivor) > analyst_consensus > sector_leader.
-                // A sector leader that *also* happens to pass the ml gate is recorded
-                // as v2_engine — the override lane only labels stocks that surfaced
+                // Priority: v2_engine > analyst_consensus > trending_48h > sector_leader.
+                // A stock that *also* happens to pass the ml gate is recorded as
+                // v2_engine — the override lane only labels stocks that surfaced
                 // *because of* the override, not despite it.
                 if (passesMlGate) {
                     stock.discovery_source = 'v2_engine';
                 } else if (passesAnalystGate) {
                     stock.discovery_source = 'analyst_consensus';
+                } else if (passesTrendingGate) {
+                    stock.discovery_source = 'trending_48h';
                 } else {
                     stock.discovery_source = 'sector_leader';
                 }

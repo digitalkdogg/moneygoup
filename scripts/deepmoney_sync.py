@@ -160,6 +160,7 @@ def sync_deepmoney():
             print(f"  [debug] ETF Holdings Surfaced: {meta.get('etfHoldingsSurfacedCount')}")
             print(f"  [debug] Popular-ETF Holdings Merged: {meta.get('etfPopularHoldingsCount')}")
             print(f"  [debug] Trending 48h Merged: {debug.get('trendingTickerCount')}")
+            print(f"  [debug] Trending 48h Surfaced (override lane): {debug.get('trending48hSurfaced')}")
     except Exception as e:
         print(f"Error fetching data from API: {e}")
         return
@@ -308,9 +309,12 @@ def sync_deepmoney():
             # Sector-leader stocks bypass the vol-gate and skip both the
             # recommended_stocks insert and the dashboard gate. They're here
             # solely to refresh stock_gps_scores so /search/industry/[sector]
-            # can render a real GPS column. Jump straight to the stocks/GPS
-            # upsert block.
+            # can render a real GPS column. Trending-48h stocks share the same
+            # GPS-only fast path *only when* they fail the vol-gate — so the
+            # /search trending card always has a GPS score to display, even
+            # for low-confidence picks that don't deserve a dashboard slot.
             is_sector_leader = s.get('discovery_source') == 'sector_leader'
+            is_trending_48h  = s.get('discovery_source') == 'trending_48h'
 
             # 4.2 Confidence-vs-beta gate driven by the algorithm preset.
             # High-beta stocks (beta > 2.5) face the stricter volGateFloor;
@@ -321,20 +325,26 @@ def sync_deepmoney():
             high_beta = beta_val > 2.5
             confidence_floor = vol_gate_floor if high_beta else mlp_confidence_floor
             floor_label = "vol-floor" if high_beta else "mlp-floor"
-            if conf_score < confidence_floor and not is_sector_leader:
+            vol_gate_failed = conf_score < confidence_floor and not is_sector_leader
+            if vol_gate_failed:
                 print(f"  [vol-gate] SKIP {ticker} ({floor_label}): CS {conf_score} < floor {confidence_floor} (beta {beta_val:.2f})")
                 counters["vol_gate_rejected"] += 1
-                continue
+                if not is_trending_48h:
+                    # Non-trending vol-gate failure → drop entirely (no GPS, no recommended_stocks).
+                    continue
+                # Trending vol-gate failure falls through to the GPS-only fast
+                # path below so /search trending cards still show a score.
 
-            if is_sector_leader:
+            if is_sector_leader or (is_trending_48h and vol_gate_failed):
                 # Fast-path: refresh stocks + stock_gps_scores only, skip
                 # recommended_stocks insert + dashboard gate.
+                label = "sector-leader" if is_sector_leader else "trending-48h"
                 cursor.execute("SELECT id FROM stocks WHERE symbol = %s", (ticker,))
                 stock_row = cursor.fetchone()
                 if stock_row:
                     stock_id = stock_row[0]
                 else:
-                    print(f"    - [sector-leader] Adding {ticker} to stocks table...")
+                    print(f"    - [{label}] Adding {ticker} to stocks table...")
                     cursor.execute(
                         "INSERT INTO stocks (symbol, company_name, price) VALUES (%s, %s, %s)",
                         (ticker, s.get('name'), s.get('price'))
@@ -350,7 +360,7 @@ def sync_deepmoney():
                         source        = VALUES(source)
                 """, (stock_id, gps, json.dumps(gps_breakdown)))
                 counters["gps_updated"] += 1
-                print(f"  > [sector-leader] {ticker} GPS {round(float(gps), 1)} (pred {predicted_change_pct:+.2f}%, CS {conf_score})")
+                print(f"  > [{label}] {ticker} GPS {round(float(gps), 1)} (pred {predicted_change_pct:+.2f}%, CS {conf_score})")
                 continue
 
             counters["stocks_written"] += 1
@@ -401,7 +411,7 @@ def sync_deepmoney():
                 rd_pct,             # 11. rd_spend_pct
                 market_cap_m,       # 12. market_cap_m
                 0,                  # 13. mention_count
-                s.get('discovery_source') or 'v2_engine',  # 14. discovery_source ('v2_engine' | 'analyst_consensus')
+                s.get('discovery_source') or 'v2_engine',  # 14. discovery_source ('v2_engine' | 'analyst_consensus' | 'trending_48h')
                 s.get('tradingSignal'), # 15. trading_signal
                 s.get('tradingSignalScore'), # 16. trading_signal_score
                 None,               # 17. upcoming_earnings
@@ -693,6 +703,15 @@ def _print_run_summary(
     print(f"    Passed to analyzer:              {_fmt_int(debug.get('passedToAnalyzer'))}")
     print(f"    Rejected by ranker:              {_fmt_int(debug.get('rejectedByRanker'))}")
     print(f"    Surfaced by API:                 {_fmt_int(counters.get('stocks_in_api_resp'))}")
+
+    # ── Trending-48h override lane ─────────────────────────────────────────
+    trending_merged   = debug.get('trendingTickerCount')
+    trending_surfaced = debug.get('trending48hSurfaced')
+    if trending_merged is not None:
+        print()
+        print("  TRENDING-48H OVERRIDE LANE")
+        print(f"    Trending tickers merged:         {_fmt_int(trending_merged)}")
+        print(f"    Surfaced via override lane:      {_fmt_int(trending_surfaced)}")
 
     # ── Sector-leader override lane (powers /search/industry/[sector] GPS) ──
     sl_injected      = debug.get('sectorLeadersInjected')
