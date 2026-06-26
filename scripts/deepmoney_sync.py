@@ -306,13 +306,12 @@ def sync_deepmoney():
             #     filtered the universe server-side via algorithm.rankerKeepPct;
             #     every stock arriving here is a ranker survivor.
 
-            # Sector-leader stocks bypass the vol-gate and skip both the
-            # recommended_stocks insert and the dashboard gate. They're here
-            # solely to refresh stock_gps_scores so /search/industry/[sector]
-            # can render a real GPS column. Trending-48h stocks share the same
-            # GPS-only fast path *only when* they fail the vol-gate — so the
-            # /search trending card always has a GPS score to display, even
-            # for low-confidence picks that don't deserve a dashboard slot.
+            # Sector-leader and trending-48h are both *coverage feeds* — they
+            # exist to populate stock_gps_scores so /search/industry/[sector]
+            # and the /search trending grid can render a GPS rating. Neither
+            # belongs in recommended_stocks (the dashboard recommendation
+            # table). Both ALWAYS take the GPS-only fast path; the vol-gate
+            # is logged for diagnostic purposes but does not change routing.
             is_sector_leader = s.get('discovery_source') == 'sector_leader'
             is_trending_48h  = s.get('discovery_source') == 'trending_48h'
 
@@ -332,12 +331,13 @@ def sync_deepmoney():
                 if not is_trending_48h:
                     # Non-trending vol-gate failure → drop entirely (no GPS, no recommended_stocks).
                     continue
-                # Trending vol-gate failure falls through to the GPS-only fast
-                # path below so /search trending cards still show a score.
+                # Trending vol-gate failure falls through to the fast path below.
 
-            if is_sector_leader or (is_trending_48h and vol_gate_failed):
+            if is_sector_leader or is_trending_48h:
                 # Fast-path: refresh stocks + stock_gps_scores only, skip
-                # recommended_stocks insert + dashboard gate.
+                # recommended_stocks insert + dashboard gate. Both coverage
+                # feeds take this path regardless of vol-gate outcome —
+                # bearish trending stocks must not pollute recommended_stocks.
                 label = "sector-leader" if is_sector_leader else "trending-48h"
                 cursor.execute("SELECT id FROM stocks WHERE symbol = %s", (ticker,))
                 stock_row = cursor.fetchone()

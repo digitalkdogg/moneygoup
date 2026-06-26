@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import StockTable from './StockTable';
 import { GpsTooltip } from './cards/GpsTooltip';
-import { formatCurrency } from '@/utils/formatters';
+import { formatPrice, formatPriceChange, formatPercent, getChangeColor, getPredictionColor, calculatePredictionChange } from './cards/formatters';
 import { getGpsLabel } from '@/utils/gps';
 
 interface IndustryStocksProps {
@@ -14,17 +14,14 @@ interface IndustryStocksProps {
 interface IndustryStock {
   symbol: string;
   name: string;
-  price: number;
-  change: number;
-  changePercent: number;
-  marketCap: number;
-  volume: number;
-  fiftyTwoWeekHigh: number;
-  fiftyTwoWeekLow: number;
-  fiftyTwoWeekPosition: number;
+  price: number | null;
+  change: number | null;
+  changePercent: number | null;
   gps_score: number | null;
   gps_breakdown: any | null;
   gps_as_of: string | null;
+  predictedPriceHorizon: number | null;
+  predictedChangePctHorizon: number | null;
 }
 
 interface IndustryResponse {
@@ -76,6 +73,10 @@ export default function IndustryStocks({ ticker }: IndustryStocksProps) {
     router.push(`/search/${symbol}`);
   };
 
+  const sectorName = data?.industry ?? decodeURIComponent(ticker).replace(/_/g, ' ');
+  const horizonLabel = data?.horizonLabel ?? '1M';
+  const predHeader = `${horizonLabel} Pred`;
+
   const columns = [
     { key: 'symbol', label: 'Symbol' },
     { key: 'name', label: 'Company Name' },
@@ -107,47 +108,49 @@ export default function IndustryStocks({ ticker }: IndustryStocksProps) {
       key: 'price',
       label: 'Price',
       align: 'right' as const,
-      format: (val: number) => formatCurrency(val),
+      format: (val: number | null) => formatPrice(val),
+    },
+    {
+      key: 'change',
+      label: 'Change $',
+      align: 'right' as const,
+      format: (val: number | null) => (
+        <span className={getChangeColor(val)}>{formatPriceChange(val)}</span>
+      ),
     },
     {
       key: 'changePercent',
       label: 'Change %',
       align: 'right' as const,
-      format: (val: number) => (
-        <span className={val >= 0 ? 'text-green-600' : 'text-red-600'}>
-          {val >= 0 ? '+' : ''}{val.toFixed(2)}%
-        </span>
+      format: (val: number | null) => (
+        <span className={getChangeColor(val)}>{formatPercent(val)}</span>
       ),
     },
     {
-      key: 'marketCap',
-      label: 'Market Cap',
+      key: 'predictedPriceHorizon',
+      label: predHeader,
       align: 'right' as const,
-      format: (val: number) => {
-        if (!val) return 'N/A';
-        if (val >= 1e12) return `$${(val / 1e12).toFixed(2)}T`;
-        if (val >= 1e9) return `$${(val / 1e9).toFixed(2)}B`;
-        if (val >= 1e6) return `$${(val / 1e6).toFixed(2)}M`;
-        return formatCurrency(val);
+      format: (val: number | null, row: any) => {
+        if (val == null) {
+          return <span className="text-gray-400 text-sm">—</span>;
+        }
+        const storedPct = row.predictedChangePctHorizon as number | null;
+        const pct = storedPct != null
+          ? storedPct
+          : calculatePredictionChange(row.price ?? null, val);
+        return (
+          <span className="whitespace-nowrap">
+            <span className="font-semibold text-gray-900">{formatPrice(val)}</span>
+            {pct != null && (
+              <span className={`text-xs font-semibold ml-1 ${getPredictionColor(pct)}`}>
+                {pct > 0 ? '+' : ''}{pct.toFixed(1)}%
+              </span>
+            )}
+          </span>
+        );
       },
     },
-    {
-      key: 'fiftyTwoWeekPosition',
-      label: '52W Range',
-      align: 'center' as const,
-      format: (val: number) => (
-        <div className="w-24 bg-gray-200 rounded-full h-1.5 mx-auto">
-          <div
-            className="bg-blue-600 h-1.5 rounded-full"
-            style={{ width: `${Math.min(100, Math.max(0, val))}%` }}
-          />
-        </div>
-      ),
-    },
   ];
-
-  const sectorName = data?.industry ?? decodeURIComponent(ticker).replace(/_/g, ' ');
-  const horizonLabel = data?.horizonLabel ?? '1-month baseline';
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -163,7 +166,7 @@ export default function IndustryStocks({ ticker }: IndustryStocksProps) {
         </h1>
         <p className="text-gray-600 mt-2">
           Top stocks in <span className="font-bold">{sectorName}</span> sorted by GPS Score
-          <span className="text-gray-400 text-sm"> · {horizonLabel}</span>
+          <span className="text-gray-400 text-sm"> · {horizonLabel} horizon</span>
         </p>
       </div>
 

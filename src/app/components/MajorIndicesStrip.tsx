@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { getMarketStatus } from '@/utils/marketStatus'
 
 interface IndexData {
   symbol: string
@@ -80,8 +81,12 @@ export default function MajorIndicesStrip() {
       }
     }
 
+    // Always fetch once on mount so the strip is populated even outside
+    // market hours (showing the last close). Then only poll while the
+    // market is open — indices don't move overnight or on weekends, so
+    // post-close polling is wasted Yahoo + DB load.
     fetchIndices()
-    // Refresh every 2 minutes
+    if (!getMarketStatus().isOpen) return
     const interval = setInterval(fetchIndices, 2 * 60 * 1000)
     return () => clearInterval(interval)
   }, [])

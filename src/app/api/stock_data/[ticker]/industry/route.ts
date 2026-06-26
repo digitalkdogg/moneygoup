@@ -7,6 +7,7 @@ import { checkApprovalGuard } from '@/utils/approvalStatus';
 import { yahooFinance, getSectorStocks } from '@/utils/yahooFinanceHelper';
 import { isCanonicalSector } from '@/utils/sectorTaxonomy';
 import { getDbConnection } from '@/utils/db';
+import { getUserStrategy, resolveStrategy, DEFAULT_STRATEGY } from '@/utils/strategy';
 
 const RESULT_LIMIT = 10;
 const SCREENER_FETCH = 50;        // pull more than RESULT_LIMIT — many leaders are filtered out by the price ceiling
@@ -52,32 +53,63 @@ export async function GET(
       });
     }
 
-    // 2. Live quote refresh + GPS lookup, in parallel.
+    // Resolve the user's investment timeframe so the table reports a
+    // horizon-aware predicted price (1W / 1M / 6M / 1Y) matching the dashboard
+    // and trending grid views. Falls back to the default strategy on lookup error.
+    const userId = session.user?.id;
+    const userStrategy = userId != null
+      ? await getUserStrategy(userId).catch(() => DEFAULT_STRATEGY)
+      : DEFAULT_STRATEGY;
+    const timeframeConfig = resolveStrategy(userStrategy).timeframe;
+    const priceColumn = timeframeConfig.predictedPriceColumn;
+    const sfx = priceColumn.replace('predicted_price_', ''); // '1w' | '1m' | '6m' | '1y'
+    const horizonLabel = timeframeConfig.shortLabel;
+
+    // 2. Live quote refresh + GPS + per-user horizon prediction, in parallel.
     //    Uses pool.query (not executeRawQuery / prepared statement) because
     //    mysql2's `execute` does not expand arrays into IN-clause placeholders;
     //    `query` does.
     const uniqueSymbols = Array.from(new Set(targetSymbols));
     const pool = await getDbConnection();
-    const [detailedQuotesRaw, gpsQueryResult] = await Promise.all([
+    const predictionSelect = userId != null
+      ? `COALESCE(usp.${priceColumn}, usp.predicted_price_1m) AS predicted_price_horizon,
+         usp.predicted_change_pct_${sfx} AS predicted_change_pct_horizon`
+      : `NULL AS predicted_price_horizon, NULL AS predicted_change_pct_horizon`;
+    const predictionJoin = userId != null
+      ? `LEFT JOIN user_stock_predictions usp ON usp.stock_id = s.id AND usp.user_id = ?`
+      : '';
+    const enrichmentParams: any[] = userId != null ? [userId, uniqueSymbols] : [uniqueSymbols];
+
+    const [detailedQuotesRaw, enrichmentResult] = await Promise.all([
       yahooFinance.quote(uniqueSymbols),
       pool.query(
-        `SELECT s.symbol, sgs.gps_score, sgs.gps_breakdown, sgs.as_of
+        `SELECT s.symbol, sgs.gps_score, sgs.gps_breakdown, sgs.as_of,
+                ${predictionSelect}
          FROM stocks s
          LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = s.id
+         ${predictionJoin}
          WHERE s.symbol IN (?)`,
-        [uniqueSymbols],
+        enrichmentParams,
       ),
     ]);
 
-    const gpsRows = (gpsQueryResult as any)[0] as any[];
-    const gpsBySymbol = new Map<string, { gps_score: number | null; gps_breakdown: any; as_of: string | null }>();
-    for (const r of gpsRows) {
-      gpsBySymbol.set(r.symbol, {
+    const enrichmentRows = (enrichmentResult as any)[0] as any[];
+    const enrichBySymbol = new Map<string, {
+      gps_score: number | null;
+      gps_breakdown: any;
+      as_of: string | null;
+      predicted_price_horizon: number | null;
+      predicted_change_pct_horizon: number | null;
+    }>();
+    for (const r of enrichmentRows) {
+      enrichBySymbol.set(r.symbol, {
         gps_score: r.gps_score != null ? parseFloat(r.gps_score) : null,
         gps_breakdown: r.gps_breakdown
           ? (typeof r.gps_breakdown === 'string' ? JSON.parse(r.gps_breakdown) : r.gps_breakdown)
           : null,
         as_of: r.as_of ? new Date(r.as_of).toISOString() : null,
+        predicted_price_horizon: r.predicted_price_horizon != null ? parseFloat(r.predicted_price_horizon) : null,
+        predicted_change_pct_horizon: r.predicted_change_pct_horizon != null ? parseFloat(r.predicted_change_pct_horizon) : null,
       });
     }
 
@@ -95,29 +127,37 @@ export async function GET(
       });
     }
 
-    // 3. Project + attach GPS. Stocks without a stock_gps_scores row appear with
-    //    gps_score: null and will render a placeholder ("—") in the UI.
+    // 3. Project + attach GPS + per-user horizon prediction. Stocks without
+    //    a stock_gps_scores row or a user_stock_predictions row appear with
+    //    null fields; the UI renders placeholders ("—") for those.
     const projected = eligibleQuotes.map((q: any) => {
-      const gps = gpsBySymbol.get(q.symbol);
-      const range = (q.fiftyTwoWeekHigh || 0) - (q.fiftyTwoWeekLow || 0);
-      const fiftyTwoWeekPosition = range > 0
-        ? (((q.regularMarketPrice || 0) - (q.fiftyTwoWeekLow || 0)) / range) * 100
-        : 50;
+      const enrich = enrichBySymbol.get(q.symbol);
+      const currentPrice = q.regularMarketPrice ?? null;
+
+      // Prefer the model's stored per-horizon change %; if absent, derive it
+      // from the horizon price and the live quote so the column never goes
+      // blank when only the predicted price column was populated.
+      let predictedChangePctHorizon: number | null = enrich?.predicted_change_pct_horizon ?? null;
+      if (
+        predictedChangePctHorizon == null &&
+        enrich?.predicted_price_horizon != null &&
+        currentPrice != null &&
+        currentPrice > 0
+      ) {
+        predictedChangePctHorizon = ((enrich.predicted_price_horizon - currentPrice) / currentPrice) * 100;
+      }
 
       return {
         symbol: q.symbol,
         name: q.longName || q.shortName || q.symbol,
-        price: q.regularMarketPrice,
+        price: currentPrice,
         change: q.regularMarketChange,
         changePercent: q.regularMarketChangePercent,
-        marketCap: q.marketCap,
-        volume: q.regularMarketVolume,
-        fiftyTwoWeekHigh: q.fiftyTwoWeekHigh,
-        fiftyTwoWeekLow: q.fiftyTwoWeekLow,
-        fiftyTwoWeekPosition,
-        gps_score: gps?.gps_score ?? null,
-        gps_breakdown: gps?.gps_breakdown ?? null,
-        gps_as_of: gps?.as_of ?? null,
+        gps_score: enrich?.gps_score ?? null,
+        gps_breakdown: enrich?.gps_breakdown ?? null,
+        gps_as_of: enrich?.as_of ?? null,
+        predictedPriceHorizon: enrich?.predicted_price_horizon ?? null,
+        predictedChangePctHorizon,
       };
     });
 
@@ -134,7 +174,7 @@ export async function GET(
     return NextResponse.json({
       input: decodedInput,
       industry: decodedInput,
-      horizonLabel: '1-month baseline',  // /portfolio and /search/[ticker] apply per-user horizon adjustment; the browse page uses the absolute baseline
+      horizonLabel,
       stocks: projected.slice(0, RESULT_LIMIT),
     });
 

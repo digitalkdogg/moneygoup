@@ -157,7 +157,10 @@ describe('Industry Sector API', () => {
     const body = await response.json();
     expect(body.input).toBe('Technology');
     expect(body.industry).toBe('Technology');
-    expect(body.horizonLabel).toBe('1-month baseline');
+    // horizonLabel reflects the user's investment_timeframe via getUserStrategy.
+    // This test's session mock has no user.id, so the route falls back to
+    // DEFAULT_STRATEGY (1_month → '1M' shortLabel).
+    expect(body.horizonLabel).toBe('1M');
     expect(body.stocks).toHaveLength(3);
     // Sorted by GPS desc; null-GPS rows last
     expect(body.stocks.map((s: any) => s.symbol)).toEqual(['NVDA', 'AAPL', 'MSFT']);

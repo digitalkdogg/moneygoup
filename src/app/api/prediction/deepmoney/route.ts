@@ -17,7 +17,7 @@ import { checkApprovalGuard } from '@/utils/approvalStatus';
 import { performETFDiscovery } from '@/utils/etfDiscovery';
 import { getUserStrategy, resolveStrategy, DEFAULT_STRATEGY } from '@/utils/strategy';
 import { resolveAlgorithm } from '@/utils/algorithmPreset';
-import { getSectorStocks } from '@/utils/yahooFinanceHelper';
+import { getSectorStocks, getTrendingStocks } from '@/utils/yahooFinanceHelper';
 import { CANONICAL_SECTORS } from '@/utils/sectorTaxonomy';
 import { getDbConnection } from '@/utils/db';
 
@@ -41,6 +41,16 @@ const PRIMARY_FEED_URLS = [
     'https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?count=25&scrIds=most_actives',
     'https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?count=25&scrIds=undervalued_growth_stocks',
     'https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?count=25&scrIds=aggressive_small_caps',
+    'https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?count=25&scrIds=day_gainers',
+    // Mutual fund / income screeners — surface a different tail of the market.
+    // Most returned tickers (mutual funds, bond funds) won't have OHLCV
+    // history and will drop at the analyzer pre-filter, but the universe
+    // they expose helps tilt the discovery pool toward names the broader
+    // institutional flow is interested in.
+    'https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?count=25&scrIds=top_mutual_funds',
+    'https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?count=25&scrIds=solid_large_growth_funds',
+    'https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?count=25&scrIds=conservative_foreign_funds',
+    'https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?count=25&scrIds=high_yield_bond',
     'https://www.marketbeat.com/feed/',
     'https://www.thestreet.com/.rss/feed/a4a58455-5a41-4dfa-899c-86c49b653ed8.xml',
     'https://www.fool.com/a/feeds/partner/googlechromefollow?apikey=5e092c1f-c5f9-4428-9219-908a47d2e2de',
@@ -53,12 +63,28 @@ const PRIMARY_FEED_URLS = [
     'https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&dateb=&owner=include&count=40&search_text=&output=atom',
     'https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=4&dateb=&owner=include&count=40&output=atom',
     'https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=4&output=atom',
+    // Wider SEC filing types — atom feeds go through the generic RSS extractor.
+    // Ticker yield depends on whether SEC's atom title/summary mentions a
+    // $TICKER; if not, these contribute zero tickers and are harmless.
+    'https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=SC+13D&dateb=&owner=include&count=40&output=atom', // Activist / large stakes
+    'https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=SC+13G&dateb=&owner=include&count=40&output=atom', // Passive large stakes
+    'https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=S-1&dateb=&owner=include&count=40&output=atom',    // IPO filings — surfaces new tickers early
+    'https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=425&dateb=&owner=include&count=40&output=atom',    // M&A merger communications
     'https://apewisdom.io/api/v1.0/filter/all-stocks',
     'https://feeds.feedburner.com/typepad/alleyinsider/silicon_alley_insider', // Tech
     'https://www.fiercebiotech.com/rss/xml',                                   // Biotech
+    'https://www.fiercepharma.com/rss/xml',                                    // Pharma (distinct from biotech)
+    'https://www.fiercehealthcare.com/rss/xml',                                // Healthcare providers / payers
     'https://www.fierceelectronics.com/rss/xml',                               // Semiconductors
     'https://www.spacenews.com/feed/',                                         // Aerospace/Defense
     'https://oilprice.com/rss/main',                                           // Energy / commodities
+    'https://www.naturalgasintel.com/feed/',                                   // Energy / natural gas
+    'https://www.mining.com/feed/',                                            // Mining / materials
+    'https://www.investmentnews.com/feed',                                     // Asset management / financials
+    'https://www.spglobal.com/marketintelligence/en/news-insights/rss-feed/all', // S&P market intel
+    'https://www.benzinga.com/feed',                                           // General markets, fast-moving
+    'https://www.zacks.com/rss/zacks_news_feed.xml',                           // Analyst-driven coverage
+    'https://www.barchart.com/news/rss',                                       // Screener-adjacent news
     'https://www.dia.mil/DesktopModules/ArticleCS/RSS.ashx?ContentType=1&Site=661&isdashboardselected=0&max=20', // Defense Intelligence Agency news
     // Defense News — Arc Publishing JSON. Two narrow sections (land + space)
     // so we don't double-count air/naval/pentagon stories. The mxId=00000000
@@ -302,8 +328,11 @@ async function fetchPrimaryTickers(): Promise<Set<string>> {
 async function fetchSecondaryTickers(primaryTickers: Set<string>): Promise<Set<string>> {
     if (primaryTickers.size === 0) return primaryTickers;
 
-    // Cap secondary pass to avoid hammering Yahoo with hundreds of simultaneous requests
-    const MAX_SECONDARY = 30;
+    // Cap secondary pass to avoid hammering Yahoo with hundreds of simultaneous
+    // requests. Raised from 30 → 60 to roughly double the per-ticker-feed
+    // mention pool before any downstream gate fires; cost is ~2x outbound
+    // Yahoo RSS requests during the discovery pass.
+    const MAX_SECONDARY = 60;
     const secondaryUrls = Array.from(primaryTickers).slice(0, MAX_SECONDARY).map(
         (ticker) => `${YAHOO_TICKER_FEED_BASE}${encodeURIComponent(ticker)}`
     );
@@ -323,69 +352,24 @@ async function fetchSecondaryTickers(primaryTickers: Set<string>): Promise<Set<s
 }
 
 /**
- * Scrape the Yahoo Finance earnings calendar page for ticker symbols.
- * The page renders tickers as <a href="/quote/AAPL?..."> links in the
- * server-side HTML, so a single regex pull gives us today's reporting names
- * without needing JS execution. Failure is non-fatal — an empty set is
- * returned so the rest of the pipeline continues.
- */
-async function fetchYahooEarningsTickers(): Promise<Set<string>> {
-    const found = new Set<string>();
-    try {
-        const res = await fetch('https://finance.yahoo.com/calendar/earnings/', {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            },
-            signal: AbortSignal.timeout(15_000),
-        });
-        if (!res.ok) {
-            logger.warn(`Yahoo earnings calendar returned ${res.status}`);
-            return found;
-        }
-        const html = await res.text();
-        const linkRegex = /\/quote\/([A-Z]{1,5})(?=[?/"&])/g;
-        let m: RegExpExecArray | null;
-        while ((m = linkRegex.exec(html)) !== null) {
-            const t = m[1].toUpperCase();
-            if (!TICKER_STOPLIST.has(t)) found.add(t);
-        }
-    } catch (err) {
-        logger.warn('Yahoo earnings calendar scrape failed', { error: String(err) });
-    }
-    return found;
-}
-
-/**
- * Pull the same Trending-48h feed the /search page renders so the discovery
- * pool includes whatever the market is currently moving on. Set semantics
- * dedup automatically when this is merged with the other feed sources.
- * Non-fatal: a failed fetch returns an empty set, the pipeline proceeds.
+ * Pull Yahoo's most-active trending tickers directly via getTrendingStocks
+ * (same source the /api/market/trending route uses). We bypass the HTTP route
+ * because that route does heavy per-ticker enrichment (Yahoo summary + MA
+ * lookups for every result) that timed out under our 15s budget when limit
+ * went above ~50. We only need the symbols here; everything else is wasted
+ * work for the discovery pass. Non-fatal: a failed Yahoo call returns an
+ * empty set and the pipeline proceeds.
  */
 async function fetchTrendingTickers(limit: number = 50): Promise<Set<string>> {
     const found = new Set<string>();
     try {
-        const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3001';
-        const internalSecret = process.env.DEEPMONEY_INTERNAL_SECRET;
-        const headers: HeadersInit = {};
-        if (internalSecret) headers['x-api-key'] = internalSecret;
-
-        const res = await fetch(`${baseUrl}/api/market/trending?window=48h&limit=${limit}`, {
-            headers,
-            signal: AbortSignal.timeout(15_000),
-        });
-        if (!res.ok) {
-            logger.warn(`Trending feed returned ${res.status}`);
-            return found;
-        }
-        const json = await res.json();
-        const stocks = Array.isArray(json?.stocks) ? json.stocks : [];
-        for (const s of stocks) {
-            const t = (s?.symbol || '').toUpperCase();
+        const quotes = await getTrendingStocks(limit);
+        for (const q of quotes as any[]) {
+            const t = (q?.symbol || '').toUpperCase();
             if (t && !TICKER_STOPLIST.has(t)) found.add(t);
         }
     } catch (err) {
-        logger.warn('Trending 48h fetch failed', { error: String(err) });
+        logger.warn('Trending feed direct fetch failed', { error: String(err) });
     }
     return found;
 }
@@ -465,8 +449,12 @@ async function fetchEtfHoldingTickers(etfTickers: string[]): Promise<Set<string>
     const headers: HeadersInit = {};
     if (internalSecret) headers['x-api-key'] = internalSecret;
 
+    // Request the route's max holdings per ETF (currently 20, hard-capped in
+    // the route). Pulls more candidates into the discovery pool without
+    // touching downstream gates (topNEtfs, etfGpsThreshold, gpsSurfaceValue).
+    const HOLDINGS_PER_ETF = 20;
     const results = await Promise.allSettled(etfTickers.map(async (etf) => {
-        const res = await fetch(`${baseUrl}/api/stock_data/${encodeURIComponent(etf)}/holdings`, {
+        const res = await fetch(`${baseUrl}/api/stock_data/${encodeURIComponent(etf)}/holdings?limit=${HOLDINGS_PER_ETF}`, {
             headers,
             signal: AbortSignal.timeout(15_000),
         });
@@ -719,18 +707,18 @@ export async function GET(request: NextRequest) {
 
         const allTickersSet = await fetchSecondaryTickers(primaryTickers);
 
-        // --- Merge popular-ETF holdings + Yahoo earnings + Trending-48h + Sector leaders (Stage 1) ---
+        // --- Merge popular-ETF holdings + Trending + Sector leaders ---
         // Set semantics dedup automatically with feed-discovered tickers.
         // Sector leaders are the top-25 by market-cap for each of the 11 canonical
         // Yahoo sectors; injected so /search/industry/[sector] always has fresh GPS.
-        const [popularEtfHoldingTickers, yahooEarningsTickers, trendingTickers, sectorLeaderTickers] = await Promise.all([
+        // (Yahoo earnings-calendar HTML scrape removed: Cloudflare bot-block
+        // made it return zero tickers while burning a 15s timeout per run.)
+        const [popularEtfHoldingTickers, trendingTickers, sectorLeaderTickers] = await Promise.all([
             fetchEtfHoldingTickers(POPULAR_ETF_TICKERS),
-            fetchYahooEarningsTickers(),
-            fetchTrendingTickers(50),
+            fetchTrendingTickers(100),
             fetchSectorLeaderTickers(),
         ]);
         for (const t of popularEtfHoldingTickers) allTickersSet.add(t);
-        for (const t of yahooEarningsTickers) allTickersSet.add(t);
         for (const t of trendingTickers) allTickersSet.add(t);
         for (const t of sectorLeaderTickers) allTickersSet.add(t);
 
@@ -817,7 +805,6 @@ export async function GET(request: NextRequest) {
                 primaryCount: primaryTickers.size,
                 secondaryCount: allTickersSet.size - primaryTickers.size,
                 etfPopularHoldingsCount: popularEtfHoldingTickers.size,
-                yahooEarningsTickerCount: yahooEarningsTickers.size,
                 feedsQueried: PRIMARY_FEED_URLS.length + primaryTickers.size,
                 // Resolved DEEPMONEY_ALGORITHM preset. deepmoney_sync.py reads
                 // back from here — it is the only knob for run aggressiveness.

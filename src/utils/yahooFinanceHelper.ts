@@ -22,11 +22,16 @@ export const yahooFinance = new YahooFinance({
 export async function getTrendingStocks(count: number = 12) {
   try {
     const yf = getYahooFinance();
-    const result = await yf.screener({
-      scrIds: 'most_actives',
-      count: Math.min(count, 100)
-    });
-    return result?.quotes || [];
+    // Disable response-schema validation: Yahoo periodically adds new fields
+    // (e.g. newListingDate on fresh IPOs) that yahoo-finance2's JSON schema
+    // hasn't caught up with, and the library throws hard on unknown fields.
+    // We only consume `quotes[].symbol`, so unknown fields are harmless.
+    const result = await (yf.screener as any)(
+      { scrIds: 'most_actives', count: Math.min(count, 100) },
+      undefined,
+      { validateOptions: false, validateResult: false },
+    );
+    return (result as any)?.quotes || [];
   } catch (error) {
     console.error('Error fetching trending stocks from Yahoo Finance:', error);
     return [];
@@ -66,7 +71,14 @@ export async function fetchYahooStockSummary(ticker: string) {
 
 export async function getYahooScreener(screenerName: string) {
   try {
-    return await (yahooFinance.screener as any)(screenerName);
+    // See getTrendingStocks for why validation is disabled — same yahoo-finance2
+    // schema drift hits day_gainers / aggressive_small_caps / etc. when Yahoo
+    // emits a field the library doesn't model yet.
+    return await (yahooFinance.screener as any)(
+      screenerName,
+      undefined,
+      { validateOptions: false, validateResult: false },
+    );
   } catch (error) {
     console.error(`Error fetching screener ${screenerName}:`, error);
     return { quotes: [] };
