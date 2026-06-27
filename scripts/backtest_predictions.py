@@ -55,7 +55,19 @@ if os.path.exists(os.path.join(PROJECT_ROOT, '.env.production')):
     load_dotenv(os.path.join(PROJECT_ROOT, '.env.production'))
 load_dotenv(os.path.join(PROJECT_ROOT, '.env.local'))
 
-from predict_weighted_analysis import predict, _sanitize_predictions
+# Model toggle — honors the same env var the /api/prediction/[ticker] route
+# uses, so a single switch in .env.local controls both the UI prediction
+# button AND offline backtests. Default (unset / anything other than "true")
+# = v3-split + cross-sectional long-term. "true" = frozen pre-refactor
+# baseline (monolithic 4-output MLP).
+_USE_LEGACY_PREDICTION = os.getenv('USE_LEGACY_PREDICTION_MODEL', '').lower() == 'true'
+if _USE_LEGACY_PREDICTION:
+    from predict_weighted_analysis_baseline import predict, _sanitize_predictions
+    MODEL_VERSION = 'legacy'
+else:
+    from predict_weighted_analysis import predict, _sanitize_predictions
+    MODEL_VERSION = 'v3split'
+print(f"[backtest] Model: {MODEL_VERSION} (USE_LEGACY_PREDICTION_MODEL={'true' if _USE_LEGACY_PREDICTION else 'false'})", file=sys.stderr)
 
 DB_HOST     = os.getenv('DB_HOST', 'localhost')
 DB_USER     = os.getenv('DB_USER')

@@ -72,7 +72,11 @@ export function runPredictionInternal(ticker: string, payload: any, outlook: str
     const tempFile = join(tmpdir(), `tf_sync_input_${randomUUID()}.json`);
     try {
       writeFileSync(tempFile, JSON.stringify(payload));
-      const python = spawn(getPythonExecutable(), ['scripts/predict_weighted_analysis.py', ticker, '--input_file', tempFile, '--outlook', outlook]);
+      const useLegacyModel = process.env.USE_LEGACY_PREDICTION_MODEL === 'true';
+      const scriptName = useLegacyModel
+        ? 'scripts/predict_weighted_analysis_baseline.py'
+        : 'scripts/predict_weighted_analysis.py';
+      const python = spawn(getPythonExecutable(), [scriptName, ticker, '--input_file', tempFile, '--outlook', outlook]);
       let stdout = '', stderr = '';
       python.stdout.on('data', d => { stdout += d; });
       python.stderr.on('data', d => { stderr += d; });

@@ -18,3 +18,4 @@ wget-log
 packages.microsoft.gpg
 /scripts/prediction_cache
 .env.render
+.antigravitycli/

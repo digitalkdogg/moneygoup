@@ -158,8 +158,17 @@ export async function POST(
     });
   }
 
+  // Model toggle (env-driven, for A/B testing the v3-split + cross-sectional
+  // model against the pre-refactor baseline). Set USE_LEGACY_PREDICTION_MODEL=true
+  // in .env.local to route to scripts/predict_weighted_analysis_baseline.py.
+  // Anything else (default) uses the new orchestrator. We include the model
+  // tag in the cache key so flipping the env var produces a fresh prediction
+  // instead of returning the prior model's cached result.
+  const useLegacyModel = process.env.USE_LEGACY_PREDICTION_MODEL === 'true';
+  const modelTag = useLegacyModel ? 'legacy' : 'v3split';
+
   if (!forceRefresh) {
-    const cacheKey = `${validatedTicker}_${queryOutlook}`;
+    const cacheKey = `${validatedTicker}_${queryOutlook}_${modelTag}`;
     const cachedData = predictionCache.get(cacheKey);
     if (cachedData) {
       return buildResponse(cachedData, 'cache');
@@ -174,7 +183,10 @@ export async function POST(
   await predictionSemaphore.acquire();
   try {
     writeFileSync(tempFile, JSON.stringify(body));
-    const result: any = await runPythonPrediction(validatedTicker, tempFile, validatedOutlook);
+    const result: any = await runPythonPrediction(validatedTicker, tempFile, validatedOutlook, useLegacyModel);
+    // Tag the result so callers (and the cache) can tell which model produced
+    // it. Useful when comparing legacy vs v3-split in the UI / dev logs.
+    result.model_version = modelTag;
 
     // Record prediction to analytics database (fire-and-forget)
     const priceAtPrediction = body.stockMetrics?.regularMarketPrice;
@@ -214,7 +226,7 @@ export async function POST(
       result.predicted_price = result.predicted_price ?? result.predicted_price_1y;
       result.predicted_price_1y = result.predicted_price_1y ?? result.predicted_price;
     }
-    predictionCache.set(`${validatedTicker}_${validatedOutlook}`, result);
+    predictionCache.set(`${validatedTicker}_${validatedOutlook}_${modelTag}`, result);
 
     return buildResponse(result, 'livedata');
   } catch (error) {
@@ -225,20 +237,26 @@ export async function POST(
   }
 }
 
-function runPythonPrediction(ticker: string, inputFile: string, outlook: string): Promise<unknown> {
+function runPythonPrediction(ticker: string, inputFile: string, outlook: string, useLegacy: boolean = false): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    const python = spawn(getPythonExecutable(), ['scripts/predict_weighted_analysis.py', ticker, '--input_file', inputFile, '--outlook', outlook]);
+    // Legacy = the frozen pre-refactor monolithic 4-output MLP. v3-split =
+    // the current orchestrator (cross-sectional long-term + per-ticker short-term).
+    const scriptName = useLegacy
+      ? 'scripts/predict_weighted_analysis_baseline.py'
+      : 'scripts/predict_weighted_analysis.py';
+    logger.info(`Predict (${useLegacy ? 'LEGACY' : 'v3-split'}) ${ticker} outlook=${outlook}`);
+    const python = spawn(getPythonExecutable(), [scriptName, ticker, '--input_file', inputFile, '--outlook', outlook]);
     let stdout = '', stderr = '';
     python.stdout.on('data', d => { stdout += d; });
     python.stderr.on('data', d => { stderr += d; });
     python.on('close', code => {
       if (code !== 0) return reject(new Error(`Exit ${code}: ${stderr}`));
-      try { 
+      try {
         const parsed = JSON.parse(stdout);
         logger.info(`Python prediction raw output for ${ticker}`, { parsed });
-        resolve(parsed); 
-      } catch { 
-        reject(new Error('Invalid JSON')); 
+        resolve(parsed);
+      } catch {
+        reject(new Error('Invalid JSON'));
       }
     });
     python.on('error', err => reject(err));
