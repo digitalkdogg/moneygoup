@@ -14,3 +14,9 @@ playwright
 yfinance
 # Offline-only (used by scripts/train_ranker.py).
 lightgbm
+# Used by scripts/predict_long_term.py to load long_term_cs_v2.keras
+# (Keras-based cross-sectional long-term model with joint 6m/1y loss + tanh
+# bounded output). tensorflow-cpu is ~150MB smaller than full tensorflow.
+# Pinned to 2.20.x because we're loading a model trained with the same
+# Keras 3 / TF 2.20 serializable format.
+tensorflow-cpu>=2.20.0,<2.21.0
