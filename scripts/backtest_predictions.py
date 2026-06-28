@@ -67,7 +67,11 @@ if _USE_LEGACY_PREDICTION:
 else:
     from predict_weighted_analysis import predict, _sanitize_predictions
     MODEL_VERSION = 'v3split'
-print(f"[backtest] Model: {MODEL_VERSION} (USE_LEGACY_PREDICTION_MODEL={'true' if _USE_LEGACY_PREDICTION else 'false'})", file=sys.stderr)
+_TAG_OVERRIDE = os.getenv('MODEL_VERSION_TAG', '').strip()
+if _TAG_OVERRIDE:
+    MODEL_VERSION = _TAG_OVERRIDE
+print(f"[backtest] Model: {MODEL_VERSION} (USE_LEGACY_PREDICTION_MODEL={'true' if _USE_LEGACY_PREDICTION else 'false'}, "
+      f"CS_MODEL_VERSION={os.getenv('CS_MODEL_VERSION', 'v1')})", file=sys.stderr)
 
 DB_HOST     = os.getenv('DB_HOST', 'localhost')
 DB_USER     = os.getenv('DB_USER')
@@ -269,11 +273,11 @@ def compute_accuracy_metrics(actual_price: float, predicted_price: float, price_
 
 def upsert_backtest_row(conn, row: dict, overwrite: bool) -> str:
     """Insert a backdated prediction_records row. Returns inserted/updated/skipped/error."""
-    cursor = conn.cursor()
+    cursor = conn.cursor(buffered=True)
     try:
         cursor.execute(
-            "SELECT id FROM prediction_records WHERE symbol = %s AND predicted_at = %s",
-            (row['symbol'], row['predicted_at']),
+            "SELECT id FROM prediction_records WHERE symbol = %s AND predicted_at = %s AND model_version = %s",
+            (row['symbol'], row['predicted_at'], MODEL_VERSION),
         )
         existing = cursor.fetchone()
 
@@ -299,11 +303,11 @@ def upsert_backtest_row(conn, row: dict, overwrite: bool) -> str:
             conn.commit()
             return 'updated'
         else:
-            insert_cols = ['symbol', 'predicted_at'] + columns
+            insert_cols = ['symbol', 'predicted_at', 'model_version'] + columns
             placeholders = ', '.join(['%s'] * len(insert_cols))
             cursor.execute(
                 f"INSERT INTO prediction_records ({', '.join(insert_cols)}) VALUES ({placeholders})",
-                [row['symbol'], row['predicted_at']] + values,
+                [row['symbol'], row['predicted_at'], MODEL_VERSION] + values,
             )
             conn.commit()
             return 'inserted'

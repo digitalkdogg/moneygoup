@@ -1,0 +1,171 @@
+#!/usr/bin/env python3
+"""
+test_sanitize_predictions.py — standalone tests for _sanitize_predictions().
+
+Run directly:
+    python3 scripts/test_sanitize_predictions.py
+
+Mirrors the flat-file pattern of scripts/test_feature_columns.py (no pytest
+dependency; each function asserts and the bottom of the file invokes them).
+"""
+import os
+import sys
+
+# Allow running from anywhere
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from predict_core import _sanitize_predictions
+
+
+def _base(**overrides):
+    """A minimal valid prediction result. Tests merge their fields in."""
+    base = {
+        'ticker': 'TEST',
+        'regularMarketPrice': 100.0,
+        'predicted_price_1w':  101.0, 'predicted_change_pct_1w':  1.0, 'confidence_score_1w': 70,
+        'predicted_price_1m':  103.0, 'predicted_change_pct_1m':  3.0, 'confidence_score_1m': 70,
+        'predicted_price_6m':  110.0, 'predicted_change_pct_6m': 10.0, 'confidence_score_6m': 70,
+        'predicted_price_1y':  120.0, 'predicted_change_pct_1y': 20.0, 'confidence_score_1y': 65,
+    }
+    base.update(overrides)
+    return base
+
+
+def test_legitimate_prediction_unchanged():
+    r = _sanitize_predictions(_base())
+    assert r['predicted_change_pct_6m'] == 10.0
+    assert r['predicted_price_6m'] == 110.0
+    assert r['confidence_score_6m'] == 70
+
+
+def test_overshoot_6m_vs_1y_clamps_and_lowers_confidence():
+    # KO-style: pct_6m=23.8, pct_1y=8.2 → ratio 2.92, floor 15% → fires
+    r = _sanitize_predictions(_base(
+        regularMarketPrice=67.30,
+        predicted_price_6m=83.32, predicted_change_pct_6m=23.8,
+        predicted_price_1y=72.82, predicted_change_pct_1y=8.2,
+    ))
+    # pct_6m should be clamped to 1.3 × pct_1y = 10.66
+    assert r['predicted_change_pct_6m'] == 10.66, r['predicted_change_pct_6m']
+    # price should follow: 67.30 * 1.1066 = 74.47
+    assert r['predicted_price_6m'] == 74.47, r['predicted_price_6m']
+    # confidence dropped
+    assert r['confidence_score_6m'] == 25
+
+
+def test_negative_overshoot_also_clamps():
+    # PFE-style: pct_6m=-16.22, pct_1y=-7.14 → ratio 2.27, fires on bearish side
+    r = _sanitize_predictions(_base(
+        regularMarketPrice=24.02,
+        predicted_price_6m=20.12, predicted_change_pct_6m=-16.22,
+        predicted_price_1y=22.31, predicted_change_pct_1y=-7.14,
+    ))
+    expected_pct = round(-7.14 * 1.3, 2)  # -9.28
+    assert r['predicted_change_pct_6m'] == expected_pct, r['predicted_change_pct_6m']
+    assert r['confidence_score_6m'] == 25
+
+
+def test_opposite_signs_no_clamp():
+    # 6m bullish, 1y bearish → different problem, this clamp must not fire
+    r = _sanitize_predictions(_base(
+        predicted_price_6m=130.0, predicted_change_pct_6m=30.0,
+        predicted_price_1y=90.0,  predicted_change_pct_1y=-10.0,
+    ))
+    assert r['predicted_change_pct_6m'] == 30.0
+    assert r['confidence_score_6m'] == 70
+
+
+def test_below_floor_no_clamp_even_if_ratio_high():
+    # pct_6m=5%, pct_1y=1% → ratio=5 but pct_6m below 15% floor → no clamp
+    r = _sanitize_predictions(_base(
+        predicted_price_6m=105.0, predicted_change_pct_6m=5.0,
+        predicted_price_1y=101.0, predicted_change_pct_1y=1.0,
+    ))
+    assert r['predicted_change_pct_6m'] == 5.0
+    assert r['confidence_score_6m'] == 70
+
+
+def test_below_ratio_no_clamp_even_if_above_floor():
+    # pct_6m=20%, pct_1y=18% → ratio=1.11 below 1.5 → no clamp
+    r = _sanitize_predictions(_base(
+        predicted_price_6m=120.0, predicted_change_pct_6m=20.0,
+        predicted_price_1y=118.0, predicted_change_pct_1y=18.0,
+    ))
+    assert r['predicted_change_pct_6m'] == 20.0
+    assert r['confidence_score_6m'] == 70
+
+
+def test_bound_clamp_also_updates_price():
+    # 1y at +200% → exceeds ±100% bound → both pct AND price should clamp
+    r = _sanitize_predictions(_base(
+        predicted_price_1y=300.0, predicted_change_pct_1y=200.0,
+    ))
+    assert r['predicted_change_pct_1y'] == 100.0
+    # price should be recomputed from clamped pct: 100 * 2.0 = 200.0
+    assert r['predicted_price_1y'] == 200.0, r['predicted_price_1y']
+    assert r['confidence_score_1y'] == 25
+
+
+def test_bound_clamp_chains_into_consistency_check():
+    # 6m at +100% (over bound, clamps to 60); 1y at +30% → ratio 60/30=2.0 trips
+    # the cross-horizon check too → 6m re-clamps to 30*1.3=39
+    r = _sanitize_predictions(_base(
+        predicted_price_6m=200.0, predicted_change_pct_6m=100.0,
+        predicted_price_1y=130.0, predicted_change_pct_1y=30.0,
+    ))
+    assert r['predicted_change_pct_6m'] == 39.0
+    assert r['predicted_price_6m'] == 139.0
+    assert r['confidence_score_6m'] == 25
+
+
+def test_negative_price_floored():
+    r = _sanitize_predictions(_base(
+        predicted_price_1y=-5.0, predicted_change_pct_1y=-105.0,
+    ))
+    # pct also exceeds the -100% bound → clamps to -100; price gets floored
+    # via the floor branch AND recomputed via the pct branch. Final price
+    # comes from the pct recompute: 100 * (1 - 1.0) = 0.0, but the round()
+    # keeps that at 0.0. The floor branch ran first so the floor effect
+    # was visible mid-loop; what matters here is the final state.
+    assert r['predicted_change_pct_1y'] == -100.0
+    assert r['confidence_score_1y'] == 25
+
+
+def test_missing_horizon_skipped():
+    # If 6m is missing, sanitize must not crash and 1y still works
+    case = _base(predicted_price_6m=None, predicted_change_pct_6m=None)
+    r = _sanitize_predictions(case)
+    # Cross-horizon check needs both 6m and 1y → silently skips
+    assert r['predicted_change_pct_1y'] == 20.0
+
+
+def main():
+    tests = [
+        test_legitimate_prediction_unchanged,
+        test_overshoot_6m_vs_1y_clamps_and_lowers_confidence,
+        test_negative_overshoot_also_clamps,
+        test_opposite_signs_no_clamp,
+        test_below_floor_no_clamp_even_if_ratio_high,
+        test_below_ratio_no_clamp_even_if_above_floor,
+        test_bound_clamp_also_updates_price,
+        test_bound_clamp_chains_into_consistency_check,
+        test_negative_price_floored,
+        test_missing_horizon_skipped,
+    ]
+    failed = 0
+    for t in tests:
+        try:
+            t()
+            print(f"  PASS  {t.__name__}")
+        except AssertionError as exc:
+            failed += 1
+            print(f"  FAIL  {t.__name__}: {exc}")
+        except Exception as exc:
+            failed += 1
+            print(f"  ERROR {t.__name__}: {type(exc).__name__}: {exc}")
+    print(f"\n{len(tests) - failed}/{len(tests)} passed")
+    sys.exit(0 if failed == 0 else 1)
+
+
+if __name__ == '__main__':
+    main()

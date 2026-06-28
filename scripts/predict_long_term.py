@@ -44,7 +44,8 @@ from predict_core import (
 # Loaded once at module import. If the artifact is missing or fails to
 # deserialize, we silently fall back to the per-ticker training path.
 _CS_MODEL = None  # dict: {'model', 'scaler', 'feature_columns', ...}
-_CS_MODEL_PATH = Path(os.path.dirname(os.path.abspath(__file__))).parent / 'models' / 'long_term_cs_v1.pkl'
+_CS_MODEL_VERSION = os.environ.get('CS_MODEL_VERSION', 'v2')
+_CS_MODEL_PATH = Path(os.path.dirname(os.path.abspath(__file__))).parent / 'models' / f'long_term_cs_{_CS_MODEL_VERSION}.pkl'
 
 try:
     import joblib

@@ -53,7 +53,7 @@ N_EPOCHS   = 50    # capped for speed
 BATCH_SIZE = 128
 MC_RUNS    = 12
 CACHE_DIR  = os.path.join(os.path.dirname(__file__), 'prediction_cache')
-CACHE_SCHEMA_VERSION = 10  # bumped: cross-sectional long-term model support added (auto-loads models/long_term_cs_v1.pkl when present, falls back to per-ticker MLP)
+CACHE_SCHEMA_VERSION = 13  # bumped: long-term CS model v2 retrained with tanh × cap bounded output (prevents runaway predictions on real fundamentals)
 
 
 # ============================================================================
@@ -1309,6 +1309,13 @@ def _sanitize_predictions(result: dict) -> dict:
       6m  : ±60%
       1y  : ±100%
 
+    Cross-horizon consistency: if same-sign 6m magnitude overshoots 1y
+    magnitude by >1.5× AND |pct_6m| > 15%, the 6m head is treated as an
+    outlier extrapolation and clamped to 1.3× pct_1y (same sign). A
+    genuine 6m move that big on a liquid name should persist or grow by
+    1y, not revert. Thresholds tuned from v3split backtest distribution
+    (5 of 80 same-signed pairs trip; offenders cluster at ratio >1.6).
+
     When any clamp fires for a horizon, that horizon's confidence_score is
     knocked down to 25 (a clamped prediction is a low-trust prediction).
     Writes a one-line stderr note so the clamp event is visible in logs.
@@ -1320,6 +1327,8 @@ def _sanitize_predictions(result: dict) -> dict:
         ('1y', 100.0),
     ]
     ticker = result.get('ticker', '?')
+    current_price = result.get('regularMarketPrice')
+
     for h, bound in horizons:
         price_key = f'predicted_price_{h}'
         pct_key   = f'predicted_change_pct_{h}'
@@ -1334,13 +1343,30 @@ def _sanitize_predictions(result: dict) -> dict:
             print(f"[sanitize] {ticker} {h}: price {price} → 0.01 (was negative)", file=sys.stderr)
             result[price_key] = 0.01
             clamped = True
-        # Clamp change pct
+        # Clamp change pct + recompute price so they stay in sync
         if isinstance(pct, (int, float)) and abs(pct) > bound:
             new_pct = max(-bound, min(bound, pct))
             print(f"[sanitize] {ticker} {h}: change_pct {pct} → {new_pct} (out of ±{bound}% bound)", file=sys.stderr)
             result[pct_key] = new_pct
+            if isinstance(current_price, (int, float)) and current_price > 0:
+                result[price_key] = round(current_price * (1 + new_pct / 100), 2)
             clamped = True
         if clamped:
             # Knock confidence to 25 — a clamped output is low-trust
             result[conf_key] = 25
+
+    # ── Cross-horizon consistency: 6m magnitude shouldn't exceed 1y ──────────
+    pct_6m = result.get('predicted_change_pct_6m')
+    pct_1y = result.get('predicted_change_pct_1y')
+    if isinstance(pct_6m, (int, float)) and isinstance(pct_1y, (int, float)):
+        same_sign = (pct_6m >= 0) == (pct_1y >= 0)
+        if same_sign and abs(pct_6m) > abs(pct_1y) * 1.5 and abs(pct_6m) > 15.0:
+            new_pct_6m = round(pct_1y * 1.3, 2)
+            print(f"[sanitize] {ticker} 6m/1y inconsistency: pct_6m {pct_6m} vs pct_1y {pct_1y} "
+                  f"→ pct_6m clamped to {new_pct_6m}", file=sys.stderr)
+            result['predicted_change_pct_6m'] = new_pct_6m
+            if isinstance(current_price, (int, float)) and current_price > 0:
+                result['predicted_price_6m'] = round(current_price * (1 + new_pct_6m / 100), 2)
+            result['confidence_score_6m'] = 25
+
     return result

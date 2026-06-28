@@ -165,7 +165,10 @@ export async function POST(
   // tag in the cache key so flipping the env var produces a fresh prediction
   // instead of returning the prior model's cached result.
   const useLegacyModel = process.env.USE_LEGACY_PREDICTION_MODEL === 'true';
-  const modelTag = useLegacyModel ? 'legacy' : 'v3split';
+  // Include CS_MODEL_VERSION (v1/v2/...) in the cache key — when we promote a
+  // new CS model, switching the default must invalidate prior cached results.
+  const csModelVersion = process.env.CS_MODEL_VERSION || 'v2';
+  const modelTag = useLegacyModel ? 'legacy' : `v3split_${csModelVersion}`;
 
   if (!forceRefresh) {
     const cacheKey = `${validatedTicker}_${queryOutlook}_${modelTag}`;
