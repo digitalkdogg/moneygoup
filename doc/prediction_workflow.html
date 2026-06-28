@@ -104,7 +104,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Developer Docs</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-15</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-28</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -144,6 +144,7 @@
     <div class="section-divider"></div>
     <h3>On this page</h3>
     <a href="#overview">Overview</a>
+    <a href="#model-paths">Model Path Selection (env var)</a>
     <a href="#lifecycle">End-to-End Lifecycle</a>
     <a href="#strategy-integration">Strategy Integration</a>
     <a href="#step1">1. User Trigger (UI)</a>
@@ -157,9 +158,14 @@
     <a href="#high-beta-penalty">— High-Beta Penalty</a>
     <a href="#algorithm-flow">— Algorithm Flowchart</a>
     <a href="#regime-analysis">— Regime Analysis</a>
-    <a href="#step5">5. MLP Architecture (4-output)</a>
+    <a href="#step5">5. Model Architecture</a>
+    <a href="#legacy-path">— Legacy 4-output MLP</a>
+    <a href="#v3split-path">— v3-Split Orchestrator</a>
+    <a href="#horizon-optimizations">— Per-Horizon Optimizations</a>
+    <a href="#cs-model-versions">— CS Model Versions (v1/v2)</a>
     <a href="#mlp-targets">— Training Targets</a>
     <a href="#single-call">— Single Call → 4 Horizons</a>
+    <a href="#sanitize-layer">— Sanitize Layer (clamps)</a>
     <a href="#step6">6. Signal Weighting</a>
     <a href="#week-blend">— 1-Week Blend Logic</a>
     <a href="#trajectory">— Trajectory Generation</a>
@@ -188,16 +194,34 @@
     <h1>AI Prediction Workflow &amp; Algorithm</h1>
     <div class="meta">
       <span>scripts/predict_weighted_analysis.py</span>
+      <span>scripts/predict_weighted_analysis_baseline.py</span>
+      <span>scripts/predict_core.py</span>
+      <span>scripts/predict_short_term.py</span>
+      <span>scripts/predict_long_term.py</span>
+      <span>scripts/train_long_term_cs_v2.py</span>
+      <span>scripts/keras_wrapper.py</span>
       <span>scripts/update_predictions.py</span>
       <span>src/app/api/prediction/[ticker]/route.ts</span>
       <span>src/app/api/prediction/save/route.ts</span>
       <span>src/utils/predictionRecorder.ts</span>
       <span>src/app/components/StockPrediction.tsx</span>
-      <span>Updated 2026-06-15</span>
+      <span>Updated 2026-06-28</span>
     </div>
 
     <section id="overview">
-      <p>This document details the end-to-end execution path and mathematical logic behind the Stock Prediction System (v3.4). The pipeline runs an <strong>MLPRegressor (sklearn)</strong> trained fresh per request on 5 years of enriched historical data, producing 1-week, 1-month, 6-month, and 1-year price targets with Monte Carlo uncertainty bands and an 18-month trajectory chart. <strong>A single Python invocation returns all four horizons at once.</strong></p>
+      <p>This document details the end-to-end execution path and mathematical logic behind the Stock Prediction System (v3.5). The pipeline produces 1-week, 1-month, 6-month, and 1-year price targets with Monte Carlo uncertainty bands and an 18-month trajectory chart. <strong>A single Python invocation returns all four horizons at once.</strong> Two model paths exist and are selected at runtime by the <code>USE_LEGACY_PREDICTION_MODEL</code> environment variable; the v3-split path further selects a cross-sectional long-term model version via <code>CS_MODEL_VERSION</code>. See <a href="#model-paths">Model Path Selection</a> for the full matrix.</p>
+
+      <div class="updated-box">
+        <strong>v3.5 / June 2026 — Split orchestrator, CS long-term model, sanitize guard:</strong>
+        <ul style="margin-top:.5rem;">
+          <li><code>scripts/predict_weighted_analysis.py</code> refactored into an orchestrator that delegates to <code>predict_short_term.py</code> (1w + 1m heads), <code>predict_long_term.py</code> (6m + 1y heads, cross-sectional or per-ticker fallback), and <code>predict_core.py</code> (shared features, caching, sanitize). The pre-refactor monolith is preserved verbatim at <code>scripts/predict_weighted_analysis_baseline.py</code>.</li>
+          <li><strong>Env-var model toggle:</strong> <code>USE_LEGACY_PREDICTION_MODEL=true</code> reverts every prediction path (UI button, backtest, nightly sync, DeepMoney) to the baseline file. Default (unset / "false") uses the v3-split orchestrator. The toggle is honored by the route, the backtest script, and the helper in <code>src/utils/stockDataHelper.ts</code>.</li>
+          <li><strong>Cross-sectional long-term model:</strong> <code>predict_long_term.py</code> auto-loads <code>models/long_term_cs_{version}.pkl</code> at import time. v1 is sklearn MLPRegressor (MSE loss, no TF needed). v2 is Keras MLP with Huber loss + joint 6m/1y consistency penalty + tanh × cap bounded output (±70% / ±100%). Version chosen by <code>CS_MODEL_VERSION</code> env var; loader silently falls back to per-ticker MLP training if the artifact is missing.</li>
+          <li><strong>Sanitize guard (<code>_sanitize_predictions</code>):</strong> post-orchestrator clamp that catches per-horizon bound violations (1w ±15%, 1m ±30%, 6m ±60%, 1y ±100%), a cross-horizon 6m/1y consistency check (fires when same-signed and |pct_6m| &gt; 1.5 × |pct_1y| AND |pct_6m| &gt; 15%), and floors prices at 0.01. Clamps update both pct and price, and knock the affected horizon's confidence to 25.</li>
+          <li><strong>Tracking:</strong> <code>prediction_records</code> now has a <code>model_version</code> column (defaults to <code>'legacy'</code>; backtest writes <code>'v3split'</code> or whatever <code>MODEL_VERSION_TAG</code> overrides). Unique index changed from <code>(symbol, predicted_at)</code> to <code>(symbol, predicted_at, model_version)</code> so legacy and v3-split predictions can coexist for side-by-side comparison.</li>
+          <li>Cache schema bumped to v13. The Node route cache key now includes the CS model version (<code>{ticker}_{outlook}_v3split_{csModelVersion}</code>) so promoting v1 → v2 → v3 produces fresh predictions instead of returning stale results from the prior model.</li>
+        </ul>
+      </div>
 
       <div class="updated-box">
         <strong>v3.4.1 / June 2026 — Dual-GPS &amp; full horizon persistence:</strong>
@@ -267,6 +291,91 @@
         <p>Because <code>/api/prediction/save</code> now persists the per-horizon <code>predicted_change_pct_*</code> + <code>confidence_score_*</code> directly, downstream routes can plug the model's own outputs into the GPS formula rather than deriving the delta from possibly-stale price columns.</p>
       </div>
     </section>
+
+    <!-- ══════════════════════════════════════════ -->
+    <section id="model-paths">
+      <h2><span class="step-num" style="background:var(--teal);">M</span> Model Path Selection (env var) <span class="new-badge">v3.5</span></h2>
+      <div class="step-card">
+        <p>Every prediction path in the codebase honors the same two env vars so a single switch in <code>.env.local</code> reconfigures the whole system — UI prediction button, backtest script, nightly batch sync, and DeepMoney discovery analyzer. No restart required for spawned Python (each invocation reads the env fresh); Next.js picks up the change on next dev/prod reload.</p>
+
+        <h4>Two switches, three states</h4>
+        <table>
+          <thead><tr><th><code>USE_LEGACY_PREDICTION_MODEL</code></th><th><code>CS_MODEL_VERSION</code></th><th>Active path</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>true</code></td>
+              <td>(ignored)</td>
+              <td><code>predict_weighted_analysis_baseline.py</code></td>
+              <td>Frozen pre-refactor monolith. Single MLPRegressor trained fresh per request with 4-output head. The known reference behavior. Does NOT use the cross-sectional model.</td>
+            </tr>
+            <tr>
+              <td><code>false</code> / unset</td>
+              <td><code>v1</code></td>
+              <td><code>predict_weighted_analysis.py</code> + sklearn CS v1</td>
+              <td>v3-split orchestrator. Long-term head loaded from <code>models/long_term_cs_v1.pkl</code> (sklearn MLPRegressor, MSE loss). <strong>No TensorFlow dependency.</strong> Safe choice for shared / low-memory hosts.</td>
+            </tr>
+            <tr>
+              <td><code>false</code> / unset</td>
+              <td><code>v2</code> (default)</td>
+              <td><code>predict_weighted_analysis.py</code> + Keras CS v2</td>
+              <td>v3-split orchestrator. Long-term head loaded from <code>models/long_term_cs_v2.pkl</code> (Keras MLP, Huber loss, joint 6m/1y consistency penalty, tanh × cap bounded output ±70% / ±100%). <strong>Requires <code>tensorflow-cpu</code> in the environment.</strong></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h4>Where the toggles plug in</h4>
+        <table>
+          <thead><tr><th>Caller</th><th>How the env var reaches the prediction code</th></tr></thead>
+          <tbody>
+            <tr><td><strong>UI prediction button</strong> (<code>POST /api/prediction/[ticker]</code>)</td><td>Route reads both env vars directly. Picks <code>scripts/predict_weighted_analysis_baseline.py</code> or <code>scripts/predict_weighted_analysis.py</code> in <code>runPythonPrediction()</code>. CS version flows through to the Python process as an env var, which <code>predict_long_term.py</code> reads at import time.</td></tr>
+            <tr><td><strong>DeepMoney sync</strong> (<code>POST /api/prediction/deepmoney</code>)</td><td>Same path: <code>src/utils/stockDataHelper.ts → runPredictionInternal()</code> reads <code>USE_LEGACY_PREDICTION_MODEL</code> and selects the script. CS version inherits from the parent Node process env.</td></tr>
+            <tr><td><strong>Backtest</strong> (<code>scripts/backtest_predictions.py</code>)</td><td>Imports the chosen module at module-load: <code>predict_weighted_analysis_baseline</code> vs <code>predict_weighted_analysis</code>. Tags the persisted <code>model_version</code> column as <code>'legacy'</code> or <code>'v3split'</code> (optional override via <code>MODEL_VERSION_TAG</code> env var for A/B'ing different CS versions).</td></tr>
+            <tr><td><strong>Nightly batch</strong> (<code>scripts/update_predictions.py</code>)</td><td>Goes through <code>POST /api/prediction/[ticker]</code> via HTTP, so it inherits the route's behavior — the same env var controls it transitively.</td></tr>
+          </tbody>
+        </table>
+
+        <h4>Cross-sectional long-term model details</h4>
+        <p><code>predict_long_term.py</code> loads <code>models/long_term_cs_{version}.pkl</code> once at module import:</p>
+        <pre><code>_CS_MODEL_VERSION = os.environ.get('CS_MODEL_VERSION', 'v2')
+_CS_MODEL_PATH    = ... / 'models' / f'long_term_cs_{_CS_MODEL_VERSION}.pkl'
+
+try:
+    if _CS_MODEL_PATH.exists():
+        _CS_MODEL = joblib.load(_CS_MODEL_PATH)
+except Exception:
+    _CS_MODEL = None   # falls back to per-ticker MLP training</code></pre>
+        <p>The pkl holds a sklearn-compatible <code>.predict()</code> object (for v1) or a <code>KerasModelWrapper</code> instance (for v2) that lazy-loads the underlying <code>.keras</code> file on first call. The wrapper makes the v2 model look like an sklearn regressor so the predict-time code path is identical regardless of which backend was used to train.</p>
+
+        <table>
+          <thead><tr><th>CS version</th><th>Backend</th><th>Loss</th><th>Output bound</th><th>TF required</th><th>Training file</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>v1</code></td>
+              <td>sklearn MLPRegressor</td>
+              <td>MSE</td>
+              <td>none</td>
+              <td>no</td>
+              <td><code>scripts/train_long_term_cs.py</code></td>
+            </tr>
+            <tr>
+              <td><code>v2</code></td>
+              <td>Keras + TF</td>
+              <td>Huber(δ=0.5) + joint 6m/1y penalty (λ=1.0, ratio=1.5)</td>
+              <td>tanh × cap (±70% / ±100%)</td>
+              <td>yes</td>
+              <td><code>scripts/train_long_term_cs_v2.py</code></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="warning-box"><strong>Production deploys without TensorFlow</strong> must explicitly set <code>CS_MODEL_VERSION=v1</code> until the next Docker rebuild bundles <code>tensorflow-cpu</code> (see <code>requirements.txt</code>). Otherwise the v2 loader will succeed at unpickle time but fail at inference when <code>KerasModelWrapper._load()</code> tries to <code>import tensorflow</code>. The orchestrator catches the exception and returns a 500 — surface symptom is <code>"Prediction failed"</code> in the UI.</div>
+
+        <h4>prediction_records tagging</h4>
+        <p>The unique key on <code>prediction_records</code> is <code>(symbol, predicted_at, model_version)</code> — so legacy and v3-split backtests for the same (ticker, date) can coexist as separate rows. The <code>model_version</code> column defaults to <code>'legacy'</code> for legacy live predictions; v3-split live predictions are tagged <code>'v3split'</code> by the route. Backtest runs can override the tag via <code>MODEL_VERSION_TAG</code> env var (e.g. <code>v3split_v2</code>, <code>v3split_v3</code>) for ad-hoc CS-version A/B tests without colliding on the unique key.</p>
+      </div>
+    </section>
+
+    <div class="flow-arrow">&#8595;</div>
 
     <section id="step1">
       <h2><span class="step-num">1</span> User Interaction</h2>
@@ -465,24 +574,260 @@ if beta &gt; 2.5 AND HiRatio_52w &gt; 0.95:
     <div class="flow-arrow">&#8595;</div>
 
     <section id="step5">
-      <h2><span class="step-num">5</span> MLP Architecture — 4-Output Head</h2>
+      <h2><span class="step-num">5</span> Model Architecture <span class="updated-badge">v3.5</span></h2>
       <div class="step-card">
-        <div class="component-tag">sklearn MLPRegressor — hidden_layer_sizes=(256, 128, 64, 32)</div>
-        <table>
-          <thead><tr><th>Hyperparameter</th><th>Value</th></tr></thead>
-          <tbody>
-            <tr><td>Hidden layers</td><td>(256, 128, 64, 32)</td></tr>
-            <tr><td>Activation</td><td>ReLU</td></tr>
-            <tr><td>Optimizer</td><td>Adam, lr=0.001</td></tr>
-            <tr><td>Max iterations</td><td>50</td></tr>
-            <tr><td>Early stopping</td><td>validation_fraction=0.1, n_iter_no_change=8</td></tr>
-            <tr><td>Sequence length</td><td>45 trading days</td></tr>
-            <tr><td>Output head</td><td>4 targets: [T+1, T+5, T+126, T+252] scaled close values</td></tr>
-          </tbody>
-        </table>
+        <p>The system supports two complete model architectures selected at runtime by <code>USE_LEGACY_PREDICTION_MODEL</code>. Both produce the same JSON result shape (all four horizons in one call), so callers don't need to branch on which backend served the prediction.</p>
+
+        <section id="legacy-path">
+          <h4>Legacy path — monolithic 4-output MLP</h4>
+          <div class="component-tag">scripts/predict_weighted_analysis_baseline.py — sklearn MLPRegressor — hidden_layer_sizes=(256, 128, 64, 32)</div>
+          <p>Frozen pre-refactor copy. A single sklearn MLPRegressor is trained fresh per request on this ticker's own 5-year history, with a 4-output head producing [T+1, T+5, T+126, T+252] simultaneously. ~5–15s per request because training happens on every call.</p>
+          <table>
+            <thead><tr><th>Hyperparameter</th><th>Value</th></tr></thead>
+            <tbody>
+              <tr><td>Hidden layers</td><td>(256, 128, 64, 32)</td></tr>
+              <tr><td>Activation</td><td>ReLU</td></tr>
+              <tr><td>Optimizer</td><td>Adam, lr=0.001</td></tr>
+              <tr><td>Max iterations</td><td>50</td></tr>
+              <tr><td>Early stopping</td><td>validation_fraction=0.1, n_iter_no_change=8</td></tr>
+              <tr><td>Sequence length</td><td>45 trading days</td></tr>
+              <tr><td>Output head</td><td>4 targets: [T+1, T+5, T+126, T+252] scaled close values</td></tr>
+              <tr><td>Loss</td><td>MSE (sklearn default)</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="v3split-path">
+          <h4>v3-split path — orchestrator + per-horizon modules <span class="new-badge">v3.5</span></h4>
+          <div class="component-tag">scripts/predict_weighted_analysis.py (orchestrator)</div>
+          <p>Splits the monolithic predict into three modules so each horizon family can evolve independently. The orchestrator calls <code>predict_long_term()</code> first (its 6m output feeds the short-term trajectory anchor), then <code>predict_short_term()</code>, then merges into the same result dict shape the legacy path returns.</p>
+
+          <table>
+            <thead><tr><th>Module</th><th>Responsibility</th><th>Architecture</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><code>scripts/predict_core.py</code></td>
+                <td>Shared: feature engineering (118 cols + 11 regime), metric_analysis, confidence_score, MC helpers, cache helpers, <code>_sanitize_predictions</code> (see below).</td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td><code>scripts/predict_short_term.py</code></td>
+                <td>Produces <code>predicted_price_1w</code> and <code>predicted_price_1m</code>. Uses a per-ticker MLPRegressor on the 58-feature short-term mask with a 2-output head [T+1, T+5]. 1-week prediction is the 30/70 blend with the trajectory anchor derived from the long-term 6m forecast.</td>
+                <td>sklearn MLP (96, 48, 24), MSE loss, fresh per call</td>
+              </tr>
+              <tr>
+                <td><code>scripts/predict_long_term.py</code></td>
+                <td>Produces <code>predicted_price_6m</code> and <code>predicted_price_1y</code>. Two execution paths:<br>
+                  <strong>(a) Cross-sectional</strong> — loads the persisted <code>long_term_cs_{version}.pkl</code> at import time and runs a single forward pass on the ticker's current feature vector (~50ms per call, no per-ticker training).<br>
+                  <strong>(b) Per-ticker fallback</strong> — if the CS artifact is missing or fails to load, falls back to training a fresh MLPRegressor on this ticker's own history (~10s per call). Same fallback engaged on any unpickle exception.
+                </td>
+                <td>Persisted cross-sectional model (default) or per-ticker MLP (192, 96, 48), MSE</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <p>The Monte Carlo step is module-local: short-term and long-term each perturb their own feature inputs (~12 passes each) to produce horizon-specific spread bands. The 18-month trajectory is composed in the orchestrator from the four anchor prices.</p>
+        </section>
+
+        <section id="horizon-optimizations">
+          <h4>Per-Horizon Optimizations — Short-Term vs Long-Term <span class="new-badge">v3.5</span></h4>
+          <p>The whole point of splitting the model is that <strong>different signals dominate at different timescales</strong>. A 1-week forecast is mostly about technical momentum, intraday volatility regime, and post-earnings drift; a 1-year forecast is mostly about fundamental revaluation, macro regime, and analyst-revision velocity. Mixing both signal families through one shared 4-output head — what the legacy MLP did — forces the network to compromise across horizons. Splitting lets each module specialize.</p>
+
+          <h5 style="margin-top:1.25rem;color:#334155;">1. Different feature masks (the biggest difference)</h5>
+          <p>Both modules start from the same 118-column base feature tensor, but each applies its own mask before training:</p>
+
+          <table>
+            <thead><tr><th></th><th>Short-term mask</th><th>Long-term mask</th></tr></thead>
+            <tbody>
+              <tr><td>Columns kept</td><td><strong>58</strong></td><td><strong>71</strong></td></tr>
+              <tr><td>+ 11 regime cols appended</td><td>69 total per timestep</td><td>82 total per timestep</td></tr>
+              <tr><td>Overlap (in both masks)</td><td colspan="2" style="text-align:center;"><strong>11 cols</strong> — Close, Volume, HistVol_30, HiRatio_52w, LoRatio_52w, SMA_20, EMA_50, NewsSentiment, EarningsBeatStreak, Month_Sin, Month_Cos</td></tr>
+            </tbody>
+          </table>
+
+          <table>
+            <thead><tr><th>Signal family</th><th>Short-term mask</th><th>Long-term mask</th><th>Why</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><strong>Short-horizon technicals</strong><br>(MACD, RSI, BB, STOCH, ATR, Lag features, ROC_5d/20d, EMA slopes, rolling 20d stats)</td>
+                <td>✅ kept</td>
+                <td>❌ dropped</td>
+                <td>Momentum and oscillator signals mean-revert within weeks. By 6 months they've cycled multiple times and carry no directional information for the long horizon.</td>
+              </tr>
+              <tr>
+                <td><strong>Microstructure</strong><br>(PreMarket_GapPct, PostMarket_GapPct, Peer_RS_5d, PostEarnings_DayN/CumReturn/VolRatio)</td>
+                <td>✅ kept</td>
+                <td>❌ dropped</td>
+                <td>Pre/post-market gaps and post-earnings drift dissipate over 1-2 weeks. Useless at 1y; harmful as noise at 6m.</td>
+              </tr>
+              <tr>
+                <td><strong>Options market</strong><br>(IV, IV_Rank, Put_Call_Ratio, VIX_RealVol_Ratio, PC_Skew_Proxy)</td>
+                <td>✅ kept</td>
+                <td>❌ dropped</td>
+                <td>Options-implied signals price next 30-60 days. Long-horizon options ("LEAPS") have weak signal-to-noise for the underlying.</td>
+              </tr>
+              <tr>
+                <td><strong>Earnings-window dampening</strong><br>(Earnings_In_Window, Days_To/Since_Earnings, EarningsSeason)</td>
+                <td>✅ kept</td>
+                <td>❌ dropped</td>
+                <td>These flag a specific upcoming volatility event — critical for 1w, irrelevant for 1y (which integrates over 4 earnings windows).</td>
+              </tr>
+              <tr>
+                <td><strong>Fundamentals</strong><br>(PE, PB, TrailingEPS, ForwardEPS, RevenueGrowth, EarningsGrowth, ProfitMargins, DebtToEquity, ROE, Beta, DivYield, AnalystPremium, RecommendationMean)</td>
+                <td>❌ dropped</td>
+                <td>✅ kept</td>
+                <td>Valuation-driven revaluation is a 6-month-plus story. Adds noise to short-term predictions (P/E doesn't move next week).</td>
+              </tr>
+              <tr>
+                <td><strong>Long-horizon macro &amp; rates</strong><br>(VIX, VIX_20d_Avg, Treasury10Y/3M, CurveSlope, HYG/LQD credit, DXY, SPY/Sector RS, WTI/Copper/Wheat betas)</td>
+                <td>❌ dropped</td>
+                <td>✅ kept</td>
+                <td>Macro regimes shift over months/quarters. A daily VIX print is noise at 1w; a 60-day sector correlation matters at 1y.</td>
+              </tr>
+              <tr>
+                <td><strong>Long-horizon technicals</strong><br>(SMA_200, EMA_200, GoldenCross, ROC_6m, ROC_12m)</td>
+                <td>❌ dropped</td>
+                <td>✅ kept</td>
+                <td>200-day MAs and 6m/12m ROC describe the multi-quarter trend — irrelevant for next-week direction.</td>
+              </tr>
+              <tr>
+                <td><strong>Analyst-revision velocity</strong><br>(EPS_Revision_7d, Revenue_Est_Growth, EPS_Rev_Up/Down, Upgrade_Score_7d/30d)</td>
+                <td>❌ dropped</td>
+                <td>✅ kept</td>
+                <td>Analyst revisions take weeks to propagate into price; the cumulative drift is a long-horizon signal.</td>
+              </tr>
+              <tr>
+                <td><strong>Institutional + insider flow</strong><br>(Institution_PctHeld/Delta, InsiderNetSellRatio_90d, InsiderTxCount_90d, ShortFloatPct, DaysToCover)</td>
+                <td>❌ dropped</td>
+                <td>✅ kept</td>
+                <td>Position changes show up in quarterly filings and 90-day rolling windows — long-horizon by construction.</td>
+              </tr>
+              <tr>
+                <td><strong>World Bank macro</strong><br>(WorldBank_GDP, Inflation, Consumption, Real_GDP)</td>
+                <td>❌ dropped</td>
+                <td>✅ kept</td>
+                <td>Annual scalars — meaningless at 1w resolution, meaningful for 1y growth/inflation backdrop.</td>
+              </tr>
+              <tr>
+                <td><strong>Earnings surprises</strong> (4Q avg)</td>
+                <td>❌ dropped</td>
+                <td>✅ kept</td>
+                <td>4-quarter rolling average is a long-horizon quality signal; the recent <em>streak</em> (boolean-ish) shows up in both masks.</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <p>Net: <strong>47 short-only columns</strong> (the momentum/technical/microstructure stack) and <strong>60 long-only columns</strong> (the fundamentals/macro/revision stack), with an 11-column shared core. The +11 regime probability/interaction columns are appended to both masks so each MLP still sees the current market-regime context.</p>
+
+          <h5 style="margin-top:1.25rem;color:#334155;">2. Different network capacity</h5>
+          <table>
+            <thead><tr><th></th><th>Short-term MLP</th><th>Long-term per-ticker MLP</th><th>Reasoning</th></tr></thead>
+            <tbody>
+              <tr><td>Hidden layers</td><td><code>(96, 48, 24)</code></td><td><code>(192, 96, 48)</code></td><td>Long-term integrates 71 columns of disparate signal families (technicals + fundamentals + macro + insider + analyst); needs more capacity. Short-term works on a tighter set, so a smaller network has the same capacity-per-feature and trains faster.</td></tr>
+              <tr><td>Output heads</td><td>2 — [T+1, T+5]</td><td>2 — [T+126, T+252]</td><td>Same head count, but the loss surface is fundamentally different — T+5 is a noisy walk-forward target; T+252 is a smoothed re-rating signal.</td></tr>
+              <tr><td>Sequence length</td><td>45 trading days</td><td>45 trading days</td><td>Same window (SEQ_LEN shared in <code>predict_core.py</code>). The mask, not the lookback, controls what each module "sees" in those 45 days.</td></tr>
+              <tr><td>Early-stop patience</td><td>n_iter_no_change=8</td><td>n_iter_no_change=8</td><td>Same. Both use sklearn's built-in 10%-of-train internal val split for early stop — this is independent of the time-split 80/20 used for CS model val metrics.</td></tr>
+            </tbody>
+          </table>
+
+          <h5 style="margin-top:1.25rem;color:#334155;">3. Different post-processing</h5>
+          <p>The short-term MLP output is heavily post-processed; the long-term output is essentially passed through with only a multiplier and clamp:</p>
+
+          <table>
+            <thead><tr><th>Step</th><th>Short-term</th><th>Long-term</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><strong>Trajectory anchor blend</strong></td>
+                <td>1w price = <strong>50% MLP raw + 50% trajectory anchor</strong> where the anchor is interpolated from current_price toward predicted_price_6m at t=5/126 of the way. Forces the 1w forecast to be directionally consistent with the longer-horizon forecast.</td>
+                <td>None. Long-term head's output is taken at face value (then multiplied by impact_multiplier).</td>
+              </tr>
+              <tr>
+                <td><strong>ATR-based volatility cap</strong></td>
+                <td>1w prediction clamped to <code>current_price ± 2 × ATR_14 × √5</code>. Prevents the MLP from forecasting a 1w move bigger than 2 standard deviations of recent daily true range.</td>
+                <td>None. Long-term forecasts can exceed 2σ moves (that's often the actual long-term signal).</td>
+              </tr>
+              <tr>
+                <td><strong>Inter-horizon interpolation</strong></td>
+                <td>1m price = linear interpolation between <code>predicted_price_1w</code> and <code>predicted_price_6m</code> at t=21 trading days (matches the legacy trajectory builder's t+21 waypoint). No separate MLP head for 1m.</td>
+                <td>1y price = direct MLP head output (× impact_multiplier).</td>
+              </tr>
+              <tr>
+                <td><strong>Monte Carlo perturbation</strong></td>
+                <td>12 passes adding gaussian noise to the masked feature subset (per-feature stds, tiled across SEQ_LEN) → spread bands around 1w/1m prices.</td>
+                <td>12 passes — but for the CS model these perturb a <em>single</em> feature vector (no SEQ_LEN tiling) since CS uses a current snapshot, not a sequence.</td>
+              </tr>
+              <tr>
+                <td><strong>Sequence build</strong></td>
+                <td>Uses <code>SEQ_LEN=45</code> sliding window from <code>make_horizon_sequences</code>.</td>
+                <td>Per-ticker fallback uses same 45-day window. CS path uses just <code>feat_df.iloc[-1]</code> — one current row, no history window.</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h5 style="margin-top:1.25rem;color:#334155;">4. Different confidence-score derivation</h5>
+          <table>
+            <thead><tr><th>Score</th><th>Source</th><th>Logic</th></tr></thead>
+            <tbody>
+              <tr><td><code>confidence_score_6m</code> (cs6m)</td><td>Long-term module's holdout CV-MAPE on its 126-day predictions, augmented with history depth, feature completeness, and analyst-coverage components. <strong>This is the anchor</strong> — every other horizon's confidence is derived from it.</td><td>Computed by <code>confidence_score()</code> in <code>predict_core.py</code>.</td></tr>
+              <tr><td><code>confidence_score_1y</code> (cs1y)</td><td><code>max(0, cs6m − 15)</code></td><td>1y confidence is always 15 points lower than 6m — long-horizon forecasts are structurally less reliable.</td></tr>
+              <tr><td><code>confidence_score_1m</code> (cs1m)</td><td>Earnings-window aware: if <code>days_to_earnings ≤ 14</code>, <code>cs1m = max(0, cs6m − 10)</code>; otherwise <code>cs1m = min(100, cs6m + 10)</code>.</td><td>The 1m horizon is more reliable than 6m <em>except</em> when an earnings event is imminent, in which case it becomes <em>less</em> reliable than 6m. The short-term module owns this logic.</td></tr>
+              <tr><td><code>confidence_score_1w</code> (cs1w)</td><td><code>min(100, cs1m + 3)</code></td><td>1w gets a small bump over 1m because the prediction window is tighter — less time for events to disrupt the forecast.</td></tr>
+            </tbody>
+          </table>
+
+          <h5 style="margin-top:1.25rem;color:#334155;">5. Different training paths (long-term has two)</h5>
+          <p>Short-term has one training path; long-term has two, with the CS model preferred:</p>
+          <table>
+            <thead><tr><th></th><th>Short-term</th><th>Long-term (CS path, preferred)</th><th>Long-term (per-ticker fallback)</th></tr></thead>
+            <tbody>
+              <tr><td>Training when?</td><td>Every prediction call</td><td>Once, offline. Persisted to disk.</td><td>Every prediction call (only if CS artifact missing)</td></tr>
+              <tr><td>Training data</td><td>This ticker's own 5-year history (~1,260 days × 58 cols)</td><td>Pooled <code>ranking_training_snapshots</code> (~27k rows × 474 tickers × 72 features)</td><td>Same as short-term — this ticker's own history</td></tr>
+              <tr><td>Labels</td><td>Scaled close at T+1 and T+5</td><td><code>forward_return_126d</code>, <code>forward_return_252d</code> (pooled, cross-sectional)</td><td>Scaled close at T+126 and T+252</td></tr>
+              <tr><td>Inference latency</td><td>~3–5s</td><td>~50ms</td><td>~10s</td></tr>
+              <tr><td>Generalization</td><td>Per-ticker (no transfer)</td><td>Learns patterns across the whole S&amp;P 500 — transfers to tickers it didn't see often</td><td>Per-ticker (no transfer)</td></tr>
+            </tbody>
+          </table>
+
+          <p>Short-term doesn't have a cross-sectional path because short-horizon technicals are highly ticker-specific (each name has its own volatility regime, microstructure footprint, options-market characteristics), and per-ticker training already adapts to that. Long-term predictions need the opposite — patterns that generalize across many names — so pooled training is a big win there.</p>
+
+          <h5 style="margin-top:1.25rem;color:#334155;">6. Why long-term predicts first</h5>
+          <p>The orchestrator at <code>predict_weighted_analysis.py:272</code> calls <code>predict_long_term()</code> <em>before</em> <code>predict_short_term()</code> because the short-term 1w blend formula needs <code>predicted_price_6m</code> as its trajectory anchor:</p>
+
+          <div class="formula">
+_traj_anchor_1w = current_price + (predicted_price_6m - current_price) * (5 / 126)
+_blended_1w     = 0.50 × _mlp_1w_raw + 0.50 × _traj_anchor_1w</div>
+
+          <p>The short-term module's <code>predict_short_term()</code> signature explicitly takes <code>predicted_price_6m</code> and <code>confidence_score_6m</code> as required arguments — no implicit imports between horizon files. If the 6m forecast says "WMT to $130 in 6 months" (+12%), the trajectory anchor for 1w is at ~$115.95, and the 1w MLP output gets pulled halfway toward that anchor. If the 6m forecast collapses to current_price, the anchor pulls the 1w prediction toward "no change" — which is a useful sanity check on the short-term MLP's tendency to extrapolate from noisy recent technicals.</p>
+        </section>
+
+        <section id="cs-model-versions">
+          <h4>CS Long-Term Model Versions <span class="new-badge">v3.5</span></h4>
+          <p>The cross-sectional long-term model is trained <strong>once</strong> on the pooled <code>ranking_training_snapshots</code> table (~27k rows, ~474 tickers, time-split 80/20 by snapshot_date). Inference at request time is just a feature lookup + forward pass. Two versions ship today:</p>
+
+          <table>
+            <thead><tr><th></th><th><code>v1</code> (sklearn)</th><th><code>v2</code> (Keras, default)</th></tr></thead>
+            <tbody>
+              <tr><td>Backend</td><td>sklearn MLPRegressor</td><td>Keras / TF 2.20+ (custom <code>TanhScaled</code> layer)</td></tr>
+              <tr><td>Hidden layers</td><td>(256, 128, 64)</td><td>(256, 128, 64)</td></tr>
+              <tr><td>Output heads</td><td>2 — [return_126d, return_252d]</td><td>2 — [return_126d, return_252d]</td></tr>
+              <tr><td>Loss</td><td>MSE</td><td>Huber(δ=0.5) <em>+</em> joint penalty: λ·ReLU(\|p_6m\| − 1.5·\|p_1y\|)² when same-signed</td></tr>
+              <tr><td>Output bound</td><td>none (unbounded linear)</td><td>tanh × per-head cap: ±70% on 6m, ±100% on 1y</td></tr>
+              <tr><td>TF dependency</td><td>no</td><td>yes — <code>tensorflow-cpu&gt;=2.20.0,&lt;2.21.0</code></td></tr>
+              <tr><td>Val MAE (return_126d)</td><td>0.520</td><td>0.527</td></tr>
+              <tr><td>Val MAE (return_252d)</td><td>1.064</td><td>1.040</td></tr>
+              <tr><td>Val direction-correct (126d)</td><td>65.2%</td><td>67.8%</td></tr>
+              <tr><td>Val direction-correct (252d)</td><td>69.9%</td><td>72.1%</td></tr>
+              <tr><td>Val 6m/1y inconsistency rate</td><td>13.0%</td><td>7.8%</td></tr>
+              <tr><td>Persisted artifact(s)</td><td><code>models/long_term_cs_v1.pkl</code></td><td><code>models/long_term_cs_v2.pkl</code> (joblib wrapper) + <code>models/long_term_cs_v2.keras</code> (weights)</td></tr>
+              <tr><td>Trainer</td><td><code>scripts/train_long_term_cs.py</code></td><td><code>scripts/train_long_term_cs_v2.py</code></td></tr>
+            </tbody>
+          </table>
+
+          <p>v2's joint loss explicitly penalizes the "6m head overshoots 1y head" pattern during training; combined with the tanh × cap output bound, this prevents the runaway-prediction failure mode where unusual real-world feature combinations produce raw returns in the 100s of percent. The <a href="#sanitize-layer">sanitize layer</a> is still active as a belt-and-suspenders safety net.</p>
+        </section>
 
         <section id="mlp-targets">
-          <h4>Training Targets</h4>
+          <h4>Training Targets — Legacy Path</h4>
           <table>
             <thead><tr><th>Output</th><th>Horizon</th><th>Usage</th></tr></thead>
             <tbody>
@@ -492,11 +837,12 @@ if beta &gt; 2.5 AND HiRatio_52w &gt; 0.95:
               <tr><td>3 — T+252</td><td>~12 months</td><td>Primary anchor for <code>predicted_price_1y</code></td></tr>
             </tbody>
           </table>
+          <p>In the v3-split path, these same targets live in the per-module training data: <code>predict_short_term</code> trains on [T+1, T+5], <code>predict_long_term</code> (per-ticker fallback) trains on [T+126, T+252], and the cross-sectional model trains on pooled <code>forward_return_126d</code> / <code>forward_return_252d</code> labels from <code>ranking_training_snapshots</code>.</p>
         </section>
 
         <section id="single-call">
-          <h4>Single Call → All 4 Horizons <span class="updated-badge">documented 2026-06-15</span></h4>
-          <p>The Python script trains the MLP once and runs deterministic inference for every horizon in the same process. Around line 1568 of <code>predict_weighted_analysis.py</code>, the <code>result</code> dict assembled by <code>predict()</code> contains every horizon's price, change %, and confidence score:</p>
+          <h4>Single Call → All 4 Horizons</h4>
+          <p>Both paths return the same shape via <code>predict()</code> — every horizon's price, change %, and confidence score in one dict:</p>
           <pre><code>{
   "ticker": "AAPL",
   "regularMarketPrice": 197.45,
@@ -512,6 +858,37 @@ if beta &gt; 2.5 AND HiRatio_52w &gt; 0.95:
   "observability": {...}
 }</code></pre>
           <p>When the request specifies <code>--outlook</code> other than <code>all</code>, the entry point filters this dict down to the requested horizon (preserving common fields like <code>ticker</code>, <code>regularMarketPrice</code>, <code>data_quality</code>, <code>accuracy_metrics</code>, and <code>regime_info</code>) before printing to stdout. Even so, the Node route's <code>savePredictionAsync()</code> persists from the in-memory <code>result</code> object returned by the Python child process, which still carries all four horizons when <code>outlook=all</code> is used (the typical live-UI path).</p>
+        </section>
+
+        <section id="sanitize-layer">
+          <h4>Sanitize Layer — <code>_sanitize_predictions</code> <span class="new-badge">v3.5</span></h4>
+          <div class="component-tag">scripts/predict_core.py — defined in baseline and v3-split paths</div>
+          <p>Final post-processing pass on the prediction result. Catches three classes of model misbehavior and rewrites the result in place. Every time a clamp fires for a horizon, that horizon's <code>confidence_score_*</code> is knocked down to 25 (a clamped prediction is a low-trust prediction). Each fire emits a single <code>[sanitize]</code> line to stderr so the event is visible in dev-server logs.</p>
+
+          <table>
+            <thead><tr><th>Check</th><th>Fires when…</th><th>Effect</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><strong>Price floor</strong></td>
+                <td><code>predicted_price_{h}</code> &lt; 0.01 (negative or zero — unphysical)</td>
+                <td>Sets price to 0.01; confidence_score_{h} → 25.</td>
+              </tr>
+              <tr>
+                <td><strong>Per-horizon bound clamp</strong></td>
+                <td><code>|pct_{h}|</code> exceeds the horizon's max plausible move: 1w ±15%, 1m ±30%, 6m ±60%, 1y ±100%.</td>
+                <td>Clamps <code>predicted_change_pct_{h}</code> to the bound, recomputes <code>predicted_price_{h}</code> from the clamped pct so they stay consistent; confidence_score_{h} → 25.</td>
+              </tr>
+              <tr>
+                <td><strong>Cross-horizon 6m/1y consistency</strong></td>
+                <td>pct_6m and pct_1y are same-signed AND <code>|pct_6m| &gt; 1.5 × |pct_1y|</code> AND <code>|pct_6m| &gt; 15</code>.</td>
+                <td>Clamps pct_6m to <code>1.3 × pct_1y</code> (same sign), recomputes <code>predicted_price_6m</code>; confidence_score_6m → 25. A genuine 6m move that large on a liquid name should persist/grow by 1y, not revert — so when the 6m head overshoots its own 1y head, treat the 6m head as the outlier.</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <p>Thresholds were tuned from the v3split backtest distribution — the cross-horizon check fires on ~6% of same-signed pairs (5 of 80 in the 15-ticker × 7-date backtest) with clear separation between "fine" and "broken" cases. Coverage: <code>scripts/test_sanitize_predictions.py</code> exercises 10 cases including the chain where both bound and cross-horizon clamps fire on the same prediction.</p>
+
+          <div class="warning-box"><strong>Both paths run sanitize:</strong> the legacy baseline and the v3-split orchestrator each have their own definition of <code>_sanitize_predictions</code> (they predate the split and were not consolidated). When updating clamp logic, edit both. The legacy version lives at <code>scripts/predict_weighted_analysis_baseline.py:1179</code>; the v3-split version lives at <code>scripts/predict_core.py:1299</code>.</div>
         </section>
       </div>
     </section>
@@ -748,9 +1125,9 @@ conf_threshold = ETF_HOLDING_MIN_CONFIDENCE * mult
       <h2>Cache Architecture</h2>
       <div class="step-card">
         <ul>
-          <li><strong>Python result cache (v2):</strong> keyed by <code>MD5(ticker + last_date + data_len + "v2")</code>. Full prediction JSON stored as <code>{key}.json</code> on disk. Bumping <code>CACHE_SCHEMA_VERSION</code> invalidates all stale caches automatically.</li>
+          <li><strong>Python result cache (v13):</strong> keyed by <code>MD5(ticker + last_date + data_len + "v13")</code>. Full prediction JSON stored as <code>{key}.json</code> on disk by <code>predict_core.save_to_cache()</code>. Bumping <code>CACHE_SCHEMA_VERSION</code> in <code>scripts/predict_core.py</code> invalidates every stale cache file automatically — required whenever feature engineering, model architecture, or output shape changes.</li>
           <li><strong>Python feature cache:</strong> full feature DataFrame stored as <code>{ticker}_features_df.pkl</code>. Incremental updates only recompute new rows.</li>
-          <li><strong>Node in-memory cache:</strong> <code>predictionCache</code> (defined in <code>src/utils/cache.ts</code>) keyed by <code>{ticker}_{outlook}</code>. Short-lived (TTL constant in <code>cache.ts</code>; ≈ 15 minutes by design). Bypassed by <code>?refresh=true</code>. The cached entry includes every horizon's price, change %, and confidence score so user-horizon GPS can be recomputed on subsequent calls without re-running Python.</li>
+          <li><strong>Node in-memory cache:</strong> <code>predictionCache</code> (defined in <code>src/utils/cache.ts</code>) keyed by <code>{ticker}_{outlook}_{modelTag}</code> where <code>modelTag</code> is <code>'legacy'</code> or <code>'v3split_{csModelVersion}'</code> (e.g. <code>v3split_v2</code>). Short-lived (TTL ≈ 15 minutes; bypass with <code>?refresh=true</code>). The model-tagged cache key ensures that flipping <code>USE_LEGACY_PREDICTION_MODEL</code> or <code>CS_MODEL_VERSION</code> produces fresh predictions instead of returning a stale prior-model result. Cached entries include every horizon's price, change %, and confidence score so user-horizon GPS can be recomputed on subsequent calls without re-running Python.</li>
           <li><strong>Batch script in-process cache:</strong> the <code>prediction_cache</code> dict inside <code>update_predictions.py</code> lives only for the duration of one sync run. Keyed by ticker; entries include all 8 per-horizon stats and the GPS result so multiple users sharing a ticker each get the right values without re-running the model.</li>
         </ul>
         <p>CPU throttled via environment variables (<code>OMP_NUM_THREADS=1</code>, etc.) and <code>os.nice(15)</code>.</p>
@@ -760,7 +1137,31 @@ conf_threshold = ETF_HOLDING_MIN_CONFIDENCE * mult
     <section id="changelog">
       <h2>Recent Changes</h2>
       <div class="step-card">
-        <h4>2026-06-15 — Dual-GPS &amp; full horizon persistence</h4>
+        <h4>2026-06-27 — v3.5 split orchestrator, CS long-term model, env-var model toggle</h4>
+        <table>
+          <thead><tr><th>File</th><th>Change</th></tr></thead>
+          <tbody>
+            <tr><td><code>scripts/predict_weighted_analysis.py</code></td><td>Refactored from monolithic predict into an orchestrator that calls <code>predict_long_term()</code> then <code>predict_short_term()</code>. Same JSON output shape. <code>impact_multiplier = 1.0 + total_metric_impact</code> still computed once and passed to both modules.</td></tr>
+            <tr><td><code>scripts/predict_weighted_analysis_baseline.py</code></td><td>NEW (frozen pre-refactor copy). Loaded when <code>USE_LEGACY_PREDICTION_MODEL=true</code>. Identical to v3.4.1 behavior including its own copy of <code>_sanitize_predictions</code>.</td></tr>
+            <tr><td><code>scripts/predict_core.py</code></td><td>NEW. Shared module: <code>FEATURE_COLUMNS</code> (118), <code>SHORT_TERM_FEATURES</code> (58), <code>LONG_TERM_FEATURES</code> (71), <code>build_features</code>, <code>metric_analysis</code>, <code>confidence_score</code>, <code>extend_with_regime_cols</code>, MC helpers, cache helpers, <code>_sanitize_predictions</code> with cross-horizon clamp. <code>CACHE_SCHEMA_VERSION = 13</code>.</td></tr>
+            <tr><td><code>scripts/predict_short_term.py</code></td><td>NEW. 1w + 1m heads. Per-ticker MLP (96, 48, 24) on 58-feature short-term mask. 50/50 MLP/trajectory blend for 1w with ATR cap.</td></tr>
+            <tr><td><code>scripts/predict_long_term.py</code></td><td>NEW. 6m + 1y heads. Loads <code>models/long_term_cs_{version}.pkl</code> at import (default <code>v2</code>); cross-sectional inference is ~50ms vs ~10s for per-ticker fallback. Fallback to per-ticker MLP (192, 96, 48) if artifact missing.</td></tr>
+            <tr><td><code>scripts/train_long_term_cs.py</code></td><td>NEW. Trains v1 — sklearn MLPRegressor (256, 128, 64) with MSE on pooled <code>ranking_training_snapshots</code> labels (<code>forward_return_126d</code>, <code>forward_return_252d</code>). Time-split 80/20.</td></tr>
+            <tr><td><code>scripts/train_long_term_cs_v2.py</code></td><td>NEW. Trains v2 — Keras MLP with Huber(δ=0.5) + joint 6m/1y consistency penalty (λ=1.0, ratio=1.5) + tanh × cap output (±70% / ±100%). Same hidden architecture as v1; depends on <code>tensorflow-cpu</code>.</td></tr>
+            <tr><td><code>scripts/keras_wrapper.py</code></td><td>NEW. <code>KerasModelWrapper</code> (pickleable, lazy TF import on first <code>predict()</code>) and registered <code>TanhScaled</code> custom layer for v2 output bounding.</td></tr>
+            <tr><td><code>scripts/extend_long_term_labels.py</code></td><td>NEW. One-off helper that adds <code>forward_return_126d</code> / <code>forward_return_252d</code> columns to <code>ranking_training_snapshots</code> via per-ticker yfinance lookup.</td></tr>
+            <tr><td><code>scripts/predict_core.py</code> — <code>_sanitize_predictions</code></td><td>Cross-horizon consistency clamp added: when same-signed and <code>|pct_6m| &gt; 1.5 × |pct_1y|</code> AND <code>|pct_6m| &gt; 15%</code>, pct_6m is clamped to <code>1.3 × pct_1y</code> and confidence_score_6m → 25. Existing per-horizon bound clamp now also recomputes <code>predicted_price_{h}</code> so pct and price stay in sync (was a latent pre-refactor bug).</td></tr>
+            <tr><td><code>scripts/test_sanitize_predictions.py</code></td><td>NEW. 10 standalone tests covering legit / overshoot / negative overshoot / opposite signs / below floor / below ratio / bound retrofit / chained clamp / negative price / missing horizon.</td></tr>
+            <tr><td><code>scripts/backtest_predictions.py</code></td><td>Env-var-driven model selection: imports <code>predict_weighted_analysis_baseline</code> or <code>predict_weighted_analysis</code>. Persists <code>model_version</code> column (<code>'legacy'</code> or <code>'v3split'</code>) — optional override via <code>MODEL_VERSION_TAG</code>. SELECT/INSERT in <code>upsert_backtest_row</code> include model_version. Cursor switched to <code>buffered=True</code>.</td></tr>
+            <tr><td><code>prediction_records</code> table</td><td>Added <code>model_version VARCHAR(20) NOT NULL DEFAULT 'legacy'</code> column. Dropped <code>uq_symbol_date</code> unique index; replaced with <code>uq_symbol_date_model</code> on <code>(symbol, predicted_at, model_version)</code> so legacy and v3split predictions for the same (ticker, date) coexist as separate rows.</td></tr>
+            <tr><td><code>src/app/api/prediction/[ticker]/route.ts</code></td><td>Reads <code>USE_LEGACY_PREDICTION_MODEL</code> + <code>CS_MODEL_VERSION</code>. Selects script in <code>runPythonPrediction()</code>. Cache key extended to <code>{ticker}_{outlook}_v3split_{csModelVersion}</code> (or <code>_legacy</code>) so promoting CS versions invalidates stale entries.</td></tr>
+            <tr><td><code>src/utils/stockDataHelper.ts</code></td><td><code>runPredictionInternal()</code> honors <code>USE_LEGACY_PREDICTION_MODEL</code> so the DeepMoney sync uses the same toggle as the UI route.</td></tr>
+            <tr><td><code>scripts/recompute_accuracy_audit.py</code> &amp; <code>scripts/resolve_predictions.py</code></td><td>Added <code>compute_accuracy_metrics_symmetric()</code> (denominator = actual_price). One-off audit tool (<code>recompute_accuracy_audit.py</code>) exports CSV grouped by <code>(model_version, horizon)</code> for both formulas. No schema change.</td></tr>
+            <tr><td><code>requirements.txt</code></td><td>Added <code>tensorflow-cpu&gt;=2.20.0,&lt;2.21.0</code> for v2 inference. Production deploys missing TF must set <code>CS_MODEL_VERSION=v1</code> until the Docker image is rebuilt with the new requirements.</td></tr>
+          </tbody>
+        </table>
+
+        <h4 style="margin-top:2rem;">2026-06-15 — Dual-GPS &amp; full horizon persistence</h4>
         <table>
           <thead><tr><th>File</th><th>Change</th></tr></thead>
           <tbody>

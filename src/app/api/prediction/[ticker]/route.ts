@@ -147,9 +147,25 @@ export async function POST(
       }
     }
 
+    // Surface which model produced this prediction in a top-level block so
+    // it's easy to spot in the network tab while debugging A/B switches.
+    // Derived from result.model_version (set by the model toggle code below
+    // before buildResponse fires for fresh predictions; persisted on the
+    // cached entry for cache hits).
+    const tag: string | undefined = result.model_version;
+    const modelInfo = {
+      model_version: tag ?? null,
+      use_legacy_model: tag === 'legacy',
+      cs_model_version: typeof tag === 'string' && tag.startsWith('v3split_')
+        ? tag.split('_').slice(1).join('_')
+        : null,
+      source,
+    };
+
     return NextResponse.json({
       ...result,
       source,
+      model_info: modelInfo,
       ...(computedGps && {
         gps_score: computedGps.score,
         gps_breakdown: computedGps.breakdown,
