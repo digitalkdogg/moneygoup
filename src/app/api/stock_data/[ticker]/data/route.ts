@@ -829,6 +829,31 @@ export async function GET(
     );
     const technicalScore = technicalIndicators.scoreBreakdown.totalScore;
 
+    // ── Per-period analyst recommendation history (for analyst_sentiment v2) ──
+    // yahoo-finance2 returns this in summary.recommendationTrend.trend. Shape:
+    //   [{ period: '0m', strongBuy: 4, buy: 11, hold: 8, sell: 0, strongSell: 0 }, ...]
+    // The Python sentiment module reads this for the time-weighted RecScore.
+    // Empty/missing → graceful fallback to v1 path inside predict_weighted_analysis.
+    const recommendationsHistory: Array<Record<string, number | string>> = [];
+    try {
+      const trend = (summary as any)?.recommendationTrend?.trend;
+      if (Array.isArray(trend)) {
+        for (const row of trend) {
+          if (!row || typeof row !== 'object') continue;
+          recommendationsHistory.push({
+            period:     String(row.period ?? ''),
+            strongBuy:  Number(row.strongBuy  ?? 0),
+            buy:        Number(row.buy        ?? 0),
+            hold:       Number(row.hold       ?? 0),
+            sell:       Number(row.sell       ?? 0),
+            strongSell: Number(row.strongSell ?? 0),
+          });
+        }
+      }
+    } catch (err) {
+      logger.warn('Failed to extract recommendationTrend', { ticker: validatedTicker, error: err });
+    }
+
     const payload = {
       ticker:            validatedTicker,
       historicalData,
@@ -840,6 +865,7 @@ export async function GET(
       dataQuality,
       technicalScore,
       recommendationKey: stockMetrics.recommendationKey,
+      recommendationsHistory,
     };
 
     setCache(validatedTicker, payload);

@@ -90,11 +90,12 @@ def _predict_with_cs_model(
     *,
     feat_df,
     current_price: float,
-    impact_multiplier: float,
+    long_term_multiplier: float,
     history_years: float,
     imputed_fields,
     analyst_count: int,
     seed: int,
+    analyst_sentiment_v2: dict | None = None,
 ) -> dict:
     """
     Cross-sectional prediction path.
@@ -104,6 +105,11 @@ def _predict_with_cs_model(
     scales via the saved StandardScaler, predicts [return_126d,
     return_252d], anchors to current_price. MC perturbs the feature
     vector to get spread bands. No training happens at predict time.
+
+    Returns both the final (post-multiplier) prices AND the pre-multiplier
+    base prices so the short-term module can anchor its 1w trajectory to
+    the model's raw long-horizon output (rather than to a price that
+    already has long-horizon analyst weighting baked in).
     """
     payload = _CS_MODEL
     model            = payload['model']
@@ -121,8 +127,10 @@ def _predict_with_cs_model(
     x_current_s = scaler_cs.transform(x_current)
 
     pred_returns = model.predict(x_current_s)[0]  # [return_126d, return_252d]
-    predicted_price_6m = current_price * (1.0 + float(pred_returns[0])) * impact_multiplier
-    predicted_price_1y = current_price * (1.0 + float(pred_returns[1])) * impact_multiplier
+    base_6m = current_price * (1.0 + float(pred_returns[0]))
+    base_1y = current_price * (1.0 + float(pred_returns[1]))
+    predicted_price_6m = base_6m * long_term_multiplier
+    predicted_price_1y = base_1y * long_term_multiplier
 
     # ── Monte Carlo: perturb the feature vector + re-predict ─────────────────
     # Noise scale: per-feature std from the last 20 days of feat_df, scaled
@@ -140,8 +148,8 @@ def _predict_with_cs_model(
     mc_inputs_s = scaler_cs.transform(mc_inputs)
     mc_returns  = model.predict(mc_inputs_s)  # (MC_RUNS, 2)
 
-    mc_6m_prices  = current_price * (1.0 + mc_returns[:, 0]) * impact_multiplier
-    mc_12m_prices = current_price * (1.0 + mc_returns[:, 1]) * impact_multiplier
+    mc_6m_prices  = current_price * (1.0 + mc_returns[:, 0]) * long_term_multiplier
+    mc_12m_prices = current_price * (1.0 + mc_returns[:, 1]) * long_term_multiplier
 
     spread_6m  = float(np.percentile(mc_6m_prices,  90) - np.percentile(mc_6m_prices,  10)) * LONG_TERM_SPREAD_WIDENER
     spread_12m = float(np.percentile(mc_12m_prices, 90) - np.percentile(mc_12m_prices, 10)) * LONG_TERM_SPREAD_WIDENER
@@ -154,7 +162,8 @@ def _predict_with_cs_model(
     cv_mae = float(current_price * 0.05)  # conservative default
     cv_mape = (cv_mae / (current_price + 1e-9)) * 100
 
-    cs6m = confidence_score(cv_mape, history_years, imputed_fields, analyst_count)
+    cs6m = confidence_score(cv_mape, history_years, imputed_fields, analyst_count,
+                            analyst_sentiment_v2=analyst_sentiment_v2)
     cs1y = max(0, cs6m - 15)
 
     pct_6m = round((predicted_price_6m - current_price) / (current_price + 1e-9) * 100, 2)
@@ -163,6 +172,8 @@ def _predict_with_cs_model(
     return {
         'predicted_price_6m': predicted_price_6m,
         'predicted_price_1y': predicted_price_1y,
+        'predicted_price_6m_base': base_6m,
+        'predicted_price_1y_base': base_1y,
         'predicted_change_pct_6m': pct_6m,
         'predicted_change_pct_1y': pct_1y,
         'confidence_score_6m': cs6m,
@@ -192,7 +203,7 @@ def predict_long_term(
     targets_1y,
     feat_df,                 # for cross-sectional path: feature lookup at t=now
     current_price: float,
-    impact_multiplier: float,
+    long_term_multiplier: float,
     scaler,
     close_col_idx: int,
     n_features: int,
@@ -200,6 +211,7 @@ def predict_long_term(
     imputed_fields,
     analyst_count: int,
     seed: int = SEED,
+    analyst_sentiment_v2: dict | None = None,
 ) -> dict:
     """
     Predict the 6m / 1y horizon. Two execution paths:
@@ -209,17 +221,20 @@ def predict_long_term(
         history. ~10s per call.
 
     Returns the same dict shape from either path so the orchestrator stays
-    agnostic to which one fired.
+    agnostic to which one fired. The orchestrator is responsible for
+    composing `long_term_multiplier` from non_analyst_impact + analyst_impact
+    × ANALYST_BOOST_LT × consumer_multiplier.
     """
     if _CS_MODEL is not None:
         return _predict_with_cs_model(
             feat_df=feat_df,
             current_price=current_price,
-            impact_multiplier=impact_multiplier,
+            long_term_multiplier=long_term_multiplier,
             history_years=history_years,
             imputed_fields=imputed_fields,
             analyst_count=analyst_count,
             seed=seed,
+            analyst_sentiment_v2=analyst_sentiment_v2,
         )
     # ── Fallback: per-ticker MLP (legacy path) ───────────────────────────────
     # ── Feature mask + sequence build ────────────────────────────────────────
@@ -267,8 +282,10 @@ def predict_long_term(
         dummy[0, close_col_idx] = float(scaled_val)
         return float(scaler.inverse_transform(dummy)[0, close_col_idx])
 
-    predicted_price_6m = inverse_close(pred_scaled[0]) * impact_multiplier
-    predicted_price_1y = inverse_close(pred_scaled[1]) * impact_multiplier
+    base_6m = inverse_close(pred_scaled[0])
+    base_1y = inverse_close(pred_scaled[1])
+    predicted_price_6m = base_6m * long_term_multiplier
+    predicted_price_1y = base_1y * long_term_multiplier
 
     # ── Monte Carlo Dropout — spread bands ───────────────────────────────────
     # Noise stds taken from the masked feature subset, tiled across SEQ_LEN
@@ -285,10 +302,10 @@ def predict_long_term(
 
     dummy_mc = np.zeros((MC_RUNS, n_features), dtype=np.float32)
     dummy_mc[:, close_col_idx] = mc_preds[:, 0]
-    mc_6m = scaler.inverse_transform(dummy_mc)[:, close_col_idx] * impact_multiplier
+    mc_6m = scaler.inverse_transform(dummy_mc)[:, close_col_idx] * long_term_multiplier
 
     dummy_mc[:, close_col_idx] = mc_preds[:, 1]
-    mc_12m = scaler.inverse_transform(dummy_mc)[:, close_col_idx] * impact_multiplier
+    mc_12m = scaler.inverse_transform(dummy_mc)[:, close_col_idx] * long_term_multiplier
 
     # Spreads — widened to better cover observed actuals on long horizons
     spread_6m  = float(np.percentile(mc_6m,  90) - np.percentile(mc_6m,  10)) * LONG_TERM_SPREAD_WIDENER
@@ -299,7 +316,8 @@ def predict_long_term(
     p18m_est = predicted_price_1y + (predicted_price_1y - predicted_price_6m)
 
     # ── Confidence ───────────────────────────────────────────────────────────
-    cs6m = confidence_score(cv_mape, history_years, imputed_fields, analyst_count)
+    cs6m = confidence_score(cv_mape, history_years, imputed_fields, analyst_count,
+                            analyst_sentiment_v2=analyst_sentiment_v2)
     cs1y = max(0, cs6m - 15)
 
     # ── Pct changes ──────────────────────────────────────────────────────────
@@ -309,6 +327,8 @@ def predict_long_term(
     return {
         'predicted_price_6m': predicted_price_6m,
         'predicted_price_1y': predicted_price_1y,
+        'predicted_price_6m_base': base_6m,
+        'predicted_price_1y_base': base_1y,
         'predicted_change_pct_6m': pct_6m,
         'predicted_change_pct_1y': pct_1y,
         'confidence_score_6m': cs6m,

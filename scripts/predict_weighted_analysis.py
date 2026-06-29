@@ -45,6 +45,7 @@ from predict_core import (
 
 from predict_long_term import predict_long_term
 from predict_short_term import predict_short_term
+from analyst_sentiment import compute_analyst_sentiment
 
 from datetime import datetime, timedelta
 
@@ -243,21 +244,58 @@ def predict(ticker, input_data):
     if len(scaled) - SEQ_LEN < 50:
         raise ValueError("Not enough sequences for training.")
 
+    # ── Analyst sentiment scoring (v1 legacy vs v2 richer FinalScore) ────────
+    # v2 uses time-weighted recommendation history (yfinance Ticker.recommendations
+    # period-bucketed table) + capped target upside + dispersion penalty.
+    # Gracefully falls back to v1 path if v2 data is missing.
+    from predict_core import ANALYST_SCORING_VERSION
+    analyst_sentiment_v2 = None
+    if ANALYST_SCORING_VERSION == 'v2':
+        rec_history = input_data.get('recommendationsHistory') or []
+        target_mean = safe(stock_metrics.get('analystTargetMean'), None)
+        target_low  = safe(stock_metrics.get('analystTargetLow'), None)
+        target_high = safe(stock_metrics.get('analystTargetHigh'), None)
+        # Only invoke v2 if we actually have rec history; otherwise leave None
+        # so metric_analysis() falls back to v1 (consensus_value + analyst_weighted_val).
+        if rec_history:
+            analyst_sentiment_v2 = compute_analyst_sentiment(
+                recommendations_history=rec_history,
+                target_mean=target_mean,
+                target_low=target_low,
+                target_high=target_high,
+                current_price=current_price,
+            )
+            print(f"[DEBUG] analyst_sentiment v2: FinalScore={analyst_sentiment_v2['final_score']} "
+                  f"(Rec={analyst_sentiment_v2['rec_score']}, Target={analyst_sentiment_v2['target_score']}); "
+                  f"analyst_impact={analyst_sentiment_v2['analyst_impact']:+.4f}; "
+                  f"coverage_pts={analyst_sentiment_v2['coverage_pts']} conviction_pts={analyst_sentiment_v2['conviction_pts']}; "
+                  f"dispersion={analyst_sentiment_v2['dispersion_penalty']:.3f}; "
+                  f"avg_analysts={analyst_sentiment_v2['avg_analyst_count']:.1f}",
+                  file=sys.stderr)
+
     # ── Metric analysis (legacy, shared) ─────────────────────────────────────
     m_analysis = metric_analysis(feat_df, stock_metrics, news_sentiment,
                                   growth_rate, is_uptrend, earnings_beat_streak, external_tech_score, consensus_value, analyst_weighted_val,
-                                  analyst_count=int(safe(stock_metrics.get('analystOpinionCount'), 0)))
+                                  analyst_count=int(safe(stock_metrics.get('analystOpinionCount'), 0)),
+                                  analyst_sentiment_v2=analyst_sentiment_v2)
 
-    impact_multiplier = 1.0 + m_analysis['total_metric_impact']
+    # Per-horizon weighting: short-term and long-term modules compose their
+    # own multipliers from non_analyst_impact + analyst_impact × per-horizon
+    # boost. Analyst signal carries more weight at 6m/1y than at 1w/1m.
+    non_analyst_impact = m_analysis['non_analyst_impact']
+    analyst_impact     = m_analysis['analyst_impact']
 
-    # World Bank Consumption Heuristic (Phase 4)
+    # World Bank Consumption Heuristic (Phase 4) — applies to ALL horizons.
     consumer_multiplier = 1.0
     sector = stock_metrics.get('sector', '')
     if sector in ['Consumer Cyclical', 'Consumer Defensive']:
         cons_growth = feat_df['WorldBank_Consumption'].iloc[-1]
         consumer_multiplier = 1.0 + max(-0.03, min(0.03, cons_growth * 0.005))
 
-    impact_multiplier *= consumer_multiplier
+    # Long-term multiplier — analyst contribution boosted via ANALYST_BOOST_LT
+    # (the short-term module composes its own mult_1w / mult_1m internally).
+    from predict_core import ANALYST_BOOST_LT
+    long_term_multiplier = (1.0 + non_analyst_impact + analyst_impact * ANALYST_BOOST_LT) * consumer_multiplier
 
     # ── Confidence inputs (shared) ───────────────────────────────────────────
     imputed = data_quality.get('imputedFields', [])
@@ -268,7 +306,7 @@ def predict(ticker, input_data):
     print(f"  imputed_fields ({len(imputed)}): {imputed}", file=sys.stderr)
     print(f"  analyst_count: {analyst_count}", file=sys.stderr)
 
-    # ── Long-term first (short-term needs predicted_price_6m + cs6m) ────────
+    # ── Long-term first (short-term needs predicted_price_6m_base + cs6m) ──
     long_out = predict_long_term(
         scaled=scaled,
         feature_columns=extended_feature_cols,
@@ -276,17 +314,19 @@ def predict(ticker, input_data):
         targets_1y=targets_1y,
         feat_df=feat_df,
         current_price=current_price,
-        impact_multiplier=impact_multiplier,
+        long_term_multiplier=long_term_multiplier,
         scaler=scaler,
         close_col_idx=close_col_idx,
         n_features=n_features,
         history_years=history_years,
         imputed_fields=imputed,
         analyst_count=analyst_count,
+        analyst_sentiment_v2=analyst_sentiment_v2,
     )
 
     predicted_price_6m = long_out['predicted_price_6m']
     predicted_price_1y = long_out['predicted_price_1y']
+    predicted_price_6m_base = long_out['predicted_price_6m_base']
     cs6m = long_out['confidence_score_6m']
     spread_6m  = long_out['spread_6m']
     spread_12m = long_out['spread_12m']
@@ -296,6 +336,8 @@ def predict(ticker, input_data):
     cv_mape    = long_out['cv_mape']
 
     # ── Short-term ───────────────────────────────────────────────────────────
+    # Pass impact components (not a baked multiplier) so the module can build
+    # its own per-horizon multipliers and apply the ≥3-analyst floor.
     short_out = predict_short_term(
         scaled=scaled,
         feature_columns=extended_feature_cols,
@@ -303,11 +345,14 @@ def predict(ticker, input_data):
         targets_1w=targets_1w,
         feat_df=feat_df,
         current_price=current_price,
-        impact_multiplier=impact_multiplier,
+        non_analyst_impact=non_analyst_impact,
+        analyst_impact=analyst_impact,
+        analyst_count=analyst_count,
+        consumer_multiplier=consumer_multiplier,
         scaler=scaler,
         close_col_idx=close_col_idx,
         n_features=n_features,
-        predicted_price_6m=predicted_price_6m,
+        predicted_price_6m_base=predicted_price_6m_base,
         confidence_score_6m=cs6m,
         stock_metrics=stock_metrics,
     )

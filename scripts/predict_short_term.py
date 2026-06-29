@@ -28,6 +28,7 @@ from predict_core import (
     SEED, N_EPOCHS,
     SHORT_TERM_FEATURES, extend_with_regime_cols,
     make_horizon_sequences, slice_last_seq,
+    ANALYST_BOOST_1W, ANALYST_BOOST_1M, MIN_ANALYSTS_FOR_BOOST_SHORT,
 )
 
 
@@ -64,11 +65,14 @@ def predict_short_term(
     targets_1w,
     feat_df,
     current_price: float,
-    impact_multiplier: float,
+    non_analyst_impact: float,
+    analyst_impact: float,
+    analyst_count: int,
+    consumer_multiplier: float,
     scaler,
     close_col_idx: int,
     n_features: int,
-    predicted_price_6m: float,
+    predicted_price_6m_base: float,
     confidence_score_6m: int,
     stock_metrics: dict,
     seed: int = SEED,
@@ -76,10 +80,28 @@ def predict_short_term(
     """
     Train + predict the 1w / 1m horizon using SHORT_TERM_FEATURES.
 
+    Composes its own per-horizon multipliers from non_analyst_impact +
+    analyst_impact × per-horizon boost. The analyst contribution is gated by
+    MIN_ANALYSTS_FOR_BOOST_SHORT — below that, short-term predictions get no
+    analyst lift (avoids noisy single-firm coverage on small caps moving
+    near-term prices).
+
+    The 1w trajectory anchor uses `predicted_price_6m_base` — the long-term
+    model's pre-multiplier 6m output — so analyst weighting doesn't leak
+    from the LT boost (1.67×) into the 1w prediction via the anchor.
+
     Returns the 6 short-horizon output fields:
       predicted_price_1w / change_pct_1w / confidence_score_1w
       predicted_price_1m / change_pct_1m / confidence_score_1m
     """
+    # ── Per-horizon multipliers ─────────────────────────────────────────────
+    # Floor on short-term: low-coverage stocks ignore the analyst boost
+    # entirely. Long-term doesn't have this floor (handled in predict_core's
+    # reliability ramp inside metric_analysis()).
+    applied_analyst = analyst_impact if analyst_count >= MIN_ANALYSTS_FOR_BOOST_SHORT else 0.0
+    mult_1w = (1.0 + non_analyst_impact + applied_analyst * ANALYST_BOOST_1W) * consumer_multiplier
+    mult_1m = (1.0 + non_analyst_impact + applied_analyst * ANALYST_BOOST_1M) * consumer_multiplier
+
     # ── Feature mask + sequence build ────────────────────────────────────────
     short_features = extend_with_regime_cols(SHORT_TERM_FEATURES)
     mask_indices = [feature_columns.index(f) for f in short_features if f in feature_columns]
@@ -103,17 +125,14 @@ def predict_short_term(
         return float(scaler.inverse_transform(dummy)[0, close_col_idx])
 
     # ── 1-week blend (MLP head + trajectory anchor) ──────────────────────────
-    # Originally 30/70 favoring trajectory (legacy 4-output MLP had a noisy
-    # T+5 head from joint training with 6m/1y targets). v3-split's short-term
-    # MLP is purpose-built for [p1d, p1w] — only 2 outputs — so the MLP head
-    # is less noisy. Bumped to 50/50 after the first 90-prediction backtest
-    # showed 1w/1m direction-correct < 50%: the trajectory anchor was pulling
-    # predictions too close to current price, so direction sign disagreed on
-    # roughly half of small-move days. ATR clamp (±2× ATR(14) × √5 below)
-    # still caps extreme moves so this stays bounded.
-    _mlp_1w_raw = inverse_close(pred_scaled[1]) * impact_multiplier
-    _traj_anchor_1w = current_price + (predicted_price_6m - current_price) * (T5 / T6)
-    _blended_1w = 0.50 * _mlp_1w_raw + 0.50 * _traj_anchor_1w
+    # 50/50 blend of model output and a trajectory anchor toward the 6m
+    # PRE-MULTIPLIER price. Using the pre-multiplier base prevents the LT
+    # analyst boost (1.67×) from leaking into 1w via the anchor — 1w gets its
+    # own 0.25× boost via mult_1w applied at the end.
+    _mlp_1w_base = inverse_close(pred_scaled[1])
+    _traj_anchor_1w_base = current_price + (predicted_price_6m_base - current_price) * (T5 / T6)
+    _blended_1w_base = 0.50 * _mlp_1w_base + 0.50 * _traj_anchor_1w_base
+    _blended_1w = _blended_1w_base * mult_1w
 
     _atr_1w = float(feat_df['ATR_14'].iloc[-1]) if 'ATR_14' in feat_df.columns else current_price * 0.02
     _max_move_1w = 2.0 * _atr_1w * np.sqrt(5)
@@ -126,8 +145,12 @@ def predict_short_term(
     pct_1w = round((predicted_price_1w - current_price) / (current_price + 1e-9) * 100, 2)
 
     # ── 1-month interpolation (matches legacy trajectory[1] at t+21) ─────────
+    # Interpolate on pre-multiplier bases, then apply mult_1m (which has the
+    # 0.83× analyst boost) at the end. Keeps each horizon's analyst weight
+    # independent.
     t_norm = (T21 - T5) / (T6 - T5)
-    predicted_price_1m = predicted_price_1w + (predicted_price_6m - predicted_price_1w) * t_norm
+    predicted_price_1m_base = _blended_1w_base + (predicted_price_6m_base - _blended_1w_base) * t_norm
+    predicted_price_1m = predicted_price_1m_base * mult_1m
     pct_1m = round((predicted_price_1m - current_price) / (current_price + 1e-9) * 100, 2)
 
     # ── 1m confidence: earnings-window aware ─────────────────────────────────

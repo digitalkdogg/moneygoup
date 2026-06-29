@@ -53,7 +53,33 @@ N_EPOCHS   = 50    # capped for speed
 BATCH_SIZE = 128
 MC_RUNS    = 12
 CACHE_DIR  = os.path.join(os.path.dirname(__file__), 'prediction_cache')
-CACHE_SCHEMA_VERSION = 13  # bumped: long-term CS model v2 retrained with tanh × cap bounded output (prevents runaway predictions on real fundamentals)
+CACHE_SCHEMA_VERSION = 15  # bumped: analyst_sentiment v2 (time-weighted RecScore with Option α asymmetric weights + TargetScore + dispersion penalty + conviction-aware confidence pts)
+
+# ── Per-horizon analyst-signal boost coefficients ────────────────────────────
+# metric_analysis() splits its output into non_analyst_impact + analyst_impact.
+# Analyst signal is inherently long-horizon (revisions take weeks to propagate)
+# so we weight it more at 6m/1y and less at 1w. The boost is multiplied
+# against the analyst_impact component only; the non-analyst component is
+# untouched. Target lifts at max-strength analyst signal (analyst_impact ≈ +0.06):
+#   1w:    1.5% lift → boost 0.25
+#   1m:    5%   lift → boost 0.83
+#   6m/1y: 10%  lift → boost 1.67
+ANALYST_BOOST_1W = 0.25
+ANALYST_BOOST_1M = 0.83
+ANALYST_BOOST_LT = 1.67
+
+# Minimum analyst count for the analyst boost to apply on SHORT-TERM horizons.
+# Below this, the short-term modules (1w, 1m) ignore analyst_impact entirely so
+# noisy single-firm coverage on small caps doesn't move near-term predictions.
+# Long-term horizons (6m, 1y) keep the existing reliability ramp inside
+# metric_analysis() — they don't get a hard floor here.
+MIN_ANALYSTS_FOR_BOOST_SHORT = 3
+
+# Analyst sentiment scoring version. v1 = legacy consensus_value + analyst_weighted
+# (the two-input recommendation/target path). v2 = time-weighted RecScore +
+# capped TargetScore composed via scripts/analyst_sentiment.py with asymmetric
+# Option α weights, dispersion penalty, and conviction-aware confidence pts.
+ANALYST_SCORING_VERSION = os.environ.get('ANALYST_SCORING_VERSION', 'v2')
 
 
 # ============================================================================
@@ -1079,7 +1105,7 @@ def make_sequences(scaled, targets_1d, targets_1w, targets_6m, targets_1y):
 # ============================================================================
 # CONFIDENCE SCORE
 # ============================================================================
-def confidence_score(cv_mape, history_years, imputed_fields, analyst_count):
+def confidence_score(cv_mape, history_years, imputed_fields, analyst_count, analyst_sentiment_v2=None):
     pts = 0
     breakdown = {}
 
@@ -1126,18 +1152,29 @@ def confidence_score(cv_mape, history_years, imputed_fields, analyst_count):
     else:
         breakdown['features'] = 0
 
-    # Analyst coverage (15 pts)
-    if analyst_count >= 10:
-        pts += 15
-        breakdown['analyst'] = 15
-    elif analyst_count >= 5:
-        pts += 10
-        breakdown['analyst'] = 10
-    elif analyst_count >= 1:
-        pts += 5
-        breakdown['analyst'] = 5
+    # Analyst component (15 pts max) — two paths:
+    #   v2: split into coverage (up to 8 pts) + conviction (up to 7 pts), computed
+    #       upstream by analyst_sentiment.compute_analyst_sentiment(). Rewards both
+    #       deep coverage AND a decisive FinalScore (close to 0 or 100).
+    #   v1: legacy step function on raw analyst_count.
+    if analyst_sentiment_v2 is not None:
+        cov_pts  = int(analyst_sentiment_v2.get('coverage_pts', 0))
+        conv_pts = int(analyst_sentiment_v2.get('conviction_pts', 0))
+        analyst_pts = max(0, min(15, cov_pts + conv_pts))
+        pts += analyst_pts
+        breakdown['analyst'] = analyst_pts
     else:
-        breakdown['analyst'] = 0
+        if analyst_count >= 10:
+            pts += 15
+            breakdown['analyst'] = 15
+        elif analyst_count >= 5:
+            pts += 10
+            breakdown['analyst'] = 10
+        elif analyst_count >= 1:
+            pts += 5
+            breakdown['analyst'] = 5
+        else:
+            breakdown['analyst'] = 0
 
     final_score = min(pts, 100)
     print(f"[DEBUG] Confidence score breakdown: cv_mape={breakdown.get('cv_mape', 0)}, history={breakdown.get('history', 0)}, features={breakdown.get('features', 0)}, analyst={breakdown.get('analyst', 0)} → total={final_score}", file=sys.stderr)
@@ -1148,7 +1185,7 @@ def confidence_score(cv_mape, history_years, imputed_fields, analyst_count):
 # ============================================================================
 # LEGACY METRIC ANALYSIS
 # ============================================================================
-def metric_analysis(df, stock_metrics, news_sentiment, growth_rate, is_uptrend, earnings_beat_streak, external_tech_score=0.0, consensus_value=0.0, analyst_weighted=0.0, analyst_count=0):
+def metric_analysis(df, stock_metrics, news_sentiment, growth_rate, is_uptrend, earnings_beat_streak, external_tech_score=0.0, consensus_value=0.0, analyst_weighted=0.0, analyst_count=0, analyst_sentiment_v2=None):
     current_price = df['Close'].iloc[-1]
     rsi       = df['RSI_14'].iloc[-1] if 'RSI_14' in df.columns else 50.0
     sma20_val = df['SMA_20'].iloc[-1]  if 'SMA_20'  in df.columns else current_price
@@ -1163,18 +1200,23 @@ def metric_analysis(df, stock_metrics, news_sentiment, growth_rate, is_uptrend, 
     cur_vol   = df['Volume'].iloc[-1]
     vol_ratio = cur_vol / avg_vol if avg_vol > 0 else 1.0
 
-    total_impact = 0.0
-    # Internal heuristics (dampened to prevent double-counting with external_tech_score)
-    if rsi > 75:   total_impact -= 0.015
-    elif rsi < 25: total_impact += 0.015
+    # Track analyst-derived contributions separately from everything else so the
+    # short-term and long-term modules can weight them differently per horizon.
+    # See ANALYST_BOOST_{1W,1M,LT} below for the per-horizon multipliers.
+    non_analyst_impact = 0.0
+    analyst_impact = 0.0
 
-    if is_uptrend: total_impact += 0.02
-    else:          total_impact -= 0.01  # less penalizing for stable/consolidating stocks
+    # Internal heuristics (dampened to prevent double-counting with external_tech_score)
+    if rsi > 75:   non_analyst_impact -= 0.015
+    elif rsi < 25: non_analyst_impact += 0.015
+
+    if is_uptrend: non_analyst_impact += 0.02
+    else:          non_analyst_impact -= 0.01  # less penalizing for stable/consolidating stocks
 
     capped_growth = max(-10.0, min(10.0, growth_rate))
-    total_impact += (capped_growth / 100) * 0.03
-    total_impact += news_sentiment * 0.015
-    
+    non_analyst_impact += (capped_growth / 100) * 0.03
+    non_analyst_impact += news_sentiment * 0.015
+
     # ── Reliability scalar (used by both tech score and consensus below) ──
     # Scales down signals for low-coverage stocks so a micro-cap with 4 analysts
     # doesn't get the same uplift weighting as a large-cap with 40+ analysts.
@@ -1184,26 +1226,36 @@ def metric_analysis(df, stock_metrics, news_sentiment, growth_rate, is_uptrend, 
     # Reliability-weighted and capped at 2% max so a momentum spike with 10+ buy
     # signals on a low-coverage stock doesn't dominate the impact multiplier.
     _ext_tech_contribution = external_tech_score * 0.005 * _reliability
-    total_impact += min(_ext_tech_contribution, 0.02)
+    non_analyst_impact += min(_ext_tech_contribution, 0.02)
 
-    # ── Analyst Consensus Influence (0.0 to 1.0) ──
-    # Reliability-weighted so low-coverage stocks (e.g. 4 analysts) don't get the
-    # same bullish lift as well-covered stocks (e.g. 40+ analysts). Without this,
-    # a "buy" rating on a stock where analysts' actual price target is -38% vs current
-    # price would still add the full +3.75% — drowning out the bearish target signal.
-    total_impact += consensus_value * 0.05 * _reliability
+    # ── Analyst contribution: v1 (consensus + target_premium) OR v2 (FinalScore) ──
+    if analyst_sentiment_v2 is not None:
+        # v2: use the pre-computed FinalScore-derived analyst_impact directly.
+        # The analyst_sentiment module already applied reliability dampening and
+        # dispersion penalty, so no further scaling here.
+        analyst_impact += float(analyst_sentiment_v2.get('analyst_impact', 0.0))
+    else:
+        # v1: original two-input formula. Kept for backward compat / A-B testing
+        # via ANALYST_SCORING_VERSION='v1' env override.
+        #
+        # ── Analyst Consensus Influence (0.0 to 1.0) ──
+        # Reliability-weighted so low-coverage stocks (e.g. 4 analysts) don't get the
+        # same bullish lift as well-covered stocks (e.g. 40+ analysts). Without this,
+        # a "buy" rating on a stock where analysts' actual price target is -38% vs current
+        # price would still add the full +3.75% — drowning out the bearish target signal.
+        analyst_impact += consensus_value * 0.05 * _reliability
 
-    # ── Analyst Numerical Target Premium (0.0 to 1.0) ──
-    # Directly nudges prediction toward the analyst target mean.
-    # analyst_weighted already incorporates reliability (analystOpinionCount / 40),
-    # so no further reliability scaling is needed here. Deep-coverage stocks get a
-    # modest boost (up to 1.5x) to reward strong analyst alignment.
-    analyst_coverage_boost = min(analyst_count / 40.0, 1.5)
-    total_impact += analyst_weighted * 0.05 * analyst_coverage_boost
+        # ── Analyst Numerical Target Premium (0.0 to 1.0) ──
+        # Directly nudges prediction toward the analyst target mean.
+        # analyst_weighted already incorporates reliability (analystOpinionCount / 40),
+        # so no further reliability scaling is needed here. Deep-coverage stocks get a
+        # modest boost (up to 1.5x) to reward strong analyst alignment.
+        analyst_coverage_boost = min(analyst_count / 40.0, 1.5)
+        analyst_impact += analyst_weighted * 0.05 * analyst_coverage_boost
 
     # ── Earnings Beat Streak influence (0-4 quarters) ──
     # Adds ~1.0% per beat (was 0.5%). Max +4%.
-    total_impact += earnings_beat_streak * 0.01
+    non_analyst_impact += earnings_beat_streak * 0.01
 
     # ── High-Beta / Valuation Stretch Penalty ──
     # High-beta stocks near 52w highs are prone to sharp mean-reversion.
@@ -1211,7 +1263,9 @@ def metric_analysis(df, stock_metrics, news_sentiment, growth_rate, is_uptrend, 
     _hi_ratio = float(df['HiRatio_52w'].iloc[-1]) if 'HiRatio_52w' in df.columns else 0.0
     if _beta > 2.5 and _hi_ratio > 0.95:
         stretch_penalty = 1.0 - ((_beta - 2.5) * 0.015)
-        total_impact += stretch_penalty - 1.0
+        non_analyst_impact += stretch_penalty - 1.0
+
+    total_impact = non_analyst_impact + analyst_impact
 
     return {
         "rsi": {
@@ -1283,6 +1337,8 @@ def metric_analysis(df, stock_metrics, news_sentiment, growth_rate, is_uptrend, 
             "description": "Last 4 quarters of earnings beats (relative to analyst estimates)",
         },
         "total_metric_impact":   round(float(total_impact), 4),
+        "non_analyst_impact":    round(float(non_analyst_impact), 4),
+        "analyst_impact":        round(float(analyst_impact), 4),
         "impact_classification": (
             "very_bullish" if total_impact > 0.08 else
             "bullish"      if total_impact > 0.04 else
