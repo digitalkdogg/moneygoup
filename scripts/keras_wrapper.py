@@ -48,9 +48,19 @@ def get_tanh_scaled_layer():
 
 
 class KerasModelWrapper:
+    # Only the filename is persisted (see __getstate__) — the absolute path
+    # is re-derived relative to this file's location at load time, since an
+    # absolute path baked in at training time won't exist on a different
+    # machine (e.g. inside the Docker image vs. wherever training ran).
     def __init__(self, keras_path: str):
         self.keras_path = os.path.abspath(keras_path)
         self._model = None
+
+    def _resolved_path(self) -> str:
+        models_dir = os.path.dirname(os.path.abspath(__file__))
+        models_dir = os.path.join(os.path.dirname(models_dir), 'models')
+        candidate = os.path.join(models_dir, os.path.basename(self.keras_path))
+        return candidate if os.path.exists(candidate) else self.keras_path
 
     def _load(self):
         if self._model is None:
@@ -60,7 +70,7 @@ class KerasModelWrapper:
             get_tanh_scaled_layer()
             # compile=False — we only predict, never retrain at load time.
             # This sidesteps having to register the custom joint loss.
-            self._model = tf.keras.models.load_model(self.keras_path, compile=False)
+            self._model = tf.keras.models.load_model(self._resolved_path(), compile=False)
 
     def predict(self, X):
         self._load()
@@ -68,7 +78,9 @@ class KerasModelWrapper:
         return np.asarray(self._model.predict(X, verbose=0))
 
     def __getstate__(self):
-        return {'keras_path': self.keras_path}
+        # Persist only the filename so unpickling on any machine re-resolves
+        # it against that machine's models/ directory (see _resolved_path).
+        return {'keras_path': os.path.basename(self.keras_path)}
 
     def __setstate__(self, state):
         self.keras_path = state['keras_path']
