@@ -20,6 +20,7 @@ import { resolveAlgorithm } from '@/utils/algorithmPreset';
 import { getSectorStocks, getTrendingStocks } from '@/utils/yahooFinanceHelper';
 import { CANONICAL_SECTORS } from '@/utils/sectorTaxonomy';
 import { getDbConnection } from '@/utils/db';
+import { extractTickersFromArticles, RawArticle } from '@/utils/aiNewsExtractor';
 
 const logger = createLogger('api/prediction/deepmoney');
 const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
@@ -173,6 +174,30 @@ function extractTextFromRSS(xml: string): string {
 }
 
 /**
+ * Like extractTextFromRSS, but retains per-item {title, description} pairs
+ * instead of flattening, so they can be passed to the AI ticker extractor.
+ * Purely additive — extractTextFromRSS/extractTickers (the regex path) keep
+ * consuming the same `xml` string unchanged.
+ */
+function extractItemsFromRSS(xml: string): Array<{ title: string; description: string }> {
+    const items: Array<{ title: string; description: string }> = [];
+    const itemRegex = /<item[\s>]([\s\S]*?)<\/item>/gi;
+    const tagRegex = /<[^>]+>/g;
+
+    let itemMatch: RegExpExecArray | null;
+    while ((itemMatch = itemRegex.exec(xml)) !== null) {
+        const itemBody = itemMatch[1];
+        const titleMatch = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(itemBody);
+        const descMatch = /<description[^>]*>([\s\S]*?)<\/description>/i.exec(itemBody);
+        items.push({
+            title: titleMatch ? titleMatch[1].replace(tagRegex, ' ').trim() : '',
+            description: descMatch ? descMatch[1].replace(tagRegex, ' ').trim() : '',
+        });
+    }
+    return items;
+}
+
+/**
  * Run all ticker-extraction patterns over a block of text and return a
  * deduplicated set of candidate ticker symbols.
  */
@@ -239,7 +264,7 @@ function extractTickersFromSECForm4Xml(xmlData: string): Set<string> {
 /**
  * Fetch all primary feeds concurrently and return a combined set of tickers.
  */
-async function fetchPrimaryTickers(): Promise<Set<string>> {
+async function fetchPrimaryTickers(): Promise<{ tickers: Set<string>; rawArticles: RawArticle[] }> {
     const results = await Promise.allSettled(PRIMARY_FEED_URLS.map(async (url) => {
         try {
             const res = await fetch(url, {
@@ -247,20 +272,20 @@ async function fetchPrimaryTickers(): Promise<Set<string>> {
                 signal: AbortSignal.timeout(15_000),
             });
             if (!res.ok) return null;
-            
+
             const contentType = res.headers.get('content-type') || '';
             const body = await res.text();
 
             if (url.includes('type=4') && url.includes('output=atom')) {
-                return { type: 'sec_form_4_xml', data: body };
+                return { type: 'sec_form_4_xml', data: body, url };
             } else if (contentType.includes('application/json') || body.trim().startsWith('{')) {
                 try {
-                    return { type: 'json', data: JSON.parse(body) };
+                    return { type: 'json', data: JSON.parse(body), url };
                 } catch {
-                    return { type: 'rss', data: body };
+                    return { type: 'rss', data: body, url };
                 }
             }
-            return { type: 'rss', data: body };
+            return { type: 'rss', data: body, url };
         } catch (err) {
             logger.warn(`Failed to fetch primary source: ${url}`, { error: String(err) });
             return null;
@@ -268,11 +293,12 @@ async function fetchPrimaryTickers(): Promise<Set<string>> {
     }));
 
     const allTickers = new Set<string>();
+    const rawArticles: RawArticle[] = [];
 
     for (const result of results) {
         if (result.status === 'fulfilled' && result.value) {
-            const { type, data } = result.value;
-            
+            const { type, data, url } = result.value;
+
             if (type === 'json') {
                 // Specific handler for ApeWisdom JSON structure
                 if (data && Array.isArray(data.results)) {
@@ -316,10 +342,15 @@ async function fetchPrimaryTickers(): Promise<Set<string>> {
                 for (const ticker of extractTickers(text)) {
                     allTickers.add(ticker);
                 }
+                for (const item of extractItemsFromRSS(data)) {
+                    if (item.title || item.description) {
+                        rawArticles.push({ title: item.title, description: item.description, source: url });
+                    }
+                }
             }
         }
     }
-    return allTickers;
+    return { tickers: allTickers, rawArticles };
 }
 
 /**
@@ -689,11 +720,12 @@ export async function GET(request: NextRequest) {
         logger.info('Starting DeepMoney V2 discovery pass');
         
         // 1. Fetch shared macro and index data once
-        const [wbData, primaryTickers] = await Promise.all([
+        const [wbData, primaryResult] = await Promise.all([
             fetchWorldBankData(forceRefresh),
             fetchPrimaryTickers()
         ]);
-        
+        const primaryTickers = primaryResult.tickers;
+
         let marketIndices = null;
         try {
             const marketIndicesRes = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3001'}/api/market/indices`, {
@@ -705,7 +737,26 @@ export async function GET(request: NextRequest) {
             logger.warn('Failed to fetch market indices for context, proceeding without it', { error: String(idxErr) });
         }
 
-        const allTickersSet = await fetchSecondaryTickers(primaryTickers);
+        // Secondary ticker expansion and AI-based news extraction are both
+        // independent of each other (each depends only on primaryResult),
+        // so they run concurrently rather than adding serial latency.
+        const [allTickersSet, aiMentions] = await Promise.all([
+            fetchSecondaryTickers(primaryTickers),
+            extractTickersFromArticles(primaryResult.rawArticles),
+        ]);
+
+        // Merge AI-discovered tickers in: same basic shape/stoplist sanity
+        // check regex matches already pass. No confidence filtering — a
+        // hallucinated or wrong ticker fails enrichment/the ranker the same
+        // way today's regex false positives do.
+        let aiTickerCount = 0;
+        for (const mention of aiMentions) {
+            const ticker = mention.ticker.toUpperCase().trim();
+            if (ticker && !TICKER_STOPLIST.has(ticker) && /^[A-Z]{1,5}$/.test(ticker)) {
+                if (!allTickersSet.has(ticker)) aiTickerCount++;
+                allTickersSet.add(ticker);
+            }
+        }
 
         // --- Merge popular-ETF holdings + Trending + Sector leaders ---
         // Set semantics dedup automatically with feed-discovered tickers.
@@ -827,6 +878,9 @@ export async function GET(request: NextRequest) {
                     trendingTickerCount: trendingTickers.size,
                     etfHoldingTickerCount: etfHoldingTickers.size,
                     etfHoldingTickerNewlyEnriched: newHoldingTickers.length,
+                    aiTickersExtracted: aiMentions.length,
+                    aiTickersNewlyAdded: aiTickerCount,
+                    aiExtractionEnabled: Boolean(process.env.ANTHROPIC_API_KEY),
                     predictionSample: filteredStocks.slice(0, 5).map(s => ({ ticker: s.ticker, pred: s.prediction_1m, source: s.discovery_source })),
                 }
             },
