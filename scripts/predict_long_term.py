@@ -31,7 +31,7 @@ from pathlib import Path
 
 import numpy as np
 from sklearn.neural_network import MLPRegressor
-from sklearn.metrics import mean_absolute_error
+from sklearn.metrics import mean_absolute_error, mean_squared_error
 
 from predict_core import (
     SEED, SEQ_LEN, N_EPOCHS, MC_RUNS,
@@ -153,13 +153,24 @@ def _predict_with_cs_model(
 
     spread_6m  = float(np.percentile(mc_6m_prices,  90) - np.percentile(mc_6m_prices,  10)) * LONG_TERM_SPREAD_WIDENER
     spread_12m = float(np.percentile(mc_12m_prices, 90) - np.percentile(mc_12m_prices, 10)) * LONG_TERM_SPREAD_WIDENER
+    # Spread floors prevent the MC ensemble (only MC_RUNS=12 samples) from
+    # collapsing the prediction band to ~$0 when the model is confident on a
+    # stable stock. Floors are calibrated so the 1w band (= spread_6m * 5/126)
+    # stays at least ~0.16% of price, which matches the realistic minimum
+    # one-week move for a liquid equity.
+    spread_6m  = max(spread_6m,  current_price * 0.04)
+    spread_12m = max(spread_12m, current_price * 0.08)
     spread_18m = spread_12m * 1.5
 
     p18m_est = predicted_price_1y + (predicted_price_1y - predicted_price_6m)
 
     # ── cv_mae / cv_mape: use the model's persisted validation MAE on 6m ────
-    # Falls back to a 5% heuristic if the manifest didn't store it.
-    cv_mae = float(current_price * 0.05)  # conservative default
+    # Falls back to a 5% heuristic if the manifest didn't store it. cv_rmse
+    # uses the normal-residual approximation RMSE ≈ MAE × sqrt(π/2) ≈ 1.253;
+    # the CS-model path doesn't keep holdout residuals around to compute it
+    # exactly, so the heuristic is the best we have for this code branch.
+    cv_mae  = float(current_price * 0.05)  # conservative default
+    cv_rmse = cv_mae * 1.253
     cv_mape = (cv_mae / (current_price + 1e-9)) * 100
 
     cs6m = confidence_score(cv_mape, history_years, imputed_fields, analyst_count,
@@ -183,6 +194,7 @@ def _predict_with_cs_model(
         'spread_18m': spread_18m,
         'p18m_est': p18m_est,
         'cv_mae': cv_mae,
+        'cv_rmse': cv_rmse,
         'cv_mape': cv_mape,
     }
 
@@ -269,9 +281,11 @@ def predict_long_term(
         dummy_act[:, close_col_idx] = Y_hold[:, 0]
         actual_prices_hold = scaler.inverse_transform(dummy_act)[:, close_col_idx]
 
-        cv_mae = float(mean_absolute_error(actual_prices_hold, pred_prices_hold))
+        cv_mae  = float(mean_absolute_error(actual_prices_hold, pred_prices_hold))
+        cv_rmse = float(np.sqrt(mean_squared_error(actual_prices_hold, pred_prices_hold)))
     else:
-        cv_mae = float(current_price * 0.05)
+        cv_mae  = float(current_price * 0.05)
+        cv_rmse = cv_mae * 1.253
     cv_mape = (cv_mae / (current_price + 1e-9)) * 100
 
     # ── Deterministic 6m / 1y predictions ────────────────────────────────────
@@ -307,9 +321,13 @@ def predict_long_term(
     dummy_mc[:, close_col_idx] = mc_preds[:, 1]
     mc_12m = scaler.inverse_transform(dummy_mc)[:, close_col_idx] * long_term_multiplier
 
-    # Spreads — widened to better cover observed actuals on long horizons
+    # Spreads — widened to better cover observed actuals on long horizons.
+    # Floor matches the CS-model path above so neither code branch can emit a
+    # zero-width prediction band when the MC ensemble collapses.
     spread_6m  = float(np.percentile(mc_6m,  90) - np.percentile(mc_6m,  10)) * LONG_TERM_SPREAD_WIDENER
     spread_12m = float(np.percentile(mc_12m, 90) - np.percentile(mc_12m, 10)) * LONG_TERM_SPREAD_WIDENER
+    spread_6m  = max(spread_6m,  current_price * 0.04)
+    spread_12m = max(spread_12m, current_price * 0.08)
     spread_18m = spread_12m * 1.5
 
     # 18m extrapolation beyond 12m anchor (used by orchestrator's trajectory)
@@ -339,5 +357,6 @@ def predict_long_term(
         'spread_18m': spread_18m,
         'p18m_est': p18m_est,
         'cv_mae': cv_mae,
+        'cv_rmse': cv_rmse,
         'cv_mape': cv_mape,
     }

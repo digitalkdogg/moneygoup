@@ -53,7 +53,15 @@ N_EPOCHS   = 50    # capped for speed
 BATCH_SIZE = 128
 MC_RUNS    = 12
 CACHE_DIR  = os.path.join(os.path.dirname(__file__), 'prediction_cache')
-CACHE_SCHEMA_VERSION = 15  # bumped: analyst_sentiment v2 (time-weighted RecScore with Option α asymmetric weights + TargetScore + dispersion penalty + conviction-aware confidence pts)
+CACHE_SCHEMA_VERSION = 18  # bumped: added recommendationsHistory tertiary fallback for analyst consensus (covers 'none' + null mean tickers like LPG)
+
+# Dirichlet (Laplace) smoothing applied to regime probabilities before they
+# leave build_regime_detector(). Mixes raw probs with a uniform prior so that
+# GMM outputs like [~0, ~1, ~0] surface as [0.017, 0.967, 0.017] on the UI —
+# the model's still confident, but never claims literal certainty. Alpha is
+# the share of probability mass reserved for "the model could be wrong";
+# 0.0 disables the smoothing entirely.
+REGIME_PROB_SMOOTHING_ALPHA = 0.05
 
 # ── Per-horizon analyst-signal boost coefficients ────────────────────────────
 # metric_analysis() splits its output into non_analyst_impact + analyst_impact.
@@ -1012,10 +1020,30 @@ def _calculate_features_internal(df, stock_metrics, macro_data, news_sentiment, 
 # ============================================================================
 # REGIME DETECTION
 # ============================================================================
+def _dirichlet_smooth(probs, alpha=REGIME_PROB_SMOOTHING_ALPHA):
+    """Mix probs with a uniform prior. alpha=0 is a no-op.
+
+    Cleans up GMM outputs that, on data points sitting inside one Gaussian,
+    return values like [1e-15, 0.9999, 1e-12] — useful information for
+    Bayes math, misleading on a UI bar chart. Linear smoothing preserves
+    the rank order and only redistributes a fixed `alpha` share of mass.
+    """
+    if probs is None or alpha <= 0.0:
+        return probs
+    n_clusters = probs.shape[1]
+    uniform = 1.0 / n_clusters
+    return (1.0 - alpha) * probs + alpha * uniform
+
+
 def build_regime_detector(market_vec_norm, fitted_model, n_clusters):
     """
     Use a fitted model (from select_regime_k) to predict regimes.
-    If no fitted model, falls back to KMeans.
+    Falls back to KMeans when no GMM is available — and in that case derives
+    soft probabilities via a softmax over negative cluster distances so the
+    output is never a hard one-hot. All return paths run their probabilities
+    through `_dirichlet_smooth()` so a confident GMM still surfaces with a
+    small reserved mass on the other regimes (UI-friendly without distorting
+    legitimate uncertainty).
     """
     from sklearn.cluster import KMeans
 
@@ -1023,7 +1051,7 @@ def build_regime_detector(market_vec_norm, fitted_model, n_clusters):
         try:
             labels = fitted_model.predict(market_vec_norm)
             probs = fitted_model.predict_proba(market_vec_norm)
-            return labels, probs
+            return labels, _dirichlet_smooth(probs)
         except:
             pass
 
@@ -1031,9 +1059,24 @@ def build_regime_detector(market_vec_norm, fitted_model, n_clusters):
     try:
         km = KMeans(n_clusters=n_clusters, n_init=5, random_state=SEED)
         labels = km.fit_predict(market_vec_norm)
-        return labels, None
+        # Soft probabilities from cluster distances. Lower distance → higher
+        # probability. Temperature 1.0 is gentle — chosen so a sample sitting
+        # squarely in one cluster still gets ~0.7 on that cluster (not 1.0),
+        # which is closer to what a GMM with reasonable variance would emit.
+        distances = km.transform(market_vec_norm)  # (n_samples, n_clusters)
+        # Center distances per row before softmax for numerical stability,
+        # then negate so smaller distance = larger logit.
+        logits = -(distances - distances.min(axis=1, keepdims=True))
+        exp = np.exp(logits)
+        probs = exp / exp.sum(axis=1, keepdims=True)
+        return labels, _dirichlet_smooth(probs)
     except:
-        return np.zeros(len(market_vec_norm), dtype=int), None
+        # Last-resort: uniform probabilities so downstream consumers never see
+        # NaN or a degenerate one-hot from this code path. Smoothing a uniform
+        # vector with a uniform prior is a no-op, so we skip it here.
+        n = len(market_vec_norm)
+        uniform = np.full((n, n_clusters), 1.0 / n_clusters, dtype=np.float32)
+        return np.zeros(n, dtype=int), uniform
 
 
 def select_regime_k(market_vec, min_state_frac=0.15, max_flip_rate=0.30):

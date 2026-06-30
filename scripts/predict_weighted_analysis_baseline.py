@@ -72,7 +72,13 @@ N_EPOCHS   = 50    # capped for speed
 BATCH_SIZE = 128   # larger batches for faster training
 MC_RUNS    = 12    # reduced for faster trajectory generation
 CACHE_DIR  = os.path.join(os.path.dirname(__file__), 'prediction_cache')
-CACHE_SCHEMA_VERSION = 2  # bump whenever output field names change
+
+# Dirichlet (Laplace) smoothing applied to regime probabilities. Mirrors the
+# constant in predict_core.py; baseline has its own copy of
+# build_regime_detector so it needs the constant in scope. See predict_core.py
+# for the full rationale.
+REGIME_PROB_SMOOTHING_ALPHA = 0.05
+CACHE_SCHEMA_VERSION = 7  # cleaned up the analyst-consensus block — removed temporary debug log + tracker variables now that the recommendationsHistory tertiary fallback is verified working for thinly-covered names like LPG.
 
 
 # ============================================================================
@@ -869,10 +875,23 @@ def build_mlp(seed=SEED):
     )
 
 
+def _dirichlet_smooth(probs, alpha=REGIME_PROB_SMOOTHING_ALPHA):
+    """Mix regime probs with a uniform prior. Mirrors predict_core.py."""
+    if probs is None or alpha <= 0.0:
+        return probs
+    n_clusters = probs.shape[1]
+    uniform = 1.0 / n_clusters
+    return (1.0 - alpha) * probs + alpha * uniform
+
+
 def build_regime_detector(market_vec_norm, fitted_model, n_clusters):
     """
     Use a fitted model (from select_regime_k) to predict regimes.
-    If no fitted model, falls back to KMeans.
+    Falls back to KMeans when no GMM is available — and in that case derives
+    soft probabilities via a softmax over negative cluster distances so the
+    output is never a hard one-hot. All return paths run probs through
+    `_dirichlet_smooth()` so a confident GMM still surfaces with a small
+    reserved mass on the other regimes. Mirrors the predict_core.py version.
     """
     from sklearn.cluster import KMeans
 
@@ -880,7 +899,7 @@ def build_regime_detector(market_vec_norm, fitted_model, n_clusters):
         try:
             labels = fitted_model.predict(market_vec_norm)
             probs = fitted_model.predict_proba(market_vec_norm)
-            return labels, probs
+            return labels, _dirichlet_smooth(probs)
         except:
             pass
 
@@ -888,9 +907,15 @@ def build_regime_detector(market_vec_norm, fitted_model, n_clusters):
     try:
         km = KMeans(n_clusters=n_clusters, n_init=5, random_state=SEED)
         labels = km.fit_predict(market_vec_norm)
-        return labels, None
+        distances = km.transform(market_vec_norm)
+        logits = -(distances - distances.min(axis=1, keepdims=True))
+        exp = np.exp(logits)
+        probs = exp / exp.sum(axis=1, keepdims=True)
+        return labels, _dirichlet_smooth(probs)
     except:
-        return np.zeros(len(market_vec_norm), dtype=int), None
+        n = len(market_vec_norm)
+        uniform = np.full((n, n_clusters), 1.0 / n_clusters, dtype=np.float32)
+        return np.zeros(n, dtype=int), uniform
 
 
 def select_regime_k(market_vec, min_state_frac=0.15, max_flip_rate=0.30):
@@ -1238,8 +1263,10 @@ def predict(ticker, input_data):
     # External technical score from the frontend/technical indicators section
     external_tech_score = safe(input_data.get('technicalScore'), 0.0)
     
-    # Analyst Consensus (recommendationKey) from frontend
-    recommendation_key = input_data.get('recommendationKey')
+    # Analyst Consensus: try the categorical key first (frontend prop, or the
+    # /data endpoint's stockMetrics.recommendationKey as a secondary source),
+    # then fall back to Yahoo's numeric recommendationMean.
+    recommendation_key = input_data.get('recommendationKey') or stock_metrics.get('recommendationKey')
     consensus_key = (recommendation_key or '').lower().replace('_', ' ') if recommendation_key else ''
     consensus_map = {
         'strong buy': 1.0,
@@ -1249,6 +1276,45 @@ def predict(ticker, input_data):
         'strong sell': -1.0
     }
     consensus_value = consensus_map.get(consensus_key, 0.0)
+    # Numeric fallback when the categorical key is missing or unrecognized —
+    # covers null, empty string, and Yahoo's 'none' / 'underperform' /
+    # 'outperform' for thinly-covered names. Yahoo's recommendationMean scale
+    # runs 1.0 (Strong Buy) → 5.0 (Strong Sell), mapped linearly to [-1, 1]
+    # with 3.0 (Hold) → 0.
+    if consensus_key not in consensus_map:
+        rcm = stock_metrics.get('recommendationMean')
+        if rcm is not None:
+            try:
+                rcm_f = float(rcm)
+                if 1.0 <= rcm_f <= 5.0:
+                    consensus_value = max(-1.0, min(1.0, (3.0 - rcm_f) / 2.0))
+            except (TypeError, ValueError):
+                pass
+
+    # Tertiary fallback: derive consensus from `recommendationsHistory` — the
+    # per-period strongBuy/buy/hold/sell/strongSell counts. Fires when Yahoo
+    # returns 'none' for recommendationKey AND null for recommendationMean
+    # but per-period trend votes are still populated (LPG-class thinly-covered
+    # names hit this path). Computes a synthetic 1-5 weighted rating from the
+    # most-recent period and reuses the recommendationMean mapping above.
+    if consensus_value == 0.0 and consensus_key not in consensus_map:
+        rec_history = input_data.get('recommendationsHistory')
+        if isinstance(rec_history, list) and rec_history:
+            target_row = next((r for r in rec_history if r.get('period') == '0m'), None)
+            if target_row is None:
+                target_row = rec_history[0]
+            try:
+                sb = float(target_row.get('strongBuy',  0) or 0)
+                b  = float(target_row.get('buy',        0) or 0)
+                h  = float(target_row.get('hold',       0) or 0)
+                s  = float(target_row.get('sell',       0) or 0)
+                ss = float(target_row.get('strongSell', 0) or 0)
+                total = sb + b + h + s + ss
+                if total > 0:
+                    weighted = (sb*1.0 + b*2.0 + h*3.0 + s*4.0 + ss*5.0) / total
+                    consensus_value = max(-1.0, min(1.0, (3.0 - weighted) / 2.0))
+            except (TypeError, ValueError):
+                pass
 
     if not historical_data:
         raise ValueError("No historical data provided.")
@@ -1452,9 +1518,13 @@ def predict(ticker, input_data):
         dummy_act[:, close_col_idx] = Y_hold[:, 2]
         actual_prices_hold = scaler.inverse_transform(dummy_act)[:, close_col_idx]
 
-        cv_mae = float(mean_absolute_error(actual_prices_hold, pred_prices_hold))
+        cv_mae  = float(mean_absolute_error(actual_prices_hold, pred_prices_hold))
+        cv_rmse = float(np.sqrt(mean_squared_error(actual_prices_hold, pred_prices_hold)))
     else:
-        cv_mae = float(current_price * 0.05)
+        cv_mae  = float(current_price * 0.05)
+        # Normal-ish residual heuristic: RMSE ≈ MAE × sqrt(π/2). Only fires when
+        # holdout is empty, so it's a placeholder, not a calibrated value.
+        cv_rmse = cv_mae * 1.253
     cv_mape = (cv_mae / (current_price + 1e-9)) * 100
 
     # ---- Legacy metric analysis ----
@@ -1528,6 +1598,12 @@ def predict(ticker, input_data):
     # Spread from MC (uncertainty bands only — midpoints use deterministic predictions)
     spread_6m  = float(np.percentile(mc_6m,  90) - np.percentile(mc_6m,  10))
     spread_12m = float(np.percentile(mc_12m, 90) - np.percentile(mc_12m, 10))
+    # Floor: same calibration as predict_long_term.py — prevents the MC
+    # ensemble from emitting a zero-width band when the model is confident on
+    # a stable stock. Without this, downstream spread_1w = spread_6m * (5/126)
+    # also collapses, producing the predicted_range_1w = [price, price] bug.
+    spread_6m  = max(spread_6m,  current_price * 0.04)
+    spread_12m = max(spread_12m, current_price * 0.08)
     spread_18m = spread_12m * 1.5
 
     # 18m extrapolation beyond 12m anchor
@@ -1536,6 +1612,15 @@ def predict(ticker, input_data):
     trajectory = []
     last_date_str = str(df['Date'].iloc[-1]) if 'Date' in df.columns else datetime.today().strftime('%Y-%m-%d')
     last_date = datetime.strptime(last_date_str[:10], '%Y-%m-%d')
+
+    # See predict_weighted_analysis.py for the wiggle rationale. Same SEED so
+    # the path is deterministic and reproducible across reruns.
+    traj_rng = np.random.default_rng(SEED)
+
+    def _wiggle(t: float, spread: float) -> float:
+        if t <= 0.0 or t >= 1.0:
+            return 0.0
+        return float(traj_rng.standard_normal()) * spread * 0.10 * np.sin(np.pi * t)
 
     for idx, td in enumerate(WAYPOINTS):
         if td == T5:
@@ -1547,16 +1632,19 @@ def predict(ticker, input_data):
             t      = (td - T5) / (T6 - T5)
             mid    = predicted_price_1w + (predicted_price_6m - predicted_price_1w) * t
             spread = spread_6m * (td / T6)
+            mid   += _wiggle(t, spread)
         elif td <= T12:
             # 6m → 12m segment: interpolate toward predicted_price_1y
             t      = (td - T6) / (T12 - T6)
             mid    = predicted_price_6m + (predicted_price_1y - predicted_price_6m) * t
             spread = spread_6m + (spread_12m - spread_6m) * t
+            mid   += _wiggle(t, spread)
         else:
             # 12m → 18m: linear extrapolation
             t      = (td - T12) / (T18 - T12)
             mid    = predicted_price_1y + (p18m_est - predicted_price_1y) * t
             spread = spread_12m + (spread_18m - spread_12m) * t
+            mid   += _wiggle(t, spread)
 
         # Calendar month label
         waypoint_date = last_date + timedelta(days=int(td * 365.25 / 252))
@@ -1570,7 +1658,10 @@ def predict(ticker, input_data):
         })
 
     # ---- Accuracy metrics ----
-    rmse = float(np.sqrt(cv_mae ** 2))   # approx; use cv_mae as primary
+    # mae and rmse are computed from holdout residuals at line 1455/1456.
+    # The historical `np.sqrt(cv_mae ** 2)` was a no-op (sqrt of a square == the
+    # absolute value), so before this fix all three keys reported the same number.
+    rmse    = cv_rmse
     mae_val = cv_mae
 
     # ---- Confidence scores ----

@@ -80,8 +80,10 @@ def predict(ticker, input_data):
     # External technical score from the frontend/technical indicators section
     external_tech_score = safe(input_data.get('technicalScore'), 0.0)
 
-    # Analyst Consensus (recommendationKey) from frontend
-    recommendation_key = input_data.get('recommendationKey')
+    # Analyst Consensus: try the categorical key first (frontend prop, or the
+    # /data endpoint's stockMetrics.recommendationKey as a secondary source),
+    # then fall back to Yahoo's numeric recommendationMean.
+    recommendation_key = input_data.get('recommendationKey') or stock_metrics.get('recommendationKey')
     consensus_key = (recommendation_key or '').lower().replace('_', ' ') if recommendation_key else ''
     consensus_map = {
         'strong buy': 1.0,
@@ -91,6 +93,44 @@ def predict(ticker, input_data):
         'strong sell': -1.0
     }
     consensus_value = consensus_map.get(consensus_key, 0.0)
+    # Numeric fallback fires whenever the categorical didn't resolve to a known
+    # bucket — empty string, missing entirely, or an unrecognized value like
+    # Yahoo's 'none' / 'underperform' / 'outperform' for thinly-covered names.
+    # Yahoo's recommendationMean scale runs 1.0 (Strong Buy) → 5.0 (Strong
+    # Sell), mapped linearly to [-1, 1] with 3.0 (Hold) → 0.
+    _recmean_fired = False
+    if consensus_key not in consensus_map:
+        rcm = stock_metrics.get('recommendationMean')
+        if rcm is not None:
+            try:
+                rcm_f = float(rcm)
+                if 1.0 <= rcm_f <= 5.0:
+                    consensus_value = max(-1.0, min(1.0, (3.0 - rcm_f) / 2.0))
+                    _recmean_fired = True
+            except (TypeError, ValueError):
+                pass
+    # Tertiary fallback: derive consensus from `recommendationsHistory` — the
+    # per-period strongBuy/buy/hold/sell/strongSell counts. Fires for tickers
+    # where Yahoo's summary recommendationKey is 'none' AND recommendationMean
+    # is null (LPG-class thinly-covered names) but the trend still has votes.
+    if not _recmean_fired and consensus_value == 0.0:
+        rec_history = input_data.get('recommendationsHistory')
+        if isinstance(rec_history, list) and rec_history:
+            target_row = next((r for r in rec_history if r.get('period') == '0m'), None)
+            if target_row is None:
+                target_row = rec_history[0]
+            try:
+                sb = float(target_row.get('strongBuy',  0) or 0)
+                b  = float(target_row.get('buy',        0) or 0)
+                h  = float(target_row.get('hold',       0) or 0)
+                s  = float(target_row.get('sell',       0) or 0)
+                ss = float(target_row.get('strongSell', 0) or 0)
+                total = sb + b + h + s + ss
+                if total > 0:
+                    weighted = (sb*1.0 + b*2.0 + h*3.0 + s*4.0 + ss*5.0) / total
+                    consensus_value = max(-1.0, min(1.0, (3.0 - weighted) / 2.0))
+            except (TypeError, ValueError):
+                pass
 
     if not historical_data:
         raise ValueError("No historical data provided.")
@@ -365,6 +405,24 @@ def predict(ticker, input_data):
     last_date_str = str(df['Date'].iloc[-1]) if 'Date' in df.columns else datetime.today().strftime('%Y-%m-%d')
     last_date = datetime.strptime(last_date_str[:10], '%Y-%m-%d')
 
+    # Deterministic per-stock perturbation source for the trajectory wiggle.
+    # Seeded from SEED so reruns of the same ticker emit the same path. The
+    # wiggle envelope is anchored at the milestone waypoints (T5/T6/T12) so
+    # those points still match predicted_price_1w/_6m/_1y exactly; only the
+    # in-between waypoints move. Without this the trajectory is a perfectly
+    # straight $0.X/month line, which reads as extrapolation rather than a
+    # probabilistic forecast.
+    traj_rng = np.random.default_rng(SEED)
+
+    def _wiggle(t: float, spread: float) -> float:
+        # Arch envelope: sin(π·t) is 0 at t=0 and t=1, peaks at t=0.5. We
+        # multiply by a deterministic standard-normal draw and a 0.10 scale so
+        # the in-between waypoints move at most ~5% of the local spread away
+        # from the linear baseline. Milestones get t=0 → wiggle=0 by design.
+        if t <= 0.0 or t >= 1.0:
+            return 0.0
+        return float(traj_rng.standard_normal()) * spread * 0.10 * np.sin(np.pi * t)
+
     trajectory = []
     for td in WAYPOINTS:
         if td == T5:
@@ -374,14 +432,17 @@ def predict(ticker, input_data):
             t      = (td - T5) / (T6 - T5)
             mid    = predicted_price_1w + (predicted_price_6m - predicted_price_1w) * t
             spread = spread_6m * (td / T6)
+            mid   += _wiggle(t, spread)
         elif td <= T12:
             t      = (td - T6) / (T12 - T6)
             mid    = predicted_price_6m + (predicted_price_1y - predicted_price_6m) * t
             spread = spread_6m + (spread_12m - spread_6m) * t
+            mid   += _wiggle(t, spread)
         else:
             t      = (td - T12) / (T18 - T12)
             mid    = predicted_price_1y + (p18m_est - predicted_price_1y) * t
             spread = spread_12m + (spread_18m - spread_12m) * t
+            mid   += _wiggle(t, spread)
 
         waypoint_date = last_date + timedelta(days=int(td * 365.25 / 252))
         month_label   = waypoint_date.strftime('%b %Y')
@@ -394,7 +455,10 @@ def predict(ticker, input_data):
         })
 
     # ── Backward-compat fields ───────────────────────────────────────────────
-    rmse = float(np.sqrt(cv_mae ** 2))
+    # rmse comes from the same holdout residuals as cv_mae (predict_long_term.py).
+    # The historical `np.sqrt(cv_mae ** 2)` was a no-op that made rmse identical
+    # to mae in every output; the new field is the real sqrt(MSE).
+    rmse    = long_out.get('cv_rmse', cv_mae * 1.253)
     mae_val = cv_mae
 
     high_uncertainty = abs(predicted_price_1y - current_price) / (current_price + 1e-9) > 0.60

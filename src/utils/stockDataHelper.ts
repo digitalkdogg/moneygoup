@@ -49,6 +49,13 @@ export async function getStockDataForPrediction(ticker: string, wbData?: any) {
   return {
     ticker,
     historicalData,
+    // Yahoo's `recommendationKey` ("buy" / "hold" / etc.) is the categorical
+    // version of the analyst consensus; `recommendationMean` is the 1–5
+    // numeric (1=Strong Buy, 5=Strong Sell). The Python predict scripts
+    // prefer the key when present and fall back to the mean — see
+    // predict_weighted_analysis.py:84 / _baseline.py:1242. Without these,
+    // analyst_consensus.value stays at 0 for every single-ticker prediction.
+    recommendationKey: finData.recommendationKey ?? undefined,
     stockMetrics: {
       regularMarketPrice: price.regularMarketPrice,
       peRatio: detail.trailingPE || price.trailingPE,
@@ -56,6 +63,8 @@ export async function getStockDataForPrediction(ticker: string, wbData?: any) {
       marketCap: price.marketCap || detail.marketCap,
       revenueGrowth: finData.revenueGrowth,
       earningsGrowth: finData.earningsGrowth,
+      recommendationMean: finData.recommendationMean ?? undefined,
+      analystOpinionCount: finData.numberOfAnalystOpinions ?? undefined,
       sector: profile.sector || 'Unknown',
     },
     macroData: {
