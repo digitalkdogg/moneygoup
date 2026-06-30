@@ -20,6 +20,7 @@ import { resolveAlgorithm } from '@/utils/algorithmPreset';
 import { getSectorStocks, getTrendingStocks } from '@/utils/yahooFinanceHelper';
 import { CANONICAL_SECTORS } from '@/utils/sectorTaxonomy';
 import { getDbConnection } from '@/utils/db';
+import { ollamaTickerPass, isOllamaEnabled, type OllamaPassResult } from '@/utils/ollamaTicker';
 
 const logger = createLogger('api/prediction/deepmoney');
 const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
@@ -156,7 +157,16 @@ async function fetchFeed(url: string): Promise<string | null> {
  * Extract all plain text content (title + description) from RSS <item> elements.
  */
 function extractTextFromRSS(xml: string): string {
-    const chunks: string[] = [];
+    return extractArticlesFromRSS(xml).join(' ');
+}
+
+/**
+ * Split an RSS body into one cleaned text snippet per <item> (title + description
+ * joined). Used by the Ollama NER pass — each snippet becomes one prompt, so
+ * we want them separated rather than concatenated.
+ */
+function extractArticlesFromRSS(xml: string): string[] {
+    const items: string[] = [];
     const itemRegex = /<item[\s>]([\s\S]*?)<\/item>/gi;
     const tagRegex = /<[^>]+>/g;
 
@@ -165,11 +175,13 @@ function extractTextFromRSS(xml: string): string {
         const itemBody = itemMatch[1];
         const titleMatch = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(itemBody);
         const descMatch = /<description[^>]*>([\s\S]*?)<\/description>/i.exec(itemBody);
-
-        if (titleMatch) chunks.push(titleMatch[1].replace(tagRegex, ' '));
-        if (descMatch) chunks.push(descMatch[1].replace(tagRegex, ' '));
+        const parts: string[] = [];
+        if (titleMatch) parts.push(titleMatch[1].replace(tagRegex, ' '));
+        if (descMatch)  parts.push(descMatch[1].replace(tagRegex, ' '));
+        const text = parts.join(' ').replace(/\s+/g, ' ').trim();
+        if (text) items.push(text);
     }
-    return chunks.join(' ');
+    return items;
 }
 
 /**
@@ -237,9 +249,20 @@ function extractTickersFromSECForm4Xml(xmlData: string): Set<string> {
 }
 
 /**
- * Fetch all primary feeds concurrently and return a combined set of tickers.
+ * Result bundle from the primary discovery pass — exposes both the regex-
+ * derived tickers and the per-article raw text. Article text is reused by the
+ * Ollama NER pass so we don't re-fetch any feeds.
  */
-async function fetchPrimaryTickers(): Promise<Set<string>> {
+interface PrimaryDiscoveryResult {
+    tickers: Set<string>;
+    articleTexts: string[];
+}
+
+/**
+ * Fetch all primary feeds concurrently and return a combined set of tickers
+ * plus the per-article text snippets gathered along the way.
+ */
+async function fetchPrimaryTickers(): Promise<PrimaryDiscoveryResult> {
     const results = await Promise.allSettled(PRIMARY_FEED_URLS.map(async (url) => {
         try {
             const res = await fetch(url, {
@@ -268,11 +291,12 @@ async function fetchPrimaryTickers(): Promise<Set<string>> {
     }));
 
     const allTickers = new Set<string>();
+    const articleTexts: string[] = [];
 
     for (const result of results) {
         if (result.status === 'fulfilled' && result.value) {
             const { type, data } = result.value;
-            
+
             if (type === 'json') {
                 // Specific handler for ApeWisdom JSON structure
                 if (data && Array.isArray(data.results)) {
@@ -299,9 +323,12 @@ async function fetchPrimaryTickers(): Promise<Set<string>> {
                         const h  = item?.headlines?.basic;
                         const sh = item?.subheadlines?.basic;
                         const d  = item?.description?.basic;
-                        if (typeof h  === 'string') chunks.push(h);
-                        if (typeof sh === 'string') chunks.push(sh);
-                        if (typeof d  === 'string') chunks.push(d);
+                        const parts: string[] = [];
+                        if (typeof h  === 'string') { chunks.push(h);  parts.push(h);  }
+                        if (typeof sh === 'string') { chunks.push(sh); parts.push(sh); }
+                        if (typeof d  === 'string') { chunks.push(d);  parts.push(d);  }
+                        const joined = parts.join(' ').trim();
+                        if (joined) articleTexts.push(joined);
                     }
                     for (const ticker of extractTickers(chunks.join(' '))) {
                         allTickers.add(ticker);
@@ -312,14 +339,17 @@ async function fetchPrimaryTickers(): Promise<Set<string>> {
                     allTickers.add(ticker);
                 }
             } else {
-                const text = extractTextFromRSS(data);
-                for (const ticker of extractTickers(text)) {
-                    allTickers.add(ticker);
+                const items = extractArticlesFromRSS(data);
+                for (const item of items) {
+                    articleTexts.push(item);
+                    for (const ticker of extractTickers(item)) {
+                        allTickers.add(ticker);
+                    }
                 }
             }
         }
     }
-    return allTickers;
+    return { tickers: allTickers, articleTexts };
 }
 
 /**
@@ -689,10 +719,12 @@ export async function GET(request: NextRequest) {
         logger.info('Starting DeepMoney V2 discovery pass');
         
         // 1. Fetch shared macro and index data once
-        const [wbData, primaryTickers] = await Promise.all([
+        const [wbData, primaryResult] = await Promise.all([
             fetchWorldBankData(forceRefresh),
             fetchPrimaryTickers()
         ]);
+        const primaryTickers = primaryResult.tickers;
+        const primaryArticleTexts = primaryResult.articleTexts;
         
         let marketIndices = null;
         try {
@@ -706,6 +738,20 @@ export async function GET(request: NextRequest) {
         }
 
         const allTickersSet = await fetchSecondaryTickers(primaryTickers);
+
+        // --- Stage 2: Ollama NER pass (feature-flagged) ---
+        // Re-uses the raw article text already fetched in Stage 1 — no extra
+        // outbound HTTP. Disabled, unreachable, or timed-out runs return an
+        // empty ticker set and the pipeline proceeds unchanged. Tickers are
+        // merged into allTickersSet so they flow through the same enrichment
+        // and ranker gates as everything else.
+        let ollamaResult: OllamaPassResult | null = null;
+        if (isOllamaEnabled()) {
+            ollamaResult = await ollamaTickerPass(primaryArticleTexts);
+            for (const t of ollamaResult.tickers) {
+                if (!TICKER_STOPLIST.has(t)) allTickersSet.add(t);
+            }
+        }
 
         // --- Merge popular-ETF holdings + Trending + Sector leaders ---
         // Set semantics dedup automatically with feed-discovered tickers.
@@ -809,6 +855,16 @@ export async function GET(request: NextRequest) {
                 // Resolved DEEPMONEY_ALGORITHM preset. deepmoney_sync.py reads
                 // back from here — it is the only knob for run aggressiveness.
                 algorithm,
+                // Ollama NER pass status — surfaces in the deepmoney_sync.py
+                // run summary. Null when the feature flag is off.
+                ollamaPass: ollamaResult ? {
+                    enabled:         ollamaResult.enabled,
+                    reachable:       ollamaResult.reachable,
+                    articlesScanned: ollamaResult.articlesScanned,
+                    companiesFound:  ollamaResult.companiesFound,
+                    industriesFound: ollamaResult.industriesFound,
+                    tickersResolved: ollamaResult.tickersResolved,
+                } : null,
                 debug: {
                     rejectedEnrichment: enrichedStocks.filter(s => s.error).length,
                     rejectedSignalScore: enrichedStocks.filter(s => !s.error && (s.tradingSignalScore === undefined || s.tradingSignalScore < algorithm.signalScoreFloor)).length,

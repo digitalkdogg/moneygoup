@@ -23,6 +23,8 @@ DB_PASSWORD = os.getenv('DB_PASSWORD')
 DB_DATABASE = os.getenv('DB_DATABASE')
 INTERNAL_SECRET = os.getenv('DEEPMONEY_INTERNAL_SECRET')
 NEXTAUTH_URL = os.getenv('NEXTAUTH_URL', 'http://localhost:3001')
+OLLAMA_BASE_URL = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
+OLLAMA_ENABLED = (os.getenv('OLLAMA_ENABLED', 'false') or '').strip().lower() == 'true'
 # Scripts always run on the same machine as Next.js, so call localhost directly
 # to bypass nginx and its 60s proxy timeout. The deepmoney route can take 2+ min.
 INTERNAL_API_URL = 'http://localhost:3001'
@@ -64,6 +66,21 @@ def get_market_indices(headers: dict) -> dict | None:
         print(f"  [indices] Warning: Error fetching market indices: {e}")
         return None
 
+def check_ollama_available() -> bool:
+    """Pre-flight reachability check for the local Ollama server.
+
+    The actual NER pass runs server-side inside the Node API; this is just
+    an observational probe so the run summary can report whether Ollama
+    would have been reachable from the host that owns the sync. 2s timeout
+    keeps the pre-flight cheap when Ollama isn't installed.
+    """
+    try:
+        response = requests.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=2)
+        return response.status_code == 200
+    except Exception:
+        return False
+
+
 def fetch_world_bank_data(headers: dict) -> dict | None:
     """Fetch consolidated World Bank data."""
     print(f"  [macro] Fetching World Bank data from {WB_API_URL}...")
@@ -95,6 +112,10 @@ def sync_deepmoney():
         "active_users":          0,
         "hot_etfs":              0,
         "stocks_in_api_resp":    0,
+        # Pre-flight observational state for the Ollama NER pass; the actual
+        # work runs server-side so the API echoes its own counters back via
+        # meta.ollamaPass — this is just whether the host could reach Ollama.
+        "ollama_preflight":      "disabled" if not OLLAMA_ENABLED else "unknown",
     }
     meta_snapshot: dict = {}  # cached API meta for the summary block
     # Captures per-stock detail for the final summary table. Initialized here
@@ -121,6 +142,17 @@ def sync_deepmoney():
     # Ensure secret is clean
     secret = INTERNAL_SECRET.strip('"') if INTERNAL_SECRET else ""
     headers = {'x-api-key': secret}
+
+    # Pre-flight Ollama check (observational only — the actual NER pass runs
+    # inside the deepmoney API). Records "enabled" / "disabled" / "failed"
+    # for the run summary.
+    if OLLAMA_ENABLED:
+        if check_ollama_available():
+            counters["ollama_preflight"] = "enabled"
+            print(f"  [ollama] Pre-flight reachable at {OLLAMA_BASE_URL}")
+        else:
+            counters["ollama_preflight"] = "failed"
+            print(f"  [ollama] Pre-flight FAILED — {OLLAMA_BASE_URL} unreachable")
 
     # Fetch World Bank data for DB persistence only
     wb_data = fetch_world_bank_data(headers)
@@ -712,6 +744,23 @@ def _print_run_summary(
         print("  TRENDING-48H OVERRIDE LANE")
         print(f"    Trending tickers merged:         {_fmt_int(trending_merged)}")
         print(f"    Surfaced via override lane:      {_fmt_int(trending_surfaced)}")
+
+    # ── Ollama NER pass (feature-flagged; absent when OLLAMA_ENABLED=false) ──
+    ollama_pass = (meta or {}).get('ollamaPass')
+    preflight = counters.get('ollama_preflight', 'disabled')
+    if ollama_pass or preflight != 'disabled':
+        print()
+        print("  OLLAMA NER PASS")
+        print(f"    Pre-flight (host):               {preflight}")
+        if ollama_pass:
+            reached = "yes" if ollama_pass.get('reachable') else "no"
+            print(f"    Server reachable from API:       {reached}")
+            print(f"    Articles scanned:                {_fmt_int(ollama_pass.get('articlesScanned'))}")
+            print(f"    Companies extracted:             {_fmt_int(ollama_pass.get('companiesFound'))}")
+            print(f"    Industries extracted:            {_fmt_int(ollama_pass.get('industriesFound'))}")
+            print(f"    Tickers resolved (merged):       {_fmt_int(ollama_pass.get('tickersResolved'))}")
+        else:
+            print("    (API did not return meta.ollamaPass — feature flag off server-side)")
 
     # ── Sector-leader override lane (powers /search/industry/[sector] GPS) ──
     sl_injected      = debug.get('sectorLeadersInjected')
