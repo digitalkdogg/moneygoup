@@ -129,6 +129,52 @@ def test_bound_clamp_also_updates_price():
     assert r['confidence_score_1y'] == 25
 
 
+def test_1w_clamp_consistent_with_1m_preserves_confidence():
+    # UCTT-style: 1w exceeds ±15% bound but direction and magnitude are
+    # consistent with 1m trajectory → confidence should NOT be knocked to 25.
+    r = _sanitize_predictions(_base(
+        predicted_price_1w=118.0, predicted_change_pct_1w=18.0, confidence_score_1w=94,
+        predicted_price_1m=123.0, predicted_change_pct_1m=23.0,
+    ))
+    assert r['predicted_change_pct_1w'] == 15.0          # still clamped
+    assert r['predicted_price_1w'] == 115.0              # 100 * 1.15
+    assert r['confidence_score_1w'] == 94                # preserved — consistent ceiling hit
+
+
+def test_1w_clamp_inconsistent_with_1m_knocks_confidence():
+    # 1w exceeds bound AND ends up larger than 1m magnitude → rogue prediction
+    r = _sanitize_predictions(_base(
+        predicted_price_1w=120.0, predicted_change_pct_1w=20.0, confidence_score_1w=90,
+        predicted_price_1m=104.0, predicted_change_pct_1m=4.0,
+    ))
+    assert r['predicted_change_pct_1w'] == 15.0
+    assert r['confidence_score_1w'] == 25                # 1w > 1m magnitude → low trust
+
+
+def test_1w_clamp_wrong_direction_knocks_confidence():
+    # 1w clamps positive but 1m is negative → inconsistent direction
+    r = _sanitize_predictions(_base(
+        predicted_price_1w=120.0, predicted_change_pct_1w=20.0, confidence_score_1w=88,
+        predicted_price_1m=95.0,  predicted_change_pct_1m=-5.0,
+    ))
+    assert r['predicted_change_pct_1w'] == 15.0
+    assert r['confidence_score_1w'] == 25                # opposite direction → low trust
+
+
+def test_bound_clamp_recenters_range():
+    # 1w at +20% with a stored range → range should be re-centered on the
+    # clamped price ($115), not left anchored to the original ($120).
+    r = _sanitize_predictions(_base(
+        predicted_price_1w=120.0, predicted_change_pct_1w=20.0,
+        predicted_range_1w=[117.0, 123.0],               # spread = 6, center = 120
+        predicted_price_1m=123.0, predicted_change_pct_1m=23.0,
+    ))
+    assert r['predicted_change_pct_1w'] == 15.0
+    assert r['predicted_price_1w'] == 115.0
+    # Range should be re-centered on 115 with spread 6: [112.0, 118.0]
+    assert r['predicted_range_1w'] == [112.0, 118.0], r['predicted_range_1w']
+
+
 def test_bound_clamp_chains_into_consistency_check():
     # 6m at +100% (over bound, clamps to 60); 1y at +30% → ratio 60/30=2.0 trips
     # the cross-horizon check too → 6m re-clamps to 30*1.3=39
@@ -173,6 +219,10 @@ def main():
         test_below_floor_no_clamp_even_if_ratio_high,
         test_below_ratio_no_clamp_even_if_above_floor,
         test_bound_clamp_also_updates_price,
+        test_1w_clamp_consistent_with_1m_preserves_confidence,
+        test_1w_clamp_inconsistent_with_1m_knocks_confidence,
+        test_1w_clamp_wrong_direction_knocks_confidence,
+        test_bound_clamp_recenters_range,
         test_bound_clamp_chains_into_consistency_check,
         test_negative_price_floored,
         test_missing_horizon_skipped,

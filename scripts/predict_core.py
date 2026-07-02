@@ -1432,16 +1432,19 @@ def _sanitize_predictions(result: dict) -> dict:
         price_key = f'predicted_price_{h}'
         pct_key   = f'predicted_change_pct_{h}'
         conf_key  = f'confidence_score_{h}'
+        range_key = f'predicted_range_{h}'
         price = result.get(price_key)
         pct   = result.get(pct_key)
         if price is None or pct is None:
             continue
-        clamped = False
+        price_floored = False
+        pct_clamped   = False
+        new_pct = pct
         # Floor price at 0.01 — negative prices are unphysical
         if isinstance(price, (int, float)) and price < 0.01:
             print(f"[sanitize] {ticker} {h}: price {price} → 0.01 (was negative)", file=sys.stderr)
             result[price_key] = 0.01
-            clamped = True
+            price_floored = True
         # Clamp change pct + recompute price so they stay in sync
         if isinstance(pct, (int, float)) and abs(pct) > bound:
             new_pct = max(-bound, min(bound, pct))
@@ -1449,10 +1452,36 @@ def _sanitize_predictions(result: dict) -> dict:
             result[pct_key] = new_pct
             if isinstance(current_price, (int, float)) and current_price > 0:
                 result[price_key] = round(current_price * (1 + new_pct / 100), 2)
-            clamped = True
-        if clamped:
-            # Knock confidence to 25 — a clamped output is low-trust
-            result[conf_key] = 25
+            pct_clamped = True
+        if price_floored or pct_clamped:
+            # Re-center any stored range on the updated price, preserving the spread.
+            # Without this the range stays anchored to the pre-clamp price, making it
+            # impossible (e.g. range above the target after a 1w clamp).
+            old_range = result.get(range_key)
+            if isinstance(old_range, (list, tuple)) and len(old_range) == 2:
+                spread = old_range[1] - old_range[0]
+                new_center = result[price_key]
+                result[range_key] = [round(new_center - spread / 2, 2),
+                                     round(new_center + spread / 2, 2)]
+            if price_floored:
+                # Negative price is always a model failure — low trust regardless of horizon
+                result[conf_key] = 25
+            else:
+                # pct_clamped: for 1w, only penalise if the clamp catches a rogue
+                # prediction that is inconsistent with the 1m trajectory.  A volatile
+                # stock whose 1w prediction simply hits the ±15% ceiling on the way to
+                # a legitimate 1m target should keep the model's own confidence score.
+                if h == '1w':
+                    pct_1m_raw = result.get('predicted_change_pct_1m')
+                    same_dir = (isinstance(pct_1m_raw, (int, float))
+                                and (new_pct >= 0) == (pct_1m_raw >= 0))
+                    below_1m = (isinstance(pct_1m_raw, (int, float))
+                                and abs(new_pct) < abs(pct_1m_raw))
+                    if not (same_dir and below_1m):
+                        result[conf_key] = 25
+                    # else: consistent ceiling hit — preserve model's original confidence
+                else:
+                    result[conf_key] = 25
 
     # ── Cross-horizon consistency: 6m magnitude shouldn't exceed 1y ──────────
     pct_6m = result.get('predicted_change_pct_6m')
