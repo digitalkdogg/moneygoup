@@ -1467,5 +1467,15 @@ def _sanitize_predictions(result: dict) -> dict:
             if isinstance(current_price, (int, float)) and current_price > 0:
                 result['predicted_price_6m'] = round(current_price * (1 + new_pct_6m / 100), 2)
             result['confidence_score_6m'] = 25
+        elif not same_sign and abs(pct_6m) > 5.0 and abs(pct_1y) > 5.0:
+            # Opposite-sign disagreement above noise floor: treat the 6m head as the
+            # outlier and pull it onto the glide path toward the 1y target.
+            new_pct_6m = round(pct_1y * 0.5, 2)
+            print(f"[sanitize] {ticker} 6m/1y opposite-sign: pct_6m {pct_6m} vs pct_1y {pct_1y} "
+                  f"→ pct_6m glide-pathed to {new_pct_6m}", file=sys.stderr)
+            result['predicted_change_pct_6m'] = new_pct_6m
+            if isinstance(current_price, (int, float)) and current_price > 0:
+                result['predicted_price_6m'] = round(current_price * (1 + new_pct_6m / 100), 2)
+            result['confidence_score_6m'] = 25
 
     return result

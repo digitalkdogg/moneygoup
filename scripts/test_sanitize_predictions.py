@@ -65,14 +65,37 @@ def test_negative_overshoot_also_clamps():
     assert r['confidence_score_6m'] == 25
 
 
-def test_opposite_signs_no_clamp():
-    # 6m bullish, 1y bearish → different problem, this clamp must not fire
+def test_opposite_signs_clamped():
+    # 6m bullish, 1y bearish — both > 5% floor → opposite-sign branch fires,
+    # 6m pulled onto glide path: round(-10.0 * 0.5, 2) = -5.0
     r = _sanitize_predictions(_base(
         predicted_price_6m=130.0, predicted_change_pct_6m=30.0,
         predicted_price_1y=90.0,  predicted_change_pct_1y=-10.0,
     ))
-    assert r['predicted_change_pct_6m'] == 30.0
+    assert r['predicted_change_pct_6m'] == round(-10.0 * 0.5, 2), r['predicted_change_pct_6m']
+    assert r['confidence_score_6m'] == 25
+
+
+def test_opposite_signs_small_no_clamp():
+    # Both magnitudes under the 5% floor → noise, leave unchanged
+    r = _sanitize_predictions(_base(
+        predicted_price_6m=97.0, predicted_change_pct_6m=-3.0,
+        predicted_price_1y=104.0, predicted_change_pct_1y=4.0,
+    ))
+    assert r['predicted_change_pct_6m'] == -3.0
     assert r['confidence_score_6m'] == 70
+
+
+def test_reported_dip_pattern_clamped():
+    # Exact user-reported case: +3.3%/+2.1% short, -7.81% 6m, +17.41% 1y
+    # Regression test for the bug that prompted this fix.
+    r = _sanitize_predictions(_base(
+        predicted_price_6m=92.19, predicted_change_pct_6m=-7.81,
+        predicted_price_1y=117.41, predicted_change_pct_1y=17.41,
+    ))
+    expected = round(17.41 * 0.5, 2)
+    assert r['predicted_change_pct_6m'] == expected, r['predicted_change_pct_6m']
+    assert r['confidence_score_6m'] == 25
 
 
 def test_below_floor_no_clamp_even_if_ratio_high():
@@ -144,7 +167,9 @@ def main():
         test_legitimate_prediction_unchanged,
         test_overshoot_6m_vs_1y_clamps_and_lowers_confidence,
         test_negative_overshoot_also_clamps,
-        test_opposite_signs_no_clamp,
+        test_opposite_signs_clamped,
+        test_opposite_signs_small_no_clamp,
+        test_reported_dip_pattern_clamped,
         test_below_floor_no_clamp_even_if_ratio_high,
         test_below_ratio_no_clamp_even_if_above_floor,
         test_bound_clamp_also_updates_price,

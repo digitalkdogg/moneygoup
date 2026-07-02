@@ -114,7 +114,8 @@ def time_split(df, val_frac):
     return train, val
 
 
-def make_joint_loss(lambda_consistency: float, huber_delta: float, ratio_threshold: float):
+def make_joint_loss(lambda_consistency: float, huber_delta: float, ratio_threshold: float,
+                    lambda_opposite_sign: float = 1.0):
     """Return a closed-over loss function suitable for model.compile()."""
     huber = tf.keras.losses.Huber(delta=huber_delta)
 
@@ -132,7 +133,11 @@ def make_joint_loss(lambda_consistency: float, huber_delta: float, ratio_thresho
         # Soft penalty — quadratic in the overshoot magnitude
         consistency_loss = tf.reduce_mean(same_sign * tf.square(overshoot))
 
-        return reg_loss + lambda_consistency * consistency_loss
+        # Opposite-sign penalty: zero when heads agree in direction, grows with
+        # magnitude when they disagree — discourages the systemic 6m-down/1y-up bias.
+        opposite_sign_penalty = tf.reduce_mean(tf.nn.relu(-p_6m * p_1y))
+
+        return reg_loss + lambda_consistency * consistency_loss + lambda_opposite_sign * opposite_sign_penalty
 
     return joint_loss
 
@@ -168,6 +173,25 @@ def consistency_rate(pred, ratio_threshold):
     return trips / mask.sum(), float(mean_overshoot)
 
 
+def opposite_sign_rate(pred, floor=0.05):
+    """Fraction of material predictions where sign(6m) != sign(1y).
+
+    'Material' means both abs(6m) > floor and abs(1y) > floor (in return units,
+    so 0.05 = 5%). Mirrors the 5% threshold in the inference-time guardrail.
+    Returns (rate, mean_magnitude) where mean_magnitude averages the two head
+    magnitudes over the opposite-sign subset.
+    """
+    p6, p1 = pred[:, 0], pred[:, 1]
+    material = (np.abs(p6) > floor) & (np.abs(p1) > floor)
+    if material.sum() == 0:
+        return 0.0, 0.0
+    p6_m, p1_m = p6[material], p1[material]
+    opp = np.sign(p6_m) != np.sign(p1_m)
+    rate = float(opp.sum() / material.sum())
+    mean_mag = float((np.abs(p6_m[opp]) + np.abs(p1_m[opp])).mean() / 2) if opp.sum() > 0 else 0.0
+    return rate, mean_mag
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--val-frac', type=float, default=0.2)
@@ -179,6 +203,8 @@ def main():
                     help="Huber loss delta for the standard regression term.")
     ap.add_argument('--lambda-consistency', type=float, default=1.0,
                     help="Weight on the 6m/1y inconsistency penalty term. 0 = no penalty.")
+    ap.add_argument('--lambda-opposite-sign', type=float, default=1.0,
+                    help="Weight on the opposite-sign penalty term. 0 = no penalty.")
     ap.add_argument('--ratio-threshold', type=float, default=1.5,
                     help="Penalty fires when same-signed AND |pred_6m| > ratio × |pred_1y|.")
     ap.add_argument('--cap-6m', type=float, default=0.7,
@@ -209,10 +235,11 @@ def main():
     hidden = tuple(int(h) for h in args.hidden.split(','))
     print(f"\n[{datetime.now().isoformat()}] Building Keras model "
           f"hidden={hidden} huber_delta={args.huber_delta} "
-          f"λ_consistency={args.lambda_consistency} ratio_threshold={args.ratio_threshold} "
-          f"cap_6m={args.cap_6m} cap_1y={args.cap_1y}")
+          f"λ_consistency={args.lambda_consistency} λ_opposite_sign={args.lambda_opposite_sign} "
+          f"ratio_threshold={args.ratio_threshold} cap_6m={args.cap_6m} cap_1y={args.cap_1y}")
     model = build_model(len(CS_FEATURE_COLUMNS), hidden, args.cap_6m, args.cap_1y, args.seed)
-    loss_fn = make_joint_loss(args.lambda_consistency, args.huber_delta, args.ratio_threshold)
+    loss_fn = make_joint_loss(args.lambda_consistency, args.huber_delta, args.ratio_threshold,
+                              args.lambda_opposite_sign)
     model.compile(optimizer=Adam(learning_rate=1e-3), loss=loss_fn)
 
     es = EarlyStopping(monitor='val_loss', patience=15, restore_best_weights=True, verbose=0)
@@ -244,6 +271,12 @@ def main():
     metrics['inconsistency_rate'] = incons_rate
     metrics['mean_overshoot_when_fired'] = mean_overshoot
 
+    opp_rate, mean_opp_mag = opposite_sign_rate(pred_val)
+    print(f"  opposite-sign-rate (|6m|>5% and |1y|>5%, opposite signs): {100*opp_rate:.2f}%")
+    print(f"  mean magnitude when fired: {mean_opp_mag:.4f}")
+    metrics['opposite_sign_rate'] = opp_rate
+    metrics['mean_opposite_magnitude'] = mean_opp_mag
+
     # Same metric on v1 for comparison if it's available
     v1_path = MODELS_DIR / 'long_term_cs_v1.pkl'
     if v1_path.exists():
@@ -256,6 +289,22 @@ def main():
             metrics['v1_baseline_inconsistency_rate'] = v1_rate
         except Exception as e:
             print(f"  [v1 baseline load failed: {e}]")
+
+    # Opposite-sign baseline from current production model (loaded before we overwrite it)
+    v2_prev_path = MODELS_DIR / 'long_term_cs_v2.pkl'
+    if v2_prev_path.exists():
+        try:
+            v2_prev = joblib.load(v2_prev_path)
+            v2_prev_pred = np.asarray(
+                v2_prev['model'].predict(v2_prev['scaler'].transform(X_val))
+            )
+            v2_prev_opp, v2_prev_opp_mag = opposite_sign_rate(v2_prev_pred)
+            print(f"  [v2_prev baseline] opposite-sign-rate: {100*v2_prev_opp:.2f}%  "
+                  f"mean magnitude: {v2_prev_opp_mag:.4f}")
+            metrics['v_prev_opposite_sign_rate'] = v2_prev_opp
+            metrics['v_prev_mean_opposite_magnitude'] = v2_prev_opp_mag
+        except Exception as e:
+            print(f"  [v2_prev baseline load failed: {e}]")
 
     print(f"  pred range 6m: [{pred_val[:,0].min():+.3f}, {pred_val[:,0].max():+.3f}]")
     print(f"  pred range 1y: [{pred_val[:,1].min():+.3f}, {pred_val[:,1].max():+.3f}]")
@@ -276,6 +325,7 @@ def main():
         'framework': 'keras',
         'huber_delta': args.huber_delta,
         'lambda_consistency': args.lambda_consistency,
+        'lambda_opposite_sign': args.lambda_opposite_sign,
         'ratio_threshold': args.ratio_threshold,
         'cap_6m': args.cap_6m,
         'cap_1y': args.cap_1y,
@@ -294,6 +344,7 @@ def main():
         'batch_size': args.batch_size,
         'huber_delta': args.huber_delta,
         'lambda_consistency': args.lambda_consistency,
+        'lambda_opposite_sign': args.lambda_opposite_sign,
         'ratio_threshold': args.ratio_threshold,
         'cap_6m': args.cap_6m,
         'cap_1y': args.cap_1y,
