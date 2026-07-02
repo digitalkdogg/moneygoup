@@ -18,8 +18,6 @@ Reference design (matches the discussion in the prediction_workflow doc):
 """
 from __future__ import annotations
 
-import math
-
 # ── Constants ────────────────────────────────────────────────────────────────
 
 # Recency weights for the 4-period history (yfinance Ticker.recommendations).
@@ -40,22 +38,13 @@ RATING_WEIGHTS = {
 RATING_MAX = 2.0    # max positive S(t)
 RATING_MIN = -3.0   # max negative S(t)
 
-# Mapping FinalScore → analyst_impact (signed). At 100 → +0.15, at 0 → -0.15.
+# Mapping FinalScore → analyst_impact (signed). At 100 → +0.10, at 0 → -0.10.
 # Combined with per-horizon boosts (0.25/0.83/1.67) in predict_short_term and
-# predict_long_term, this gives max lifts of +3.75% / +12.45% / +25.05%.
-MAX_ANALYST_IMPACT = 0.15
+# predict_long_term, this gives max lifts of +2.5% / +8.3% / +16.7%.
+MAX_ANALYST_IMPACT = 0.10
 
 # Reliability dampening — applied AFTER FinalScore. Saturates at 40 analysts.
 RELIABILITY_SATURATION = 40
-
-# Floor for the reliability curve below — even a thinly-covered stock (e.g. 4
-# analysts) still gets this fraction of its analyst signal through. Below this
-# was a straight-line ramp (avg_count / 40) that let a 4-analyst stock through
-# at only 10% weight vs 100% for a 40+-analyst stock — a 10x gap that punished
-# low coverage far more than warranted. The floor + sqrt curve below narrows
-# that to roughly a 1.4x gap: thin coverage is still discounted, but not
-# gutted, while deep coverage still earns a bit more weight than thin coverage.
-RELIABILITY_FLOOR = 0.6
 
 # Confidence score components (new — replaces v1's flat 15-pt analyst block).
 COVERAGE_PTS_MAX   = 8   # max pts from analyst count
@@ -229,12 +218,8 @@ def compute_analyst_sentiment(
 
     # Reliability dampening: low-coverage stocks shouldn't move predictions
     # as much as deep-coverage ones, even when Part A normalization gives
-    # them the same RecScore. Floor + sqrt curve (not a straight line) so
-    # thin coverage (e.g. 4 analysts) still carries most of its signal,
-    # while deep coverage (40+) still earns a modest edge over thin coverage.
-    coverage_ratio = min(avg_count / RELIABILITY_SATURATION, 1.0)
-    reliability = RELIABILITY_FLOOR + (1.0 - RELIABILITY_FLOOR) * math.sqrt(coverage_ratio)
-    analyst_impact *= reliability
+    # them the same RecScore.
+    analyst_impact *= min(avg_count / RELIABILITY_SATURATION, 1.0)
 
     # Dispersion penalty: wide-spread analyst panels mute both the prediction
     # lift AND the confidence credit.

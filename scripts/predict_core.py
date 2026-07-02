@@ -68,11 +68,10 @@ REGIME_PROB_SMOOTHING_ALPHA = 0.05
 # Analyst signal is inherently long-horizon (revisions take weeks to propagate)
 # so we weight it more at 6m/1y and less at 1w. The boost is multiplied
 # against the analyst_impact component only; the non-analyst component is
-# untouched. Target lifts at max-strength analyst signal (analyst_impact ≈ +0.15,
-# see MAX_ANALYST_IMPACT in analyst_sentiment.py):
-#   1w:    3.75%  lift → boost 0.25
-#   1m:    12.45% lift → boost 0.83
-#   6m/1y: 25.05% lift → boost 1.67
+# untouched. Target lifts at max-strength analyst signal (analyst_impact ≈ +0.06):
+#   1w:    1.5% lift → boost 0.25
+#   1m:    5%   lift → boost 0.83
+#   6m/1y: 10%  lift → boost 1.67
 ANALYST_BOOST_1W = 0.25
 ANALYST_BOOST_1M = 0.83
 ANALYST_BOOST_LT = 1.67
