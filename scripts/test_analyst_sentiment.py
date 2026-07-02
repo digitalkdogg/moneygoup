@@ -149,9 +149,9 @@ def test_full_unanimous_buy_high_coverage():
     assert out['rec_score'] == 100.0
     assert out['target_score'] == 100.0
     assert out['final_score'] == 100.0
-    # analyst_impact = +0.10 × reliability(25/40=0.625) × (1-dispersion)
+    # analyst_impact = +0.15 × reliability(0.6 + 0.4*sqrt(25/40)=0.916) × (1-dispersion)
     # dispersion = 10/130 ≈ 0.077
-    expected = 0.10 * 0.625 * (1 - 0.0769)
+    expected = 0.15 * (0.6 + 0.4 * (0.625 ** 0.5)) * (1 - 0.0769)
     assert abs(out['analyst_impact'] - expected) < 0.005, out['analyst_impact']
     assert out['coverage_pts'] == 8        # >=20 analysts
     assert out['conviction_pts'] == 6      # |100-50|/50 * 7 = 7 × (1 - 0.077) ≈ 6.5 → 6
@@ -166,8 +166,10 @@ def test_full_bearish_low_coverage():
     assert out['target_score'] == 50.0   # no target data → neutral
     # FinalScore = 0.6 × 0 + 0.4 × 50 = 20
     assert out['final_score'] == 20.0
-    # analyst_impact = (20-50)/50 × 0.10 = -0.06; × reliability(5/40=0.125) × (1-0) = -0.0075
-    assert abs(out['analyst_impact'] - (-0.0075)) < 0.001, out['analyst_impact']
+    # analyst_impact = (20-50)/50 × 0.15 = -0.09;
+    # × reliability(0.6 + 0.4*sqrt(5/40)=0.741) × (1-0) = -0.0667
+    expected = -0.09 * (0.6 + 0.4 * ((5 / 40) ** 0.5))
+    assert abs(out['analyst_impact'] - expected) < 0.001, out['analyst_impact']
     assert out['coverage_pts'] == 4      # 3-9 analysts
     assert out['conviction_pts'] == 4    # |20-50|/50 × 7 = 4.2 → 4
 
@@ -201,8 +203,8 @@ def test_rtx_realistic_scenario():
     assert 60.0 < out['rec_score'] < 80.0, out['rec_score']      # leaning bullish, modest
     assert 70.0 < out['target_score'] < 80.0, out['target_score'] # +14.75% upside
     assert 65.0 < out['final_score'] < 78.0, out['final_score']
-    # Reliability ~ 22/40 = 0.55, so analyst_impact ~ +0.03 × 0.55 × (1 - dispersion)
-    assert 0.005 < out['analyst_impact'] < 0.04, out['analyst_impact']
+    # Reliability = 0.6 + 0.4*sqrt(23/40) ≈ 0.90, so analyst_impact ~ +0.056 × 0.90 × (1 - dispersion)
+    assert 0.03 < out['analyst_impact'] < 0.07, out['analyst_impact']
     assert out['coverage_pts'] == 8    # >=20 average
     assert out['conviction_pts'] > 0   # some lean
     print(f"  [rtx-trace] final_score={out['final_score']}, analyst_impact={out['analyst_impact']:.4f}, "
