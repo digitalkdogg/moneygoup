@@ -53,7 +53,7 @@ N_EPOCHS   = 50    # capped for speed
 BATCH_SIZE = 128
 MC_RUNS    = 12
 CACHE_DIR  = os.path.join(os.path.dirname(__file__), 'prediction_cache')
-CACHE_SCHEMA_VERSION = 18  # bumped: added recommendationsHistory tertiary fallback for analyst consensus (covers 'none' + null mean tickers like LPG)
+CACHE_SCHEMA_VERSION = 19  # bumped: MAX_ANALYST_IMPACT 0.10→0.15, sqrt reliability curve, sanitize opposite-sign guardrail
 
 # Dirichlet (Laplace) smoothing applied to regime probabilities before they
 # leave build_regime_detector(). Mixes raw probs with a uniform prior so that
@@ -68,10 +68,12 @@ REGIME_PROB_SMOOTHING_ALPHA = 0.05
 # Analyst signal is inherently long-horizon (revisions take weeks to propagate)
 # so we weight it more at 6m/1y and less at 1w. The boost is multiplied
 # against the analyst_impact component only; the non-analyst component is
-# untouched. Target lifts at max-strength analyst signal (analyst_impact ≈ +0.06):
-#   1w:    1.5% lift → boost 0.25
-#   1m:    5%   lift → boost 0.83
-#   6m/1y: 10%  lift → boost 1.67
+# untouched. Target lifts at max-strength analyst signal (analyst_impact ≈ +0.09):
+#   1w:    2.25% lift → boost 0.25
+#   1m:    7.5%  lift → boost 0.83
+#   6m/1y: 15%   lift → boost 1.67
+# (MAX_ANALYST_IMPACT raised from 0.10 → 0.15; absolute ceiling lifts are
+#  +3.75% / +12.5% / +25% before reliability dampening.)
 ANALYST_BOOST_1W = 0.25
 ANALYST_BOOST_1M = 0.83
 ANALYST_BOOST_LT = 1.67
