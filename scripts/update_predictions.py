@@ -94,7 +94,10 @@ PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 
 if os.path.exists(os.path.join(PROJECT_ROOT, '.env.production')):
     load_dotenv(os.path.join(PROJECT_ROOT, '.env.production'))
-load_dotenv(os.path.join(PROJECT_ROOT, '.env.local'))
+# .env.local overrides .env.production so the batch's model_version tag matches
+# what Next.js (dev server) resolves — otherwise batch writes 'legacy' while the
+# API queries 'v3split_v2' and /latest-prediction returns null every time.
+load_dotenv(os.path.join(PROJECT_ROOT, '.env.local'), override=True)
  
 DB_HOST     = os.getenv('DB_HOST', 'localhost')
 DB_USER     = os.getenv('DB_USER')
@@ -103,6 +106,12 @@ DB_DATABASE = os.getenv('DB_DATABASE')
  
 INTERNAL_SECRET  = os.getenv('DEEPMONEY_INTERNAL_SECRET')
 INTERNAL_API_URL = 'http://localhost:3001'
+
+# Mirror the model-tag logic in src/app/api/prediction/[ticker]/route.ts so
+# prediction_records rows land under the same model_version the API path uses.
+_USE_LEGACY_MODEL = os.getenv('USE_LEGACY_PREDICTION_MODEL', '').strip().lower() == 'true'
+_CS_MODEL_VERSION = os.getenv('CS_MODEL_VERSION', 'v2').strip() or 'v2'
+MODEL_VERSION_TAG = 'legacy' if _USE_LEGACY_MODEL else f'v3split_{_CS_MODEL_VERSION}'
  
 # ---------------------------------------------------------------------------
 # Build the auth header the same way deepmoney_sync.py does, including the
@@ -215,33 +224,33 @@ def fetch_stock_data(ticker: str) -> dict | None:
 # It returns JSON that includes predicted_price_1m (and other horizons).
 # ---------------------------------------------------------------------------
 def run_prediction(ticker: str, stock_data: dict) -> dict | None:
-    """Run prediction for all 4 timeframes and merge results."""
+    """Run the prediction model once via outlook='all' and return the full
+    4-horizon response. Matches the browser's `POST /api/prediction/[ticker]`
+    call (which also uses outlook='all'), so batch-written prediction_records
+    rows carry the same predicted_change_pct_* and confidence_score_* the
+    on-demand path shows to the user — no per-horizon divergence.
+
+    Previously this issued 4 outlook-specific calls and merged predicted_price_*
+    only, leaving per-horizon change_pct / confidence NULL on every horizon
+    except the base 1_month response.
+    """
     print(f"  [pred] Running prediction model for {ticker}...")
     try:
-        predictions = {}
-        timeframes = ['1_week', '1_month', '6_month', '1_year']
+        url = f"{INTERNAL_API_URL}/api/prediction/{ticker}?outlook=all"
+        response = post_with_auth(url, stock_data)
+        response.raise_for_status()
+        result = response.json()
 
-        for tf in timeframes:
-            url = f"{INTERNAL_API_URL}/api/prediction/{ticker}?outlook={tf}"
-            response = post_with_auth(url, stock_data)
-            response.raise_for_status()
-            result = response.json()
-            predictions[tf] = result
-
-        # Use 1_month as the base result
-        result = predictions['1_month']
-        price = result.get('predicted_price_1m')
-        if price is None:
+        # Guard: outlook='all' must return the 1m headline the caller reads as
+        # the base predicted_price. If it's missing, treat as a failed run.
+        if result.get('predicted_price_1m') is None and result.get('predicted_price') is None:
             print(f"  [pred] WARNING: predicted_price_1m missing from response for {ticker}")
             return None
 
-        # Merge all timeframe predictions
-        result['predicted_price_1w'] = predictions['1_week'].get('predicted_price')
-        result['predicted_price_1m'] = predictions['1_month'].get('predicted_price')
-        result['predicted_price_6m'] = predictions['6_month'].get('predicted_price')
-        result['predicted_price_1y'] = predictions['1_year'].get('predicted_price')
-
-        print(f"  [pred] {ticker} → 1w={result['predicted_price_1w']}, 1m={result['predicted_price_1m']}, 6m={result['predicted_price_6m']}, 1y={result['predicted_price_1y']}")
+        print(f"  [pred] {ticker} → 1w={result.get('predicted_price_1w')}, "
+              f"1m={result.get('predicted_price_1m')}, "
+              f"6m={result.get('predicted_price_6m')}, "
+              f"1y={result.get('predicted_price_1y')}")
         return result
     except Exception as exc:
         print(f"  [pred] ERROR running prediction for {ticker}: {exc}")
@@ -356,6 +365,9 @@ def _empty_cache_entry() -> dict:
         'gps_score':            None,
         'gps_breakdown':        None,
         'gps_inputs':           None,
+        'accuracy_metrics':     None,
+        'data_quality':         None,
+        'model_status':         None,
     }
 
 
@@ -478,21 +490,18 @@ def run_prediction_for_holding(ticker: str,
     predicted_price_6m   = prediction_result.get('predicted_price_6m')
     predicted_price_1y   = prediction_result.get('predicted_price_1y')
 
-    sm = stock_data.get('stockMetrics', {})
+    def _f(v):
+        return float(v) if v is not None else None
+    predicted_change_pct_1w = _f(prediction_result.get('predicted_change_pct_1w'))
+    predicted_change_pct_1m = _f(prediction_result.get('predicted_change_pct_1m'))
+    predicted_change_pct_6m = _f(prediction_result.get('predicted_change_pct_6m'))
+    predicted_change_pct_1y = _f(prediction_result.get('predicted_change_pct_1y'))
+    confidence_score_1w = _f(prediction_result.get('confidence_score_1w'))
+    confidence_score_1m = _f(prediction_result.get('confidence_score_1m'))
+    confidence_score_6m = _f(prediction_result.get('confidence_score_6m'))
+    confidence_score_1y = _f(prediction_result.get('confidence_score_1y'))
 
-    # Record to analytics prediction_records — mirrors the hot-stock path so
-    # ETF holdings contribute to the same accuracy stats. Without this,
-    # holdings predictions are computed and discarded for analytics purposes.
-    price_at_prediction = sm.get('regularMarketPrice', predicted_price)
-    if price_at_prediction and (predicted_price_1w or predicted_price or predicted_price_6m or predicted_price_1y):
-        record_prediction(
-            symbol=ticker,
-            price_at_prediction=price_at_prediction,
-            predicted_price_1w=predicted_price_1w,
-            predicted_price_1m=predicted_price,
-            predicted_price_6m=predicted_price_6m,
-            predicted_price_1y=predicted_price_1y,
-        )
+    sm = stock_data.get('stockMetrics', {})
 
     rec_key = (stock_data.get('recommendationKey')
                or sm.get('recommendationKey')
@@ -508,6 +517,34 @@ def run_prediction_for_holding(ticker: str,
         'price_change_52w':     sm.get('fiftyTwoWeekChange') or 0,
     }
     gps_result = calculate_gps_v3(**gps_inputs)
+
+    # Record to analytics prediction_records — mirrors the hot-stock path so
+    # ETF holdings contribute to the same accuracy stats. Without this,
+    # holdings predictions are computed and discarded for analytics purposes.
+    price_at_prediction = sm.get('regularMarketPrice', predicted_price)
+    if price_at_prediction and (predicted_price_1w or predicted_price or predicted_price_6m or predicted_price_1y):
+        record_prediction(
+            symbol=ticker,
+            price_at_prediction=price_at_prediction,
+            predicted_price_1w=predicted_price_1w,
+            predicted_price_1m=predicted_price,
+            predicted_price_6m=predicted_price_6m,
+            predicted_price_1y=predicted_price_1y,
+            predicted_change_pct_1w=predicted_change_pct_1w,
+            predicted_change_pct_1m=predicted_change_pct_1m,
+            predicted_change_pct_6m=predicted_change_pct_6m,
+            predicted_change_pct_1y=predicted_change_pct_1y,
+            confidence_score_1w=confidence_score_1w,
+            confidence_score_1m=confidence_score_1m,
+            confidence_score_6m=confidence_score_6m,
+            confidence_score_1y=confidence_score_1y,
+            gps_score=gps_result['score'],
+            gps_breakdown=gps_result['breakdown'],
+            accuracy_metrics=prediction_result.get('accuracy_metrics'),
+            data_quality=prediction_result.get('data_quality'),
+            model_status=prediction_result.get('model_status'),
+            model_version=MODEL_VERSION_TAG,
+        )
 
     entry = {
         'predicted_price':      predicted_price,
@@ -596,6 +633,9 @@ def sync_portfolio_predictions():
             confidence_score_1m = cached.get('confidence_score_1m')
             confidence_score_6m = cached.get('confidence_score_6m')
             confidence_score_1y = cached.get('confidence_score_1y')
+            accuracy_metrics = cached.get('accuracy_metrics')
+            data_quality = cached.get('data_quality')
+            model_status = cached.get('model_status')
             print(f"  [cache] Using cached prediction for {ticker}: {predicted_price} (GPS: {gps_score})")
             stats['cached'] += 1
         else:
@@ -635,6 +675,9 @@ def sync_portfolio_predictions():
             confidence_score_1m = None
             confidence_score_6m = None
             confidence_score_1y = None
+            accuracy_metrics    = None
+            data_quality        = None
+            model_status        = None
 
             gps_inputs = None
 
@@ -664,6 +707,12 @@ def sync_portfolio_predictions():
                 confidence_score_1m = _f(prediction_result.get('confidence_score_1m'))
                 confidence_score_6m = _f(prediction_result.get('confidence_score_6m'))
                 confidence_score_1y = _f(prediction_result.get('confidence_score_1y'))
+                # Model performance blocks — persisted so the prefetched
+                # StockPrediction panel can render MAE/RMSE/accuracy and the
+                # data-quality footnote without waiting for a live re-run.
+                accuracy_metrics = prediction_result.get('accuracy_metrics')
+                data_quality     = prediction_result.get('data_quality')
+                model_status     = prediction_result.get('model_status')
 
                 # GPS v3.0 — matches src/utils/gps.ts exactly
                 sm = stock_data.get('stockMetrics', {})
@@ -712,6 +761,9 @@ def sync_portfolio_predictions():
                 'gps_score':            gps_score,
                 'gps_breakdown':        gps_breakdown,
                 'gps_inputs':           gps_inputs,
+                'accuracy_metrics':     accuracy_metrics,
+                'data_quality':         data_quality,
+                'model_status':         model_status,
             }
 
         # Skip saving if the prediction failed
@@ -754,8 +806,22 @@ def sync_portfolio_predictions():
                 predicted_price_1m=predicted_price,
                 predicted_price_6m=predicted_price_6m,
                 predicted_price_1y=predicted_price_1y,
+                predicted_change_pct_1w=predicted_change_pct_1w,
+                predicted_change_pct_1m=predicted_change_pct_1m,
+                predicted_change_pct_6m=predicted_change_pct_6m,
+                predicted_change_pct_1y=predicted_change_pct_1y,
+                confidence_score_1w=confidence_score_1w,
+                confidence_score_1m=confidence_score_1m,
+                confidence_score_6m=confidence_score_6m,
+                confidence_score_1y=confidence_score_1y,
+                gps_score=gps_score,
+                gps_breakdown=gps_breakdown,
+                accuracy_metrics=accuracy_metrics,
+                data_quality=data_quality,
+                model_status=model_status,
+                model_version=MODEL_VERSION_TAG,
             )
- 
+
     # --- ETF Holdings: scan each user's ETF positions for hot holdings --------
     # Baseline thresholds come from the ETF_HOLDING_ALGORITHM preset (same
     # source the Next.js routes use, so per-user strictness layers cleanly on

@@ -17,6 +17,26 @@ interface StockSignalPanelProps {
   gpsLoading: boolean
   onGeneratePrediction: () => void
   predictionLoading: boolean
+  // ISO timestamp for the prefetched prediction's created_at, or null if
+  // there's no fresh row within the 12h freshness window. When present, the
+  // "Show prediction details" button becomes "Regenerate Prediction" and a
+  // footnote reveals the prediction's age.
+  prefetchedPredictionAt?: string | null
+}
+
+function formatAge(iso: string | null | undefined): string | null {
+  if (!iso) return null
+  const then = Date.parse(iso)
+  if (!Number.isFinite(then)) return null
+  const mins = Math.max(0, Math.round((Date.now() - then) / 60000))
+  if (mins < 1)   return 'just now'
+  if (mins === 1) return '1 minute old'
+  if (mins < 60)  return `${mins} minutes old`
+  const hrs = Math.floor(mins / 60)
+  const rem = mins % 60
+  if (hrs === 1 && rem === 0) return '1 hour old'
+  if (rem === 0)              return `${hrs} hours old`
+  return `${hrs}h ${rem}m old`
 }
 
 const DRIVER_LABELS: Record<string, string> = {
@@ -61,7 +81,10 @@ export default function StockSignalPanel({
   gpsLoading,
   onGeneratePrediction,
   predictionLoading,
+  prefetchedPredictionAt = null,
 }: StockSignalPanelProps) {
+  const hasPrefetched = !!prefetchedPredictionAt
+  const ageText = formatAge(prefetchedPredictionAt)
   const [modalOpen, setModalOpen] = useState(false)
 
   const score = gpsData?.gpsScore ?? null
@@ -181,15 +204,29 @@ export default function StockSignalPanel({
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animate-spin" aria-hidden="true">
               <path d="M21 12a9 9 0 1 1-6.219-8.56" />
             </svg>
+          ) : hasPrefetched ? (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <polyline points="23 4 23 10 17 10" />
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+            </svg>
           ) : (
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
             </svg>
           )}
-          {predictionLoading ? 'Generating...' : 'Show prediction details'}
+          {predictionLoading
+            ? 'Generating...'
+            : hasPrefetched
+              ? 'Regenerate Prediction'
+              : 'Show prediction details'}
         </button>
-
       </div>
+
+      {hasPrefetched && ageText && !predictionLoading && (
+        <p className="mt-2 text-[14px] leading-tight text-gray-500">
+          Showing prediction from the latest batch run — {ageText}.
+        </p>
+      )}
 
       {modalOpen && (
         <GpsBreakdownModal

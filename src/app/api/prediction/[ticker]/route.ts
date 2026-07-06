@@ -147,6 +147,40 @@ export async function POST(
       }
     }
 
+    // Record to analytics prediction_records — only for the browser on-demand
+    // flow (external caller, outlook='all', one call). The batch script also
+    // uses outlook='all', but it's an internal caller that writes to
+    // prediction_records itself via update_predictions.py's record_prediction()
+    // (with model_version tag + gps derived Python-side). Gating on !isInternal
+    // prevents writing the same row twice.
+    if (source === 'livedata' && validatedOutlook === 'all' && !isInternal) {
+      const priceAtPrediction = body.stockMetrics?.regularMarketPrice;
+      if (priceAtPrediction) {
+        recordPrediction({
+          symbol: validatedTicker,
+          priceAtPrediction,
+          modelVersion: result.model_version,
+          predictedPrice1w: result.predicted_price_1w,
+          predictedPrice1m: result.predicted_price_1m,
+          predictedPrice6m: result.predicted_price_6m,
+          predictedPrice1y: result.predicted_price_1y,
+          predictedChangePct1w: result.predicted_change_pct_1w,
+          predictedChangePct1m: result.predicted_change_pct_1m,
+          predictedChangePct6m: result.predicted_change_pct_6m,
+          predictedChangePct1y: result.predicted_change_pct_1y,
+          confidenceScore1w: result.confidence_score_1w,
+          confidenceScore1m: result.confidence_score_1m,
+          confidenceScore6m: result.confidence_score_6m,
+          confidenceScore1y: result.confidence_score_1y,
+          gpsScore: baselineGps?.score,
+          gpsBreakdown: baselineGps?.breakdown,
+          accuracyMetrics: result.accuracy_metrics,
+          dataQuality: result.data_quality,
+          modelStatus: result.model_status,
+        }).catch(() => {});
+      }
+    }
+
     // Surface which model produced this prediction in a top-level block so
     // it's easy to spot in the network tab while debugging A/B switches.
     // Derived from result.model_version (set by the model toggle code below
@@ -207,19 +241,6 @@ export async function POST(
     // it. Useful when comparing legacy vs v3-split in the UI / dev logs.
     result.model_version = modelTag;
 
-    // Record prediction to analytics database (fire-and-forget)
-    const priceAtPrediction = body.stockMetrics?.regularMarketPrice;
-    if (priceAtPrediction) {
-      recordPrediction({
-        symbol: validatedTicker,
-        priceAtPrediction,
-        predictedPrice1w: result.predicted_price_1w,
-        predictedPrice1m: result.predicted_price_1m,
-        predictedPrice6m: result.predicted_price_6m,
-        predictedPrice1y: result.predicted_price_1y,
-      }).catch(() => {});
-    }
-
     // Ensure generic keys are populated for the requested outlook
     if (validatedOutlook === '1_month') {
       result.predicted_change_pct = result.predicted_change_pct ?? result.predicted_change_pct_1m;
@@ -269,7 +290,15 @@ function runPythonPrediction(ticker: string, inputFile: string, outlook: string,
     python.stdout.on('data', d => { stdout += d; });
     python.stderr.on('data', d => { stderr += d; });
     python.on('close', code => {
-      if (code !== 0) return reject(new Error(`Exit ${code}: ${stderr}`));
+      if (code !== 0) {
+        logger.error(`Python prediction crashed for ${ticker}`, {
+          ticker,
+          exitCode: code,
+          stderrTail: stderr.slice(-4000),
+          stdoutTail: stdout.slice(-500),
+        });
+        return reject(new Error(`Exit ${code}: ${stderr}`));
+      }
       try {
         const parsed = JSON.parse(stdout);
         logger.info(`Python prediction raw output for ${ticker}`, { parsed });

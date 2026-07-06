@@ -391,13 +391,26 @@ DROP TABLE IF EXISTS `prediction_records`;
 CREATE TABLE `prediction_records` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `symbol` varchar(20) NOT NULL,
-  `predicted_at` date NOT NULL,
+  `predicted_at` datetime NOT NULL,
   `model_version` varchar(20) NOT NULL DEFAULT 'legacy',
   `price_at_prediction` decimal(12,4) NOT NULL,
   `predicted_price_1w` decimal(12,4) DEFAULT NULL,
   `predicted_price_1m` decimal(12,4) DEFAULT NULL,
   `predicted_price_6m` decimal(12,4) DEFAULT NULL,
   `predicted_price_1y` decimal(12,4) DEFAULT NULL,
+  `predicted_change_pct_1w` decimal(8,4) DEFAULT NULL,
+  `predicted_change_pct_1m` decimal(8,4) DEFAULT NULL,
+  `predicted_change_pct_6m` decimal(8,4) DEFAULT NULL,
+  `predicted_change_pct_1y` decimal(8,4) DEFAULT NULL,
+  `confidence_score_1w` decimal(5,2) DEFAULT NULL,
+  `confidence_score_1m` decimal(5,2) DEFAULT NULL,
+  `confidence_score_6m` decimal(5,2) DEFAULT NULL,
+  `confidence_score_1y` decimal(5,2) DEFAULT NULL,
+  `gps_score` decimal(5,1) DEFAULT NULL,
+  `gps_breakdown` json DEFAULT NULL,
+  `accuracy_metrics` json DEFAULT NULL,
+  `data_quality` json DEFAULT NULL,
+  `model_status` varchar(64) DEFAULT NULL,
   `actual_price_1w` decimal(12,4) DEFAULT NULL,
   `actual_price_1m` decimal(12,4) DEFAULT NULL,
   `actual_price_6m` decimal(12,4) DEFAULT NULL,
@@ -417,14 +430,15 @@ CREATE TABLE `prediction_records` (
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_symbol_date_model` (`symbol`,`predicted_at`,`model_version`),
   KEY `idx_symbol` (`symbol`),
   KEY `idx_predicted_at` (`predicted_at`),
   KEY `idx_resolved_1w` (`resolved_1w`),
   KEY `idx_resolved_1m` (`resolved_1m`),
   KEY `idx_resolved_6m` (`resolved_6m`),
-  KEY `idx_resolved_1y` (`resolved_1y`)
-) ENGINE=InnoDB AUTO_INCREMENT=7467 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  KEY `idx_resolved_1y` (`resolved_1y`),
+  KEY `idx_symbol_model` (`symbol`,`model_version`),
+  KEY `idx_created_at` (`created_at`)
+) ENGINE=InnoDB AUTO_INCREMENT=7484 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 --
 -- Dumping data for table `prediction_records`

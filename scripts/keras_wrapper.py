@@ -18,6 +18,48 @@ from __future__ import annotations
 import os
 
 
+# ── Cross-version compat shim ─────────────────────────────────────────────
+# Keras 3.15+ writes `input_axes`/`output_axes` into initializer configs;
+# Keras 3.13 (currently installed) doesn't accept those kwargs in __init__,
+# so loading a model saved by 3.15 crashes with:
+#   GlorotUniform.__init__() got an unexpected keyword argument 'input_axes'
+# `long_term_cs_v2.keras` was written by 3.15.0 (see its metadata.json), so
+# we monkey-patch the standard initializers to swallow the new kwargs. Called
+# lazily so that importing this module doesn't force a TF import for callers
+# that only need the wrapper's pickle round-trip.
+_INITIALIZER_SHIM_APPLIED = False
+
+
+def _apply_initializer_compat_shim() -> None:
+    global _INITIALIZER_SHIM_APPLIED
+    if _INITIALIZER_SHIM_APPLIED:
+        return
+    from keras import initializers as _init
+    for _name in (
+        'GlorotUniform', 'GlorotNormal',
+        'HeUniform', 'HeNormal',
+        'LecunUniform', 'LecunNormal',
+        'RandomUniform', 'RandomNormal',
+        'TruncatedNormal', 'Orthogonal', 'VarianceScaling',
+    ):
+        cls = getattr(_init, _name, None)
+        if cls is None:
+            continue
+        orig_init = cls.__init__
+        # If we've already shimmed this class in a previous test run, skip.
+        if getattr(orig_init, '_moneygoup_compat_shim', False):
+            continue
+
+        def _make(orig):
+            def _wrapped(self, *args, input_axes=None, output_axes=None, **kwargs):
+                orig(self, *args, **kwargs)
+            _wrapped._moneygoup_compat_shim = True  # type: ignore[attr-defined]
+            return _wrapped
+
+        cls.__init__ = _make(orig_init)
+    _INITIALIZER_SHIM_APPLIED = True
+
+
 def get_tanh_scaled_layer():
     """Returns the TanhScaled class, registering it with Keras' serializable
     registry on first call so load_model() can deserialize it.
@@ -65,6 +107,10 @@ class KerasModelWrapper:
     def _load(self):
         if self._model is None:
             import tensorflow as tf
+            # Cross-version initializer compat shim (see docstring above).
+            # Must run BEFORE load_model since GlorotUniform gets constructed
+            # during config-tree deserialization.
+            _apply_initializer_compat_shim()
             # Register custom layers BEFORE load_model walks the config tree.
             # No-op if v2 doesn't use TanhScaled, harmless side-effect otherwise.
             get_tanh_scaled_layer()

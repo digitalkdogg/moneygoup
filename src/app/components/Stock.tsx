@@ -141,6 +141,9 @@ export default function Stock({
   const [predictionLoading, setPredictionLoading] = useState(false)
   const [etfHoldings, setEtfHoldings] = useState<EtfHoldingRow[] | null>(null)
   const [etfHoldingsLoading, setEtfHoldingsLoading] = useState(false)
+  const [prefetchedPrediction, setPrefetchedPrediction] = useState<any | null>(null)
+  const [prefetchedPredictionAt, setPrefetchedPredictionAt] = useState<string | null>(null)
+  const wasPredictionLoading = useRef(false)
   const predictionTriggerRef = useRef<() => void>(() => {})
   const onPredictionLoadingChange = useCallback((v: boolean) => setPredictionLoading(v), [])
 
@@ -376,6 +379,39 @@ export default function Stock({
       .then(d => setGpsData(d))
       .catch(() => setGpsData(null))
       .finally(() => setGpsLoading(false))
+  }, [primaryTicker, isSingleTicker])
+
+  // Fetch the freshest <12h prediction so the results panel can render
+  // immediately instead of requiring the user to click "Generate Prediction".
+  // Falls through to the manual button when the endpoint returns null (stale
+  // or missing).
+  // After a fresh regenerate finishes, the [ticker] route has just written a
+  // new prediction_records row (browser flow writes on outlook='all' when the
+  // caller is external — see api/prediction/[ticker]/route.ts). Stamp the age
+  // to "now" so the footnote doesn't keep advancing from the pre-regenerate
+  // timestamp — that felt broken to the user ("5 minutes old" → click →
+  // "6 minutes old").
+  useEffect(() => {
+    if (wasPredictionLoading.current && !predictionLoading) {
+      setPrefetchedPredictionAt(new Date().toISOString())
+    }
+    wasPredictionLoading.current = predictionLoading
+  }, [predictionLoading])
+
+  useEffect(() => {
+    if (!isSingleTicker) return
+    setPrefetchedPrediction(null)
+    setPrefetchedPredictionAt(null)
+    fetch(`/api/stock_data/${primaryTicker}/latest-prediction`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        setPrefetchedPrediction(d?.prediction ?? null)
+        setPrefetchedPredictionAt(d?.createdAt ?? null)
+      })
+      .catch(() => {
+        setPrefetchedPrediction(null)
+        setPrefetchedPredictionAt(null)
+      })
   }, [primaryTicker, isSingleTicker])
 
   useEffect(() => {
@@ -1048,6 +1084,7 @@ export default function Stock({
             gpsLoading={gpsLoading}
             onGeneratePrediction={() => predictionTriggerRef.current()}
             predictionLoading={predictionLoading}
+            prefetchedPredictionAt={prefetchedPredictionAt}
           />
 
           <StockPrediction
@@ -1068,6 +1105,7 @@ export default function Stock({
             triggerRef={predictionTriggerRef}
             onLoadingChange={onPredictionLoadingChange}
             onPredictionComplete={refreshGps}
+            prefetchedPrediction={prefetchedPrediction}
             embedded
           />
 

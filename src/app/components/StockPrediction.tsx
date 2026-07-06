@@ -39,6 +39,9 @@ interface StockPredictionProps {
   onLoadingChange?: (loading: boolean) => void
   onPredictionComplete?: (gpsData?: GpsData | null) => void
   embedded?: boolean
+  // Server-fetched fresh prediction (<12h old). When present, render the
+  // results panel immediately in place of the "Generate Prediction" button.
+  prefetchedPrediction?: Partial<PredictionResult> | null
 }
 
 // ---------------------------------------------------------------------------
@@ -380,6 +383,7 @@ export default function StockPrediction({
   onLoadingChange,
   onPredictionComplete,
   embedded = false,
+  prefetchedPrediction,
 }: StockPredictionProps) {
   const [step, setStep]               = useState<'idle' | 'fetching' | 'predicting' | 'done'>('idle')
   const [prediction, setPrediction]   = useState<PredictionResult | null>(null)
@@ -466,6 +470,43 @@ export default function StockPrediction({
   useEffect(() => {
     onLoadingChange?.(loading)
   }, [loading]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Hydrate from a server-fetched fresh prediction (<12h old). Only applied
+  // while idle — a user-initiated regenerate always wins.
+  useEffect(() => {
+    if (!prefetchedPrediction) return
+    if (step !== 'idle') return
+    const inflated: PredictionResult = {
+      ticker,
+      regularMarketPrice:      prefetchedPrediction.regularMarketPrice      ?? currentPrice,
+      predicted_price_1w:      prefetchedPrediction.predicted_price_1w      ?? 0,
+      predicted_price_1m:      prefetchedPrediction.predicted_price_1m      ?? 0,
+      predicted_price_6m:      prefetchedPrediction.predicted_price_6m      ?? 0,
+      predicted_price_1y:      prefetchedPrediction.predicted_price_1y      ?? 0,
+      predicted_change_pct_1w: prefetchedPrediction.predicted_change_pct_1w ?? 0,
+      predicted_change_pct_1m: prefetchedPrediction.predicted_change_pct_1m ?? 0,
+      predicted_change_pct_6m: prefetchedPrediction.predicted_change_pct_6m ?? 0,
+      predicted_change_pct_1y: prefetchedPrediction.predicted_change_pct_1y ?? 0,
+      confidence_score_1w:     prefetchedPrediction.confidence_score_1w     ?? 0,
+      confidence_score_1m:     prefetchedPrediction.confidence_score_1m     ?? 0,
+      confidence_score_6m:     prefetchedPrediction.confidence_score_6m     ?? 0,
+      confidence_score_1y:     prefetchedPrediction.confidence_score_1y     ?? 0,
+      high_uncertainty:        prefetchedPrediction.high_uncertainty        ?? false,
+      predicted_change_range:  prefetchedPrediction.predicted_change_range  ?? [0, 0],
+      predicted_range_1w:      prefetchedPrediction.predicted_range_1w,
+      monthly_trajectory:      prefetchedPrediction.monthly_trajectory      ?? [],
+      accuracy_metrics:        prefetchedPrediction.accuracy_metrics        ?? {},
+      stock_type:              prefetchedPrediction.stock_type,
+      growth_rate_20d:         prefetchedPrediction.growth_rate_20d,
+      is_uptrend:              prefetchedPrediction.is_uptrend,
+      model_status:            prefetchedPrediction.model_status,
+      note:                    prefetchedPrediction.note,
+      data_quality:            prefetchedPrediction.data_quality,
+      metric_analysis:         prefetchedPrediction.metric_analysis,
+    }
+    setPrediction(inflated)
+    setStep('done')
+  }, [prefetchedPrediction]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const btnLabel =
     step === 'fetching'   ? 'Fetching 5-year data...' :
@@ -708,14 +749,18 @@ export default function StockPrediction({
               </div>
             </div>
 
-            {/* Right: model performance */}
-            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-              {(() => {
-                const m = prediction.accuracy_metrics?.model ?? prediction.accuracy_metrics?.neural_network
-                if (!m || prediction.regularMarketPrice === 0) return null
-                const errRate = (m.mae / prediction.regularMarketPrice) * 100
-                const accuracy = Math.max(0, 100 - errRate)
-                return (
+            {/* Right: model performance — only rendered when accuracy_metrics
+                is present. Prefetched predictions restored from prediction_records
+                don't carry MAE/RMSE (those are ephemeral training-time
+                diagnostics), so the wrapper would otherwise show as an empty
+                blue box. A fresh "Recalculate" run populates this. */}
+            {(() => {
+              const m = prediction.accuracy_metrics?.model ?? prediction.accuracy_metrics?.neural_network
+              if (!m || prediction.regularMarketPrice === 0) return null
+              const errRate = (m.mae / prediction.regularMarketPrice) * 100
+              const accuracy = Math.max(0, 100 - errRate)
+              return (
+                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                   <>
                     <p className="text-sm font-semibold text-gray-700 mb-3">Model Performance</p>
                     <div className="grid grid-cols-2 gap-3 text-sm">
@@ -752,9 +797,9 @@ export default function StockPrediction({
                       </div>
                     )}
                   </>
-                )
-              })()}
-            </div>
+                </div>
+              )
+            })()}
           </div>
 
           {/* ---- Detailed Metric Analysis (accordion) ---- */}
