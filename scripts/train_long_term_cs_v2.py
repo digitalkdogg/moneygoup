@@ -264,6 +264,25 @@ def main():
         metrics[f"{h}_mae"] = float(mae)
         metrics[f"{h}_dir_correct"] = dir_correct
 
+    # Per-ticker cv_mape on the 6m head — persisted onto the payload so the
+    # inference path in predict_long_term.py can look up a real per-ticker
+    # error instead of falling back to the vol proxy. Only include tickers
+    # with ≥5 validation rows so single-shot outliers don't dominate.
+    # Values are stored as percentage points (i.e. 0.35 = 35% MAPE) so the
+    # inference path can slot them straight into confidence_score().
+    per_ticker_cv_mape: dict[str, float] = {}
+    per_ticker_n:       dict[str, int]   = {}
+    if len(val_df) > 0:
+        val_tickers = val_df['ticker'].values
+        abs_err_6m = np.abs(pred_val[:, 0] - Y_val[:, 0])
+        for tk in np.unique(val_tickers):
+            mask = val_tickers == tk
+            if int(mask.sum()) < 5:
+                continue
+            per_ticker_cv_mape[str(tk)] = float(np.mean(abs_err_6m[mask]) * 100.0)
+            per_ticker_n[str(tk)]       = int(mask.sum())
+    print(f"  per-ticker cv_mape: {len(per_ticker_cv_mape)} tickers with n≥5 val samples")
+
     # The headline metric for this experiment: inconsistency rate on val
     incons_rate, mean_overshoot = consistency_rate(pred_val, args.ratio_threshold)
     print(f"  inconsistency-rate (|6m|>{args.ratio_threshold}×|1y|, same-sign): {100*incons_rate:.2f}%")
@@ -329,6 +348,14 @@ def main():
         'ratio_threshold': args.ratio_threshold,
         'cap_6m': args.cap_6m,
         'cap_1y': args.cap_1y,
+        # Per-ticker cv_mape on the 6m head (percentage points). Consumed by
+        # predict_long_term._predict_with_cs_model to replace the historical
+        # 5% cv_mape heuristic with a real, per-ticker error measurement. When
+        # a ticker isn't in this dict (new listing, not in training set, or
+        # <5 val samples), the inference path falls through to the
+        # backtest → vol-proxy → 5% cascade.
+        'per_ticker_cv_mape':      per_ticker_cv_mape,
+        'per_ticker_val_samples':  per_ticker_n,
     }
     joblib.dump(payload, WRAPPER_PATH)
     print(f"\n[saved] {KERAS_PATH}")

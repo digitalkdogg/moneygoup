@@ -46,6 +46,9 @@ export async function GET(
          confidence_score_1w, confidence_score_1m, confidence_score_6m, confidence_score_1y,
          gps_score, gps_breakdown,
          accuracy_metrics, data_quality, model_status,
+         at_model_ceiling_6m, at_model_ceiling_1y, ceiling_direction,
+         confidence_breakdown,
+         confidence_reason_1w, confidence_reason_1m, confidence_reason_6m, confidence_reason_1y,
          created_at
        FROM prediction_records
        WHERE symbol = ?
@@ -89,6 +92,14 @@ export async function GET(
       accuracy_metrics: parseJson(row.accuracy_metrics),
       data_quality: parseJson(row.data_quality),
       model_status: row.model_status ?? null,
+      at_model_ceiling_6m: row.at_model_ceiling_6m == null ? null : Number(row.at_model_ceiling_6m) === 1,
+      at_model_ceiling_1y: row.at_model_ceiling_1y == null ? null : Number(row.at_model_ceiling_1y) === 1,
+      ceiling_direction: (row.ceiling_direction as 'up' | 'down' | null) ?? null,
+      confidence_breakdown: parseJson(row.confidence_breakdown),
+      confidence_reason_1w: (row.confidence_reason_1w as string | null) ?? undefined,
+      confidence_reason_1m: (row.confidence_reason_1m as string | null) ?? undefined,
+      confidence_reason_6m: (row.confidence_reason_6m as string | null) ?? undefined,
+      confidence_reason_1y: (row.confidence_reason_1y as string | null) ?? undefined,
       model_version: row.model_version,
     };
 

@@ -24,6 +24,14 @@ export interface PredictionInput {
   accuracyMetrics?: unknown;
   dataQuality?: unknown;
   modelStatus?: string | null;
+  atModelCeiling6m?: boolean | null;
+  atModelCeiling1y?: boolean | null;
+  ceilingDirection?: 'up' | 'down' | null;
+  confidenceBreakdown?: unknown;
+  confidenceReason1w?: string | null;
+  confidenceReason1m?: string | null;
+  confidenceReason6m?: string | null;
+  confidenceReason1y?: string | null;
 }
 
 export async function recordPrediction(input: PredictionInput): Promise<boolean> {
@@ -39,8 +47,11 @@ export async function recordPrediction(input: PredictionInput): Promise<boolean>
           predicted_change_pct_1w, predicted_change_pct_1m, predicted_change_pct_6m, predicted_change_pct_1y,
           confidence_score_1w, confidence_score_1m, confidence_score_6m, confidence_score_1y,
           gps_score, gps_breakdown,
-          accuracy_metrics, data_quality, model_status
-        ) VALUES (?, NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          accuracy_metrics, data_quality, model_status,
+          at_model_ceiling_6m, at_model_ceiling_1y, ceiling_direction,
+          confidence_breakdown,
+          confidence_reason_1w, confidence_reason_1m, confidence_reason_6m, confidence_reason_1y
+        ) VALUES (?, NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
       const gpsBreakdownJson =
@@ -49,6 +60,8 @@ export async function recordPrediction(input: PredictionInput): Promise<boolean>
         input.accuracyMetrics != null ? JSON.stringify(input.accuracyMetrics) : null;
       const dataQualityJson =
         input.dataQuality != null ? JSON.stringify(input.dataQuality) : null;
+      const confidenceBreakdownJson =
+        input.confidenceBreakdown != null ? JSON.stringify(input.confidenceBreakdown) : null;
 
       const result = await conn.execute(query, [
         input.symbol,
@@ -71,6 +84,14 @@ export async function recordPrediction(input: PredictionInput): Promise<boolean>
         accuracyMetricsJson,
         dataQualityJson,
         input.modelStatus ?? null,
+        input.atModelCeiling6m == null ? null : (input.atModelCeiling6m ? 1 : 0),
+        input.atModelCeiling1y == null ? null : (input.atModelCeiling1y ? 1 : 0),
+        input.ceilingDirection ?? null,
+        confidenceBreakdownJson,
+        input.confidenceReason1w ?? null,
+        input.confidenceReason1m ?? null,
+        input.confidenceReason6m ?? null,
+        input.confidenceReason1y ?? null,
       ]);
 
       // @ts-ignore - mysql2 result type

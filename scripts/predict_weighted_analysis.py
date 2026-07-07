@@ -163,6 +163,18 @@ def predict(ticker, input_data):
 
     # Basic stock characteristics (kept for legacy metric_analysis + stock_type)
     close_arr      = df['Close'].values
+
+    # Realized annualized volatility from 60d of log returns. Feeds the
+    # sanitizer's vol-scaled per-horizon caps so a high-vol name (WULF ≈ 90%
+    # annualized) doesn't trip the ceiling on every prediction that a stable
+    # 30%-vol name would consider extreme. Falls back to 0.30 when there's
+    # not enough history to compute.
+    if len(close_arr) >= 62:
+        _log_ret = np.log(close_arr[-61:] / close_arr[-62:-1])
+        realized_vol_60d = float(_log_ret.std() * np.sqrt(252))
+    else:
+        realized_vol_60d = 0.30
+
     recent_20      = close_arr[-20:]
     older_20       = close_arr[-40:-20] if len(close_arr) >= 40 else close_arr[:20]
     growth_rate    = ((recent_20.mean() - older_20.mean()) / (older_20.mean() + 1e-9)) * 100
@@ -346,6 +358,16 @@ def predict(ticker, input_data):
     print(f"  imputed_fields ({len(imputed)}): {imputed}", file=sys.stderr)
     print(f"  analyst_count: {analyst_count}", file=sys.stderr)
 
+    # Stash per-ticker context on the DataFrame's attrs so the long-term CS
+    # path can (a) look up a persisted per-ticker cv_mape by ticker key and
+    # (b) fall back to a realized-vol proxy when the inference-time backtest
+    # isn't feasible. feat_df already exists and travels straight through.
+    try:
+        feat_df.attrs['ticker']            = str(ticker).upper().strip()
+        feat_df.attrs['realized_vol_60d']  = realized_vol_60d
+    except Exception:
+        pass
+
     # ── Long-term first (short-term needs predicted_price_6m_base + cs6m) ──
     long_out = predict_long_term(
         scaled=scaled,
@@ -507,6 +529,16 @@ def predict(ticker, input_data):
         "stock_type":      "growth_stock" if is_growth_stock else "stable_stock",
         "growth_rate_20d": round(growth_rate, 2),
         "is_uptrend":      int(is_uptrend),
+        # Realized annualized vol (60d log returns) — consumed by _sanitize_predictions
+        # to scale the per-horizon clamp bounds. Kept in the response for
+        # observability so a future dashboard can show it.
+        "realized_vol_60d": round(realized_vol_60d, 4),
+        # Confidence breakdown — component points + raw inputs so the UI can
+        # explain WHY a Medium/Low confidence score is what it is (which
+        # component is docking, and in plain terms). All four horizon scores
+        # derive from this single breakdown with horizon-specific modifiers
+        # (1w = cs1m+3, 1m = cs6m±10 based on earnings proximity, 1y = cs6m-15).
+        "confidence_breakdown": long_out.get('confidence_breakdown'),
         # Data quality pass-through
         "data_quality":    data_quality,
         # Options data availability

@@ -57,6 +57,14 @@ def record_prediction(
     accuracy_metrics: dict | None = None,
     data_quality: dict | None = None,
     model_status: str | None = None,
+    at_model_ceiling_6m: bool | None = None,
+    at_model_ceiling_1y: bool | None = None,
+    ceiling_direction: str | None = None,
+    confidence_breakdown: dict | None = None,
+    confidence_reason_1w: str | None = None,
+    confidence_reason_1m: str | None = None,
+    confidence_reason_6m: str | None = None,
+    confidence_reason_1y: str | None = None,
     model_version: str = 'legacy',
 ) -> bool:
     """Insert a fresh prediction_records row (one per run — no dedup index)."""
@@ -76,13 +84,17 @@ def record_prediction(
             predicted_change_pct_1w, predicted_change_pct_1m, predicted_change_pct_6m, predicted_change_pct_1y,
             confidence_score_1w, confidence_score_1m, confidence_score_6m, confidence_score_1y,
             gps_score, gps_breakdown,
-            accuracy_metrics, data_quality, model_status
-        ) VALUES (%s, NOW(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            accuracy_metrics, data_quality, model_status,
+            at_model_ceiling_6m, at_model_ceiling_1y, ceiling_direction,
+            confidence_breakdown,
+            confidence_reason_1w, confidence_reason_1m, confidence_reason_6m, confidence_reason_1y
+        ) VALUES (%s, NOW(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
 
-        gps_breakdown_json    = json.dumps(gps_breakdown)    if gps_breakdown    is not None else None
-        accuracy_metrics_json = json.dumps(accuracy_metrics) if accuracy_metrics is not None else None
-        data_quality_json     = json.dumps(data_quality)     if data_quality     is not None else None
+        gps_breakdown_json         = json.dumps(gps_breakdown)         if gps_breakdown         is not None else None
+        accuracy_metrics_json      = json.dumps(accuracy_metrics)      if accuracy_metrics      is not None else None
+        data_quality_json          = json.dumps(data_quality)          if data_quality          is not None else None
+        confidence_breakdown_json  = json.dumps(confidence_breakdown)  if confidence_breakdown  is not None else None
 
         cursor.execute(query, (
             symbol,
@@ -105,6 +117,14 @@ def record_prediction(
             accuracy_metrics_json,
             data_quality_json,
             model_status,
+            None if at_model_ceiling_6m is None else (1 if at_model_ceiling_6m else 0),
+            None if at_model_ceiling_1y is None else (1 if at_model_ceiling_1y else 0),
+            ceiling_direction,
+            confidence_breakdown_json,
+            confidence_reason_1w,
+            confidence_reason_1m,
+            confidence_reason_6m,
+            confidence_reason_1y,
         ))
 
         inserted = cursor.rowcount > 0

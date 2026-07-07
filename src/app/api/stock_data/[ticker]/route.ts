@@ -170,8 +170,20 @@ const normalizeYahooData = (data: any, currentSources: string[], secCompanyNames
     prevClose: data.regularMarketPreviousClose,
     timestamp: data.regularMarketTime ? new Date(data.regularMarketTime * 1000).toISOString() : new Date().toISOString(),
     exchange: data.fullExchangeName,
-    peRatio: data.trailingPE ?? null, // Use null if undefined
-    pbRatio: data.priceToBook ?? null, // Use null if undefined
+    // Yahoo's quoteSummary omits trailingPE / priceToBook when the underlying
+    // ratio is "undefined" in the finance sense — trailingEps or bookValue is
+    // negative. Fall back to computing the ratio from the raw components so
+    // the UI shows the honest (often negative) value instead of "N/A".
+    // Example: WULF trailingEps=-2.51, price=$22.21 → real P/E = -8.85;
+    // WULF bookValue=-0.185 → real P/B = -120.
+    peRatio: data.trailingPE
+      ?? (data.regularMarketPrice != null && data.trailingEps != null && data.trailingEps !== 0
+          ? data.regularMarketPrice / data.trailingEps
+          : null),
+    pbRatio: data.priceToBook
+      ?? (data.regularMarketPrice != null && data.bookValue != null && data.bookValue !== 0
+          ? data.regularMarketPrice / data.bookValue
+          : null),
     marketCap: data.marketCap,
     sector: data.sector,
     industry: data.industry,

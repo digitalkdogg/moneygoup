@@ -164,18 +164,81 @@ def _predict_with_cs_model(
 
     p18m_est = predicted_price_1y + (predicted_price_1y - predicted_price_6m)
 
-    # ── cv_mae / cv_mape: use the model's persisted validation MAE on 6m ────
-    # Falls back to a 5% heuristic if the manifest didn't store it. cv_rmse
-    # uses the normal-residual approximation RMSE ≈ MAE × sqrt(π/2) ≈ 1.253;
-    # the CS-model path doesn't keep holdout residuals around to compute it
-    # exactly, so the heuristic is the best we have for this code branch.
-    cv_mae  = float(current_price * 0.05)  # conservative default
-    cv_rmse = cv_mae * 1.253
-    cv_mape = (cv_mae / (current_price + 1e-9)) * 100
+    # ── cv_mae / cv_mape: per-ticker backtest of the CS model ────────────────
+    # Historically this branch hardcoded cv_mae = current_price × 0.05 because
+    # "the CS-model path doesn't keep holdout residuals around." That awarded
+    # every stock a bogus 30 pts on the cv_mape confidence component regardless
+    # of how badly the model actually tracked it — WULF and PG got the same
+    # score.
+    #
+    # New order of precedence:
+    #   1. Persisted per-ticker calibration on the model payload (from training).
+    #   2. Inference-time backtest: last ~250 rows of feat_df, run the CS model
+    #      on each, compare predicted_return_126d to the actual realized return
+    #      126 trading days later.
+    #   3. Volatility proxy: σ_annual × √0.5 (zero-model baseline at 6m).
+    #   4. 5% heuristic (last resort — should rarely fire now).
+    cv_mape_source = 'fallback_5pct'
+    cv_mape        = 5.0
 
-    cs6m = confidence_score(cv_mape, history_years, imputed_fields, analyst_count,
-                            analyst_sentiment_v2=analyst_sentiment_v2)
+    persisted_cv = payload.get('per_ticker_cv_mape') if isinstance(payload, dict) else None
+    ticker_key = None
+    try:
+        ticker_key = (feat_df.attrs.get('ticker') if hasattr(feat_df, 'attrs') else None)
+    except Exception:
+        ticker_key = None
+    if isinstance(persisted_cv, dict) and ticker_key and ticker_key in persisted_cv:
+        try:
+            cv_mape        = float(persisted_cv[ticker_key])
+            cv_mape_source = 'persisted'
+        except (TypeError, ValueError):
+            pass
+
+    if cv_mape_source == 'fallback_5pct' and 'Close' in feat_df.columns:
+        # Backtest window: rows we have (i) enough history to build features
+        # (already built), AND (ii) 126d of future closes to score against.
+        # Skip the last 126 rows (no future truth) and take up to 250 rows.
+        HORIZON = 126
+        try:
+            closes = feat_df['Close'].values
+            n = len(feat_df)
+            end   = n - HORIZON
+            start = max(0, end - 250)
+            if end - start >= 30:  # need a reasonable sample
+                bt_features = feat_df.iloc[start:end][cs_feature_cols].fillna(0.0)
+                bt_x = np.nan_to_num(bt_features.values.astype(np.float32),
+                                     nan=0.0, posinf=0.0, neginf=0.0)
+                bt_x_s = scaler_cs.transform(bt_x)
+                bt_pred = np.asarray(model.predict(bt_x_s, verbose=0) if hasattr(model, 'predict') else model.predict(bt_x_s))
+                bt_pred_ret = bt_pred[:, 0] if bt_pred.ndim == 2 else bt_pred  # 6m head
+                actual_ret = (closes[start + HORIZON : end + HORIZON] / (closes[start:end] + 1e-9)) - 1.0
+                bt_mae_ret = float(np.mean(np.abs(bt_pred_ret - actual_ret)))
+                # Convert return-space MAE to a percentage — same unit as the
+                # existing cv_mape (percentage points of return).
+                cv_mape        = float(np.clip(bt_mae_ret * 100.0, 0.0, 50.0))
+                cv_mape_source = f'backtest_n={end - start}'
+        except Exception as exc:
+            print(f"[cv_mape] backtest failed for CS path: {exc}", file=sys.stderr)
+
+    if cv_mape_source == 'fallback_5pct':
+        # Volatility proxy: for a zero-model (predicts 0% return), expected
+        # |return| at 6m horizon ≈ σ_annual × √0.5. That's the pessimistic
+        # ceiling on cv_mape a real model should beat. We use it directly as
+        # the proxy — it's honest that we don't have a real measurement.
+        vol = feat_df.attrs.get('realized_vol_60d') if hasattr(feat_df, 'attrs') else None
+        if isinstance(vol, (int, float)) and vol > 0:
+            cv_mape        = float(np.clip(vol * np.sqrt(0.5) * 100.0, 5.0, 50.0))
+            cv_mape_source = 'vol_proxy'
+
+    print(f"[cv_mape] source={cv_mape_source} value={cv_mape:.2f}%", file=sys.stderr)
+    cv_mae  = float(cv_mape / 100.0 * current_price)
+    cv_rmse = cv_mae * 1.253
+
+    cs6m, cs_breakdown = confidence_score(cv_mape, history_years, imputed_fields, analyst_count,
+                                          analyst_sentiment_v2=analyst_sentiment_v2,
+                                          return_breakdown=True)
     cs1y = max(0, cs6m - 15)
+    cs_breakdown['cv_mape_source'] = cv_mape_source
 
     pct_6m = round((predicted_price_6m - current_price) / (current_price + 1e-9) * 100, 2)
     pct_1y = round((predicted_price_1y - current_price) / (current_price + 1e-9) * 100, 2)
@@ -189,6 +252,7 @@ def _predict_with_cs_model(
         'predicted_change_pct_1y': pct_1y,
         'confidence_score_6m': cs6m,
         'confidence_score_1y': cs1y,
+        'confidence_breakdown': cs_breakdown,
         'spread_6m': spread_6m,
         'spread_12m': spread_12m,
         'spread_18m': spread_18m,
@@ -334,8 +398,10 @@ def predict_long_term(
     p18m_est = predicted_price_1y + (predicted_price_1y - predicted_price_6m)
 
     # ── Confidence ───────────────────────────────────────────────────────────
-    cs6m = confidence_score(cv_mape, history_years, imputed_fields, analyst_count,
-                            analyst_sentiment_v2=analyst_sentiment_v2)
+    cs6m, cs_breakdown = confidence_score(cv_mape, history_years, imputed_fields, analyst_count,
+                                          analyst_sentiment_v2=analyst_sentiment_v2,
+                                          return_breakdown=True)
+    cs_breakdown['cv_mape_source'] = 'per_ticker_holdout'
     cs1y = max(0, cs6m - 15)
 
     # ── Pct changes ──────────────────────────────────────────────────────────
@@ -351,6 +417,7 @@ def predict_long_term(
         'predicted_change_pct_1y': pct_1y,
         'confidence_score_6m': cs6m,
         'confidence_score_1y': cs1y,
+        'confidence_breakdown': cs_breakdown,
         # Internals exposed for orchestrator + short-term consumers
         'spread_6m': spread_6m,
         'spread_12m': spread_12m,

@@ -19,6 +19,19 @@ describe('yahooFinanceHelper', () => {
   beforeEach(() => {
     jest.resetModules();
     jest.clearAllMocks();
+
+    // Re-register the mock after resetModules — when the full test suite runs,
+    // other files that also touch yahoo-finance2 (e.g. etfHoldings.test.ts)
+    // can disturb the module registry such that this file's single top-level
+    // jest.mock doesn't survive the re-require below. The etfHoldings test
+    // uses this same pattern; without it, running the suite in the wrong
+    // order sends the real yahoo-finance2 code to the network and fails on
+    // "No set-cookie header present in Yahoo's response."
+    jest.mock('yahoo-finance2', () => ({
+      __esModule: true,
+      default: jest.fn().mockImplementation(() => mockYahooFinance),
+    }));
+
     const helper = require('../yahooFinanceHelper');
     fetchYahooQuotesForSymbols = helper.fetchYahooQuotesForSymbols;
     fetchYahooStockSummary = helper.fetchYahooStockSummary;

@@ -143,7 +143,6 @@ export default function Stock({
   const [etfHoldingsLoading, setEtfHoldingsLoading] = useState(false)
   const [prefetchedPrediction, setPrefetchedPrediction] = useState<any | null>(null)
   const [prefetchedPredictionAt, setPrefetchedPredictionAt] = useState<string | null>(null)
-  const wasPredictionLoading = useRef(false)
   const predictionTriggerRef = useRef<() => void>(() => {})
   const onPredictionLoadingChange = useCallback((v: boolean) => setPredictionLoading(v), [])
 
@@ -167,6 +166,24 @@ export default function Stock({
       .catch(() => {})
       .finally(() => setGpsLoading(false))
   }, [primaryTicker, isSingleTicker])
+
+  // A fresh regenerate wrote a new prediction_records row (browser flow, see
+  // api/prediction/[ticker]/route.ts). Stamp the age to now so the footnote
+  // reads "just now" — this is only called on success.
+  const handlePredictionSuccess = useCallback((freshGps?: GpsData | null) => {
+    refreshGps(freshGps)
+    setPrefetchedPredictionAt(new Date().toISOString())
+  }, [refreshGps])
+
+  // Regeneration failed. Clear the prefetched footprint so the UI stops
+  // claiming "Showing prediction from latest batch run" — that would be a lie
+  // since the panel is now showing an error, not a prediction. Also flips the
+  // signal-panel button label from "Regenerate Prediction" back to "Show
+  // prediction details."
+  const handlePredictionFailure = useCallback(() => {
+    setPrefetchedPredictionAt(null)
+    setPrefetchedPrediction(null)
+  }, [])
 
       const formatDate = (dateString: string) => {
         if (!dateString) return 'N/A';
@@ -381,22 +398,12 @@ export default function Stock({
       .finally(() => setGpsLoading(false))
   }, [primaryTicker, isSingleTicker])
 
-  // Fetch the freshest <12h prediction so the results panel can render
-  // immediately instead of requiring the user to click "Generate Prediction".
-  // Falls through to the manual button when the endpoint returns null (stale
-  // or missing).
-  // After a fresh regenerate finishes, the [ticker] route has just written a
-  // new prediction_records row (browser flow writes on outlook='all' when the
-  // caller is external — see api/prediction/[ticker]/route.ts). Stamp the age
-  // to "now" so the footnote doesn't keep advancing from the pre-regenerate
-  // timestamp — that felt broken to the user ("5 minutes old" → click →
-  // "6 minutes old").
-  useEffect(() => {
-    if (wasPredictionLoading.current && !predictionLoading) {
-      setPrefetchedPredictionAt(new Date().toISOString())
-    }
-    wasPredictionLoading.current = predictionLoading
-  }, [predictionLoading])
+  // The auto-timestamp-on-loading-transition effect used to live here. It
+  // fired on ANY loading true→false, including failure, which lied about
+  // "Showing prediction from latest batch run — just now" when the regenerate
+  // had actually crashed. The timestamp is now updated via the success
+  // callback (handlePredictionSuccess) and cleared via the failure callback
+  // (handlePredictionFailure) — see below.
 
   useEffect(() => {
     if (!isSingleTicker) return
@@ -638,12 +645,16 @@ export default function Stock({
 
             <div className="p-4 bg-[#f7f8f6] rounded-lg border border-[#e9ede8]">
               <p className="text-sm text-gray-500">P/E Ratio</p>
-              <p className="text-2xl font-bold text-gray-800">{formatNumber(stockData.peRatio)}</p>
+              <p className={`text-2xl font-bold ${typeof stockData.peRatio === 'number' && stockData.peRatio < 0 ? 'text-red-600' : 'text-gray-800'}`}>
+                {formatNumber(stockData.peRatio)}
+              </p>
             </div>
 
             <div className="p-4 bg-[#f7f8f6] rounded-lg border border-[#e9ede8]">
               <p className="text-sm text-gray-500">P/B Ratio</p>
-              <p className="text-2xl font-bold text-gray-800">{formatNumber(stockData.pbRatio)}</p>
+              <p className={`text-2xl font-bold ${typeof stockData.pbRatio === 'number' && stockData.pbRatio < 0 ? 'text-red-600' : 'text-gray-800'}`}>
+                {formatNumber(stockData.pbRatio)}
+              </p>
             </div>
 
             <div className="p-4 bg-[#f7f8f6] rounded-lg border border-[#e9ede8]">
@@ -1104,7 +1115,8 @@ export default function Stock({
             titleLevel="h2"
             triggerRef={predictionTriggerRef}
             onLoadingChange={onPredictionLoadingChange}
-            onPredictionComplete={refreshGps}
+            onPredictionComplete={handlePredictionSuccess}
+            onPredictionFailure={handlePredictionFailure}
             prefetchedPrediction={prefetchedPrediction}
             embedded
           />
@@ -1362,7 +1374,9 @@ export default function Stock({
 
                   <div className="p-4 bg-[#f7f8f6] rounded-lg border border-[#e9ede8]">
                     <p className="text-sm text-gray-500">P/E Ratio</p>
-                    <p className="text-2xl font-bold text-gray-800">{formatNumber(stockData.peRatio)}</p>
+                    <p className={`text-2xl font-bold ${typeof stockData.peRatio === 'number' && stockData.peRatio < 0 ? 'text-red-600' : 'text-gray-800'}`}>
+                      {formatNumber(stockData.peRatio)}
+                    </p>
                   </div>
 
                   <div className="p-4 bg-[#f7f8f6] rounded-lg border border-[#e9ede8]">

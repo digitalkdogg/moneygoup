@@ -368,6 +368,14 @@ def _empty_cache_entry() -> dict:
         'accuracy_metrics':     None,
         'data_quality':         None,
         'model_status':         None,
+        'at_model_ceiling_6m':  None,
+        'at_model_ceiling_1y':  None,
+        'ceiling_direction':    None,
+        'confidence_breakdown': None,
+        'confidence_reason_1w': None,
+        'confidence_reason_1m': None,
+        'confidence_reason_6m': None,
+        'confidence_reason_1y': None,
     }
 
 
@@ -543,6 +551,14 @@ def run_prediction_for_holding(ticker: str,
             accuracy_metrics=prediction_result.get('accuracy_metrics'),
             data_quality=prediction_result.get('data_quality'),
             model_status=prediction_result.get('model_status'),
+            at_model_ceiling_6m=prediction_result.get('at_model_ceiling_6m'),
+            at_model_ceiling_1y=prediction_result.get('at_model_ceiling_1y'),
+            ceiling_direction=prediction_result.get('ceiling_direction'),
+            confidence_breakdown=prediction_result.get('confidence_breakdown'),
+            confidence_reason_1w=prediction_result.get('confidence_reason_1w'),
+            confidence_reason_1m=prediction_result.get('confidence_reason_1m'),
+            confidence_reason_6m=prediction_result.get('confidence_reason_6m'),
+            confidence_reason_1y=prediction_result.get('confidence_reason_1y'),
             model_version=MODEL_VERSION_TAG,
         )
 
@@ -636,6 +652,14 @@ def sync_portfolio_predictions():
             accuracy_metrics = cached.get('accuracy_metrics')
             data_quality = cached.get('data_quality')
             model_status = cached.get('model_status')
+            at_model_ceiling_6m = cached.get('at_model_ceiling_6m')
+            at_model_ceiling_1y = cached.get('at_model_ceiling_1y')
+            ceiling_direction   = cached.get('ceiling_direction')
+            confidence_breakdown = cached.get('confidence_breakdown')
+            confidence_reason_1w = cached.get('confidence_reason_1w')
+            confidence_reason_1m = cached.get('confidence_reason_1m')
+            confidence_reason_6m = cached.get('confidence_reason_6m')
+            confidence_reason_1y = cached.get('confidence_reason_1y')
             print(f"  [cache] Using cached prediction for {ticker}: {predicted_price} (GPS: {gps_score})")
             stats['cached'] += 1
         else:
@@ -678,6 +702,14 @@ def sync_portfolio_predictions():
             accuracy_metrics    = None
             data_quality        = None
             model_status        = None
+            at_model_ceiling_6m = None
+            at_model_ceiling_1y = None
+            ceiling_direction   = None
+            confidence_breakdown = None
+            confidence_reason_1w = None
+            confidence_reason_1m = None
+            confidence_reason_6m = None
+            confidence_reason_1y = None
 
             gps_inputs = None
 
@@ -713,6 +745,18 @@ def sync_portfolio_predictions():
                 accuracy_metrics = prediction_result.get('accuracy_metrics')
                 data_quality     = prediction_result.get('data_quality')
                 model_status     = prediction_result.get('model_status')
+                # Ceiling flags — set by the model's _sanitize_predictions when
+                # 6m+1y coherently push their vol-scaled caps. UI reads these
+                # to render the directional pill instead of a false-precision
+                # point target.
+                at_model_ceiling_6m = prediction_result.get('at_model_ceiling_6m')
+                at_model_ceiling_1y = prediction_result.get('at_model_ceiling_1y')
+                ceiling_direction   = prediction_result.get('ceiling_direction')
+                confidence_breakdown = prediction_result.get('confidence_breakdown')
+                confidence_reason_1w = prediction_result.get('confidence_reason_1w')
+                confidence_reason_1m = prediction_result.get('confidence_reason_1m')
+                confidence_reason_6m = prediction_result.get('confidence_reason_6m')
+                confidence_reason_1y = prediction_result.get('confidence_reason_1y')
 
                 # GPS v3.0 — matches src/utils/gps.ts exactly
                 sm = stock_data.get('stockMetrics', {})
@@ -764,6 +808,14 @@ def sync_portfolio_predictions():
                 'accuracy_metrics':     accuracy_metrics,
                 'data_quality':         data_quality,
                 'model_status':         model_status,
+                'at_model_ceiling_6m':  at_model_ceiling_6m,
+                'at_model_ceiling_1y':  at_model_ceiling_1y,
+                'ceiling_direction':    ceiling_direction,
+                'confidence_breakdown': confidence_breakdown,
+                'confidence_reason_1w': confidence_reason_1w,
+                'confidence_reason_1m': confidence_reason_1m,
+                'confidence_reason_6m': confidence_reason_6m,
+                'confidence_reason_1y': confidence_reason_1y,
             }
 
         # Skip saving if the prediction failed
@@ -819,6 +871,14 @@ def sync_portfolio_predictions():
                 accuracy_metrics=accuracy_metrics,
                 data_quality=data_quality,
                 model_status=model_status,
+                at_model_ceiling_6m=at_model_ceiling_6m,
+                at_model_ceiling_1y=at_model_ceiling_1y,
+                ceiling_direction=ceiling_direction,
+                confidence_breakdown=confidence_breakdown,
+                confidence_reason_1w=confidence_reason_1w,
+                confidence_reason_1m=confidence_reason_1m,
+                confidence_reason_6m=confidence_reason_6m,
+                confidence_reason_1y=confidence_reason_1y,
                 model_version=MODEL_VERSION_TAG,
             )
 

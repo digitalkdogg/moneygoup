@@ -38,6 +38,7 @@ interface StockPredictionProps {
   triggerRef?: React.MutableRefObject<() => void>
   onLoadingChange?: (loading: boolean) => void
   onPredictionComplete?: (gpsData?: GpsData | null) => void
+  onPredictionFailure?: (errorMessage: string) => void
   embedded?: boolean
   // Server-fetched fresh prediction (<12h old). When present, render the
   // results panel immediately in place of the "Generate Prediction" button.
@@ -90,6 +91,34 @@ interface PredictionResult {
     imputedFields: string[]
   }
   metric_analysis?: any
+  // Set by Python's _sanitize_predictions when 6m + 1y both push against
+  // their vol-scaled caps in the same direction. Signals "strong directional
+  // extrapolation, price target is at the model ceiling, don't treat the
+  // point value as precise." UI swaps the "+X% from current" text for a
+  // directional pill and prefixes the price with ≥ / ≤.
+  at_model_ceiling_6m?: boolean
+  at_model_ceiling_1y?: boolean
+  ceiling_direction?: 'up' | 'down'
+  confidence_breakdown?: ConfidenceBreakdown | null
+  // Per-horizon override reasons emitted by _sanitize_predictions when it
+  // manually adjusts a horizon's confidence (e.g. peak-and-reverse smoothness
+  // gate, ceiling-clamp outlier, opposite-sign disagreement). Take precedence
+  // over the component-based reasons when present.
+  confidence_reason_1w?: string
+  confidence_reason_1m?: string
+  confidence_reason_6m?: string
+  confidence_reason_1y?: string
+}
+
+interface ConfidenceBreakdown {
+  total: number
+  components: {
+    cv_mape:  { points: number; max: number; value: number }
+    history:  { points: number; max: number; value: number }
+    features: { points: number; max: number; imputed_fields: string[] }
+    analyst:  { points: number; max: number; analyst_count: number }
+  }
+  cv_mape_source?: string
 }
 
 interface DataQuality {
@@ -104,47 +133,92 @@ interface DataQuality {
 // ---------------------------------------------------------------------------
 // Confidence badge
 // ---------------------------------------------------------------------------
-const CONFIDENCE_TOOLTIP =
-  'Score is based on: data depth (25 pts), cross-validation error (40 pts), feature completeness (20 pts), analyst coverage (15 pts).'
 
-function ConfidenceBadgeBlue({ score }: { score: number }) {
-  if (score >= 66) {
-    return (
-      <span
-        title={CONFIDENCE_TOOLTIP}
-        className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full border bg-blue-50 text-blue-600 border-blue-500 cursor-help"
-      >
-        High Confidence · {score}
-      </span>
-    )
+// Build a plain-language "why is confidence Medium/Low?" tooltip by walking
+// the breakdown and calling out only the components that are docking. High
+// confidence returns null → no tooltip attribute rendered.
+function buildConfidenceReason(
+  breakdown: ConfidenceBreakdown | null | undefined,
+  score: number,
+  overrideReason?: string | null,
+): string | null {
+  if (score >= 66) return null
+  // Sanitizer-supplied override wins: it explains WHY the score was manually
+  // adjusted (e.g. peak-and-reverse trajectory, outlier clamp) — details the
+  // component breakdown alone can't convey.
+  if (overrideReason) {
+    const label = score >= 41 ? 'Medium' : 'Low'
+    return `${label} confidence because:\n\n${overrideReason}`
   }
-   if (score >= 41) {
-    return (
-      <span
-        title={CONFIDENCE_TOOLTIP}
-        className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full border bg-gray-50 text-amber-700 border-gray-300 cursor-help"
-      >
-        Medium Confidence · {score}
-      </span>
-    )
+  if (!breakdown) return null
+  const c = breakdown.components
+  const reasons: string[] = []
+
+  // cv_mape (40 pts) — model tracking error on validation
+  if (c.cv_mape.points < c.cv_mape.max) {
+    const err = c.cv_mape.value
+    if (err >= 20) {
+      reasons.push(`Model tracks this stock with ±${err.toFixed(0)}% error on held-out data — high uncertainty in the price forecast itself.`)
+    } else if (err >= 10) {
+      reasons.push(`Model tracks this stock with ±${err.toFixed(0)}% error on held-out data — moderate uncertainty.`)
+    } else if (err >= 5) {
+      reasons.push(`Model tracks this stock with ±${err.toFixed(1)}% error on held-out data.`)
+    }
   }
-  return (
-    <span
-      title={CONFIDENCE_TOOLTIP}
-      className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full border bg-red-50 text-red-700 border-red-300 cursor-help"
-    >
-      Low Confidence · {score}
-    </span>
-  )
+
+  // history (25 pts) — years of price data available
+  if (c.history.points < c.history.max) {
+    const yrs = c.history.value
+    if (yrs < 2) {
+      reasons.push(`Only ${yrs.toFixed(1)} years of price history — the model doesn't have much to learn from.`)
+    } else if (yrs < 3) {
+      reasons.push(`Only ${yrs.toFixed(1)} years of price history (5+ preferred).`)
+    } else if (yrs < 4) {
+      reasons.push(`${yrs.toFixed(1)} years of price history (5+ preferred).`)
+    } else {
+      reasons.push(`${yrs.toFixed(1)} years of price history (5+ preferred for full trust).`)
+    }
+  }
+
+  // features (20 pts) — fundamentals imputed from sector medians
+  if (c.features.points < c.features.max) {
+    const imputed = c.features.imputed_fields || []
+    if (imputed.length > 0) {
+      const list = imputed.join(', ')
+      reasons.push(
+        imputed.length <= 2
+          ? `${imputed.length} fundamental${imputed.length === 1 ? '' : 's'} filled from sector medians: ${list}.`
+          : `${imputed.length} fundamentals filled from sector medians (${list}) — the model doesn't have this stock's real numbers for those fields.`
+      )
+    }
+  }
+
+  // analyst (15 pts) — Wall Street coverage
+  if (c.analyst.points < c.analyst.max) {
+    const n = c.analyst.analyst_count
+    if (n === 0) {
+      reasons.push('No analyst coverage — the model is flying without external validation.')
+    } else if (n < 5) {
+      reasons.push(`Only ${n} analyst${n === 1 ? '' : 's'} covering this stock (10+ preferred for full trust).`)
+    } else if (n < 10) {
+      reasons.push(`${n} analysts covering this stock (10+ preferred for full trust).`)
+    } else {
+      reasons.push(`Analyst signals are mixed or noisy — coverage exists but conviction is limited.`)
+    }
+  }
+
+  if (reasons.length === 0) return null
+  const label = score >= 41 ? 'Medium' : 'Low'
+  return `${label} confidence because:\n\n• ${reasons.join('\n• ')}`
 }
 
-function ConfidenceBadge({ score }: { score: number }) {
+function ConfidenceBadgeBlue({ score, breakdown, overrideReason }: { score: number; breakdown?: ConfidenceBreakdown | null; overrideReason?: string | null }) {
+  const reason = buildConfidenceReason(breakdown, score, overrideReason)
+  const tooltipProps = reason ? { title: reason, className: 'cursor-help' } : {}
+
   if (score >= 66) {
     return (
-      <span
-        title={CONFIDENCE_TOOLTIP}
-        className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full border cursor-help bg-[#f0fdf4] text-[#005a00] border-[#005a00]"
-      >
+      <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full border bg-blue-50 text-blue-600 border-blue-500`}>
         High Confidence · {score}
       </span>
     )
@@ -152,8 +226,8 @@ function ConfidenceBadge({ score }: { score: number }) {
   if (score >= 41) {
     return (
       <span
-        title={CONFIDENCE_TOOLTIP}
-        className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full border bg-gray-50 text-amber-700 border-gray-300 cursor-help"
+        {...tooltipProps}
+        className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full border bg-gray-50 text-amber-700 border-gray-300 ${tooltipProps.className ?? ''}`}
       >
         Medium Confidence · {score}
       </span>
@@ -161,8 +235,39 @@ function ConfidenceBadge({ score }: { score: number }) {
   }
   return (
     <span
-      title={CONFIDENCE_TOOLTIP}
-      className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full border bg-red-50 text-red-700 border-red-300 cursor-help"
+      {...tooltipProps}
+      className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full border bg-red-50 text-red-700 border-red-300 ${tooltipProps.className ?? ''}`}
+    >
+      Low Confidence · {score}
+    </span>
+  )
+}
+
+function ConfidenceBadge({ score, breakdown, overrideReason }: { score: number; breakdown?: ConfidenceBreakdown | null; overrideReason?: string | null }) {
+  const reason = buildConfidenceReason(breakdown, score, overrideReason)
+  const tooltipProps = reason ? { title: reason, className: 'cursor-help' } : {}
+
+  if (score >= 66) {
+    return (
+      <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full border bg-[#f0fdf4] text-[#005a00] border-[#005a00]`}>
+        High Confidence · {score}
+      </span>
+    )
+  }
+  if (score >= 41) {
+    return (
+      <span
+        {...tooltipProps}
+        className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full border bg-gray-50 text-amber-700 border-gray-300 ${tooltipProps.className ?? ''}`}
+      >
+        Medium Confidence · {score}
+      </span>
+    )
+  }
+  return (
+    <span
+      {...tooltipProps}
+      className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full border bg-red-50 text-red-700 border-red-300 ${tooltipProps.className ?? ''}`}
     >
       Low Confidence · {score}
     </span>
@@ -382,6 +487,7 @@ export default function StockPrediction({
   triggerRef,
   onLoadingChange,
   onPredictionComplete,
+  onPredictionFailure,
   embedded = false,
   prefetchedPrediction,
 }: StockPredictionProps) {
@@ -412,8 +518,10 @@ export default function StockPrediction({
       dataPayload = await res.json()
       setDataQuality(dataPayload.dataQuality ?? null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch stock data')
+      const msg = err instanceof Error ? err.message : 'Failed to fetch stock data'
+      setError(msg)
       setStep('idle')
+      onPredictionFailure?.(msg)
       return
     }
 
@@ -457,8 +565,10 @@ export default function StockPrediction({
       setStep('done')
       onPredictionComplete?.(freshGps)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unknown error occurred')
+      const msg = err instanceof Error ? err.message : 'An unknown error occurred'
+      setError(msg)
       setStep('idle')
+      onPredictionFailure?.(msg)
     }
   }
 
@@ -503,6 +613,14 @@ export default function StockPrediction({
       note:                    prefetchedPrediction.note,
       data_quality:            prefetchedPrediction.data_quality,
       metric_analysis:         prefetchedPrediction.metric_analysis,
+      at_model_ceiling_6m:     prefetchedPrediction.at_model_ceiling_6m ?? undefined,
+      at_model_ceiling_1y:     prefetchedPrediction.at_model_ceiling_1y ?? undefined,
+      ceiling_direction:       prefetchedPrediction.ceiling_direction   ?? undefined,
+      confidence_breakdown:    prefetchedPrediction.confidence_breakdown ?? undefined,
+      confidence_reason_1w:    prefetchedPrediction.confidence_reason_1w ?? undefined,
+      confidence_reason_1m:    prefetchedPrediction.confidence_reason_1m ?? undefined,
+      confidence_reason_6m:    prefetchedPrediction.confidence_reason_6m ?? undefined,
+      confidence_reason_1y:    prefetchedPrediction.confidence_reason_1y ?? undefined,
     }
     setPrediction(inflated)
     setStep('done')
@@ -564,7 +682,22 @@ export default function StockPrediction({
         </div>
       )}
 
-      {error && <p className="text-red-500 mt-4 text-sm">{error}</p>}
+      {error && (
+        <div className="mt-4 p-3 bg-red-50 border border-red-300 rounded-lg text-sm text-red-700 flex items-start gap-2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 mt-0.5" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <div>
+            <strong>Prediction failed.</strong>{' '}
+            <span className="text-red-600">{error}</span>
+            <p className="mt-1 text-red-600 text-xs">
+              Try again in a moment. If the problem persists, this ticker may have data issues that prevent the model from running.
+            </p>
+          </div>
+        </div>
+      )}
 
       {prediction && (
         <div className="mt-8">
@@ -599,7 +732,7 @@ export default function StockPrediction({
               >
                 {prediction.predicted_change_pct_1w >= 0 ? '+' : ''}{formatNumber(prediction.predicted_change_pct_1w, 2)}% from current
               </p>
-              <ConfidenceBadgeBlue score={prediction.confidence_score_1w} />
+              <ConfidenceBadgeBlue score={prediction.confidence_score_1w} breakdown={prediction.confidence_breakdown} overrideReason={prediction.confidence_reason_1w} />
               {prediction.predicted_range_1w && (
                 <p className="text-xs text-purple-600 mt-3">
                   Range: {formatCurrency(prediction.predicted_range_1w[0])} – {formatCurrency(prediction.predicted_range_1w[1])}
@@ -619,7 +752,7 @@ export default function StockPrediction({
               >
                 {prediction.predicted_change_pct_1m >= 0 ? '+' : ''}{formatNumber(prediction.predicted_change_pct_1m, 2)}% from current
               </p>
-              <ConfidenceBadgeBlue score={prediction.confidence_score_1m} />
+              <ConfidenceBadgeBlue score={prediction.confidence_score_1m} breakdown={prediction.confidence_breakdown} overrideReason={prediction.confidence_reason_1m} />
               {prediction.monthly_trajectory?.[1] && (
                 <p className="text-xs text-blue-600 mt-3">
                   Range: {formatCurrency(prediction.monthly_trajectory[1].lower_bound)} – {formatCurrency(prediction.monthly_trajectory[1].upper_bound)}
@@ -631,15 +764,24 @@ export default function StockPrediction({
             <div className="p-5 bg-emerald-50 rounded-xl border border-emerald-200">
               <p className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-2">6-Month Price Target</p>
               <p className="text-3xl font-bold text-emerald-800 mb-1">
-                {formatCurrency(prediction.predicted_price_6m)}
+                {prediction.at_model_ceiling_6m
+                  ? `${prediction.ceiling_direction === 'down' ? '≤' : '≥'} ${formatCurrency(prediction.predicted_price_6m)}`
+                  : formatCurrency(prediction.predicted_price_6m)}
               </p>
-              <p 
-                className={`text-sm font-semibold mb-3 ${prediction.predicted_change_pct_6m < 0 ? 'text-red-600' : ''}`}
-                style={prediction.predicted_change_pct_6m >= 0 ? { color: "#005a00" } : {}}
-              >
-                {prediction.predicted_change_pct_6m >= 0 ? '+' : ''}{formatNumber(prediction.predicted_change_pct_6m, 2)}% from current
-              </p>
-              <ConfidenceBadge score={prediction.confidence_score_6m} />
+              {prediction.at_model_ceiling_6m ? (
+                <p className="text-sm font-semibold mb-3"
+                   style={{ color: prediction.ceiling_direction === 'down' ? '#dc2626' : '#005a00' }}>
+                  Strong {prediction.ceiling_direction === 'down' ? 'downward' : 'upward'} signal — target at model ceiling
+                </p>
+              ) : (
+                <p
+                  className={`text-sm font-semibold mb-3 ${prediction.predicted_change_pct_6m < 0 ? 'text-red-600' : ''}`}
+                  style={prediction.predicted_change_pct_6m >= 0 ? { color: "#005a00" } : {}}
+                >
+                  {prediction.predicted_change_pct_6m >= 0 ? '+' : ''}{formatNumber(prediction.predicted_change_pct_6m, 2)}% from current
+                </p>
+              )}
+              <ConfidenceBadge score={prediction.confidence_score_6m} breakdown={prediction.confidence_breakdown} overrideReason={prediction.confidence_reason_6m} />
               {prediction.monthly_trajectory?.[6] && (
                 <p className="text-xs text-green-700 mt-3">
                   Range: {formatCurrency(prediction.monthly_trajectory[6].lower_bound)} – {formatCurrency(prediction.monthly_trajectory[6].upper_bound)}
@@ -651,15 +793,24 @@ export default function StockPrediction({
             <div className="p-5 bg-white rounded-xl border border-green-300">
               <p className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-2">12-Month Price Target</p>
               <p className="text-3xl font-bold text-green-900 mb-1">
-                {formatCurrency(prediction.predicted_price_1y)}
+                {prediction.at_model_ceiling_1y
+                  ? `${prediction.ceiling_direction === 'down' ? '≤' : '≥'} ${formatCurrency(prediction.predicted_price_1y)}`
+                  : formatCurrency(prediction.predicted_price_1y)}
               </p>
-              <p 
-                className={`text-sm font-semibold mb-3 ${prediction.predicted_change_pct_1y < 0 ? 'text-red-600' : ''}`}
-                style={prediction.predicted_change_pct_1y >= 0 ? { color: "#005a00" } : {}}
-              >
-                {prediction.predicted_change_pct_1y >= 0 ? '+' : ''}{formatNumber(prediction.predicted_change_pct_1y, 2)}% from current
-              </p>
-              <ConfidenceBadge score={prediction.confidence_score_1y} />
+              {prediction.at_model_ceiling_1y ? (
+                <p className="text-sm font-semibold mb-3"
+                   style={{ color: prediction.ceiling_direction === 'down' ? '#dc2626' : '#005a00' }}>
+                  Strong {prediction.ceiling_direction === 'down' ? 'downward' : 'upward'} signal — target at model ceiling
+                </p>
+              ) : (
+                <p
+                  className={`text-sm font-semibold mb-3 ${prediction.predicted_change_pct_1y < 0 ? 'text-red-600' : ''}`}
+                  style={prediction.predicted_change_pct_1y >= 0 ? { color: "#005a00" } : {}}
+                >
+                  {prediction.predicted_change_pct_1y >= 0 ? '+' : ''}{formatNumber(prediction.predicted_change_pct_1y, 2)}% from current
+                </p>
+              )}
+              <ConfidenceBadge score={prediction.confidence_score_1y} breakdown={prediction.confidence_breakdown} overrideReason={prediction.confidence_reason_1y} />
               {prediction.monthly_trajectory?.[12] && (
                 <p className="text-xs text-green-800 mt-3">
                   Range: {formatCurrency(prediction.monthly_trajectory[12].lower_bound)} – {formatCurrency(prediction.monthly_trajectory[12].upper_bound)}

@@ -40,6 +40,7 @@ FEATURE_COLUMNS: List[str] = [
     "ROC_6m", "ROC_12m",
     "GoldenCross",
     "HistVol_30",
+    "HistVol_60",
     "VIX", "VIX_20d_Avg", "Treasury10Y", "SectorETF_60d_Corr",
     "Month_Sin", "Month_Cos", "EarningsSeason",
     "Close_lag_5", "Close_lag_10", "Close_lag_20", "Volume_lag_5",
@@ -221,6 +222,8 @@ def compute_features(
     log_ret = np.log(close_s / close_s.shift(1))
     hist_vol = log_ret.rolling(30).std().iloc[-1] * np.sqrt(252)
     f["HistVol_30"] = float(hist_vol) if pd.notna(hist_vol) else None
+    hist_vol_60 = log_ret.rolling(60).std().iloc[-1] * np.sqrt(252)
+    f["HistVol_60"] = float(hist_vol_60) if pd.notna(hist_vol_60) else None
 
     vix_val = _asof(macro.get("vix"), snap)
     f["VIX"] = vix_val

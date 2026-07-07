@@ -24,6 +24,7 @@
     "ROC_12m",
     "GoldenCross",
     "HistVol_30",
+    "HistVol_60",
     "VIX",
     "VIX_20d_Avg",
     "Treasury10Y",
@@ -92,32 +93,29 @@
   "ratio_threshold": 1.5,
   "cap_6m": 0.7,
   "cap_1y": 1.0,
-  "epochs_trained": 20,
-  "final_train_loss": 0.0983268991112709,
-  "final_val_loss": 0.20003007352352142,
-  "trained_at": "2026-07-01T19:26:22.297728",
-  "train_rows": 22160,
-  "val_rows": 5846,
-  "train_tickers": 485,
+  "epochs_trained": 18,
+  "final_train_loss": 0.11690311133861542,
+  "final_val_loss": 0.18562102317810059,
+  "trained_at": "2026-07-06T18:22:25.034889",
+  "train_rows": 21849,
+  "val_rows": 5675,
+  "train_tickers": 468,
   "val_metrics": {
-    "return_126d_mae": 0.46487975120544434,
-    "return_126d_dir_correct": 0.667807047553883,
-    "return_252d_mae": 0.8720442652702332,
-    "return_252d_dir_correct": 0.7127950735545672,
-    "inconsistency_rate": 0.04674959871589085,
-    "mean_overshoot_when_fired": 0.026705218479037285,
-    "opposite_sign_rate": 0.023525153818313427,
-    "mean_opposite_magnitude": 0.11008056253194809,
-    "v1_baseline_inconsistency_rate": 0.12017167381974249,
-    "v_prev_opposite_sign_rate": 0.09923664122137404,
-    "v_prev_mean_opposite_magnitude": 0.15360337495803833,
+    "return_126d_mae": 0.5316467881202698,
+    "return_126d_dir_correct": 0.6209691629955947,
+    "return_252d_mae": 1.025338888168335,
+    "return_252d_dir_correct": 0.7355066079295154,
+    "inconsistency_rate": 0.05938548928479215,
+    "mean_overshoot_when_fired": 0.0823994129896164,
+    "opposite_sign_rate": 0.1897810218978102,
+    "mean_opposite_magnitude": 0.11518160253763199,
     "pred_range_6m": [
-      -0.6987797021865845,
-      0.6999866962432861
+      -0.6768604516983032,
+      0.6918825507164001
     ],
     "pred_range_1y": [
-      -0.998978316783905,
-      1.0
+      -0.9130821824073792,
+      0.9999998807907104
     ]
   }
 }

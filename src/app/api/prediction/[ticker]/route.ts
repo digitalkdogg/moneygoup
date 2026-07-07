@@ -177,6 +177,14 @@ export async function POST(
           accuracyMetrics: result.accuracy_metrics,
           dataQuality: result.data_quality,
           modelStatus: result.model_status,
+          atModelCeiling6m: result.at_model_ceiling_6m ?? null,
+          atModelCeiling1y: result.at_model_ceiling_1y ?? null,
+          ceilingDirection: result.ceiling_direction ?? null,
+          confidenceBreakdown: result.confidence_breakdown,
+          confidenceReason1w: result.confidence_reason_1w,
+          confidenceReason1m: result.confidence_reason_1m,
+          confidenceReason6m: result.confidence_reason_6m,
+          confidenceReason1y: result.confidence_reason_1y,
         }).catch(() => {});
       }
     }
