@@ -482,8 +482,8 @@
         <div class="rid">BR-5.5</div>
         <div class="body">
           <span class="tag py">Python</span>
-          <p>Prediction outputs are sanitized before persistence: prices are floored at <code>0.01</code>; predicted change percentages are clamped per horizon (1w ±15%, 1m ±30%, 6m ±60%, 1y ±100%). Any clamped horizon has its confidence demoted to <code>25</code> to flag downstream readers.</p>
-          <span class="src">scripts/predict_weighted_analysis.py · _sanitize_predictions</span>
+          <p>Prediction outputs are sanitized before persistence. Per-horizon caps (<strong>base</strong> 1w ±15%, 1m ±30%, 6m ±60%, 1y ±100%) are multiplied by <code>max(1, min(2.5, realized_vol_60d / 0.30))</code>, so a high-vol name gets proportionally wider ceilings and doesn't clip on every prediction. Prices are floored at <code>0.01</code>. Confidence is demoted to <code>25</code> only when the clamp catches a real outlier — <strong>not</strong> when both 6m + 1y coherently push against their vol-scaled caps in the same direction (a coherent extrapolation keeps the model's own confidence and sets <code>at_model_ceiling_*</code> flags so the UI shows a directional pill instead of a false-precision point target). A trajectory-smoothness gate catches legitimate cyclical peak-and-reverse forecasts and drops confidence to <code>60</code> (Medium) rather than 25. Each horizon-specific adjustment stamps a <code>confidence_reason_{h}</code> string the tooltip surfaces on Medium/Low badges.</p>
+          <span class="src">scripts/predict_core.py · _sanitize_predictions</span>
         </div>
       </div>
 

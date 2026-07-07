@@ -53,7 +53,10 @@ PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 
 if os.path.exists(os.path.join(PROJECT_ROOT, '.env.production')):
     load_dotenv(os.path.join(PROJECT_ROOT, '.env.production'))
-load_dotenv(os.path.join(PROJECT_ROOT, '.env.local'))
+# .env.local overrides so the backtest uses the same model version Next.js dev
+# does — otherwise .env.production's USE_LEGACY=true silently routes to the
+# legacy baseline model instead of v3-split.
+load_dotenv(os.path.join(PROJECT_ROOT, '.env.local'), override=True)
 
 # Model toggle — honors the same env var the /api/prediction/[ticker] route
 # uses, so a single switch in .env.local controls both the UI prediction
@@ -160,6 +163,49 @@ def fetch_history(ticker: str, start: date, end: date) -> list:
     ]
 
 
+def fetch_rating_history(ticker: str) -> list:
+    """Fetch the ticker's full upgradeDowngradeHistory from Yahoo. Returns a
+    list of {'firm', 'action', 'fromGrade', 'toGrade', 'epochGradeDate'}
+    dicts, or empty list on failure. Yahoo retains this history indefinitely
+    so we can safely filter by as-of date to compute point-in-time counts."""
+    try:
+        ticker_obj = yf.Ticker(ticker)
+        # yfinance exposes upgrades_downgrades as a DataFrame
+        df = ticker_obj.upgrades_downgrades
+        if df is None or df.empty:
+            return []
+        # yfinance returns { 'GradeDate' index, 'Firm', 'ToGrade', 'FromGrade', 'Action' }
+        rows = []
+        for idx, r in df.iterrows():
+            try:
+                # Convert to epoch seconds
+                if hasattr(idx, 'timestamp'):
+                    epoch = int(idx.timestamp())
+                else:
+                    epoch = int(pd.Timestamp(idx).timestamp())
+            except Exception:
+                continue
+            act = str(r.get('Action', '')).lower()
+            # Map yfinance actions to Yahoo API's 'up'/'down' shape
+            if act in ('up', 'upgrade'):     action = 'up'
+            elif act in ('down', 'downgrade'): action = 'down'
+            elif act in ('init', 'initiate'):  action = 'init'
+            elif act in ('reit', 'reiterate'): action = 'reit'
+            elif act in ('main', 'maintain'):  action = 'main'
+            else: action = act
+            rows.append({
+                'firm':           str(r.get('Firm', '')),
+                'action':         action,
+                'fromGrade':      str(r.get('FromGrade', '')),
+                'toGrade':        str(r.get('ToGrade', '')),
+                'epochGradeDate': epoch,
+            })
+        return rows
+    except Exception as exc:
+        print(f"  [rating] fetch failed for {ticker}: {exc}", file=sys.stderr)
+        return []
+
+
 def fetch_macro_series(symbol: str, start: date, end: date) -> list:
     """List of {date, close} dicts for a macro/benchmark symbol, ascending."""
     cache_key = (symbol, start, end)
@@ -182,7 +228,8 @@ def truncate_series(rows: list, as_of: str) -> list:
     return [r for r in rows if r['date'] <= as_of]
 
 
-def build_input_data(sector: str, hist_trunc: list, macro_full: dict, as_of: str) -> dict:
+def build_input_data(sector: str, hist_trunc: list, macro_full: dict, as_of: str,
+                     rating_hist: list | None = None) -> dict:
     price_at_prediction = hist_trunc[-1]['close']
     medians = SECTOR_MEDIANS.get(sector, SECTOR_MEDIANS['_default'])
 
@@ -206,7 +253,40 @@ def build_input_data(sector: str, hist_trunc: list, macro_full: dict, as_of: str
         'recommendationKey':   None,
         'nextEarningsDate':    None,
         'lastEarningsDate':    None,
+        # Phase 2 (Tier 2) — sector medians surface for the log-ratio features.
+        # Since we impute the raw fundamentals to the sector median, the log
+        # ratios will land at 0 by construction (a stock at "sector median" =
+        # log(1) = 0). Real signal only kicks in when Yahoo snapshots are
+        # available live. This is an acknowledged backtest limitation.
+        'sectorMedianPe':            medians['peRatio'],
+        'sectorMedianPb':            medians['pbRatio'],
+        'sectorMedianRevenueGrowth': medians['revenueGrowth'],
+        'sectorMedianProfitMargins': medians['profitMargins'],
     }
+
+    # Phase 2 (Tier 1) — analyst rating velocity, filtered to as-of date so
+    # we don't leak future rating actions into a backtest snapshot. Yahoo's
+    # upgradeDowngradeHistory returns actions with epochGradeDate; caller
+    # fetches once at the outer loop and passes it in via rating_hist.
+    import datetime as _dt
+    _rating_metrics = {}
+    if rating_hist:
+        as_of_ts = _dt.datetime.strptime(as_of, '%Y-%m-%d').timestamp()
+        S30 = 30 * 86400
+        S90 = 90 * 86400
+        past = [h for h in rating_hist if (h.get('epochGradeDate') or 0) <= as_of_ts]
+        r30 = [h for h in past if as_of_ts - h.get('epochGradeDate', 0) <= S30]
+        r90 = [h for h in past if as_of_ts - h.get('epochGradeDate', 0) <= S90]
+        _rating_metrics = {
+            'ratingUp30d':   sum(1 for h in r30 if h.get('action') == 'up'),
+            'ratingDown30d': sum(1 for h in r30 if h.get('action') == 'down'),
+            'ratingUp90d':   sum(1 for h in r90 if h.get('action') == 'up'),
+            'ratingDown90d': sum(1 for h in r90 if h.get('action') == 'down'),
+        }
+        _up30 = _rating_metrics['ratingUp30d']; _dn30 = _rating_metrics['ratingDown30d']
+        _up90 = _rating_metrics['ratingUp90d']; _dn90 = _rating_metrics['ratingDown90d']
+        _rating_metrics['upgradeScore30d'] = ((_up30 - _dn30) / (_up30 + _dn30)) if (_up30 + _dn30) > 0 else 0.0
+        _rating_metrics['upgradeScore90d'] = ((_up90 - _dn90) / (_up90 + _dn90)) if (_up90 + _dn90) > 0 else 0.0
 
     sector_etf_sym = SECTOR_ETF.get(sector, 'SPY')
     macro_data = {
@@ -229,7 +309,7 @@ def build_input_data(sector: str, hist_trunc: list, macro_full: dict, as_of: str
         'stockMetrics':       stock_metrics,
         'macroData':          macro_data,
         'optionsData':        {},
-        'featureMetrics':     {},
+        'featureMetrics':     _rating_metrics,
         'newsArticles':       [],
         'historicalEarnings': [],
         'dataQuality': {
@@ -319,7 +399,8 @@ def upsert_backtest_row(conn, row: dict, overwrite: bool) -> str:
         cursor.close()
 
 
-def backtest_one(ticker: str, as_of: str, full_hist: list, macro_full: dict, conn, dry_run: bool, overwrite: bool):
+def backtest_one(ticker: str, as_of: str, full_hist: list, macro_full: dict, conn,
+                 dry_run: bool, overwrite: bool, rating_hist: list | None = None):
     """Returns the computed row dict, or None if this (ticker, as_of) was skipped."""
     as_of_date = datetime.strptime(as_of, '%Y-%m-%d').date()
     hist_trunc = [r for r in full_hist if r['date'] <= as_of]
@@ -329,7 +410,7 @@ def backtest_one(ticker: str, as_of: str, full_hist: list, macro_full: dict, con
         return None
 
     sector = get_sector(ticker)
-    input_data = build_input_data(sector, hist_trunc, macro_full, as_of)
+    input_data = build_input_data(sector, hist_trunc, macro_full, as_of, rating_hist=rating_hist)
 
     try:
         result = predict(ticker, input_data)
@@ -476,6 +557,12 @@ def main():
                 print(f"  [error] No historical data returned for {ticker}, skipping.")
                 continue
 
+            # Phase 2 (Tier 1) — pull the analyst upgrade/downgrade history once
+            # per ticker. Yahoo returns every action ever recorded with epoch
+            # timestamps; we filter to <= as_of at each backtest date in
+            # build_input_data so no future ratings leak in.
+            rating_hist = fetch_rating_history(ticker)
+
             sector = get_sector(ticker)
             sector_etf_sym = SECTOR_ETF.get(sector, 'SPY')
             if sector_etf_sym not in sector_etf_cache:
@@ -490,7 +577,8 @@ def main():
                 ticker_dates = as_of_dates
 
             for as_of in ticker_dates:
-                row = backtest_one(ticker, as_of, full_hist, ticker_macro, conn, args.dry_run, args.overwrite)
+                row = backtest_one(ticker, as_of, full_hist, ticker_macro, conn, args.dry_run, args.overwrite,
+                                    rating_hist=rating_hist)
                 if row is not None:
                     all_results.append(row)
     finally:

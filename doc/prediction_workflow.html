@@ -217,7 +217,7 @@
           <li><code>scripts/predict_weighted_analysis.py</code> refactored into an orchestrator that delegates to <code>predict_short_term.py</code> (1w + 1m heads), <code>predict_long_term.py</code> (6m + 1y heads, cross-sectional or per-ticker fallback), and <code>predict_core.py</code> (shared features, caching, sanitize). The pre-refactor monolith is preserved verbatim at <code>scripts/predict_weighted_analysis_baseline.py</code>.</li>
           <li><strong>Env-var model toggle:</strong> <code>USE_LEGACY_PREDICTION_MODEL=true</code> reverts every prediction path (UI button, backtest, nightly sync, DeepMoney) to the baseline file. Default (unset / "false") uses the v3-split orchestrator. The toggle is honored by the route, the backtest script, and the helper in <code>src/utils/stockDataHelper.ts</code>.</li>
           <li><strong>Cross-sectional long-term model:</strong> <code>predict_long_term.py</code> auto-loads <code>models/long_term_cs_{version}.pkl</code> at import time. v1 is sklearn MLPRegressor (MSE loss, no TF needed). v2 is Keras MLP with Huber loss + joint 6m/1y consistency penalty + tanh × cap bounded output (±70% / ±100%). Version chosen by <code>CS_MODEL_VERSION</code> env var; loader silently falls back to per-ticker MLP training if the artifact is missing.</li>
-          <li><strong>Sanitize guard (<code>_sanitize_predictions</code>):</strong> post-orchestrator clamp that catches per-horizon bound violations (1w ±15%, 1m ±30%, 6m ±60%, 1y ±100%), two cross-horizon 6m/1y consistency checks (same-sign overshoot: fires when same-signed and |pct_6m| &gt; 1.5 × |pct_1y| AND |pct_6m| &gt; 15%; opposite-sign: fires when signs differ and both |pct_6m| &gt; 5% and |pct_1y| &gt; 5%), and floors prices at 0.01. Clamps update both pct and price, and knock the affected horizon's confidence to 25.</li>
+          <li><strong>Sanitize guard (<code>_sanitize_predictions</code>):</strong> post-orchestrator gate with <strong>vol-scaled per-horizon caps</strong> (base 15/30/60/100 × <code>max(1, min(2.5, realized_vol_60d / 0.30))</code>), <strong>signal-aware confidence</strong> (coherent 6m+1y extrapolation keeps the model's own confidence + sets <code>at_model_ceiling_*</code> flags for the UI's directional pill), a <strong>trajectory-smoothness gate</strong> for cyclical peak-and-reverse patterns (drops confidence to 60 rather than 25 when the shape is coherent), and floors prices at 0.01. Every horizon-specific adjustment stamps a <code>confidence_reason_{h}</code> plain-language string that the UI tooltip surfaces on Medium/Low badges. Full detail in the <a href="#sanitize-layer">Sanitize Layer</a> section below.</li>
           <li><strong>Tracking:</strong> <code>prediction_records</code> now has a <code>model_version</code> column (defaults to <code>'legacy'</code>; backtest writes <code>'v3split'</code> or whatever <code>MODEL_VERSION_TAG</code> overrides). Unique index changed from <code>(symbol, predicted_at)</code> to <code>(symbol, predicted_at, model_version)</code> so legacy and v3-split predictions can coexist for side-by-side comparison.</li>
           <li>Cache schema bumped to v13. The Node route cache key now includes the CS model version (<code>{ticker}_{outlook}_v3split_{csModelVersion}</code>) so promoting v1 → v2 → v3 produces fresh predictions instead of returning stale results from the prior model.</li>
         </ul>
@@ -862,39 +862,64 @@ _blended_1w     = 0.50 × _mlp_1w_raw + 0.50 × _traj_anchor_1w</div>
         </section>
 
         <section id="sanitize-layer">
-          <h4>Sanitize Layer — <code>_sanitize_predictions</code> <span class="new-badge">v3.5</span></h4>
+          <h4>Sanitize Layer — <code>_sanitize_predictions</code> <span class="new-badge">v3.7 (Jul 2026)</span></h4>
           <div class="component-tag">scripts/predict_core.py — defined in baseline and v3-split paths</div>
-          <p>Final post-processing pass on the prediction result. Catches three classes of model misbehavior and rewrites the result in place. Every time a clamp fires for a horizon, that horizon's <code>confidence_score_*</code> is knocked down to 25 (a clamped prediction is a low-trust prediction). Each fire emits a single <code>[sanitize]</code> line to stderr so the event is visible in dev-server logs.</p>
+          <p>Final post-processing pass on the prediction result. Rather than a blunt "clamp fires → floor confidence to 25" mechanic, the current sanitizer distinguishes between <strong>model failure</strong> (numerical breakage, uncorrelated horizons, opposite-sign disagreement) and <strong>coherent extrapolation</strong> (raw signal exceeded the cap but the horizons agree with each other about direction and magnitude). Confidence is only mechanically demoted in the former case; in the latter, the model's own confidence is preserved and the UI renders a directional pill instead of a false-precision point target.</p>
 
+          <h5>1. Vol-scaled per-horizon caps</h5>
+          <p>Base caps <code>1w ±15%, 1m ±30%, 6m ±60%, 1y ±100%</code> — calibrated to roughly 3σ moves for a 30%-annualized-vol equity. Each is multiplied by <code>max(1, min(2.5, realized_vol_60d / 0.30))</code> so a high-vol name like WULF (~90% annualized vol) gets caps of <code>37.5 / 75 / 150 / 250</code> and doesn't trip the ceiling on every prediction. The <code>realized_vol_60d</code> input is computed from log returns at the top of <code>predict()</code> and stamped onto the result dict for observability.</p>
+
+          <h5>2. Two-pass confidence rules (Proposal A: signal-aware)</h5>
+          <p>The horizon loop no longer sets confidence in-line. Instead it records a <code>clamp_events</code> map, then a post-loop pass inspects the pattern and decides:</p>
           <table>
-            <thead><tr><th>Check</th><th>Fires when…</th><th>Effect</th></tr></thead>
+            <thead><tr><th>Pattern</th><th>Effect on confidence &amp; ceiling flags</th></tr></thead>
             <tbody>
               <tr>
-                <td><strong>Price floor</strong></td>
-                <td><code>predicted_price_{h}</code> &lt; 0.01 (negative or zero — unphysical)</td>
-                <td>Sets price to 0.01; confidence_score_{h} → 25.</td>
+                <td><strong>Both 6m + 1y clamped, same direction</strong></td>
+                <td>Keep the model's own <code>confidence_score_6m/1y</code>. Set <code>at_model_ceiling_6m = at_model_ceiling_1y = true</code>, <code>ceiling_direction = 'up' / 'down'</code>. Coherent extrapolation — not a model failure.</td>
               </tr>
               <tr>
-                <td><strong>Per-horizon bound clamp</strong></td>
-                <td><code>|pct_{h}|</code> exceeds the horizon's max plausible move: 1w ±15%, 1m ±30%, 6m ±60%, 1y ±100%.</td>
-                <td>Clamps <code>predicted_change_pct_{h}</code> to the bound, recomputes <code>predicted_price_{h}</code> from the clamped pct so they stay consistent; confidence_score_{h} → 25.</td>
+                <td><strong>Only 1y clamped, 6m same-signed AND <code>|pct_6m| ≥ 0.5 × cap_6m_scaled</code></strong></td>
+                <td>Same as above but only <code>at_model_ceiling_1y = true</code>. Typical shape: +57% at 6m → clamped +100% at 1y (HBM-style growth).</td>
               </tr>
               <tr>
-                <td><strong>Cross-horizon 6m/1y consistency (same-sign overshoot)</strong></td>
-                <td>pct_6m and pct_1y are same-signed AND <code>|pct_6m| &gt; 1.5 × |pct_1y|</code> AND <code>|pct_6m| &gt; 15</code>.</td>
-                <td>Clamps pct_6m to <code>1.3 × pct_1y</code> (same sign), recomputes <code>predicted_price_6m</code>; confidence_score_6m → 25. A genuine 6m move that large on a liquid name should persist/grow by 1y, not revert — so when the 6m head overshoots its own 1y head, treat the 6m head as the outlier.</td>
+                <td><strong>Only 6m clamped, 1y same-signed AND <code>|pct_1y| ≥ 0.5 × cap_1y_scaled</code></strong></td>
+                <td>Symmetric to above. Only <code>at_model_ceiling_6m = true</code>.</td>
               </tr>
               <tr>
-                <td><strong>Cross-horizon 6m/1y consistency (opposite-sign)</strong> <span class="new-badge">July 2026</span></td>
-                <td>pct_6m and pct_1y have opposite signs AND <code>|pct_6m| &gt; 5</code> AND <code>|pct_1y| &gt; 5</code>.</td>
-                <td>Glide-paths pct_6m to <code>pct_1y × 0.5</code> (half the 1y target, consistent direction), recomputes <code>predicted_price_6m</code>; confidence_score_6m → 25. Targets a systemic model bias where ~18% of predictions showed 6m negative / 1y positive (or vice versa). The 5% floor on both sides passes genuine near-zero noise through unchanged.</td>
+                <td><strong>Only 1y clamped, 6m near zero or opposite direction</strong></td>
+                <td>Confidence → 25 (real outlier). <code>confidence_reason_1y</code> populated with a plain-language explanation the tooltip renders.</td>
+              </tr>
+              <tr>
+                <td><strong>Price floor fires (predicted_price &lt; 0.01)</strong></td>
+                <td>Always confidence → 25 — negative price is a numerical failure regardless of horizon shape.</td>
+              </tr>
+              <tr>
+                <td><strong>1w clamp — special case</strong></td>
+                <td>Keep confidence if the 1w direction agrees with 1m AND <code>|pct_1w| &lt; |pct_1m|</code> (a volatile stock hitting its 1w cap on the way to a legitimate 1m target). Otherwise floor to 25.</td>
+              </tr>
+              <tr>
+                <td><strong>1m clamp</strong></td>
+                <td>Always floor to 25 — no cross-horizon rule at the 1m boundary.</td>
               </tr>
             </tbody>
           </table>
 
-          <p>Thresholds were tuned from the v3split backtest distribution — the same-sign overshoot check fires on ~6% of same-signed pairs (5 of 80 in the 15-ticker × 7-date backtest) with clear separation between "fine" and "broken" cases; the opposite-sign 5% floor was chosen to catch the reported −7.8% / +17.4% pattern while leaving near-zero cross-sign noise untouched. Coverage: <code>scripts/test_sanitize_predictions.py</code> exercises 12 cases including the chain where both bound and cross-horizon clamps fire on the same prediction, the exact user-reported PCAR dip pattern, and small-magnitude opposite-sign noise that should pass through unchanged.</p>
+          <h5>3. Cross-horizon consistency + trajectory smoothness (Proposal 2 + 4)</h5>
+          <p>The historical <code>|pct_6m| &gt; 1.5 × |pct_1y|</code> same-sign check used to blindly clamp pct_6m and floor its confidence to 25. That was a false positive for legitimate cyclical-peak forecasts (semis at ADI-style inflection points: +20% at 6m → +4% at 1y → −13% at 18m). The current gate checks the trajectory shape:</p>
+          <ul>
+            <li><strong>Smooth transition</strong> (waypoints 6→12 in <code>monthly_trajectory</code> are monotonic) → model is deliberately forecasting peak-and-reverse. Keep the raw 6m target; drop confidence to <strong>60</strong> (Medium) and populate <code>confidence_reason_6m</code>.</li>
+            <li><strong>Non-smooth</strong> (waypoint 7 jumps back toward the 1y anchor — real spike outlier) → clamp pct_6m to <code>1.3 × pct_1y</code>, patch <code>monthly_trajectory[6]</code> to match, drop confidence to <strong>60</strong>.</li>
+            <li><strong>Opposite-sign disagreement</strong> (<code>|pct_6m| &gt; 5</code> AND <code>|pct_1y| &gt; 5</code>) → glide-path pct_6m to <code>pct_1y × 0.5</code>, floor confidence to 25.</li>
+          </ul>
 
-          <div class="warning-box"><strong>Both paths run sanitize:</strong> the legacy baseline and the v3-split orchestrator each have their own definition of <code>_sanitize_predictions</code> (they predate the split and were not consolidated). When updating clamp logic, edit both. The legacy version lives at <code>scripts/predict_weighted_analysis_baseline.py:1179</code>; the v3-split version lives at <code>scripts/predict_core.py:1299</code>.</div>
+          <h5>4. Trajectory + range re-centering</h5>
+          <p>Whenever a horizon clamp fires, both <code>predicted_range_{h}</code> and <code>monthly_trajectory[6]/[12]</code> are re-centered on the clamped price (preserving spread). This prevents the earlier UI bug where the "Range" text on the 6m card floated above the target.</p>
+
+          <h5>5. Confidence-breakdown emission</h5>
+          <p><code>confidence_score()</code> now returns <code>(score, breakdown)</code> when <code>return_breakdown=True</code>. The breakdown carries per-component points (<code>cv_mape</code>, <code>history</code>, <code>features</code>, <code>analyst</code>) + raw input values (cv_mape %, history years, imputed field list, analyst count). It flows through <code>predict_long_term.py</code> → the result JSON → <code>prediction_records.confidence_breakdown</code> → the UI tooltip on Medium/Low badges. When the sanitizer manually adjusts a horizon's confidence, it also stamps <code>confidence_reason_{h}</code> with a plain-language explanation that takes precedence over the component-based tooltip.</p>
+
+          <div class="warning-box"><strong>Both paths run sanitize:</strong> the legacy baseline and the v3-split orchestrator each have their own definition of <code>_sanitize_predictions</code>. When updating clamp logic, edit both. The legacy version lives at <code>scripts/predict_weighted_analysis_baseline.py</code>; the v3-split version at <code>scripts/predict_core.py</code>. Both emit <code>[sanitize]</code> stderr lines per clamp event for observability.</div>
         </section>
       </div>
     </section>

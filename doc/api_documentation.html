@@ -173,6 +173,7 @@
       <div class="stat-card"><div class="value">6h</div><div class="label">Max Cache TTL</div></div>
     </div>
 
+    <div class="updated"><strong>July 2026 changes summary:</strong> New <code>GET /api/stock_data/[ticker]/latest-prediction</code> returns the freshest &lt; 12h prediction from <code>prediction_records</code>, filtered by the current model version. Enables prefetched cards on <code>/search/[ticker]</code> without a click. The <code>prediction_records</code> table gained 15 new columns (per-horizon change_pct + confidence, gps score/breakdown, accuracy metrics, data quality, model status, ceiling flags, confidence breakdown + per-horizon reasons). The <code>[ticker]</code> route now writes those columns on <code>outlook='all' &amp;&amp; !isInternal</code> to avoid duplicate writes when the batch also calls the route. Sanitizer overhauled: vol-scaled per-horizon caps, signal-aware confidence (Proposal A), trajectory-smoothness gate for peak-and-reverse forecasts, directional pill flags (<code>at_model_ceiling_*</code>). Per-ticker cv_mape now computed at inference time via backtest of the last ~250 rows, with a vol-based proxy fallback — no more hardcoded 5% heuristic on the CS-model path.</div>
     <div class="updated"><strong>June 2026 changes summary:</strong> Horizon-aware response shapes are now standard across <code>/api/user/portfolio</code>, <code>/api/user/watchlist</code>, and <code>/api/dashboard/recommendations</code> — each returns a top-level <code>horizonLabel</code> matching the user's <code>investment_timeframe.shortLabel</code>. Portfolio and watchlist rows additionally expose <code>predicted_price_horizon</code>, <code>predicted_change_pct_horizon</code>, and <code>confidence_score_horizon</code> picked from the per-horizon columns in <code>user_stock_predictions</code>. <code>POST /api/prediction/save</code> accepts 8 new optional fields (<code>predicted_change_pct_{1w,1m,6m,1y}</code> and <code>confidence_score_{1w,1m,6m,1y}</code>) and writes them to <code>user_stock_predictions</code>; <code>POST /api/prediction/[ticker]</code> now forwards all 4 horizons of prices + 4 change_pct + 4 confidence to <code>/api/prediction/save</code> via <code>savePredictionAsync</code>. The user profile endpoint accepts PATCH to update the strategy. A new <code>/api/analytics/model-accuracy</code> endpoint powers the dashboard's <code>ModelAccuracyWidget</code>. <code>/api/stock_data/[sector]/industry</code> now sorts by <strong>GPS score</strong> (not the prior Heat composite), joining each sector leader against <code>stock_gps_scores</code>. DeepMoney sync injects all 11 canonical-sector top-25 lists nightly into a sector-leader override lane that bypasses the ranker keep-cut and writes a GPS row for each — see <a href="business_rules.html#external">BR-14.4 / BR-14.5 / BR-14.6</a>. Stocks the sync hasn't reached yet surface with <code>gps_score: null</code> and a placeholder in the UI. See the <a href="strategy_system.html">Strategy System</a> doc for the full strategy model.</div>
 
     <div class="info">All routes are Next.js App Router Route Handlers (<code>route.ts</code> files). All authenticated routes validate the NextAuth JWT session. The <code>checkOrigin()</code> middleware is applied to most mutation endpoints. An internal bypass using the <code>x-api-key</code> header allows server-to-server calls. All authenticated data endpoints call <code>checkApprovalGuard(userId)</code> to re-verify approval status against the database on every request.</div>
@@ -972,6 +973,40 @@ total_accuracy_pct     = ROUND(100 × AVG(accuracy_score across all horizons), 2
                     "analystConsensus": number, "priceChange52w": number } | null,
   "source": "stock_gps_scores" | "recommended_stocks" | "none",
   "asOf":   string | null
+}</pre>
+      </div>
+
+      <div class="route-card">
+        <div class="route-header">
+          <span class="method method-GET">GET</span>
+          <span class="route-path">/api/stock_data/[ticker]/latest-prediction</span>
+          <span class="badge badge-cache">12-hour window</span>
+          <span class="route-file">src/app/api/stock_data/[ticker]/latest-prediction/route.ts</span>
+        </div>
+        <div class="route-desc">Returns the freshest <code>prediction_records</code> row for this ticker if <code>created_at &gt;= NOW() - INTERVAL 12 HOUR</code>, filtered by the currently-active <code>model_version</code> (mirrors the model tag resolution in <code>[ticker]/route.ts</code>). Consumed by <code>Stock.tsx</code> alongside the other parallel fetches so the prediction cards can render immediately on page load — no "Generate Prediction" click required. The <code>StockSignalPanel</code> button flips to "Regenerate Prediction" when a prefetched row exists, and a small footnote reads <em>"Showing prediction from the latest batch run — X ago"</em>. Falls through to <code>null</code> when the row is stale (&gt; 12 hours), missing, or from a different model version. Public read (<code>checkOrigin</code> only, no session) so a logged-out visitor to <code>/search/[ticker]</code> can still see the prediction.</div>
+        <div class="sub-heading">Response — either a full payload or <code>null</code></div>
+        <pre>{
+  "prediction": {
+    "ticker":                  string,
+    "regularMarketPrice":      number | null,
+    "predicted_price_1w"..."_1y":       number | null,
+    "predicted_change_pct_1w"..."_1y":  number | null,
+    "confidence_score_1w"..."_1y":      number | null,
+    "gps_score":               number | null,
+    "gps_breakdown":           object | null,
+    "accuracy_metrics":        { "model": { "mae": number, "rmse": number, "cv_mae": number } } | null,
+    "data_quality":            object | null,
+    "model_status":            string | null,
+    "at_model_ceiling_6m":     boolean | null,
+    "at_model_ceiling_1y":     boolean | null,
+    "ceiling_direction":       "up" | "down" | null,
+    "confidence_breakdown":    { "total": number, "components": {...} } | null,
+    "confidence_reason_1w"..."_1y":     string | null,
+    "model_version":           string
+  },
+  "predictedAt": string,   // ISO — prediction's own predicted_at
+  "createdAt":   string,   // ISO — row insert time (used for freshness filter)
+  "ageMinutes":  number    // Date.now() - createdAt in minutes
 }</pre>
       </div>
 
