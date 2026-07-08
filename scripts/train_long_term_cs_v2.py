@@ -76,14 +76,23 @@ def get_db():
 
 def load_dataset(conn):
     cur = conn.cursor(dictionary=True)
+    # Training-data version — configurable via TRAIN_FEATURE_VERSION env var
+    # so we can experiment with data mixes without editing code. Defaults to
+    # the current FEATURE_SET_VERSION, but can be set to 'green_v1' to train
+    # on the pre-fundamentals-features data (Option C: recover july_v1 accuracy
+    # by having the model effectively ignore the 9 new features since they're
+    # null → imputed 0 across every green_v1 row).
+    _train_version = os.getenv('TRAIN_FEATURE_VERSION', FEATURE_SET_VERSION)
+    print(f"[dataset] filtering to feature_set_version = {_train_version!r}", file=sys.stderr)
     cur.execute("""
         SELECT snapshot_date, ticker, features_json,
                forward_return_126d, forward_return_252d
         FROM ranking_training_snapshots
         WHERE forward_return_126d IS NOT NULL
           AND forward_return_252d IS NOT NULL
+          AND feature_set_version = %s
         ORDER BY snapshot_date, ticker
-    """)
+    """, (_train_version,))
     rows = cur.fetchall()
     if not rows:
         print("ERROR: no resolved long-term rows. Run extend_long_term_labels.py first.", file=sys.stderr)

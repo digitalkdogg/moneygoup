@@ -351,6 +351,60 @@ def main() -> int:
     # World Bank lookup
     wb_by_year = fetch_world_bank_indicators_by_year(conn)
 
+    # green_v2: load historical fundamentals + sector medians in bulk. Both
+    # are optional — feature builder falls back to None-safe defaults when a
+    # (ticker, snap) pair has no matching row.
+    print("[fundamentals] loading yahoo_historical_fundamentals...", file=sys.stderr)
+    fund_cur = conn.cursor(dictionary=True)
+    fund_cur.execute("""
+        SELECT symbol, period_end_date, free_cash_flow, operating_cash_flow,
+               total_cash, total_debt, total_revenue, ebitda, eps,
+               price_at_period_end, market_cap_at_period_end
+        FROM yahoo_historical_fundamentals
+    """)
+    fund_rows = fund_cur.fetchall()
+    fund_cur.close()
+    # symbol → list of (period_end_date, row) sorted ascending
+    fundamentals_map: Dict[str, List[Tuple[pd.Timestamp, Dict]]] = {}
+    for r in fund_rows:
+        sym = r['symbol']
+        pd_dt = pd.Timestamp(r['period_end_date'])
+        fundamentals_map.setdefault(sym, []).append((pd_dt, r))
+    for sym in fundamentals_map:
+        fundamentals_map[sym].sort(key=lambda x: x[0])
+    print(f"  {len(fund_rows):,} fundamentals rows across {len(fundamentals_map):,} tickers", file=sys.stderr)
+
+    print("[fundamentals] loading sector_median_history...", file=sys.stderr)
+    sec_cur = conn.cursor(dictionary=True)
+    sec_cur.execute("""
+        SELECT sector, period_end_date, pe_median, ps_median,
+               ev_ebitda_median, ev_revenue_median, fcf_yield_median
+        FROM sector_median_history
+    """)
+    sec_rows = sec_cur.fetchall()
+    sec_cur.close()
+    sector_medians_map: Dict[str, List[Tuple[pd.Timestamp, Dict]]] = {}
+    for r in sec_rows:
+        sec = r['sector']
+        pd_dt = pd.Timestamp(r['period_end_date'])
+        sector_medians_map.setdefault(sec, []).append((pd_dt, r))
+    for sec in sector_medians_map:
+        sector_medians_map[sec].sort(key=lambda x: x[0])
+    print(f"  {len(sec_rows):,} sector-median rows across {len(sector_medians_map):,} sectors", file=sys.stderr)
+
+    def nearest_before(series: List[Tuple[pd.Timestamp, Dict]], snap: pd.Timestamp) -> Optional[Dict]:
+        """Bisect the sorted series for the row with the largest date ≤ snap."""
+        if not series:
+            return None
+        # Simple linear walk — series is short (≤ ~40 quarters per ticker).
+        best = None
+        for dt, row in series:
+            if dt <= snap:
+                best = row
+            else:
+                break
+        return best
+
     # Trading calendar — use SPY index as the reference business calendar
     spy = macro_raw.get("SPY")
     if spy is None or spy.empty:
@@ -395,7 +449,11 @@ def main() -> int:
                 if fwd is None:
                     continue
                 wb_y = wb_by_year.get(snap.year, {}) or wb_by_year.get(snap.year - 1, {})
-                feats = compute_features(snap, ohlcv, sec_close, macro_series, wb_y)
+                # green_v2: nearest-before fundamentals + sector medians for this snap
+                fund_row = nearest_before(fundamentals_map.get(sym, []), snap)
+                sec_row  = nearest_before(sector_medians_map.get(sector, []), snap)
+                feats = compute_features(snap, ohlcv, sec_close, macro_series, wb_y,
+                                          fundamentals=fund_row, sector_medians=sec_row)
                 if feats is None:
                     continue
                 per_snap.setdefault(snap, []).append((stock_id, sym, snap, feats, fwd))

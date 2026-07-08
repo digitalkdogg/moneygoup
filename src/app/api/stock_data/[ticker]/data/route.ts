@@ -15,6 +15,9 @@ import { z } from 'zod';
 import YahooFinance from 'yahoo-finance2';
 import { macroCache } from '@/utils/cache';
 import { calculateTechnicalIndicators } from '@/utils/technicalIndicators';
+import { executeRawQuery } from '@/utils/databaseHelper';
+import { spawn } from 'child_process';
+import { getPythonExecutable } from '@/utils/pythonPath';
 
 const logger = createLogger('api/stock/[ticker]/data');
 const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
@@ -72,20 +75,20 @@ const SECTOR_ETF: Record<string, string> = {
 // Sector median imputation table
 // ---------------------------------------------------------------------------
 const SECTOR_MEDIANS: Record<string, Record<string, number>> = {
-  Technology:             { peRatio: 28.0, pbRatio: 6.0,  profitMargins: 0.20, revenueGrowth: 0.10, debtToEquity: 50,  returnOnEquity: 0.25 },
-  Healthcare:             { peRatio: 22.0, pbRatio: 4.0,  profitMargins: 0.12, revenueGrowth: 0.07, debtToEquity: 60,  returnOnEquity: 0.15 },
-  Financials:             { peRatio: 12.0, pbRatio: 1.2,  profitMargins: 0.20, revenueGrowth: 0.05, debtToEquity: 200, returnOnEquity: 0.12 },
-  'Financial Services':   { peRatio: 12.0, pbRatio: 1.2,  profitMargins: 0.20, revenueGrowth: 0.05, debtToEquity: 200, returnOnEquity: 0.12 },
-  'Consumer Cyclical':    { peRatio: 20.0, pbRatio: 3.5,  profitMargins: 0.07, revenueGrowth: 0.06, debtToEquity: 80,  returnOnEquity: 0.18 },
-  'Consumer Defensive':   { peRatio: 18.0, pbRatio: 3.0,  profitMargins: 0.08, revenueGrowth: 0.04, debtToEquity: 70,  returnOnEquity: 0.15 },
-  Industrials:            { peRatio: 18.0, pbRatio: 3.0,  profitMargins: 0.09, revenueGrowth: 0.06, debtToEquity: 90,  returnOnEquity: 0.16 },
-  Energy:                 { peRatio: 12.0, pbRatio: 1.8,  profitMargins: 0.10, revenueGrowth: 0.04, debtToEquity: 50,  returnOnEquity: 0.12 },
-  Utilities:              { peRatio: 16.0, pbRatio: 1.5,  profitMargins: 0.12, revenueGrowth: 0.03, debtToEquity: 120, returnOnEquity: 0.10 },
-  'Real Estate':          { peRatio: 30.0, pbRatio: 2.0,  profitMargins: 0.25, revenueGrowth: 0.05, debtToEquity: 100, returnOnEquity: 0.08 },
-  'Communication Services':{ peRatio: 20.0, pbRatio: 3.5, profitMargins: 0.15, revenueGrowth: 0.07, debtToEquity: 70,  returnOnEquity: 0.18 },
-  'Basic Materials':      { peRatio: 20.0, pbRatio: 3.0,  profitMargins: 0.12, revenueGrowth: 0.06, debtToEquity: 75,  returnOnEquity: 0.15 },
-  Materials:              { peRatio: 20.0, pbRatio: 3.0,  profitMargins: 0.12, revenueGrowth: 0.06, debtToEquity: 75,  returnOnEquity: 0.15 },
-  _default:               { peRatio: 20.0, pbRatio: 3.0,  profitMargins: 0.12, revenueGrowth: 0.06, debtToEquity: 75,  returnOnEquity: 0.15 },
+  Technology:             { peRatio: 28.0, pbRatio: 6.0,  profitMargins: 0.20, revenueGrowth: 0.10, debtToEquity: 50,  returnOnEquity: 0.25, psRatio: 5.0,  fcfYield: 0.03 },
+  Healthcare:             { peRatio: 22.0, pbRatio: 4.0,  profitMargins: 0.12, revenueGrowth: 0.07, debtToEquity: 60,  returnOnEquity: 0.15, psRatio: 3.0,  fcfYield: 0.05 },
+  Financials:             { peRatio: 12.0, pbRatio: 1.2,  profitMargins: 0.20, revenueGrowth: 0.05, debtToEquity: 200, returnOnEquity: 0.12, psRatio: 3.5,  fcfYield: 0.08 },
+  'Financial Services':   { peRatio: 12.0, pbRatio: 1.2,  profitMargins: 0.20, revenueGrowth: 0.05, debtToEquity: 200, returnOnEquity: 0.12, psRatio: 3.5,  fcfYield: 0.08 },
+  'Consumer Cyclical':    { peRatio: 20.0, pbRatio: 3.5,  profitMargins: 0.07, revenueGrowth: 0.06, debtToEquity: 80,  returnOnEquity: 0.18, psRatio: 1.5,  fcfYield: 0.05 },
+  'Consumer Defensive':   { peRatio: 18.0, pbRatio: 3.0,  profitMargins: 0.08, revenueGrowth: 0.04, debtToEquity: 70,  returnOnEquity: 0.15, psRatio: 1.2,  fcfYield: 0.06 },
+  Industrials:            { peRatio: 18.0, pbRatio: 3.0,  profitMargins: 0.09, revenueGrowth: 0.06, debtToEquity: 90,  returnOnEquity: 0.16, psRatio: 1.8,  fcfYield: 0.05 },
+  Energy:                 { peRatio: 12.0, pbRatio: 1.8,  profitMargins: 0.10, revenueGrowth: 0.04, debtToEquity: 50,  returnOnEquity: 0.12, psRatio: 1.3,  fcfYield: 0.08 },
+  Utilities:              { peRatio: 16.0, pbRatio: 1.5,  profitMargins: 0.12, revenueGrowth: 0.03, debtToEquity: 120, returnOnEquity: 0.10, psRatio: 2.0,  fcfYield: 0.03 },
+  'Real Estate':          { peRatio: 30.0, pbRatio: 2.0,  profitMargins: 0.25, revenueGrowth: 0.05, debtToEquity: 100, returnOnEquity: 0.08, psRatio: 6.0,  fcfYield: 0.04 },
+  'Communication Services':{ peRatio: 20.0, pbRatio: 3.5, profitMargins: 0.15, revenueGrowth: 0.07, debtToEquity: 70,  returnOnEquity: 0.18, psRatio: 3.0,  fcfYield: 0.05 },
+  'Basic Materials':      { peRatio: 20.0, pbRatio: 3.0,  profitMargins: 0.12, revenueGrowth: 0.06, debtToEquity: 75,  returnOnEquity: 0.15, psRatio: 1.5,  fcfYield: 0.05 },
+  Materials:              { peRatio: 20.0, pbRatio: 3.0,  profitMargins: 0.12, revenueGrowth: 0.06, debtToEquity: 75,  returnOnEquity: 0.15, psRatio: 1.5,  fcfYield: 0.05 },
+  _default:               { peRatio: 20.0, pbRatio: 3.0,  profitMargins: 0.12, revenueGrowth: 0.06, debtToEquity: 75,  returnOnEquity: 0.15, psRatio: 3.0,  fcfYield: 0.04 },
 };
 
 function impute(
@@ -579,6 +582,7 @@ export async function GET(
     const nowMs = Date.now();
     const MS_7D  = 7  * 86400000;
     const MS_30D = 30 * 86400000;
+    const MS_90D = 90 * 86400000;
 
     function upgradeScore(history: any[], windowMs: number): number {
       const recent = history.filter((h: any) => {
@@ -591,8 +595,26 @@ export async function GET(
       return (ups - downs) / recent.length;
     }
 
+    // Phase 2 (Tier 1) — raw rating action counts. The normalized upgradeScore
+    // above collapses "5 ups + 5 downs" and "0 events" both to 0; the model
+    // benefits from seeing volume separately from net sign. 90d window catches
+    // slower-moving analyst repositioning that the 30d misses.
+    function ratingCounts(history: any[], windowMs: number): { up: number; down: number } {
+      const recent = history.filter((h: any) => {
+        const ms = h.epochGradeDate ? h.epochGradeDate * 1000 : 0;
+        return (nowMs - ms) < windowMs;
+      });
+      return {
+        up:   recent.filter((h: any) => h.action === 'up').length,
+        down: recent.filter((h: any) => h.action === 'down').length,
+      };
+    }
+
     const upgradeScore7d  = upgradeScore(upgradeHist, MS_7D);
     const upgradeScore30d = upgradeScore(upgradeHist, MS_30D);
+    const upgradeScore90d = upgradeScore(upgradeHist, MS_90D);
+    const rc30 = ratingCounts(upgradeHist, MS_30D);
+    const rc90 = ratingCounts(upgradeHist, MS_90D);
 
     // ── institutionOwnership: Q-o-Q institutional delta ──
     const ownersList = (summary as any).institutionOwnership?.ownershipList ?? [];
@@ -655,6 +677,33 @@ export async function GET(
       dividendYield:      safeNum(detail.dividendYield),
       beta:               safeNum(keyStats.beta ?? detail.beta),
       sector:             resolvedSector,
+      // Phase 1 (Tier 1) additions — surface Yahoo snapshot fields the Python
+      // feature builder derives new signals from: FCF_Yield (FCF/MarketCap),
+      // IV_HV_Ratio (already have both inputs), PriceToSales, EV_EBITDA,
+      // EV_Revenue, CashRunwayQuarters, Unprofitable_Flag. All present and
+      // reliable on the Yahoo side across the ticker universe we care about
+      // — no new data provider required.
+      priceToSales:       safeNum(detail.priceToSalesTrailing12Months),
+      enterpriseValue:    safeNum(keyStats.enterpriseValue),
+      enterpriseToEbitda: safeNum(keyStats.enterpriseToEbitda),
+      enterpriseToRevenue: safeNum(keyStats.enterpriseToRevenue),
+      totalCash:          safeNum(finData.totalCash),
+      totalDebt:          safeNum(finData.totalDebt),
+      operatingCashflow:  safeNum(finData.operatingCashflow),
+      // Phase 2 (Tier 2) — sector medians surfaced so the Python feature
+      // builder can compute log-ratios (this stock's PE vs its sector median,
+      // etc.). Uses the same static SECTOR_MEDIANS table the imputation lane
+      // already consults — stable enough for the cross-sectional signal we
+      // want, no infrastructure to maintain.
+      sectorMedianPe:            (SECTOR_MEDIANS[resolvedSector] ?? SECTOR_MEDIANS._default).peRatio,
+      sectorMedianPb:            (SECTOR_MEDIANS[resolvedSector] ?? SECTOR_MEDIANS._default).pbRatio,
+      sectorMedianRevenueGrowth: (SECTOR_MEDIANS[resolvedSector] ?? SECTOR_MEDIANS._default).revenueGrowth,
+      sectorMedianProfitMargins: (SECTOR_MEDIANS[resolvedSector] ?? SECTOR_MEDIANS._default).profitMargins,
+      // green_v2 — PS and FCF Yield sector medians. Static fallbacks used
+      // until the sector_median_history table is populated (nightly job).
+      // Typical values by sector, hand-calibrated from cross-sectional averages.
+      sectorMedianPs:            (SECTOR_MEDIANS[resolvedSector] ?? SECTOR_MEDIANS._default).psRatio ?? 3.0,
+      sectorMedianFcfYield:      (SECTOR_MEDIANS[resolvedSector] ?? SECTOR_MEDIANS._default).fcfYield ?? 0.04,
       analystTargetMean,
       analystTargetMedian,
       analystTargetHigh,
@@ -684,6 +733,98 @@ export async function GET(
     const sharesOutstanding = safeNum(keyStats.sharesOutstanding);
     const insiderMetrics = extractInsiderMetrics(insiderTxModule, sharesOutstanding);
 
+    // ── Phase 2 (Tier 1) — Analyst estimate history snapshot + revisions ─────
+    // Yahoo only returns current snapshots for targetMeanPrice and EPS
+    // estimates. To compute revisions we persist a daily row here (upsert on
+    // (symbol, snapshot_date)) and compute the delta vs a row ~30 days ago.
+    // Revisions are null until we have at least ~25 days of history, at which
+    // point they start contributing signal.
+    const epsEstCurrQ = safeNum(trend0?.earningsEstimate?.avg);
+    const epsEstNextQ = safeNum(trend1?.earningsEstimate?.avg);
+    let targetMeanRevision30d: number | null = null;
+    let epsEstRevision30dCurrQ: number | null = null;
+    let epsEstRevision30dNextQ: number | null = null;
+    try {
+      // Read the row nearest 30 days ago (window: 25-35 days) so a missing
+      // day doesn't null out the feature.
+      const [prevRows] = await executeRawQuery(
+        `SELECT target_mean, eps_est_curr_q, eps_est_next_q
+         FROM analyst_estimate_history
+         WHERE symbol = ?
+           AND snapshot_date BETWEEN DATE_SUB(CURDATE(), INTERVAL 35 DAY)
+                                 AND DATE_SUB(CURDATE(), INTERVAL 25 DAY)
+         ORDER BY snapshot_date DESC LIMIT 1`,
+        [validatedTicker]
+      );
+      const prev = (prevRows as any[])[0];
+      if (prev) {
+        if (analystTargetMean != null && prev.target_mean != null && Number(prev.target_mean) > 0) {
+          targetMeanRevision30d = analystTargetMean / Number(prev.target_mean) - 1;
+        }
+        if (epsEstCurrQ != null && prev.eps_est_curr_q != null && Number(prev.eps_est_curr_q) !== 0) {
+          epsEstRevision30dCurrQ = (epsEstCurrQ - Number(prev.eps_est_curr_q)) / Math.abs(Number(prev.eps_est_curr_q));
+        }
+        if (epsEstNextQ != null && prev.eps_est_next_q != null && Number(prev.eps_est_next_q) !== 0) {
+          epsEstRevision30dNextQ = (epsEstNextQ - Number(prev.eps_est_next_q)) / Math.abs(Number(prev.eps_est_next_q));
+        }
+      }
+
+      // Upsert today's snapshot. INSERT ... ON DUPLICATE so a second request
+      // in the same day is idempotent, and REPLACE the values in case Yahoo
+      // updated its estimates intraday.
+      await executeRawQuery(
+        `INSERT INTO analyst_estimate_history
+           (symbol, snapshot_date, target_mean, target_median, target_high, target_low,
+            eps_est_curr_q, eps_est_next_q, recommendation_mean, analyst_opinion_count)
+         VALUES (?, CURDATE(), ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           target_mean = VALUES(target_mean),
+           target_median = VALUES(target_median),
+           target_high = VALUES(target_high),
+           target_low = VALUES(target_low),
+           eps_est_curr_q = VALUES(eps_est_curr_q),
+           eps_est_next_q = VALUES(eps_est_next_q),
+           recommendation_mean = VALUES(recommendation_mean),
+           analyst_opinion_count = VALUES(analyst_opinion_count)`,
+        [
+          validatedTicker,
+          analystTargetMean, analystTargetMedian, analystTargetHigh, analystTargetLow,
+          epsEstCurrQ, epsEstNextQ,
+          recommendationMean, analystOpinionCount,
+        ]
+      );
+    } catch (err) {
+      logger.warn(`analyst_estimate_history r/w failed for ${validatedTicker}`, { error: err });
+    }
+
+    // ── Phase 2 (Tier 2) — Google Trends momentum ────────────────────────────
+    // Spawn the pytrends helper with a hard 6s timeout. On failure or slow
+    // response, feature is null and the Python model treats it as missing.
+    // Cached aggressively (30 days) so this typically returns in <100ms.
+    let searchInterest_20d_change: number | null = null;
+    try {
+      searchInterest_20d_change = await new Promise<number | null>((resolve) => {
+        const proc = spawn(getPythonExecutable(), [
+          'scripts/trends_helper.py', validatedTicker,
+        ]);
+        let stdout = '';
+        const t = setTimeout(() => { try { proc.kill(); } catch {} resolve(null); }, 6000);
+        proc.stdout.on('data', d => { stdout += d; });
+        proc.on('close', () => {
+          clearTimeout(t);
+          try {
+            const parsed = JSON.parse(stdout);
+            resolve(parsed?.searchInterest_20d_change ?? null);
+          } catch {
+            resolve(null);
+          }
+        });
+        proc.on('error', () => { clearTimeout(t); resolve(null); });
+      });
+    } catch {
+      searchInterest_20d_change = null;
+    }
+
     const featureMetrics = {
       epsSurpriseAvg4Q: surprises.epsSurpriseAvg4Q,
       revenueSurpriseAvg4Q: surprises.revenueSurpriseAvg4Q,
@@ -704,6 +845,18 @@ export async function GET(
       // ── Item 04: Analyst upgrade/downgrade recency ──
       upgradeScore7d,
       upgradeScore30d,
+      // Phase 2 (Tier 1): raw counts + 90d net
+      upgradeScore90d,
+      ratingUp30d:   rc30.up,
+      ratingDown30d: rc30.down,
+      ratingUp90d:   rc90.up,
+      ratingDown90d: rc90.down,
+      // Phase 2 (Tier 1): analyst estimate revisions (nullable until ~30d of history)
+      targetMeanRevision30d,
+      epsEstRevision30dCurrQ,
+      epsEstRevision30dNextQ,
+      // Phase 2 (Tier 2): Google Trends momentum (nullable when API failed / rate-limited)
+      searchInterest_20d_change,
       // ── Item 05: Pre/post-market gap + 52w position ──
       preMarketChangePct,
       postMarketChangePct,

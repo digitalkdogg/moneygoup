@@ -271,6 +271,21 @@ FEATURE_COLUMNS = [
     'RevenueGrowth', 'EarningsGrowth', 'ProfitMargins',
     'DebtToEquity', 'ReturnOnEquity', 'Beta', 'DivYield',
     'AnalystPremium', 'AnalystPremiumWeighted', 'RecommendationMean',
+    # Phase 1 (Tier 1) — derived Yahoo-snapshot signals (see _calculate_features_internal)
+    'FCF_Yield', 'PriceToSales', 'EV_EBITDA', 'EV_Revenue',
+    'CashRunwayQuarters', 'Unprofitable_Flag',
+    # Phase 2 (Tier 2) — sector-relative log ratios
+    'PE_LogRatio_vs_Sector', 'PB_LogRatio_vs_Sector', 'RevGrowth_Delta_vs_Sector',
+    # green_v2 — additional sector-relative ratios (aligned with CS training set)
+    'PS_LogRatio_vs_Sector', 'FCF_Yield_vs_Sector',
+    # Phase 2 (Tier 1) — analyst rating velocity
+    'Rating_Up_30d', 'Rating_Down_30d', 'Rating_Up_90d', 'Rating_Down_90d',
+    'NetRating_90d', 'UpgradeScore_90d',
+    # Phase 2 (Tier 2) — Google Trends momentum (live only; NaN in backtest)
+    'SearchInterest_20d_Change',
+    # Phase 2 (Tier 1) — analyst estimate revisions (populated once daily
+    # snapshots have accumulated in analyst_estimate_history)
+    'TargetMean_Revision_30d', 'EPSEst_Revision_30d_CurrQ', 'EPSEst_Revision_30d_NextQ',
     # Macro (merged by date)
     'VIX', 'VIX_20d_Avg', 'Treasury10Y', 'SectorETF_60d_Corr',
     # Derived
@@ -293,6 +308,7 @@ FEATURE_COLUMNS = [
     'RollingSkew_20d', 'RollingSharpe_20d',
     # ── Options Market Data ──────────────────────────────────────────────────
     'IV', 'IV_Rank', 'Put_Call_Ratio',
+    'IV_HV_Ratio',  # Phase 1: implied vs realized 30d vol — fear/complacency gauge
     # ── Earnings Surprises & Short Interest ──────────────────────────────────
     'EPS_Surprise_Avg_4Q', 'Revenue_Surprise_Avg_4Q',
     'ShortFloatPct', 'DaysToCover',
@@ -373,7 +389,24 @@ SHORT_TERM_FEATURES = [
     'SMA_20', 'EMA_50',
     # Volatility / volume (intraday-ish risk)
     'HistVol_30',
-    'IV', 'IV_Rank', 'Put_Call_Ratio',
+    'IV', 'IV_Rank', 'Put_Call_Ratio', 'IV_HV_Ratio',
+    # Regime flag — lets the short-term model learn different weightings on
+    # loss-makers (thin retail flow, different reaction to earnings, etc).
+    'Unprofitable_Flag',
+    # Phase 2 (Tier 2) — sector-relative valuation. Short-term price often
+    # reverts toward sector peers; these features expose that channel.
+    'PE_LogRatio_vs_Sector', 'PB_LogRatio_vs_Sector', 'RevGrowth_Delta_vs_Sector',
+    'PS_LogRatio_vs_Sector', 'FCF_Yield_vs_Sector',
+    # Phase 2 (Tier 1) — analyst rating velocity. Analyst upgrade momentum
+    # is one of the strongest predictors at 1w/1m horizons per finance
+    # literature (short-term retail follows analyst calls).
+    'Rating_Up_30d', 'Rating_Down_30d', 'NetRating_90d', 'UpgradeScore_90d',
+    # Phase 2 (Tier 2) — Google Trends momentum. Retail attention often
+    # leads price for consumer/meme names. NaN in backtest, active in live.
+    'SearchInterest_20d_Change',
+    # Phase 2 (Tier 1) — analyst estimate revisions. Backtest-null until
+    # daily snapshots have accumulated; live serving uses them once ready.
+    'TargetMean_Revision_30d', 'EPSEst_Revision_30d_CurrQ', 'EPSEst_Revision_30d_NextQ',
     # 52w positioning (drives short-term mean-reversion + breakout)
     'HiRatio_52w', 'LoRatio_52w',
     'FiftyTwoWeek_PosRatio',
@@ -425,6 +458,15 @@ LONG_TERM_FEATURES = [
     'RevenueGrowth', 'EarningsGrowth', 'ProfitMargins',
     'DebtToEquity', 'ReturnOnEquity', 'Beta', 'DivYield',
     'AnalystPremium', 'AnalystPremiumWeighted', 'RecommendationMean',
+    # Phase 1 (Tier 1) — cash-based valuation, alt ratios, runway, regime flag
+    'FCF_Yield', 'PriceToSales', 'EV_EBITDA', 'EV_Revenue',
+    'CashRunwayQuarters', 'Unprofitable_Flag',
+    # Phase 2 (Tier 2) — sector-relative valuation for cross-sectional revaluation
+    'PE_LogRatio_vs_Sector', 'PB_LogRatio_vs_Sector', 'RevGrowth_Delta_vs_Sector',
+    'PS_LogRatio_vs_Sector', 'FCF_Yield_vs_Sector',
+    # Phase 2 (Tier 1) — analyst rating velocity + estimate revisions
+    'Rating_Up_90d', 'Rating_Down_90d', 'NetRating_90d',
+    'TargetMean_Revision_30d', 'EPSEst_Revision_30d_CurrQ', 'EPSEst_Revision_30d_NextQ',
     # Macro
     'VIX', 'VIX_20d_Avg', 'Treasury10Y', 'SectorETF_60d_Corr',
     # Credit risk proxy
@@ -850,6 +892,105 @@ def _calculate_features_internal(df, stock_metrics, macro_data, news_sentiment, 
     f['AnalystPremiumWeighted'] = analyst_weighted
     f['RecommendationMean']     = rcm
 
+    # ── Phase 1 (Tier 1) — derived Yahoo-snapshot features ───────────────────
+    # Nothing new from Yahoo; just derived signals the model didn't have exposure
+    # to before. Each guards against divide-by-zero and negative-denominator
+    # edge cases (unprofitable/distressed names) that would otherwise emit NaN.
+    market_cap_val = safe(stock_metrics.get('marketCap'), 0.0)
+    fcf_val        = safe(stock_metrics.get('freeCashflow'), 0.0)
+    ocf_val        = safe(stock_metrics.get('operatingCashflow'), 0.0)
+    total_cash_val = safe(stock_metrics.get('totalCash'), 0.0)
+    total_debt_val = safe(stock_metrics.get('totalDebt'), 0.0)
+
+    # Free cash flow yield — real cash generated / market value. Negative for
+    # cash-burning names (WULF etc), which is actually informative — leave the
+    # sign, just guard against div-by-zero.
+    f['FCF_Yield'] = (fcf_val / (market_cap_val + 1e-9)) if market_cap_val > 0 else 0.0
+
+    # Alternative valuation ratios — meaningful when P/E is undefined for
+    # unprofitable names. Yahoo returns them as raw ratios; clamp to sane
+    # bounds to keep training stable (WULF's EV/Revenue is 81x — real, but a
+    # tail value that would swamp the scaler if left unclipped).
+    f['PriceToSales'] = max(-1e3, min(1e3, safe(stock_metrics.get('priceToSales'), 0.0)))
+    f['EV_EBITDA']    = max(-1e3, min(1e3, safe(stock_metrics.get('enterpriseToEbitda'), 0.0)))
+    f['EV_Revenue']   = max(-1e3, min(1e3, safe(stock_metrics.get('enterpriseToRevenue'), 0.0)))
+
+    # Cash runway (quarters). Uses operating cashflow to strip out CapEx —
+    # for capex-heavy growth names like WULF, FCF understates real runway
+    # because they're choosing to invest. When OCF is positive the company
+    # isn't burning cash → runway is effectively infinite → cap at 100q.
+    if ocf_val >= 0:
+        f['CashRunwayQuarters'] = 100.0
+    else:
+        quarterly_burn = -ocf_val / 4.0
+        f['CashRunwayQuarters'] = min(100.0, total_cash_val / (quarterly_burn + 1e-9))
+
+    # Unprofitable regime flag — lets the model learn different feature
+    # weightings for loss-makers (P/E imputed to sector median is a lie for
+    # these names; sector-relative P/S / EV/Rev are more meaningful).
+    f['Unprofitable_Flag'] = 1.0 if teps < 0 else 0.0
+
+    # ── Phase 2 (Tier 2) — Sector-relative log ratios ────────────────────────
+    # "This stock's PE is 2× its sector median" is often more predictive than
+    # the raw PE. Uses log ratios (natural for multiplicative quantities and
+    # symmetric around 0) so a stock at 0.5× the median gets -0.69 and one at
+    # 2× gets +0.69. Bounded to keep the scaler stable. Zero when either side
+    # is unavailable.
+    sec_pe   = safe(stock_metrics.get('sectorMedianPe'), 0.0)
+    sec_pb   = safe(stock_metrics.get('sectorMedianPb'), 0.0)
+    sec_ps   = safe(stock_metrics.get('sectorMedianPs'), 0.0)
+    sec_revg = safe(stock_metrics.get('sectorMedianRevenueGrowth'), 0.0)
+    sec_fcfy = safe(stock_metrics.get('sectorMedianFcfYield'), 0.0)
+
+    f['PE_LogRatio_vs_Sector'] = (float(np.log(max(1e-3, pe) / max(1e-3, sec_pe)))
+                                  if pe > 0 and sec_pe > 0 else 0.0)
+    f['PB_LogRatio_vs_Sector'] = (float(np.log(max(1e-3, pb) / max(1e-3, sec_pb)))
+                                  if pb > 0 and sec_pb > 0 else 0.0)
+    # Growth is a signed percentage — subtract the sector delta directly.
+    f['RevGrowth_Delta_vs_Sector'] = max(-2.0, min(2.0, revg - sec_revg))
+
+    # green_v2 additions — sector-relative PS and FCF yield. Names match the
+    # CS training feature list so a retrain can consume them consistently.
+    # Recompute the scalar FCF Yield here (rather than reading from f, which
+    # would return a broadcast Series inside a DataFrame context) so the delta
+    # math stays scalar.
+    stock_ps   = safe(stock_metrics.get('priceToSales'), 0.0)
+    _fcfy_scalar = (fcf_val / (market_cap_val + 1e-9)) if market_cap_val > 0 else 0.0
+    f['PS_LogRatio_vs_Sector'] = (float(np.log(max(1e-3, stock_ps) / max(1e-3, sec_ps)))
+                                  if stock_ps > 0 and sec_ps > 0 else 0.0)
+    # FCF yield is signed → raw delta, clamped so absent-data zeros don't skew.
+    f['FCF_Yield_vs_Sector'] = max(-2.0, min(2.0, float(_fcfy_scalar) - float(sec_fcfy)))
+
+    # ── Phase 2 (Tier 1) — Analyst rating velocity ───────────────────────────
+    # Raw counts + 90d window. Complements the existing normalized
+    # upgradeScore7d/30d (which collapses "5 ups + 5 downs" and "0 events"
+    # both to 0) by exposing volume separately from net sign. Backtest-friendly
+    # since we filter Yahoo's upgradeDowngradeHistory by as-of date.
+    _fm = feature_metrics or {}
+    f['Rating_Up_30d']    = max(0.0, safe(_fm.get('ratingUp30d'),   0.0))
+    f['Rating_Down_30d']  = max(0.0, safe(_fm.get('ratingDown30d'), 0.0))
+    f['Rating_Up_90d']    = max(0.0, safe(_fm.get('ratingUp90d'),   0.0))
+    f['Rating_Down_90d']  = max(0.0, safe(_fm.get('ratingDown90d'), 0.0))
+    f['NetRating_90d']    = f['Rating_Up_90d'] - f['Rating_Down_90d']
+    f['UpgradeScore_90d'] = max(-1.0, min(1.0, safe(_fm.get('upgradeScore90d'), 0.0)))
+
+    # ── Phase 2 (Tier 2) — Google Trends momentum (live only, NaN in backtest) ─
+    # 20-day change in normalized search interest. Retail attention often
+    # leads price for consumer/meme names. When the trends channel is
+    # unavailable (backtest disables it; live serving falls back gracefully),
+    # we emit NaN and let the model treat it as missing.
+    _trends_val = _fm.get('searchInterest_20d_change') if _fm else None
+    f['SearchInterest_20d_Change'] = float(_trends_val) if isinstance(_trends_val, (int, float)) else np.nan
+
+    # ── Phase 2 (Tier 1) — Analyst estimate revisions (live only) ─────────────
+    # Requires 30 days of persisted snapshots in analyst_estimate_history to
+    # start emitting non-null values. Nulls flow through as NaN and the model
+    # treats them as missing (imputed to 0 by fillna). Backfilled by
+    # update_predictions.py once the daily-snapshot job has been running.
+    f['TargetMean_Revision_30d']    = float(_fm['targetMeanRevision30d'])    if isinstance(_fm.get('targetMeanRevision30d'),    (int, float)) else np.nan
+    f['EPSEst_Revision_30d_CurrQ']  = float(_fm['epsEstRevision30dCurrQ'])   if isinstance(_fm.get('epsEstRevision30dCurrQ'),   (int, float)) else np.nan
+    f['EPSEst_Revision_30d_NextQ']  = float(_fm['epsEstRevision30dNextQ'])   if isinstance(_fm.get('epsEstRevision30dNextQ'),   (int, float)) else np.nan
+
     # Macro features
     date_strs = df['Date'].astype(str).tolist() if 'Date' in df.columns else [None] * n
     vix_series  = merge_series_by_date(date_strs, macro_data.get('vix', []))
@@ -870,6 +1011,20 @@ def _calculate_features_internal(df, stock_metrics, macro_data, news_sentiment, 
     f['IV'] = safe(options_data.get('iv'), 0.0) if options_data else np.nan
     f['IV_Rank'] = safe(options_data.get('ivRank'), 0.0) if options_data else np.nan
     f['Put_Call_Ratio'] = safe(options_data.get('putCallRatio'), 0.0) if options_data else np.nan
+
+    # ── Phase 1 — IV/HV spread ────────────────────────────────────────────────
+    # Ratio of options-implied to realized 30d vol. > 1 = market pricing event
+    # risk vs recent realized (elevated fear); < 1 = complacency. Both inputs
+    # are already computed above; we just derive the ratio. NaN if either side
+    # is missing (options data unavailable for illiquid names, or history is
+    # too short for HistVol_30).
+    _iv_arr = np.asarray(f['IV'], dtype=np.float64) if hasattr(f['IV'], '__len__') else np.full(n, float(f['IV']), dtype=np.float64)
+    _hv_arr = np.asarray(f['HistVol_30'], dtype=np.float64) if hasattr(f['HistVol_30'], '__len__') else np.full(n, float(f['HistVol_30']), dtype=np.float64)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        _iv_hv = _iv_arr / (_hv_arr + 1e-9)
+    _iv_hv = np.where(np.isfinite(_iv_hv), _iv_hv, np.nan)
+    _iv_hv = np.clip(_iv_hv, 0.0, 10.0)  # ratio > 10 is a data glitch, not signal
+    f['IV_HV_Ratio'] = _iv_hv
 
     eps_val = safe(feature_metrics.get('epsSurpriseAvg4Q'), 0.0) if feature_metrics else 0.0
     f['EPS_Surprise_Avg_4Q'] = max(-50.0, min(50.0, eps_val)) if eps_val != 0.0 else np.nan

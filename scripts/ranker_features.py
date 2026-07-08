@@ -23,7 +23,7 @@ import numpy as np
 import pandas as pd
 
 
-FEATURE_SET_VERSION = "green_v1"
+FEATURE_SET_VERSION = "green_v2"
 MIN_HISTORY_ROWS = 260
 
 # GREEN feature column order — must match training-time ordering exactly,
@@ -63,6 +63,13 @@ FEATURE_COLUMNS: List[str] = [
     "VIX_RealVol_Ratio",
     "WorldBank_GDP", "WorldBank_Inflation",
     "WorldBank_Consumption", "WorldBank_Real_GDP",
+    # ── green_v2 additions — fundamentals + sector-relative ratios ──────────
+    # Point-in-time values from yahoo_historical_fundamentals + sector_median_history.
+    # Fall back to None (imputed 0 by the trainer's fillna) when historical
+    # fundamentals for that ticker/period aren't in the ingest table.
+    "FCF_Yield", "PriceToSales", "EV_EBITDA", "EV_Revenue",
+    "CashRunwayQuarters", "Unprofitable_Flag",
+    "PE_LogRatio_vs_Sector", "PS_LogRatio_vs_Sector", "FCF_Yield_vs_Sector",
 ]
 
 
@@ -132,6 +139,8 @@ def compute_features(
     sector_etf_close: Optional[pd.Series],
     macro: Dict[str, Optional[pd.Series]],
     wb_year: Dict[str, float],
+    fundamentals: Optional[Dict[str, float]] = None,
+    sector_medians: Optional[Dict[str, float]] = None,
 ) -> Optional[Dict[str, Optional[float]]]:
     """Compute the GREEN feature vector as-of `snap`.
 
@@ -147,6 +156,16 @@ def compute_features(
                                           'spy','wti','copper','wheat'.
         wb_year:            Dict with keys 'gdpGrowth','inflation','consumptionGrowth'
                             for the snapshot year (or nearest prior year).
+        fundamentals:       Optional point-in-time fundamentals dict from
+                            yahoo_historical_fundamentals (nearest row on-or-before
+                            snap). Keys used: 'free_cash_flow', 'operating_cash_flow',
+                            'total_cash', 'total_debt', 'total_revenue', 'ebitda',
+                            'eps', 'price_at_period_end', 'market_cap_at_period_end'.
+                            None → new green_v2 features emit None (imputed 0).
+        sector_medians:     Optional sector-median dict from sector_median_history
+                            for (sector, nearest_period). Keys: 'pe_median',
+                            'ps_median', 'ev_ebitda_median', 'ev_revenue_median',
+                            'fcf_yield_median'. None → *_vs_Sector features = 0.
 
     Returns:
         Dict of feature_name → value (in FEATURE_COLUMNS order), or None if
@@ -319,5 +338,85 @@ def compute_features(
     f["WorldBank_Inflation"] = float(inf) if inf is not None else 2.5
     f["WorldBank_Consumption"] = float(cons) if cons is not None else 2.0
     f["WorldBank_Real_GDP"] = f["WorldBank_GDP"] - f["WorldBank_Inflation"]
+
+    # ── green_v2 additions ─────────────────────────────────────────────────
+    # Fundamentals-based valuation ratios. Absent when we don't have historical
+    # fundamentals for that ticker/snap (which is expected for older snapshots
+    # in the training window — model learns to handle nulls via fillna(0)).
+    fnd = fundamentals or {}
+    fcf   = fnd.get('free_cash_flow')
+    ocf   = fnd.get('operating_cash_flow')
+    cash  = fnd.get('total_cash')
+    debt  = fnd.get('total_debt')
+    rev   = fnd.get('total_revenue')
+    ebit  = fnd.get('ebitda')
+    eps   = fnd.get('eps')
+    price = fnd.get('price_at_period_end')
+    mkt   = fnd.get('market_cap_at_period_end')
+
+    # Enterprise value ≈ MktCap + Debt − Cash. Falls back to None if we can't
+    # compute a meaningful EV.
+    ev = None
+    if mkt is not None:
+        ev = mkt + (debt or 0) - (cash or 0)
+
+    def _safe_ratio(num, denom):
+        if num is None or denom is None or denom == 0:
+            return None
+        try:
+            return float(num) / float(denom)
+        except (TypeError, ValueError, ZeroDivisionError):
+            return None
+
+    f["FCF_Yield"]    = _safe_ratio(fcf, mkt)
+    f["PriceToSales"] = _safe_ratio(mkt, rev)
+    f["EV_EBITDA"]    = _safe_ratio(ev,  ebit) if ebit and ebit > 0 else None
+    f["EV_Revenue"]   = _safe_ratio(ev,  rev)  if rev  and rev  > 0 else None
+
+    # Cash runway from OPERATING cash flow (strips out capex; better for
+    # capex-heavy growth names like WULF). 100q ceiling for names that
+    # aren't burning cash.
+    if ocf is not None and ocf < 0:
+        quarterly_burn = -ocf
+        f["CashRunwayQuarters"] = min(100.0, float(cash or 0) / (quarterly_burn + 1.0))
+    else:
+        f["CashRunwayQuarters"] = 100.0 if ocf is not None else None
+
+    f["Unprofitable_Flag"] = 1.0 if (eps is not None and eps < 0) else (0.0 if eps is not None else None)
+
+    # Sector-relative log ratios — the specific "this stock cheap/expensive
+    # vs its sector peers" signal. Ratios collapse to 0 (log(1)) when we don't
+    # have a per-stock ratio to compare, so absent data doesn't skew training.
+    med = sector_medians or {}
+    # Compute this stock's PE from its own row (safer than using imputed PE).
+    stock_pe = _safe_ratio(price, eps) if eps and eps > 0 else None
+
+    def _log_ratio_vs_median(stock_val, median_val):
+        if stock_val is None or median_val is None:
+            return 0.0
+        try:
+            s = float(stock_val)
+            m = float(median_val)
+        except (TypeError, ValueError):
+            return 0.0
+        if s <= 0 or m <= 0:
+            return 0.0
+        import math
+        return math.log(s / m)
+
+    f["PE_LogRatio_vs_Sector"]  = _log_ratio_vs_median(stock_pe, med.get('pe_median'))
+    f["PS_LogRatio_vs_Sector"]  = _log_ratio_vs_median(f["PriceToSales"], med.get('ps_median'))
+    # FCF Yield is a signed rate — use raw delta instead of log ratio so a
+    # stock with -1% FCF yield in a sector with 2% median gets a proper -3pp
+    # signal (log(-0.5) is undefined).
+    stock_fcf_y  = f["FCF_Yield"]
+    med_fcf_y    = med.get('fcf_yield_median')
+    try:
+        if stock_fcf_y is not None and med_fcf_y is not None:
+            f["FCF_Yield_vs_Sector"] = max(-2.0, min(2.0, float(stock_fcf_y) - float(med_fcf_y)))
+        else:
+            f["FCF_Yield_vs_Sector"] = None
+    except (TypeError, ValueError):
+        f["FCF_Yield_vs_Sector"] = None
 
     return {col: f.get(col) for col in FEATURE_COLUMNS}
