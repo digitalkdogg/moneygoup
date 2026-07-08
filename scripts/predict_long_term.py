@@ -209,7 +209,14 @@ def _predict_with_cs_model(
                 bt_x = np.nan_to_num(bt_features.values.astype(np.float32),
                                      nan=0.0, posinf=0.0, neginf=0.0)
                 bt_x_s = scaler_cs.transform(bt_x)
-                bt_pred = np.asarray(model.predict(bt_x_s, verbose=0) if hasattr(model, 'predict') else model.predict(bt_x_s))
+                # Keras models accept verbose=0 to silence progress output;
+                # sklearn's MLPRegressor.predict() doesn't take verbose at all.
+                # Try the Keras signature first, fall back to plain predict()
+                # on TypeError for the sklearn v1 model file.
+                try:
+                    bt_pred = np.asarray(model.predict(bt_x_s, verbose=0))
+                except TypeError:
+                    bt_pred = np.asarray(model.predict(bt_x_s))
                 bt_pred_ret = bt_pred[:, 0] if bt_pred.ndim == 2 else bt_pred  # 6m head
                 actual_ret = (closes[start + HORIZON : end + HORIZON] / (closes[start:end] + 1e-9)) - 1.0
                 bt_mae_ret = float(np.mean(np.abs(bt_pred_ret - actual_ret)))
