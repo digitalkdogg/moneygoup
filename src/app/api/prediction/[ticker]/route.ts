@@ -293,7 +293,18 @@ function runPythonPrediction(ticker: string, inputFile: string, outlook: string,
       ? 'scripts/predict_weighted_analysis_baseline.py'
       : 'scripts/predict_weighted_analysis.py';
     logger.info(`Predict (${useLegacy ? 'LEGACY' : 'v3-split'}) ${ticker} outlook=${outlook}`);
-    const python = spawn(getPythonExecutable(), [scriptName, ticker, '--input_file', inputFile, '--outlook', outlook]);
+    // Pass env explicitly. Turbopack sometimes doesn't forward .env.local
+    // values into the OS process env that child_process.spawn inherits, so
+    // Python defaults to CS_MODEL_VERSION=v2 even when .env.local says v1.
+    // Passing process.env directly + the specific vars we care about is safe
+    // and covers both dev-mode (Turbopack) and prod (standard Node) behavior.
+    const python = spawn(getPythonExecutable(), [scriptName, ticker, '--input_file', inputFile, '--outlook', outlook], {
+      env: {
+        ...process.env,
+        CS_MODEL_VERSION: process.env.CS_MODEL_VERSION || 'v2',
+        USE_LEGACY_PREDICTION_MODEL: process.env.USE_LEGACY_PREDICTION_MODEL || 'false',
+      },
+    });
     let stdout = '', stderr = '';
     python.stdout.on('data', d => { stdout += d; });
     python.stderr.on('data', d => { stderr += d; });
