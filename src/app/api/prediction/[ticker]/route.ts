@@ -244,7 +244,7 @@ export async function POST(
   await predictionSemaphore.acquire();
   try {
     writeFileSync(tempFile, JSON.stringify(body));
-    const result: any = await runPythonPrediction(validatedTicker, tempFile, validatedOutlook, useLegacyModel);
+    const result: any = await runPythonPrediction(validatedTicker, tempFile, validatedOutlook, useLegacyModel, csModelVersion);
     // Tag the result so callers (and the cache) can tell which model produced
     // it. Useful when comparing legacy vs v3-split in the UI / dev logs.
     result.model_version = modelTag;
@@ -285,7 +285,7 @@ export async function POST(
   }
 }
 
-function runPythonPrediction(ticker: string, inputFile: string, outlook: string, useLegacy: boolean = false): Promise<unknown> {
+function runPythonPrediction(ticker: string, inputFile: string, outlook: string, useLegacy: boolean = false, csModelVersion: string = 'v2'): Promise<unknown> {
   return new Promise((resolve, reject) => {
     // Legacy = the frozen pre-refactor monolithic 4-output MLP. v3-split =
     // the current orchestrator (cross-sectional long-term + per-ticker short-term).
@@ -296,13 +296,15 @@ function runPythonPrediction(ticker: string, inputFile: string, outlook: string,
     // Pass env explicitly. Turbopack sometimes doesn't forward .env.local
     // values into the OS process env that child_process.spawn inherits, so
     // Python defaults to CS_MODEL_VERSION=v2 even when .env.local says v1.
-    // Passing process.env directly + the specific vars we care about is safe
-    // and covers both dev-mode (Turbopack) and prod (standard Node) behavior.
+    // Use the already-resolved `csModelVersion` and `useLegacyModel` from the
+    // top of the handler (line 228) — those we know took .env.local into
+    // account because modelTag was derived from them correctly.
+    logger.info(`[spawn] forwarding CS_MODEL_VERSION=${csModelVersion} USE_LEGACY=${useLegacy}`);
     const python = spawn(getPythonExecutable(), [scriptName, ticker, '--input_file', inputFile, '--outlook', outlook], {
       env: {
         ...process.env,
-        CS_MODEL_VERSION: process.env.CS_MODEL_VERSION || 'v2',
-        USE_LEGACY_PREDICTION_MODEL: process.env.USE_LEGACY_PREDICTION_MODEL || 'false',
+        CS_MODEL_VERSION: csModelVersion,
+        USE_LEGACY_PREDICTION_MODEL: useLegacy ? 'true' : 'false',
       },
     });
     let stdout = '', stderr = '';
