@@ -297,9 +297,8 @@ function runPythonPrediction(ticker: string, inputFile: string, outlook: string,
     // values into the OS process env that child_process.spawn inherits, so
     // Python defaults to CS_MODEL_VERSION=v2 even when .env.local says v1.
     // Use the already-resolved `csModelVersion` and `useLegacyModel` from the
-    // top of the handler (line 228) — those we know took .env.local into
-    // account because modelTag was derived from them correctly.
-    logger.info(`[spawn] forwarding CS_MODEL_VERSION=${csModelVersion} USE_LEGACY=${useLegacy}`);
+    // top of the handler — those we know took .env.local into account
+    // because modelTag was derived from them correctly.
     const python = spawn(getPythonExecutable(), [scriptName, ticker, '--input_file', inputFile, '--outlook', outlook], {
       env: {
         ...process.env,
@@ -323,11 +322,6 @@ function runPythonPrediction(ticker: string, inputFile: string, outlook: string,
       try {
         const parsed = JSON.parse(stdout);
         logger.info(`Python prediction raw output for ${ticker}`, { parsed });
-        // Surface Python stderr on success too — needed to trace env var
-        // propagation / model version loading issues.
-        if (stderr) {
-          logger.info(`[python stderr] ${ticker}`, { stderrTail: stderr.slice(-2000) });
-        }
         resolve(parsed);
       } catch {
         reject(new Error('Invalid JSON'));
