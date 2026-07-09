@@ -323,6 +323,11 @@ function runPythonPrediction(ticker: string, inputFile: string, outlook: string,
       try {
         const parsed = JSON.parse(stdout);
         logger.info(`Python prediction raw output for ${ticker}`, { parsed });
+        // Surface Python stderr on success too — needed to trace env var
+        // propagation / model version loading issues.
+        if (stderr) {
+          logger.info(`[python stderr] ${ticker}`, { stderrTail: stderr.slice(-2000) });
+        }
         resolve(parsed);
       } catch {
         reject(new Error('Invalid JSON'));

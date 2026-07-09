@@ -46,6 +46,7 @@ from predict_core import (
 _CS_MODEL = None  # dict: {'model', 'scaler', 'feature_columns', ...}
 _CS_MODEL_VERSION = os.environ.get('CS_MODEL_VERSION', 'v2')
 _CS_MODEL_PATH = Path(os.path.dirname(os.path.abspath(__file__))).parent / 'models' / f'long_term_cs_{_CS_MODEL_VERSION}.pkl'
+print(f"[long_term] env CS_MODEL_VERSION={os.environ.get('CS_MODEL_VERSION', '<unset>')!r} → resolved={_CS_MODEL_VERSION!r} → path={_CS_MODEL_PATH.name}", file=sys.stderr)
 
 try:
     import joblib

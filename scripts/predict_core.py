@@ -96,13 +96,21 @@ ANALYST_SCORING_VERSION = os.environ.get('ANALYST_SCORING_VERSION', 'v2')
 # CACHING HELPERS
 # ============================================================================
 def get_cache_key(ticker, historical_data):
-    """Generate a unique MD5 hash for (ticker, last_date, data_len, schema_version)."""
+    """Generate a unique MD5 hash for (ticker, last_date, data_len, schema_version, model_version).
+
+    CS_MODEL_VERSION is included so that switching between long_term_cs_v1.pkl
+    and long_term_cs_v2.pkl produces distinct cache entries — otherwise the
+    JSON cache would silently return a stale v2 result after we flipped to v1
+    (or vice versa).
+    """
     if not historical_data:
         return None
     last_row = historical_data[-1]
     last_date = last_row.get('date', last_row.get('Date', ''))
     data_len = len(historical_data)
-    key_str = f"{ticker}_{last_date}_{data_len}_v{CACHE_SCHEMA_VERSION}"
+    cs_ver   = os.environ.get('CS_MODEL_VERSION', 'v2')
+    legacy   = os.environ.get('USE_LEGACY_PREDICTION_MODEL', 'false')
+    key_str = f"{ticker}_{last_date}_{data_len}_v{CACHE_SCHEMA_VERSION}_cs{cs_ver}_legacy{legacy}"
     return hashlib.md5(key_str.encode()).hexdigest()
 
 
