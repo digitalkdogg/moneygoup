@@ -97,7 +97,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Architecture Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-07</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-07-09</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -162,7 +162,7 @@
       <span>Next.js 14 App Router</span>
       <span>TypeScript</span>
       <span>Tailwind CSS</span>
-      <span>Updated 2026-06-07</span>
+      <span>Updated 2026-07-09</span>
     </div>
 
     <div class="summary-grid">
@@ -241,6 +241,8 @@
 │       │   └── on/
 │       ├── prediction/
 │       │   ├── [ticker]/
+│       │   ├── bellwether/
+│       │   ├── deepmoney/
 │       │   └── save/
 │       ├── stock_data/
 │       │   └── [ticker]/
@@ -549,6 +551,8 @@ Each variant uses:
             <tr><td><code>recommended_stocks</code></td><td>System-wide AI-curated hot stocks snapshot with GPS scores</td></tr>
             <tr><td><code>hot_etfs</code></td><td>System-wide AI-curated hot ETFs snapshot</td></tr>
             <tr><td><code>etf_stock_recommendations</code></td><td>Per-user ETF holding recommendations written by <code>update_predictions.py</code>. Each row links a user, a parent ETF ticker, and a holding ticker with GPS/prediction metadata.</td></tr>
+            <tr><td><code>prediction_records</code></td><td>Analytics + prefetch ledger of multi-horizon model predictions. Used by ModelAccuracyWidget and /search/[ticker] latest-prediction.</td></tr>
+            <tr><td><code>ranking_training_snapshots</code></td><td>Historical snapshots of features and forward returns for training the cross-sectional ranker model.</td></tr>
           </tbody>
         </table>
       </div>

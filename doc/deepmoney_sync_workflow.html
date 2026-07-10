@@ -96,7 +96,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Developer Docs</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-20</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-07-09</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -137,6 +137,7 @@
     <a href="#overview">Overview</a>
     <a href="#entrypoint">Entrypoint &amp; Env Loading</a>
     <a href="#step1">1. Macro Data Sync</a>
+    <a href="#step1-bellwether">1.5. Bellwether ETF Pass</a> <span class="new-badge">new</span>
     <a href="#step2">2. DeepMoney Discovery</a>
     <a href="#step2-feeds">— Discovery Sources (28)</a>
     <a href="#strategy-link">— Strategy-Driven ML Gate</a>
@@ -183,7 +184,7 @@
       <span>src/utils/etfHoldingPreset.ts</span>
       <span>models/algorithm_presets.json</span>
       <span>models/etf_holding_presets.json</span>
-      <span>Updated 2026-06-20</span>
+      <span>Updated 2026-07-09</span>
     </div>
 
     <section id="overview">
@@ -240,6 +241,21 @@
           <li><strong>Countries:</strong> USA, GBR, CHN, IND, DEU.</li>
           <li><strong>Persistence:</strong> When <code>wb_data.success</code> is true, the script issues an <code>INSERT ... ON DUPLICATE KEY UPDATE</code> against <code>macro_context_snapshots</code> using today's date as the key. Stored fields: <code>global_health_score</code>, <code>unemployment_rate</code>, <code>unemployment_signal</code>, <code>inflation_rate</code>, <code>gdp_growth</code>.</li>
           <li><strong>Failure mode:</strong> the helper returns <code>None</code> on any network error and the script proceeds without writing a macro snapshot for that day — the stock sync still runs.</li>
+        </ul>
+      </div>
+    <div class="flow-arrow">&#8595;</div>
+
+    <section id="step1-bellwether">
+      <h2><span class="step-num">1.5</span> Bellwether ETF Pass <span class="new-badge">new</span></h2>
+      <div class="step-card">
+        <div class="component-tag">scripts/deepmoney_sync.py — run_bellwether_pass()</div>
+        <p>Before triggering the main individual stock discovery cycle, the sync script runs a dedicated pass to predict the 20 market bellwether ETFs.</p>
+        <ul>
+          <li><strong>Endpoint called:</strong> <code>POST /api/prediction/bellwether</code> (internal-only, authenticated via the <code>x-api-key</code> header).</li>
+          <li><strong>ETFs Predicted:</strong> Loops over the 20 bellwether ETFs defined in <code>src/utils/sectorTaxonomy.ts</code> (spanning broad index funds like SPY/QQQ, sector-specific funds like XLK/XLF, and macro/commodity indicators like GLD/USO).</li>
+          <li><strong>Execution:</strong> Each ETF runs through the full prediction pipeline with <code>outlook='all'</code>.</li>
+          <li><strong>Persistence:</strong> Saves the predictions to <code>prediction_records</code> with <code>model_version = 'bellwether_etf_v1'</code>.</li>
+          <li><strong>Downstream Impact:</strong> These ETF predictions act as the broad-market, sector, and macro signal inputs. The server-side stock prediction endpoint (<code>analyzeStocks()</code> / <code>analyzer.ts</code>) reads these fresh bellwether records to adjust and boost individual stock confidence scores.</li>
         </ul>
       </div>
     </section>

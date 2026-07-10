@@ -97,7 +97,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">API Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-15</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-07-09</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -163,7 +163,7 @@
       <span>GrowMyStocks</span>
       <span>Next.js 14 App Router</span>
       <span>35+ routes documented</span>
-      <span>Updated 2026-06-15</span>
+      <span>Updated 2026-07-09</span>
     </div>
 
     <div class="summary-grid">
@@ -787,6 +787,45 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
           <span class="dep-tag">stock_gps_scores (DB)</span>
           <span class="dep-tag">stock_gps_score_history (DB)</span>
           <span class="dep-tag">recommended_stocks (sync target)</span>
+        </div>
+      </div>
+
+      <div class="route-card">
+        <div class="route-header">
+          <span class="method method-POST">POST</span>
+          <span class="route-path">/api/prediction/bellwether</span>
+          <span class="badge badge-internal">Internal API key only</span>
+          <span class="badge badge-new">New 2026-07-09</span>
+          <span class="route-file">src/app/api/prediction/bellwether/route.ts</span>
+        </div>
+        <div class="route-desc">Predicts the 20 market bellwether ETFs and writes them to <code>prediction_records</code> with <code>model_version = 'bellwether_etf_v1'</code>. Runs before the main DeepMoney discovery pass so the individual stock prediction engine can read fresh broad-market/sector/macro signals from the ETF predictions to boost individual stock confidence.</div>
+        <div class="sub-heading">Response</div>
+        <pre>{
+  "success": true,
+  "summary": {
+    "total": number,
+    "succeeded": number,
+    "failed": number,
+    "elapsed_ms": number
+  },
+  "results": [
+    {
+      "ticker": string,
+      "category": "broad" | "sector" | "macro",
+      "ok": boolean,
+      "price": number,
+      "predicted_change_pct_1w": number | null,
+      "predicted_change_pct_1m": number | null,
+      "predicted_change_pct_6m": number | null,
+      "predicted_change_pct_1y": number | null,
+      "confidence_score_1m": number | null
+    }
+  ]
+}</pre>
+        <div class="dep-list">
+          <span class="dep-tag">scripts/deepmoney_sync.py</span>
+          <span class="dep-tag">recordPrediction (utils/predictionRecorder)</span>
+          <span class="dep-tag">runPredictionInternal (utils/stockDataHelper)</span>
         </div>
       </div>
 

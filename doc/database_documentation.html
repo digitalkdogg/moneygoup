@@ -138,7 +138,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Database Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Generated 2026-06-15</div>
+    <div style="font-size:.78rem;opacity:.75;">Generated 2026-07-09</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -195,6 +195,7 @@
     <a href="#stock_gps_scores">stock_gps_scores</a>
     <a href="#stock_gps_score_history">stock_gps_score_history</a>
     <a href="#prediction_records">prediction_records</a>
+    <a href="#ranking_training_snapshots">ranking_training_snapshots</a> <span class="new-badge">new</span>
     <a href="#portfolio-tables">Portfolio Tables</a>
     <a href="#portfolio_transactions">portfolio_transactions</a>
     <a href="#portfolio_daily_snapshots">portfolio_daily_snapshots</a>
@@ -652,6 +653,30 @@
                 </div>
             </div>
 
+            <!-- RANKING_TRAINING_SNAPSHOTS -->
+            <div id="ranking_training_snapshots" class="table-card">
+                <div class="table-title">ranking_training_snapshots<span class="new-badge">new</span></div>
+                <p>Stores historical snapshots of features and forward returns for training the cross-sectional ranker model. Written by the training dataset builder (<code>scripts/build_ranking_dataset.py</code>) and consumed by model training scripts (e.g. <code>scripts/train_ranker.py</code>).</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>id</code></td><td><code>BIGINT</code></td><td>Primary Key. Auto-increment. NOT NULL.</td></tr>
+                        <tr><td><code>snapshot_date</code></td><td><code>DATE</code></td><td>NOT NULL. Date of the feature snapshot.</td></tr>
+                        <tr><td><code>ticker</code></td><td><code>VARCHAR(10)</code></td><td>NOT NULL. Stock ticker symbol.</td></tr>
+                        <tr><td><code>stock_id</code></td><td><code>INT</code></td><td>Nullable. FK to stocks.id.</td></tr>
+                        <tr><td><code>horizon_days</code></td><td><code>INT</code></td><td>NOT NULL. The forecast horizon in days (e.g., 30 for 1-month).</td></tr>
+                        <tr><td><code>forward_return</code></td><td><code>DECIMAL(10,6)</code></td><td>Nullable. Actual return observed over the horizon.</td></tr>
+                        <tr><td><code>forward_return_rank_pct</code></td><td><code>DECIMAL(6,4)</code></td><td>Nullable. Percentile rank of the forward return within the universe for that date.</td></tr>
+                        <tr><td><code>features_json</code></td><td><code>JSON</code></td><td>NOT NULL. JSON object containing the feature vector at the snapshot date.</td></tr>
+                        <tr><td><code>feature_set_version</code></td><td><code>VARCHAR(20)</code></td><td>NOT NULL. Default 'green_v1'. Version of the feature definition.</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Default CURRENT_TIMESTAMP. Row creation timestamp.</td></tr>
+                        <tr><td><code>forward_return_126d</code></td><td><code>DECIMAL(10,6)</code></td><td>Nullable. Forward return over 126 trading days (approx. 6 months).</td></tr>
+                        <tr><td><code>forward_return_252d</code></td><td><code>DECIMAL(10,6)</code></td><td>Nullable. Forward return over 252 trading days (approx. 1 year).</td></tr>
+                    </tbody>
+                </table>
+                <p style="font-size:.8rem;color:#64748b;">Unique key: <code>uniq_snap_ticker_horizon (snapshot_date, ticker, horizon_days, feature_set_version)</code>. Indexes: <code>idx_snapshot_date</code>, <code>idx_ticker</code>.</p>
+            </div>
+
             <!-- HOT_ETFS -->
             <div id="hot_etfs" class="table-card">
                 <div class="table-title">hot_etfs</div>
@@ -937,7 +962,7 @@
         </section>
 
         <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem; text-align: center;">
-            GrowMyStocks Database Documentation &copy; 2026 &mdash; Last updated: June 15, 2026
+            GrowMyStocks Database Documentation &copy; 2026 &mdash; Last updated: July 9, 2026
         </footer>
     </main>
     </div>
