@@ -39,6 +39,7 @@ Usage:
     python3 backtest_predictions.py AAPL --from-date 2025-01-01           # every trading day since, capped at 1y
     python3 backtest_predictions.py AAPL --from-date 2025-01-01 --max-days 180
 """
+import math
 import os
 import sys
 import argparse
@@ -120,7 +121,7 @@ MACRO_SYMBOLS = {
 }
 
 _macro_cache = {}
-_sector_cache = {}
+_info_cache = {}
 
 
 def get_db_connection():
@@ -130,17 +131,158 @@ def get_db_connection():
     )
 
 
-def get_sector(ticker: str) -> str:
-    if ticker in _sector_cache:
-        return _sector_cache[ticker]
-    sector = '_default'
+def get_ticker_info(ticker: str) -> dict:
+    """Cached wrapper around yf.Ticker(ticker).info. Returns {} on failure so
+    callers can .get() defensively. Note: yfinance's info dict is *today's*
+    snapshot — sector/industry are stable, but market_cap/beta/PE reflect
+    current values, not point-in-time. See Category 4 docstring in
+    prediction_details migration."""
+    if ticker in _info_cache:
+        return _info_cache[ticker]
+    info = {}
     try:
-        info = yf.Ticker(ticker).info
-        sector = info.get('sector') or '_default'
+        info = yf.Ticker(ticker).info or {}
     except Exception as exc:
-        print(f"  [warn] Could not fetch sector for {ticker}, using _default: {exc}")
-    _sector_cache[ticker] = sector
-    return sector
+        print(f"  [warn] Could not fetch info for {ticker}: {exc}")
+    _info_cache[ticker] = info
+    return info
+
+
+def get_sector(ticker: str) -> str:
+    info = get_ticker_info(ticker)
+    return info.get('sector') or '_default'
+
+
+def _bucket_market_cap(market_cap):
+    if market_cap is None:
+        return None
+    if market_cap < 2_000_000_000:
+        return 'small'
+    if market_cap < 10_000_000_000:
+        return 'mid'
+    if market_cap < 200_000_000_000:
+        return 'large'
+    return 'mega'
+
+
+def _rsi(closes, period=14):
+    if len(closes) < period + 1:
+        return None
+    gains, losses = [], []
+    for i in range(-period, 0):
+        change = closes[i] - closes[i - 1]
+        gains.append(max(change, 0.0))
+        losses.append(max(-change, 0.0))
+    avg_gain = sum(gains) / period
+    avg_loss = sum(losses) / period
+    if avg_loss == 0:
+        return 100.0
+    rs = avg_gain / avg_loss
+    return 100.0 - (100.0 / (1.0 + rs))
+
+
+def _last_close_on_or_before(series, as_of_str):
+    rows = [r for r in series if r['date'] <= as_of_str]
+    return rows[-1]['close'] if rows else None
+
+
+def _return_over_trailing(series, as_of_str, days):
+    """Return the pct change over the trailing `days` calendar-day window
+    ending at as_of. Uses closes at endpoint of the window; if fewer than
+    `days` rows exist on/before as_of, returns None."""
+    rows = [r for r in series if r['date'] <= as_of_str]
+    if len(rows) < days + 1:
+        return None
+    return (rows[-1]['close'] / rows[-days - 1]['close']) - 1.0
+
+
+def compute_prediction_details(ticker: str, hist_trunc: list, macro_full: dict,
+                               as_of: str, sector: str) -> dict:
+    """Compute all Category 1-4 detail fields at the as-of date. Point-in-time
+    for price/macro series; snapshot proxy for info dict fields (see docstring
+    on get_ticker_info)."""
+    info = get_ticker_info(ticker)
+    closes = [r['close'] for r in hist_trunc]
+    volumes = [r['volume'] for r in hist_trunc]
+    price_now = closes[-1]
+
+    # --- Category 1: stock characteristics (snapshot proxy from info dict) ---
+    market_cap = info.get('marketCap')
+    industry = info.get('industry')
+    beta = info.get('beta')
+    dividend_yield = info.get('dividendYield')
+    avg_vol_30d = sum(volumes[-30:]) / min(30, len(volumes)) if volumes else None
+
+    # --- Category 3: stock's own state (point-in-time from hist_trunc) ---
+    stock_return_30d = (closes[-1] / closes[-31] - 1.0) if len(closes) >= 31 else None
+    stock_return_90d = (closes[-1] / closes[-91] - 1.0) if len(closes) >= 91 else None
+
+    realized_vol_30d = None
+    if len(closes) >= 31:
+        recent = closes[-31:]
+        rets = [math.log(recent[i] / recent[i - 1]) for i in range(1, len(recent))]
+        if len(rets) > 1:
+            mean = sum(rets) / len(rets)
+            var = sum((r - mean) ** 2 for r in rets) / (len(rets) - 1)
+            realized_vol_30d = math.sqrt(var) * math.sqrt(252)
+
+    window_252 = closes[-252:] if len(closes) >= 252 else closes
+    high_52w = max(window_252) if window_252 else None
+    pct_from_52w_high = (price_now / high_52w - 1.0) if high_52w else None
+
+    rsi_14d = _rsi(closes, 14)
+
+    # --- Category 2: market regime (point-in-time from macro_full) ---
+    vix_at_prediction = _last_close_on_or_before(macro_full.get('vix') or [], as_of)
+    spy_return_30d = _return_over_trailing(macro_full.get('spy') or [], as_of, 30)
+
+    sector_etf_series = macro_full.get('sectorEtf') or []
+    # macro_full['sectorEtf'] may be wrapped as {'ticker', 'data'} in build_input_data,
+    # but at compute-time we take the raw list passed in from the per-ticker macro dict.
+    if isinstance(sector_etf_series, dict):
+        sector_etf_series = sector_etf_series.get('data') or []
+    sector_etf_return_30d = _return_over_trailing(sector_etf_series, as_of, 30)
+
+    treasury10y = _last_close_on_or_before(macro_full.get('treasury10y') or [], as_of)
+    treasury3m = _last_close_on_or_before(macro_full.get('treasury3m') or [], as_of)
+    yield_curve_spread = (treasury10y - treasury3m) if (treasury10y is not None and treasury3m is not None) else None
+
+    # --- Category 4: fundamentals snapshot proxy ---
+    pe_ratio = info.get('trailingPE') or info.get('forwardPE')
+    sector_median_pe = SECTOR_MEDIANS.get(sector, SECTOR_MEDIANS['_default'])['peRatio']
+    revenue_growth = info.get('revenueGrowth')
+    profit_margin = info.get('profitMargins')
+
+    return {
+        'market_cap':            market_cap,
+        'market_cap_bucket':     _bucket_market_cap(market_cap),
+        'industry':              industry,
+        'beta_snapshot':         beta,
+        'avg_daily_volume_30d':  avg_vol_30d,
+        'dividend_yield':        dividend_yield,
+        'vix_at_prediction':     vix_at_prediction,
+        'spy_return_30d':        spy_return_30d,
+        'yield_curve_spread':    yield_curve_spread,
+        'sector_etf_return_30d': sector_etf_return_30d,
+        'stock_return_30d':      stock_return_30d,
+        'stock_return_90d':      stock_return_90d,
+        'realized_vol_30d':      realized_vol_30d,
+        'pct_from_52w_high':     pct_from_52w_high,
+        'rsi_14d':               rsi_14d,
+        'pe_ratio':              pe_ratio,
+        'sector_median_pe':      sector_median_pe,
+        'revenue_growth':        revenue_growth,
+        'profit_margin':         profit_margin,
+    }
+
+
+DETAIL_COLUMNS = [
+    'market_cap', 'market_cap_bucket', 'industry', 'beta_snapshot',
+    'avg_daily_volume_30d', 'dividend_yield',
+    'vix_at_prediction', 'spy_return_30d', 'yield_curve_spread', 'sector_etf_return_30d',
+    'stock_return_30d', 'stock_return_90d', 'realized_vol_30d', 'pct_from_52w_high', 'rsi_14d',
+    'pe_ratio', 'sector_median_pe', 'revenue_growth', 'profit_margin',
+]
 
 
 def fetch_history(ticker: str, start: date, end: date) -> list:
@@ -332,13 +474,34 @@ def find_actual_price(full_hist: list, target_date: date):
     return None
 
 
+# v4 direction deadband — mirrors V4_DEADBAND_PCT in predict_weighted_analysis.py.
+# A predicted move smaller than this is treated as a 'neutral' call and
+# excluded from the direction-accuracy metric (direction_correct = None)
+# rather than counted wrong. resolve_predictions.py uses the same constant.
+DIRECTION_DEADBAND_PCT = 0.02
+
+
 def compute_accuracy_metrics(actual_price: float, predicted_price: float, price_at_prediction: float):
     """Mirrors resolve_predictions.compute_accuracy_metrics exactly, so
-    backtested and naturally-resolved rows are scored identically."""
+    backtested and naturally-resolved rows are scored identically.
+
+    Returns (accuracy_pct, direction_correct) where direction_correct is:
+      1   — predicted and actual moved same direction
+      0   — predicted and actual moved opposite directions
+      None — predicted move was inside the deadband (‘neutral’ call); the
+             row is resolved for proximity but excluded from the direction
+             metric downstream."""
     if predicted_price == 0:
         accuracy_pct = 0.0
     else:
         accuracy_pct = max(0, (1 - abs(actual_price - predicted_price) / predicted_price) * 100)
+
+    # Deadband: if the model's predicted move is small enough to be called
+    # "neutral", direction_correct is NULL — not counted against the model.
+    if price_at_prediction > 0:
+        pred_change_pct = (predicted_price - price_at_prediction) / price_at_prediction
+        if abs(pred_change_pct) < DIRECTION_DEADBAND_PCT:
+            return round(accuracy_pct, 2), None
 
     predicted_direction = 1 if predicted_price > price_at_prediction else (0 if predicted_price < price_at_prediction else -1)
     actual_direction = 1 if actual_price > price_at_prediction else (0 if actual_price < price_at_prediction else -1)
@@ -351,8 +514,10 @@ def compute_accuracy_metrics(actual_price: float, predicted_price: float, price_
     return round(accuracy_pct, 2), direction_correct
 
 
-def upsert_backtest_row(conn, row: dict, overwrite: bool) -> str:
-    """Insert a backdated prediction_records row. Returns inserted/updated/skipped/error."""
+def upsert_backtest_row(conn, row: dict, overwrite: bool):
+    """Insert a backdated prediction_records row. Returns (status, record_id)
+    where status is inserted/updated/skipped/error and record_id is the
+    prediction_records.id (None on skipped/error)."""
     cursor = conn.cursor(buffered=True)
     try:
         cursor.execute(
@@ -362,7 +527,7 @@ def upsert_backtest_row(conn, row: dict, overwrite: bool) -> str:
         existing = cursor.fetchone()
 
         if existing and not overwrite:
-            return 'skipped'
+            return 'skipped', None
 
         columns = [
             'price_at_prediction',
@@ -375,13 +540,14 @@ def upsert_backtest_row(conn, row: dict, overwrite: bool) -> str:
         values = [row[c] for c in columns]
 
         if existing:
+            record_id = existing[0]
             set_clause = ', '.join(f"{c} = %s" for c in columns)
             cursor.execute(
                 f"UPDATE prediction_records SET {set_clause}, updated_at = NOW() WHERE id = %s",
-                values + [existing[0]],
+                values + [record_id],
             )
             conn.commit()
-            return 'updated'
+            return 'updated', record_id
         else:
             insert_cols = ['symbol', 'predicted_at', 'model_version'] + columns
             placeholders = ', '.join(['%s'] * len(insert_cols))
@@ -389,11 +555,47 @@ def upsert_backtest_row(conn, row: dict, overwrite: bool) -> str:
                 f"INSERT INTO prediction_records ({', '.join(insert_cols)}) VALUES ({placeholders})",
                 [row['symbol'], row['predicted_at'], MODEL_VERSION] + values,
             )
+            record_id = cursor.lastrowid
             conn.commit()
-            return 'inserted'
+            return 'inserted', record_id
     except Error as exc:
         conn.rollback()
         print(f"  [db] ERROR upserting {row['symbol']} {row['predicted_at']}: {exc}")
+        return 'error', None
+    finally:
+        cursor.close()
+
+
+def upsert_prediction_details(conn, prediction_record_id: int, details: dict) -> str:
+    """Insert or replace a prediction_details row keyed by prediction_record_id.
+    Returns 'ok' or 'error'."""
+    cursor = conn.cursor(buffered=True)
+    try:
+        cursor.execute(
+            "SELECT id FROM prediction_details WHERE prediction_record_id = %s",
+            (prediction_record_id,),
+        )
+        existing = cursor.fetchone()
+        values = [details.get(c) for c in DETAIL_COLUMNS]
+
+        if existing:
+            set_clause = ', '.join(f"{c} = %s" for c in DETAIL_COLUMNS)
+            cursor.execute(
+                f"UPDATE prediction_details SET {set_clause} WHERE id = %s",
+                values + [existing[0]],
+            )
+        else:
+            insert_cols = ['prediction_record_id'] + DETAIL_COLUMNS
+            placeholders = ', '.join(['%s'] * len(insert_cols))
+            cursor.execute(
+                f"INSERT INTO prediction_details ({', '.join(insert_cols)}) VALUES ({placeholders})",
+                [prediction_record_id] + values,
+            )
+        conn.commit()
+        return 'ok'
+    except Error as exc:
+        conn.rollback()
+        print(f"  [db] ERROR upserting prediction_details for record {prediction_record_id}: {exc}")
         return 'error'
     finally:
         cursor.close()
@@ -447,15 +649,26 @@ def backtest_one(ticker: str, as_of: str, full_hist: list, macro_full: dict, con
 
     print("  " + " | ".join(summary_bits))
 
+    details = compute_prediction_details(ticker, hist_trunc, macro_full, as_of, sector)
+
     if dry_run:
-        print(f"  [dry-run] would upsert prediction_records row for {ticker} {as_of}")
+        print(f"  [dry-run] would upsert prediction_records + prediction_details for {ticker} {as_of}")
+        _preview_bits = [f"{k}={v}" for k, v in details.items() if v is not None]
+        if _preview_bits:
+            print("    details: " + ", ".join(_preview_bits[:8]) + (" ..." if len(_preview_bits) > 8 else ""))
+        row['_details'] = details
         return row
 
-    status = upsert_backtest_row(conn, row, overwrite)
+    status, record_id = upsert_backtest_row(conn, row, overwrite)
     if status == 'skipped':
         print(f"  [skip] {ticker} {as_of}: already backtested (use --overwrite to replace)")
         return None
     print(f"  [db] {status} {ticker} {as_of}")
+
+    if record_id is not None:
+        detail_status = upsert_prediction_details(conn, record_id, details)
+        if detail_status == 'ok':
+            print(f"  [db] details ok for record {record_id}")
     return row
 
 
@@ -484,8 +697,16 @@ def print_summary(results: list):
             print(f"  {h}: 0/{len(results)} resolved yet")
             continue
         avg_acc = sum(r[f'accuracy_pct_{h}'] for r in resolved) / len(resolved)
-        avg_dir = sum(r[f'direction_correct_{h}'] for r in resolved) / len(resolved) * 100
-        print(f"  {h}: {len(resolved)}/{len(results)} resolved | avg accuracy {avg_acc:.1f}% | direction correct {avg_dir:.1f}%")
+        # Rows with direction_correct=None are 'neutral' calls — excluded
+        # from the direction metric, not counted wrong.
+        dir_rows = [r for r in resolved if r[f'direction_correct_{h}'] is not None]
+        if dir_rows:
+            avg_dir = sum(r[f'direction_correct_{h}'] for r in dir_rows) / len(dir_rows) * 100
+            neutral = len(resolved) - len(dir_rows)
+            neutral_tag = f" ({neutral} neutral)" if neutral else ""
+            print(f"  {h}: {len(resolved)}/{len(results)} resolved | avg accuracy {avg_acc:.1f}% | direction correct {avg_dir:.1f}%{neutral_tag}")
+        else:
+            print(f"  {h}: {len(resolved)}/{len(results)} resolved | avg accuracy {avg_acc:.1f}% | all neutral")
 
 
 def main():

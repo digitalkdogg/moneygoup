@@ -45,18 +45,32 @@ def get_trading_day_price(symbol: str, target_date: str) -> float | None:
         print(f"Error fetching price for {symbol} on {target_date}: {e}")
         return None
 
-def compute_accuracy_metrics(actual_price: float, predicted_price: float, price_at_prediction: float) -> tuple[float, int]:
+# v4 direction deadband — mirrors V4_DEADBAND_PCT in predict_weighted_analysis.py
+# and DIRECTION_DEADBAND_PCT in backtest_predictions.py. Predicted moves
+# smaller than this are treated as 'neutral' calls and excluded from the
+# direction-accuracy metric (NULL) rather than counted wrong.
+DIRECTION_DEADBAND_PCT = 0.02
+
+
+def compute_accuracy_metrics(actual_price: float, predicted_price: float, price_at_prediction: float):
     """
     Compute proximity accuracy and direction correct.
 
     Proximity: max(0, (1 - abs(actual - predicted) / predicted) * 100)
-    Direction: 1 if both moved same direction from price_at_prediction, 0 otherwise
+    Direction: 1 if both moved same direction from price_at_prediction, 0 if opposite,
+               None if the predicted move was inside the deadband (neutral call).
     """
     # Proximity accuracy
     if predicted_price == 0:
         accuracy_pct = 0.0
     else:
         accuracy_pct = max(0, (1 - abs(actual_price - predicted_price) / predicted_price) * 100)
+
+    # Deadband: near-flat predicted moves are 'neutral' — excluded from direction metric.
+    if price_at_prediction > 0:
+        pred_change_pct = (predicted_price - price_at_prediction) / price_at_prediction
+        if abs(pred_change_pct) < DIRECTION_DEADBAND_PCT:
+            return round(accuracy_pct, 2), None
 
     # Direction accuracy
     predicted_direction = 1 if predicted_price > price_at_prediction else (0 if predicted_price < price_at_prediction else -1)

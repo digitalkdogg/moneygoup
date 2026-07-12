@@ -1,15 +1,39 @@
 """
-predict_weighted_analysis.py — MLP-based stock price prediction (v3-split).
+predict_weighted_analysis.py — MLP-based stock price prediction (v5).
 
 This file is the orchestrator. Shared logic lives in predict_core.py;
 horizon-specific models + post-processing live in predict_short_term.py
 (1w/1m) and predict_long_term.py (6m/1y).
 
+The MODEL_VARIANT env var gates which fix stack is applied:
+  v3 — bare model output (control; no post-hoc adjustments)
+  v4 — VIX-conf mult + direction deadband + RSI-beta gate + 90d drift
+  v5 — v4 base (minus VIX-conf mult) + Fix A/B/C/D
+       Default. Set MODEL_VARIANT=v3 or v4 to reproduce older behavior.
+
+v5 adjustments (in order):
+  Fix B  — Beta-signed VIX modifier on long_term_multiplier. Low-beta names
+           (β<0.5) get a boost in high VIX (flight-to-quality); high-beta names
+           get a softer dampener than v4 (starts at VIX=25, floors at 0.55).
+           Applied BEFORE predict_long_term so it flows into the 6m/1y price.
+  #4     — 90d momentum drift (v4, unchanged). Fires when |90d return| > 15%.
+  Fix A  — Downtrend trap ceiling. High-beta names (β>0.8) with both 30d < -5%
+           and 90d < -10% get a downside price ceiling.
+  Fix C  — Structural decline. >20% below 52w high AND 90d < -15% triggers a
+           continued-slow-decline prediction (5-10% down at 6m, 8-15% at 1y).
+  Fix D  — Extreme positive momentum. When 90d > 30%, scale the predicted
+           move delta by up to 1.5× to counter the model's mean-reversion bias
+           in the extreme-momentum tail.
+  Deadband — <2% predicted move ⇒ predicted_direction_{h} = 'neutral' (v4).
+  RSI-beta — Overbought RSI (>70) boosts/dampens 1w/1m confidence by beta (v4).
+
+  NOTE: Fixes E, F, G were tested in a v5-efg-newset backtest (see
+  reports/data_4way_newset.txt) but showed no meaningful improvement and were
+  reverted. The comments here reflect the stable v5 A/B/C/D-only stack.
+
 The CLI contract and output JSON schema are preserved (callers:
 scripts/update_predictions.py, scripts/backtest_predictions.py,
 src/utils/stockDataHelper.ts, src/app/api/prediction/[ticker]/route.ts).
-Output values will drift slightly from the pre-v3 monolithic model because
-training is now two separate .fit() calls instead of one multi-output fit.
 
 CONSTRAINT: no yfinance/requests/urllib/httpx — all data via --input_file.
 
@@ -17,9 +41,20 @@ CLI:
     python3 predict_weighted_analysis.py <ticker> --input_file <path>
 """
 
+import os
 import sys
 import json
 import argparse
+
+# Variant gate for A/B testing the post-hoc fix stack.
+#   'v3'  — no post-hoc adjustments (bare model output; useful as a control)
+#   'v4'  — VIX-conf mult + direction deadband + RSI-beta gate + 90d drift
+#   'v5'  — v4 base (minus VIX-conf mult) + Fix A/B/C/D
+# Default is v5 so new deployments get the current fix stack out of the box.
+_MODEL_VARIANT = os.getenv('MODEL_VARIANT', 'v5').lower()
+if _MODEL_VARIANT not in ('v3', 'v4', 'v5'):
+    print(f"[warn] MODEL_VARIANT={_MODEL_VARIANT!r} not recognized; defaulting to v5", file=sys.stderr)
+    _MODEL_VARIANT = 'v5'
 
 # predict_core sets CPU-throttling env vars + imports numpy/sklearn under the
 # hood; importing it first means those env vars land before any heavy linalg
@@ -349,6 +384,22 @@ def predict(ticker, input_data):
     from predict_core import ANALYST_BOOST_LT
     long_term_multiplier = (1.0 + non_analyst_impact + analyst_impact * ANALYST_BOOST_LT) * consumer_multiplier
 
+    # ── v5 Fix B: Beta-signed VIX modifier on long_term_multiplier ──────────
+    # Low-beta defensives (β<0.5) get a *boost* in high VIX (flight-to-quality
+    # makes their direction more predictable, not less). High-beta names get a
+    # softer dampener than v4's confidence-only version: threshold VIX=25
+    # instead of 20, scale over 35 pts instead of 30, floored at 0.55 so we
+    # never fully suppress the return prediction. Only active in variant v5.
+    if _MODEL_VARIANT == 'v5':
+        _vix_now = float(feat_df['VIX'].iloc[-1]) if 'VIX' in feat_df.columns else 20.0
+        _beta_b  = float(safe(stock_metrics.get('beta'), 1.0))
+        if _beta_b < 0.5:
+            _vix_mod = 1.0 + max(0.0, (_vix_now - 20.0) / 30.0) * 0.15
+        else:
+            _vix_raw = 1.0 - max(0.0, (_vix_now - 25.0) / 35.0) * (_beta_b / 1.5)
+            _vix_mod = max(0.55, _vix_raw)
+        long_term_multiplier = long_term_multiplier * _vix_mod
+
     # ── Confidence inputs (shared) ───────────────────────────────────────────
     imputed = data_quality.get('imputedFields', [])
     analyst_count = int(safe(stock_metrics.get('analystOpinionCount'), 0))
@@ -396,6 +447,80 @@ def predict(ticker, input_data):
     p18m_est   = long_out['p18m_est']
     cv_mae     = long_out['cv_mae']
     cv_mape    = long_out['cv_mape']
+
+    # ── v4/v5 long-horizon price adjustments (order matters) ────────────────
+    # Shared inputs: 30d and 90d trading-day returns from the raw close array.
+    # These are computed once and reused by Fixes A/C/D + the v4 momentum drift.
+    v_telemetry = {'variant': _MODEL_VARIANT}
+    if _MODEL_VARIANT in ('v4', 'v5'):
+        _ret30d = float(close_arr[-1] / close_arr[-22] - 1.0) if len(close_arr) >= 22 else 0.0
+        _ret90d = float(close_arr[-1] / close_arr[-64] - 1.0) if len(close_arr) >= 64 else 0.0
+        _beta   = float(safe(stock_metrics.get('beta'), 1.0))
+        v_telemetry.update({'ret30d': round(_ret30d, 4), 'ret90d': round(_ret90d, 4), 'beta': round(_beta, 3)})
+
+        # v4 Fix #4 — 90d momentum drift (|mom| > 15%). Fires in v4 AND v5.
+        # Fix D (v5) extends this for the extreme-momentum tail.
+        if abs(_ret90d) > 0.15 and current_price > 0:
+            _drift_6m = _ret90d * 0.75
+            _drift_1y = _ret90d * 1.25
+            predicted_price_6m = predicted_price_6m * (1.0 + _drift_6m)
+            predicted_price_1y = predicted_price_1y * (1.0 + _drift_1y)
+            v_telemetry['v4_drift_6m'] = round(_drift_6m, 4)
+            v_telemetry['v4_drift_1y'] = round(_drift_1y, 4)
+
+        # ── v5 Fix A: Downtrend Trap ────────────────────────────────────────
+        # High-beta names in a sustained decline (30d < -5% AND 90d < -10%)
+        # get a downside ceiling applied to 6m/1y targets. Beta-scaled so β=2
+        # stocks get a bigger cap than β=1 stocks. Excludes low-beta defensives
+        # (JNJ/KO/PG) which genuinely mean-revert after dips.
+        if _MODEL_VARIANT == 'v5' and _beta > 0.8 and _ret30d < -0.05 and _ret90d < -0.10:
+            _severity = min(1.0, (-_ret90d - 0.10) / 0.25)
+            _cap = 1.0 - (_severity * 0.08 * min(_beta, 2.0) / 2.0)
+            predicted_price_6m = min(predicted_price_6m, current_price * _cap)
+            predicted_price_1y = min(predicted_price_1y, current_price * (_cap - 0.03))
+            v_telemetry['fixA_severity'] = round(_severity, 3)
+            v_telemetry['fixA_cap']      = round(_cap, 4)
+            print(f"[v5] {ticker} Fix A fired: beta={_beta:.2f} ret30d={_ret30d:.2%} "
+                  f"ret90d={_ret90d:.2%} → cap={_cap:.3f}", file=sys.stderr)
+
+        # ── v5 Fix C: Structural Decline ────────────────────────────────────
+        # >20% below 52w high AND still falling (90d < -15%): predict continued
+        # slow decline rather than recovery. The double gate (depth + recency)
+        # prevents misfiring on crash-then-recovery cases (e.g. AAPL April 2025).
+        if _MODEL_VARIANT == 'v5':
+            _hi_ratio = float(feat_df['HiRatio_52w'].iloc[-1]) if 'HiRatio_52w' in feat_df.columns else 1.0
+            _pct_from_52w = _hi_ratio - 1.0
+            if _pct_from_52w < -0.20 and _ret90d < -0.15:
+                _decline_sev = min(1.0, (-_pct_from_52w - 0.20) / 0.30)
+                _f6m = 1.0 - (0.05 + _decline_sev * 0.05)
+                _f1y = 1.0 - (0.08 + _decline_sev * 0.07)
+                predicted_price_6m = min(predicted_price_6m, current_price * _f6m)
+                predicted_price_1y = min(predicted_price_1y, current_price * _f1y)
+                v_telemetry['fixC_pct_from_52w'] = round(_pct_from_52w, 3)
+                v_telemetry['fixC_severity']     = round(_decline_sev, 3)
+                print(f"[v5] {ticker} Fix C fired: pct_from_52w={_pct_from_52w:.2%} "
+                      f"ret90d={_ret90d:.2%} sev={_decline_sev:.2f} → f6m={_f6m:.3f} f1y={_f1y:.3f}",
+                      file=sys.stderr)
+
+        # ── v5 Fix D: Extreme Positive Momentum ─────────────────────────────
+        # Extends v4 drift for the tail case (90d > 30%). Scales the predicted
+        # move delta (not the absolute price) so we amplify the direction of
+        # the model's call rather than pushing the price toward an arbitrary
+        # level. Mutually exclusive with Fix A/C by sign of ret90d.
+        if _MODEL_VARIANT == 'v5' and _ret90d > 0.30 and current_price > 0:
+            _excess  = _ret90d - 0.30
+            _extra   = min(0.50, _excess * 2.0)
+            _xtscale = 1.0 + _extra
+            predicted_price_6m = current_price + (predicted_price_6m - current_price) * _xtscale
+            predicted_price_1y = current_price + (predicted_price_1y - current_price) * _xtscale
+            v_telemetry['fixD_xtscale'] = round(_xtscale, 4)
+            print(f"[v5] {ticker} Fix D fired: ret90d={_ret90d:.2%} → xtscale={_xtscale:.3f}",
+                  file=sys.stderr)
+
+        # Sync predicted_change_pct fields so the result dict stays consistent
+        if current_price > 0:
+            long_out['predicted_change_pct_6m'] = round((predicted_price_6m - current_price) / current_price * 100, 4)
+            long_out['predicted_change_pct_1y'] = round((predicted_price_1y - current_price) / current_price * 100, 4)
 
     # ── Short-term ───────────────────────────────────────────────────────────
     # Pass impact components (not a baked multiplier) so the module can build
@@ -553,6 +678,104 @@ def predict(ticker, input_data):
             "consumer_multiplier_applied": round(float(consumer_multiplier), 4)
         }
     }
+    result = _apply_variant_adjustments(result, feat_df, current_price, stock_metrics,
+                                         inline_telemetry=v_telemetry if _MODEL_VARIANT in ('v4', 'v5') else None)
+    return result
+
+
+# ============================================================================
+# POST-HOC OUTPUT-LEVEL ADJUSTMENTS (deadband + short-term confidence)
+# ============================================================================
+# Price-level fixes (v4 drift, v5 A/B/C/D) run inline inside predict() so
+# Fix D can compose with the v4 drift and Fix A can compose with Fix C. This
+# function handles the output-level fixes that don't touch predicted_price
+# but do touch predicted_direction_{h} and confidence_score_{h}.
+V4_DEADBAND_PCT     = 0.02   # |Δ| < 2% ⇒ predicted_direction = 'neutral'
+V4_VIX_BASELINE     = 20.0   # VIX at/below this ⇒ no confidence nerf (v4 only)
+V4_VIX_STRESS_SCALE = 30.0   # (vix - 20) / 30 ⇒ 1.0 stress at VIX=50 (v4 only)
+V4_BETA_BASELINE    = 1.5    # beta at this level ⇒ full stress absorption (v4 only)
+V4_RSI_OVERBOUGHT   = 70
+V4_HIGH_BETA        = 0.8
+V4_LOW_BETA         = 0.5
+V4_RSI_BOOST_HB     = 1.10   # high-beta OB ⇒ boost 1w/1m confidence
+V4_RSI_DAMP_LB      = 0.85   # low-beta OB ⇒ damp 1w/1m confidence
+
+
+def _apply_variant_adjustments(result: dict, feat_df, current_price: float,
+                                stock_metrics: dict, inline_telemetry=None) -> dict:
+    """Apply the output-level fixes that don't touch predicted_price:
+      • v4/v5 direction deadband — writes predicted_direction_{h} ∈ up/down/neutral
+      • v4 VIX-beta confidence multiplier — REMOVED in v5 (replaced by Fix B on
+        long_term_multiplier); still applied in v4 for A/B comparison.
+      • v4/v5 RSI-gated short-term confidence — 1w/1m only.
+
+    In v3, no adjustments run — predicted_direction_{h} is still written for
+    downstream compatibility but derived directly from the raw predicted_price
+    without any deadband."""
+    variant = _MODEL_VARIANT
+    try:
+        vix = float(feat_df['VIX'].iloc[-1])
+    except Exception:
+        vix = V4_VIX_BASELINE
+    try:
+        beta = float(feat_df['Beta'].iloc[-1])
+    except Exception:
+        beta = float(stock_metrics.get('beta') or 1.0)
+    try:
+        rsi = float(feat_df['RSI_14'].iloc[-1])
+    except Exception:
+        rsi = 50.0
+
+    telemetry = dict(inline_telemetry) if inline_telemetry else {'variant': variant}
+    telemetry.update({'vix': round(vix, 2), 'rsi_14d': round(rsi, 1)})
+
+    # ── Direction deadband (v4 + v5) ────────────────────────────────────────
+    # In v3, we still populate predicted_direction_{h} but without the deadband
+    # (any non-zero predicted move ⇒ up/down; exactly-flat ⇒ neutral).
+    _deadband = V4_DEADBAND_PCT if variant in ('v4', 'v5') else 0.0
+    for h in ('1w', '1m', '6m', '1y'):
+        pp = result.get(f'predicted_price_{h}')
+        if not (isinstance(pp, (int, float)) and current_price and current_price > 0):
+            result[f'predicted_direction_{h}'] = 'neutral'
+            continue
+        change = (pp - current_price) / current_price
+        if abs(change) < _deadband:
+            result[f'predicted_direction_{h}'] = 'neutral'
+        elif change > 0:
+            result[f'predicted_direction_{h}'] = 'up'
+        else:
+            result[f'predicted_direction_{h}'] = 'down'
+
+    # ── v4-only VIX × beta confidence nerf ──────────────────────────────────
+    # In v5 this is replaced by Fix B on long_term_multiplier (see predict()).
+    if variant == 'v4':
+        stress = max(0.0, (vix - V4_VIX_BASELINE) / V4_VIX_STRESS_SCALE)
+        beta_absorb = max(0.0, beta) / V4_BETA_BASELINE
+        vix_conf_mult = max(0.0, 1.0 - stress * beta_absorb)
+        if vix_conf_mult < 1.0:
+            for h in ('1w', '1m', '6m', '1y'):
+                k = f'confidence_score_{h}'
+                v = result.get(k)
+                if isinstance(v, (int, float)):
+                    result[k] = round(v * vix_conf_mult, 2)
+            telemetry['vix_conf_mult'] = round(vix_conf_mult, 4)
+
+    # ── RSI-gated short-term confidence (v4 + v5) ───────────────────────────
+    if variant in ('v4', 'v5') and rsi > V4_RSI_OVERBOUGHT:
+        factor = None
+        if beta > V4_HIGH_BETA:
+            factor = V4_RSI_BOOST_HB
+        elif beta < V4_LOW_BETA:
+            factor = V4_RSI_DAMP_LB
+        if factor is not None:
+            for h in ('1w', '1m'):
+                k = f'confidence_score_{h}'
+                v = result.get(k)
+                if isinstance(v, (int, float)):
+                    result[k] = round(min(100.0, v * factor), 2)
+            telemetry['rsi_beta_factor'] = factor
+
+    result['variant_adjustments'] = telemetry
     return result
 
 
