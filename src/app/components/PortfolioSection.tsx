@@ -35,6 +35,9 @@ export default function PortfolioSection({ portfolio, horizonLabel = '1M' }: Por
       symbol: item.symbol,
       companyName: item.company_name,
       sharesHeld: item.shares,
+      // Prefer average_cost_basis (accurate for multi-lot holdings); fall back
+      // to the initial purchase_price if the average column is not populated.
+      purchasePrice: item.average_cost_basis ?? item.purchase_price ?? null,
       price: regularMarketPrice,
       changePercent: pctChange,
       changeAmount: dollarChange,

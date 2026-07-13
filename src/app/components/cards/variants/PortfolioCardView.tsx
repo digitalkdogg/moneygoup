@@ -87,7 +87,10 @@ export const PortfolioCardView: React.FC<PortfolioCardViewProps> = ({ card }) =>
       <div className="px-4 pb-3 grid grid-cols-3 gap-3">
         <div>
           <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Shares</div>
-          <div className="text-sm font-bold text-gray-900">{formatShares(card.sharesHeld)}</div>
+          <div className="text-sm font-bold text-gray-900">
+            {formatShares(card.sharesHeld)}
+            {card.purchasePrice != null && ` × ${formatPrice(card.purchasePrice)}`}
+          </div>
         </div>
 
         <div>

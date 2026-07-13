@@ -39,6 +39,9 @@ export interface DeepmoneyCard extends CardBase {
 export interface PortfolioCard extends CardBase {
   variant: 'portfolio'
   sharesHeld: number | null
+  /** Original per-share purchase price (or average cost basis if the user has
+   *  multiple lots). Rendered next to sharesHeld as "N.NN × $XX.XX". */
+  purchasePrice?: number | null
   analystFeedback: string | null
   analysts?: number | null
   gpsScore?: number | null
