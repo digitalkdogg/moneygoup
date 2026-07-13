@@ -53,7 +53,7 @@ N_EPOCHS   = 50    # capped for speed
 BATCH_SIZE = 128
 MC_RUNS    = 12
 CACHE_DIR  = os.path.join(os.path.dirname(__file__), 'prediction_cache')
-CACHE_SCHEMA_VERSION = 23  # bumped: reverted v5 E/F/G refinements (they showed no measurable improvement in the 15-ticker apples-to-apples backtest) — back to v5 A/B/C/D-only
+CACHE_SCHEMA_VERSION = 24  # bumped: Item 1 (LLM rationale) — invalidate old cached results so the next prediction runs predict() fresh and populates llm_rationale via prediction_narrator.py
 
 # Dirichlet (Laplace) smoothing applied to regime probabilities before they
 # leave build_regime_detector(). Mixes raw probs with a uniform prior so that

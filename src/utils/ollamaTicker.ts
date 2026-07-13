@@ -10,14 +10,18 @@
 
 import { createLogger } from './logger';
 import { resolveIndustryTickers } from './industryTickerMap';
+import { isOllamaEnabled, checkOllamaReachable, generateJson } from './ollamaClient';
 
 const logger = createLogger('utils/ollamaTicker');
 
 const OLLAMA_BASE_URL  = process.env.OLLAMA_BASE_URL  || 'http://localhost:11434';
-const OLLAMA_MODEL     = process.env.OLLAMA_MODEL     || 'llama3.2';
-const OLLAMA_TIMEOUT_MS = Number(process.env.OLLAMA_TIMEOUT_MS)  || 8_000;
 const OLLAMA_CONCURRENCY = Number(process.env.OLLAMA_CONCURRENCY) || 10;
 const OLLAMA_MAX_ARTICLES = Number(process.env.OLLAMA_MAX_ARTICLES) || 50;
+
+// Re-export for callers that already imported these names from ollamaTicker.
+// They now live in ollamaClient.ts; keeping the re-exports means we don't
+// churn a bunch of unrelated imports across the codebase during Item 0.
+export { isOllamaEnabled, checkOllamaReachable };
 
 export interface OllamaEntities {
     companies:  string[];
@@ -46,26 +50,6 @@ Article:
 
 const US_EXCHANGES = new Set(['NMS', 'NYQ', 'ASE', 'NGM', 'PCX', 'BATS']);
 
-export function isOllamaEnabled(): boolean {
-    return (process.env.OLLAMA_ENABLED || 'false').toLowerCase() === 'true';
-}
-
-/**
- * Lightweight reachability probe — used as a precondition before launching
- * the per-article fan-out. 2s timeout because we don't want to delay the
- * whole route when Ollama isn't running.
- */
-export async function checkOllamaReachable(): Promise<boolean> {
-    try {
-        const res = await fetch(`${OLLAMA_BASE_URL}/api/tags`, {
-            signal: AbortSignal.timeout(2_000),
-        });
-        return res.ok;
-    } catch {
-        return false;
-    }
-}
-
 /**
  * Send one article to Ollama and parse its JSON response. Returns null when
  * the model is unreachable, the response is malformed, or the timeout fires.
@@ -79,32 +63,16 @@ export async function extractEntitiesWithOllama(text: string): Promise<OllamaEnt
     // when present, the head usually has the salient names.
     const articleSlice = trimmed.slice(0, 4_000);
 
-    try {
-        const res = await fetch(`${OLLAMA_BASE_URL}/api/generate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model:  OLLAMA_MODEL,
-                prompt: PROMPT_TEMPLATE + articleSlice,
-                stream: false,
-                format: 'json',
-                options: { temperature: 0, num_predict: 200 },
-            }),
-            signal: AbortSignal.timeout(OLLAMA_TIMEOUT_MS),
-        });
-        if (!res.ok) return null;
-        const data: any = await res.json();
-        const raw = data?.response;
-        if (typeof raw !== 'string') return null;
-        const parsed = JSON.parse(raw);
-        return {
-            companies:  toStringArray(parsed.companies),
-            industries: toStringArray(parsed.industries),
-            related:    toStringArray(parsed.related),
-        };
-    } catch {
-        return null;
-    }
+    const parsed = await generateJson<{ companies?: unknown; industries?: unknown; related?: unknown }>(
+        PROMPT_TEMPLATE + articleSlice,
+        { numPredict: 200 },
+    );
+    if (parsed === null) return null;
+    return {
+        companies:  toStringArray(parsed.companies),
+        industries: toStringArray(parsed.industries),
+        related:    toStringArray(parsed.related),
+    };
 }
 
 function toStringArray(v: unknown): string[] {

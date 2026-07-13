@@ -65,6 +65,7 @@ def record_prediction(
     confidence_reason_1m: str | None = None,
     confidence_reason_6m: str | None = None,
     confidence_reason_1y: str | None = None,
+    llm_rationale: str | None = None,
     model_version: str = 'legacy',
 ) -> bool:
     """Insert a fresh prediction_records row (one per run — no dedup index)."""
@@ -87,8 +88,9 @@ def record_prediction(
             accuracy_metrics, data_quality, model_status,
             at_model_ceiling_6m, at_model_ceiling_1y, ceiling_direction,
             confidence_breakdown,
-            confidence_reason_1w, confidence_reason_1m, confidence_reason_6m, confidence_reason_1y
-        ) VALUES (%s, NOW(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            confidence_reason_1w, confidence_reason_1m, confidence_reason_6m, confidence_reason_1y,
+            llm_rationale
+        ) VALUES (%s, NOW(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
 
         gps_breakdown_json         = json.dumps(gps_breakdown)         if gps_breakdown         is not None else None
@@ -125,6 +127,7 @@ def record_prediction(
             confidence_reason_1m,
             confidence_reason_6m,
             confidence_reason_1y,
+            llm_rationale,
         ))
 
         inserted = cursor.rowcount > 0

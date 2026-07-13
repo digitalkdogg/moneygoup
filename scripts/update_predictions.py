@@ -559,6 +559,7 @@ def run_prediction_for_holding(ticker: str,
             confidence_reason_1m=prediction_result.get('confidence_reason_1m'),
             confidence_reason_6m=prediction_result.get('confidence_reason_6m'),
             confidence_reason_1y=prediction_result.get('confidence_reason_1y'),
+            llm_rationale=prediction_result.get('llm_rationale'),
             model_version=MODEL_VERSION_TAG,
         )
 
@@ -879,6 +880,7 @@ def sync_portfolio_predictions():
                 confidence_reason_1m=confidence_reason_1m,
                 confidence_reason_6m=confidence_reason_6m,
                 confidence_reason_1y=confidence_reason_1y,
+                llm_rationale=prediction_result.get('llm_rationale') if isinstance(prediction_result, dict) else None,
                 model_version=MODEL_VERSION_TAG,
             )
 

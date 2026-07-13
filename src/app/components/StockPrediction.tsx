@@ -108,6 +108,11 @@ interface PredictionResult {
   confidence_reason_1m?: string
   confidence_reason_6m?: string
   confidence_reason_1y?: string
+  /** Optional LLM-written 2-3 sentence narrative. Rendered as a
+   *  "Why this range" callout above the trajectory chart when present.
+   *  NULL when Ollama is disabled/down; UI falls back to the rule-based
+   *  confidence_reason_{h} strings displayed on the confidence badges. */
+  llm_rationale?: string | null
 }
 
 interface ConfidenceBreakdown {
@@ -621,6 +626,7 @@ export default function StockPrediction({
       confidence_reason_1m:    prefetchedPrediction.confidence_reason_1m ?? undefined,
       confidence_reason_6m:    prefetchedPrediction.confidence_reason_6m ?? undefined,
       confidence_reason_1y:    prefetchedPrediction.confidence_reason_1y ?? undefined,
+      llm_rationale:           (prefetchedPrediction as { llm_rationale?: string | null }).llm_rationale ?? null,
     }
     setPrediction(inflated)
     setStep('done')
@@ -819,6 +825,18 @@ export default function StockPrediction({
               <p className="text-xs text-gray-800 mt-2 italic">Wider uncertainty — treat as <br />directional guidance</p>
             </div>
           </div>
+
+          {/* ---- "Why this range" LLM narrative (only when Ollama produced one) ---- */}
+          {prediction.llm_rationale && (
+            <div className="mt-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-r-lg">
+              <div className="text-[11px] font-semibold text-blue-700 uppercase tracking-wide mb-1">
+                Why this range
+              </div>
+              <p className="text-sm text-gray-800 leading-relaxed">
+                {prediction.llm_rationale}
+              </p>
+            </div>
+          )}
 
           {/* ---- 18-month SVG trajectory chart ---- */}
           {prediction.monthly_trajectory?.length > 0 && (

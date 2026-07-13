@@ -32,6 +32,10 @@ export interface PredictionInput {
   confidenceReason1m?: string | null;
   confidenceReason6m?: string | null;
   confidenceReason1y?: string | null;
+  /** Optional LLM-written narrative that sits alongside the rule-based
+   *  confidence_reason_{h} strings. NULL when Ollama is disabled/down;
+   *  the UI falls back to confidence_reason_{h} in that case. */
+  llmRationale?: string | null;
 }
 
 export async function recordPrediction(input: PredictionInput): Promise<boolean> {
@@ -50,8 +54,9 @@ export async function recordPrediction(input: PredictionInput): Promise<boolean>
           accuracy_metrics, data_quality, model_status,
           at_model_ceiling_6m, at_model_ceiling_1y, ceiling_direction,
           confidence_breakdown,
-          confidence_reason_1w, confidence_reason_1m, confidence_reason_6m, confidence_reason_1y
-        ) VALUES (?, NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          confidence_reason_1w, confidence_reason_1m, confidence_reason_6m, confidence_reason_1y,
+          llm_rationale
+        ) VALUES (?, NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
       const gpsBreakdownJson =
@@ -92,6 +97,7 @@ export async function recordPrediction(input: PredictionInput): Promise<boolean>
         input.confidenceReason1m ?? null,
         input.confidenceReason6m ?? null,
         input.confidenceReason1y ?? null,
+        input.llmRationale ?? null,
       ]);
 
       // @ts-ignore - mysql2 result type

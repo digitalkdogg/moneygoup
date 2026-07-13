@@ -185,6 +185,7 @@ export async function POST(
           confidenceReason1m: result.confidence_reason_1m,
           confidenceReason6m: result.confidence_reason_6m,
           confidenceReason1y: result.confidence_reason_1y,
+          llmRationale:      result.llm_rationale ?? null,
         }).catch(() => {});
       }
     }
@@ -304,6 +305,14 @@ function runPythonPrediction(ticker: string, inputFile: string, outlook: string,
         ...process.env,
         CS_MODEL_VERSION: csModelVersion,
         USE_LEGACY_PREDICTION_MODEL: useLegacy ? 'true' : 'false',
+        // Ollama-related vars — same reason as CS_MODEL_VERSION above:
+        // Turbopack sometimes drops .env.local values before the child
+        // inherits them, so re-pass explicitly. Falls back to '' when unset
+        // so the Python side just sees the daemon-off default behavior.
+        OLLAMA_ENABLED:    process.env.OLLAMA_ENABLED    ?? '',
+        OLLAMA_BASE_URL:   process.env.OLLAMA_BASE_URL   ?? '',
+        OLLAMA_MODEL:      process.env.OLLAMA_MODEL      ?? '',
+        OLLAMA_TIMEOUT_MS: process.env.OLLAMA_TIMEOUT_MS ?? '',
       },
     });
     let stdout = '', stderr = '';

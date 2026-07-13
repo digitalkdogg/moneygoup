@@ -49,6 +49,7 @@ export async function GET(
          at_model_ceiling_6m, at_model_ceiling_1y, ceiling_direction,
          confidence_breakdown,
          confidence_reason_1w, confidence_reason_1m, confidence_reason_6m, confidence_reason_1y,
+         llm_rationale,
          created_at
        FROM prediction_records
        WHERE symbol = ?
@@ -100,6 +101,7 @@ export async function GET(
       confidence_reason_1m: (row.confidence_reason_1m as string | null) ?? undefined,
       confidence_reason_6m: (row.confidence_reason_6m as string | null) ?? undefined,
       confidence_reason_1y: (row.confidence_reason_1y as string | null) ?? undefined,
+      llm_rationale: (row.llm_rationale as string | null) ?? null,
       model_version: row.model_version,
     };
 
