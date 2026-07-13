@@ -58,10 +58,10 @@ export default function StockNews({ articles, ticker, titleLevel = 'h2' }: Stock
           >
             <div className="flex justify-between items-start gap-4">
               <div className="flex-1">
-                <h3 className="font-semibold text-blue-600 hover:text-blue-800">
+                <h3 className="font-semibold text-blue-600 hover:text-blue-800 !text-[16px]">
                   {article.title}
                 </h3>
-                <p className="text-xs text-gray-500 mt-0.5">
+                <p className="!text-[14px] text-gray-500 mt-0.5">
                   {new Date(article.pubDate).toLocaleString()}
                 </p>
                 {article.source && (
@@ -79,7 +79,7 @@ export default function StockNews({ articles, ticker, titleLevel = 'h2' }: Stock
                         ? ''
                         : article.sentiment_score < 0
                           ? 'bg-red-100 text-red-800'
-                          : 'bg-gray-100 text-gray-800'
+                          : 'bg-gray-300 text-gray-800'
                     }`}
                   >
                     {article.sentiment_score > 0

@@ -11,8 +11,12 @@ interface SymbolAccuracy {
   message?: string;
   total_resolved?: number;
   horizons?: {
-    '1_week': { resolved_count: number; direction_accuracy_pct: number | null };
-    '1_month': { resolved_count: number; direction_accuracy_pct: number | null };
+    '1_month': {
+      resolved_count: number;
+      direction_accuracy_pct: number | null;
+      direction_correct_count: number;
+      direction_resolved_count: number;
+    };
   };
 }
 
@@ -51,12 +55,13 @@ export default function SymbolAccuracyIndicator({ ticker }: Props) {
   }
 
   const month1 = data.horizons?.['1_month'];
-  if (!month1 || month1.direction_accuracy_pct === null) {
+  if (!month1 || month1.direction_accuracy_pct === null || !month1.direction_resolved_count) {
     return null;
   }
 
-  const accuracy = Math.round(month1.direction_accuracy_pct);
-  const resolved = month1.resolved_count;
+  const accuracy = month1.direction_accuracy_pct;
+  const correct  = month1.direction_correct_count;
+  const total    = month1.direction_resolved_count;
 
   return (
     <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
@@ -65,7 +70,7 @@ export default function SymbolAccuracyIndicator({ ticker }: Props) {
           Past 1-month predictions for <strong>{ticker}</strong>:
         </span>
         <span className="font-semibold text-blue-600 text-lg">
-          {resolved}/{resolved} correct
+          {correct}/{total} correct
         </span>
         <span className="text-gray-600">({accuracy}%)</span>
       </div>

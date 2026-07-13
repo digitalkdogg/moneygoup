@@ -189,7 +189,7 @@ export default function StockSignalPanel({
           <line x1="12" y1="16" x2="12.01" y2="16" />
         </svg>
         <span>
-          <strong>Show prediction details</strong> expands the full factor breakdown — including signal weights, model confidence, and how your prediction compares to the AI&apos;s rating.
+          <strong>Show prediction details </strong> expands the full factor breakdown — including signal weights, model confidence, and how your prediction compares to the AI&apos;s rating.
         </span>
       </div>
 

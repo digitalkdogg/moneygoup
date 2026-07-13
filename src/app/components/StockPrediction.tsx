@@ -838,7 +838,7 @@ export default function StockPrediction({
                 {rsi !== undefined && (
                   <div className="pb-2 border-b border-gray-200">
                     <div className="flex justify-between">
-                      <span className="text-gray-600">RSI (14)</span>
+                      <span className="text-gray-600 text-sm">RSI (14)</span>
                       <span 
                         className={`font-semibold ${rsi > 70 ? 'text-red-600' : rsi < 30 ? '' : 'text-gray-700'}`}
                         style={rsi < 30 ? { color: "#005a00" } : {}}
@@ -852,7 +852,7 @@ export default function StockPrediction({
                 {momentum !== undefined && (
                   <div className="pb-2 border-b border-gray-200">
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Momentum</span>
+                      <span className="text-gray-600 text-sm">Momentum</span>
                       <span 
                         className={`font-semibold ${Math.abs(momentum) > 2 ? momentum > 0 ? '' : 'text-red-600' : 'text-gray-700'}`}
                         style={Math.abs(momentum) > 2 && momentum > 0 ? { color: "#005a00" } : {}}
@@ -866,7 +866,7 @@ export default function StockPrediction({
                 {sma20 !== undefined && sma50 !== undefined && (
                   <div className="pb-2 border-b border-gray-200">
                     <div className="flex justify-between">
-                      <span className="text-gray-600">SMA Trend</span>
+                      <span className="text-gray-600 text-sm">SMA Trend</span>
                       <span 
                         className={`font-semibold ${sma20 > sma50 ? '' : 'text-red-600'}`}
                         style={sma20 > sma50 ? { color: "#005a00" } : {}}
@@ -880,7 +880,7 @@ export default function StockPrediction({
                 {peRatio !== undefined && peRatio > 0 && (
                   <div className="pb-2 border-b border-gray-200">
                     <div className="flex justify-between">
-                      <span className="text-gray-600">P/E Ratio</span>
+                      <span className="text-gray-600 text-sm">P/E Ratio</span>
                       <span 
                         className={`font-semibold ${peRatio < 15 ? '' : peRatio > 25 ? 'text-red-600' : 'text-gray-700'}`}
                         style={peRatio < 15 ? { color: "#005a00" } : {}}
@@ -893,7 +893,7 @@ export default function StockPrediction({
                 )}
                 {prediction.stock_type && (
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Stock Type</span>
+                    <span className="text-gray-600 text-sm">Stock Type</span>
                     <span className="font-semibold text-gray-700 capitalize">{prediction.stock_type.replace(/_/g, ' ')}</span>
                   </div>
                 )}

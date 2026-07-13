@@ -219,6 +219,11 @@ async function getPerSymbolAccuracy(conn: any, symbol: string) {
       (SELECT COUNT(*) FROM prediction_records
        WHERE symbol = ? AND predicted_price_1m IS NOT NULL AND actual_price_1m IS NOT NULL AND actual_price_1m > 0
        AND GREATEST(0, 1 - ABS(predicted_price_1m - actual_price_1m) / NULLIF(actual_price_1m, 0)) >= 0.95) AS count_95_1m,
+      -- direction accuracy 1m — SUM/COUNT of direction_correct_1m (excludes NULL/neutral)
+      (SELECT SUM(direction_correct_1m) FROM prediction_records
+       WHERE symbol = ? AND direction_correct_1m IS NOT NULL) AS dir_correct_1m,
+      (SELECT COUNT(direction_correct_1m) FROM prediction_records
+       WHERE symbol = ? AND direction_correct_1m IS NOT NULL) AS dir_resolved_1m,
 
       -- 6 Month
       (SELECT COUNT(*) FROM prediction_records
@@ -244,7 +249,7 @@ async function getPerSymbolAccuracy(conn: any, symbol: string) {
     GROUP BY symbol
   `;
 
-  const [rows] = await conn.execute(query, [symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol]);
+  const [rows] = await conn.execute(query, [symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol]);
 
   if (rows.length === 0) {
     return {
@@ -314,6 +319,13 @@ async function getPerSymbolAccuracy(conn: any, symbol: string) {
         resolved_count: formatInt(row.resolved_1m),
         proximity_accuracy_pct: formatAccuracy(row.avg_accuracy_pct_1m),
         high_accuracy_count: formatInt(row.count_95_1m),
+        // Direction accuracy — count of correct calls / count of non-neutral calls.
+        // `dir_resolved` excludes rows where direction_correct is NULL (neutral).
+        direction_correct_count: formatInt(row.dir_correct_1m),
+        direction_resolved_count: formatInt(row.dir_resolved_1m),
+        direction_accuracy_pct: row.dir_resolved_1m && Number(row.dir_resolved_1m) > 0
+          ? Math.round(100 * Number(row.dir_correct_1m) / Number(row.dir_resolved_1m))
+          : null,
       },
       '6_month': {
         resolved_count: formatInt(row.resolved_6m),
