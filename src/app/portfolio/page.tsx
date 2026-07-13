@@ -340,7 +340,7 @@ export default function PortfolioPage() {
         </div>
 
         {/* ── At a Glance ───────────────────────────────────────────────── */}
-        <section>
+        <section className="section-at-a-glance">
           <SectionHeading>At a Glance</SectionHeading>
           {portfolioLoading ? (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -375,7 +375,7 @@ export default function PortfolioPage() {
         </section>
 
         {/* ── Portfolio Analytics ───────────────────────────────────────── */}
-        <section>
+        <section className="section-portfolio-analytics">
           <SectionHeading>Portfolio Analytics</SectionHeading>
           <PortfolioMetricsPanel
             portfolio={portfolio}
@@ -386,7 +386,7 @@ export default function PortfolioPage() {
         </section>
 
         {/* ── Performance ───────────────────────────────────────────────── */}
-        <section>
+        <section className="section-performance">
           <SectionHeading>Performance</SectionHeading>
           <div className="flex flex-col lg:flex-row gap-4">
 
@@ -477,7 +477,7 @@ export default function PortfolioPage() {
         </section>
 
         {/* ── Recommendations ───────────────────────────────────────────── */}
-        <section>
+        <section className="section-recommendations">
           <SectionHeading>Recommendations</SectionHeading>
           <RecommendationsSection
             scopes={hasEtfInPortfolio

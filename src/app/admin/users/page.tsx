@@ -127,7 +127,7 @@ export default function AdminUsersPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden section-user-management">
           <div className="flex border-b border-gray-200 bg-gray-50">
             <button
               onClick={() => setActiveTab('pending')}

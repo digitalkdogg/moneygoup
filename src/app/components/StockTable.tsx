@@ -45,8 +45,16 @@ export default function StockTable<T extends StockTableRow>({
     }
   };
 
+  const sectionSlug = 'section-' + (title || '')
+    .toString()
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, '')
+    .trim()
+    .replace(/[\s_]+/g, '-')
+    .replace(/-+/g, '-');
+
   return (
-    <section className="bg-white p-4 md:p-6 rounded-2xl shadow-lg mb-8" id="table">
+    <section className={`bg-white p-4 md:p-6 rounded-2xl shadow-lg mb-8 ${sectionSlug}`} id="table">
       <h2 className="section-heading">{title}</h2>
 
       {loading && data.length === 0 && (

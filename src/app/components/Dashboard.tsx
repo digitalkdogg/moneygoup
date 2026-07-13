@@ -196,13 +196,14 @@ export default function Dashboard() {
             </div>
           </div>
           {/* Market Overview Row */}
-          <div className="mb-10">
+          <div className="mb-10 section-market-overview">
             <MajorIndicesStrip />
           </div>
 
           {/* Portfolio Section — hidden until loaded and only shown when user has stocks */}
           {!loadingPortfolio && portfolio.length > 0 && (
             <>
+              {/* section:section-my-portfolio */}
               <h2 className="section-heading">My Portfolio</h2>
 
               <div className="mb-6">
@@ -225,7 +226,7 @@ export default function Dashboard() {
           )}
 
           {/* Discovery & Watchlist */}
-          <div className="border-t border-gray-200 pt-10 mt-10">
+          <div className="border-t border-gray-200 pt-10 mt-10 section-discovery-watchlist">
             <h2 className="section-heading">Discovery & Watchlist</h2>
             <RecommendationsSection />
             <div className="mt-10 mb-10">

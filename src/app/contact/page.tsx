@@ -47,7 +47,7 @@ export default function ContactPage() {
           </Link>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] p-8">
+        <div className="bg-white rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] p-8 section-contact-form">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Contact Us</h1>
           <p className="text-gray-500 mb-8">
             Have a question, feedback, or issue? Fill out the form below and we'll get back to you within 1–2 business days.

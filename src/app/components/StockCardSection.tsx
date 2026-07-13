@@ -29,8 +29,15 @@ export default function StockCardSection<T>({
     : columns === 2
     ? 'grid grid-cols-1 md:grid-cols-2'
     : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
+  const sectionSlug = 'section-' + (title || '')
+    .toString()
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, '')
+    .trim()
+    .replace(/[\s_]+/g, '-')
+    .replace(/-+/g, '-');
   return (
-    <section className="mb-8">
+    <section className={`mb-8 ${sectionSlug}`}>
       <h2 className="section-heading">{title}</h2>
 
       {loading && data.length === 0 && (

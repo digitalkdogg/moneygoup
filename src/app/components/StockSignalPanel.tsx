@@ -101,7 +101,7 @@ export default function StockSignalPanel({
   const chipColors = score !== null ? getChipColors(score) : null
 
   return (
-    <div>
+    <div className="section-gps-ai-prediction">
       {/* Header */}
       <div className="mb-1">
         <h2 className="section-heading">GPS + AI prediction</h2>

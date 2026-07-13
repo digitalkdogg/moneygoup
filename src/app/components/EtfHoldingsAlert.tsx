@@ -47,7 +47,7 @@ export default function EtfHoldingsAlert() {
   if (recs.length === 0) return null;
 
   return (
-    <div className="mb-8">
+    <div className="mb-8 section-etf-holdings-alerts">
       <div className="flex items-center justify-between mb-3">
         <h2 className="section-heading">ETF Holdings Alerts</h2>
         {recs.length > 1 && (

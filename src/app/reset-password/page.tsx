@@ -78,7 +78,7 @@ function ResetPasswordForm() {
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
+      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 section-reset-password-form">
         <div className="flex flex-col items-center mb-8">
           <Link href="/" className="mb-4">
             <Image src="/growmystock_logo.svg" alt="GrowMyStocks Logo" width={64} height={64} />

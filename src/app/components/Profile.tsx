@@ -168,7 +168,7 @@ export default function Profile() {
 
       {/* Investment Strategy card */}
       {strategy && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6 section-investment-strategy">
           <h2 className="section-heading">Investment Strategy</h2>
           <p className="text-sm text-gray-600 mb-4">
             Tune how recommendations and GPS scoring are weighted for your account.
@@ -203,7 +203,7 @@ export default function Profile() {
 
       {/* Investment Timeframe card */}
       {strategy && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6 section-investment-timeframe">
           <h2 className="section-heading">Investment Timeframe</h2>
           <p className="text-sm text-gray-600 mb-4">
             How far out should predictions look? Tightens or loosens the predicted-change bar
@@ -239,7 +239,7 @@ export default function Profile() {
 
       {/* Stats — only for user / superuser */}
       {data.accountType !== 'admin' && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 section-activity-summary">
           <h2 className="section-heading">Activity Summary</h2>
           <dl className="grid grid-cols-1 sm:grid-cols-3 gap-6">
             <StatCard

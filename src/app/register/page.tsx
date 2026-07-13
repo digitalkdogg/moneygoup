@@ -103,7 +103,7 @@ export default function RegisterPage() {
       </h1>
 
       {/* Register card */}
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border-t-4 p-8 border-t-[#017e3b]">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border-t-4 p-8 border-t-[#017e3b] section-create-your-account">
         <div className="flex flex-col items-center mb-8">
           <Link href="/" className="mb-4">
             <Image src="/growmystock_logo.svg" alt="GrowMyStocks Logo" width={64} height={64} />
@@ -188,7 +188,7 @@ export default function RegisterPage() {
       </div>
 
       {/* Benefits strip */}
-      <div className="w-full max-w-2xl mt-16 bg-white rounded-xl shadow-sm border border-green-100 px-6 py-5">
+      <div className="w-full max-w-2xl mt-16 bg-white rounded-xl shadow-sm border border-green-100 px-6 py-5 section-benefits-strip">
         <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {BENEFITS.map((b) => (
             <li key={b.text} className="flex items-start gap-2.5">
@@ -202,7 +202,7 @@ export default function RegisterPage() {
       </div>
 
       {/* What you get section */}
-      <div className="w-full max-w-4xl mt-16 text-center mb-4">
+      <div className="w-full max-w-4xl mt-16 text-center mb-4 section-everything-you-need-to-invest-smarter">
         <h2 className="section-heading">
           Everything you need to invest smarter
         </h2>
@@ -212,7 +212,7 @@ export default function RegisterPage() {
       </div>
 
       {/* Feature strip */}
-      <div className="w-full max-w-4xl mt-10 grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="w-full max-w-4xl mt-10 grid grid-cols-2 sm:grid-cols-4 gap-4 section-feature-strip">
         {FEATURES.map((f) => (
           <div key={f.title} className="bg-white rounded-xl p-4 shadow-sm border border-green-100 flex flex-col items-start gap-2">
             <div className="p-1.5 rounded-lg bg-[#f0fdf4]">{f.icon}</div>
@@ -223,7 +223,7 @@ export default function RegisterPage() {
       </div>
 
       {/* Login CTA */}
-      <div className="w-full max-w-4xl mt-10 mb-8 rounded-2xl border border-green-200 bg-white px-8 py-7 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="w-full max-w-4xl mt-10 mb-8 rounded-2xl border border-green-200 bg-white px-8 py-7 flex flex-col sm:flex-row items-center justify-between gap-4 section-already-a-member">
         <div>
           <h3 className="text-base font-semibold text-gray-800">Already a member?</h3>
           <p className="text-sm text-gray-500 mt-0.5">Sign in to access your dashboard, scores, and portfolio.</p>

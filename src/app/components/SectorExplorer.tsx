@@ -13,7 +13,7 @@ export default function SectorExplorer() {
   }
 
   return (
-    <div className="bg-white p-4 md:p-6 rounded-2xl shadow-lg">
+    <div className="bg-white p-4 md:p-6 rounded-2xl shadow-lg section-explore-by-sector">
       <h2 className="section-heading">Explore by Sector</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {CANONICAL_SECTORS.map(sector => {

@@ -139,7 +139,7 @@ export default function DeepMoneyPicksSection() {
   }
 
   return (
-    <div className="space-y-10 mb-12">
+    <div className="space-y-10 mb-12 section-deepmoney-engine">
       <div className="flex items-center justify-between px-2">
         <h2 className="section-heading">DeepMoney Engine</h2>
         <button

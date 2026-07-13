@@ -111,7 +111,7 @@ function LoginForm() {
       </h1>
 
       {/* Login card */}
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 section-welcome-back">
         <div className="flex flex-col items-center mb-8">
           <Link href="/" className="mb-4">
             <Image src="/growmystock_logo.svg" alt="GrowMyStocks Logo" width={64} height={64} />
@@ -177,7 +177,7 @@ function LoginForm() {
       </div>
 
       {/* Why GrowMyStocks section */}
-      <div className="w-full max-w-4xl mt-16 text-center mb-4">
+      <div className="w-full max-w-4xl mt-16 text-center mb-4 section-know-which-stocks-to-buy-before-the-market-does">
         <h2 className="section-heading">
           Know which stocks to buy before the market does.
         </h2>
@@ -198,7 +198,7 @@ function LoginForm() {
       </div>
 
       {/* Feature strip */}
-      <div className="w-full max-w-4xl mt-10 grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="w-full max-w-4xl mt-10 grid grid-cols-2 sm:grid-cols-4 gap-4 section-feature-strip">
         {FEATURES.map((f) => (
           <div key={f.title} className="bg-white rounded-xl p-4 shadow-sm flex flex-col items-start gap-2">
             <div className="p-1.5 bg-green-50 rounded-lg">{f.icon}</div>
@@ -209,7 +209,7 @@ function LoginForm() {
       </div>
 
       {/* Register CTA */}
-      <div className="w-full max-w-4xl mt-10 mb-8 bg-white rounded-2xl shadow-sm border border-gray-100 px-8 py-7 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="w-full max-w-4xl mt-10 mb-8 bg-white rounded-2xl shadow-sm border border-gray-100 px-8 py-7 flex flex-col sm:flex-row items-center justify-between gap-4 section-new-to-growmystocks">
         <div>
           <h3 className="text-base font-semibold text-gray-800">New to GrowMyStocks?</h3>
           <p className="text-sm text-gray-500 mt-0.5">Create a free account and start analyzing stocks in minutes.</p>

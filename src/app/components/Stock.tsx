@@ -556,7 +556,7 @@ export default function Stock({
             portfolio nor on watchlist, the add-to-watchlist button sits here.
             Portfolio/watchlist state is conveyed by their own dedicated
             sections below. */}
-        <div className="relative bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8 pt-10">
+        <div className="relative bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8 pt-10 section-title-card">
           {(() => {
             const isEtf = stockData.quoteType?.toUpperCase() === 'ETF'
             const label = isEtf ? 'ETF' : stockData.industry || stockData.sector || null
@@ -590,7 +590,7 @@ export default function Stock({
         </div>
 
         {/* Overview card — company summary + key stats */}
-        <div className="relative bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8 pt-10">
+        <div className="relative bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8 pt-10 section-company-overview">
           {stockData.longBusinessSummary && (
             <div className="mb-6">
               <h2 className="section-heading">Company Overview</h2>
@@ -726,7 +726,7 @@ export default function Stock({
             })()
 
             return (
-              <div className="bg-white rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] border border-gray-100 mb-8 p-8 pb-7">
+              <div className="bg-white rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] border border-gray-100 mb-8 p-8 pb-7 section-your-portfolio-position">
                 <h2 className="section-heading">Your Portfolio Position</h2>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-5">
@@ -881,7 +881,7 @@ export default function Stock({
               : null
 
             return (
-              <div className="bg-white rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] border border-gray-100 mb-8 p-8 pb-7">
+              <div className="bg-white rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] border border-gray-100 mb-8 p-8 pb-7 section-your-watchlist">
                 <h2 className="section-heading">Your Watchlist</h2>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
@@ -1016,7 +1016,7 @@ export default function Stock({
 
         {/* ETF Top Holdings Panel */}
         {stockData.quoteType?.toUpperCase() === 'ETF' && (etfHoldingsLoading || (etfHoldings && etfHoldings.length > 0)) && (
-          <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
+          <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8 section-top-holdings">
             <div className="flex items-baseline gap-2 mb-4">
               <h2 className="section-heading">Top Holdings</h2>
               <span className="text-sm text-gray-400 font-normal">{primaryTicker}</span>
@@ -1088,7 +1088,7 @@ export default function Stock({
           </div>
         )}
 
-        <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
+        <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8 section-prediction">
           <StockSignalPanel
             ticker={primaryTicker}
             gpsData={gpsData}
@@ -1128,7 +1128,7 @@ export default function Stock({
 
         {/* Analyst Sentiment & Price Targets */}
         {data.analyst && (
-          <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
+          <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8 section-analyst-sentiment-targets">
             <h2 className="section-heading">Analyst Sentiment & Targets</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-4">
@@ -1213,14 +1213,14 @@ export default function Stock({
 
         {/* Price History Chart */}
         {historical && historical.length > 0 && (
-          <div className="mb-8">
+          <div className="mb-8 section-price-history-chart">
             <StockChart ticker={primaryTicker} historicalData={historical} titleLevel="h2" />
           </div>
         )}
 
         {/* Technical Indicators */}
         {indicators && (
-          <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
+          <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8 section-technical-indicators-trading-signal">
             <h2 className="section-heading">Technical Indicators & Trading Signal</h2>
             <TechnicalIndicatorsDisplay indicators={indicators} titleLevel="h3" />
           </div>
@@ -1228,7 +1228,7 @@ export default function Stock({
 
         {/* Earnings Information */}
         {earningsData && (earningsData.upcomingEarnings || earningsData.historicalEarnings.length > 0) && (
-          <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
+          <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8 section-earnings-information">
             <h2 className="section-heading">Earnings Information</h2>
 
             {earningsData.upcomingEarnings && (
@@ -1245,11 +1245,11 @@ export default function Stock({
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-[#f7f8f6]">
                       <tr>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                        <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">EPS Actual</th>
-                        <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">EPS Estimate</th>
-                        <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Revenue</th>
-                        <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Earnings</th>
+                        <th scope="col" className="px-6 py-3 text-left text-[14px] font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                        <th scope="col" className="px-6 py-3 text-right text-[14px] font-medium text-gray-500 uppercase tracking-wider">EPS Actual</th>
+                        <th scope="col" className="px-6 py-3 text-right text-[14px] font-medium text-gray-500 uppercase tracking-wider">EPS Estimate</th>
+                        <th scope="col" className="px-6 py-3 text-right text-[14px] font-medium text-gray-500 uppercase tracking-wider">Revenue</th>
+                        <th scope="col" className="px-6 py-3 text-right text-[14px] font-medium text-gray-500 uppercase tracking-wider">Earnings</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -1292,7 +1292,7 @@ export default function Stock({
         )}
 
         {/* News */}
-        <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8">
+        <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8 section-latest-news">
           <StockNews articles={news} titleLevel="h2" />
         </div>
       </div>
@@ -1335,7 +1335,7 @@ export default function Stock({
           return (
             <div key={t} className="border-t-2 border-gray-200 pt-8">
               {/* Stock Info */}
-              <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-6">
+              <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-6 section-stock-info">
                 <div className="flex flex-col mb-6 md:flex-row md:items-center md:justify-between gap-7">
                   <h2 className="section-heading">
                     {stockData.name} ({stockData.symbol})
@@ -1388,12 +1388,13 @@ export default function Stock({
 
               {/* Chart */}
               {historical && historical.length > 0 && (
-                <div className="mb-6">
+                <div className="mb-6 section-price-history-chart">
                   <StockChart ticker={t} historicalData={historical} titleLevel="h3" />
                 </div>
               )}
 
               {/* Prediction */}
+              {/* section:section-prediction */}
               <StockPrediction
                 ticker={t}
                 currentPrice={currentPrice}
@@ -1412,7 +1413,7 @@ export default function Stock({
 
               {/* Analyst Sentiment & Price Targets */}
               {data.analyst && (
-                <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-6">
+                <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-6 section-analyst-sentiment-targets">
                   <h3 className="text-xl font-semibold text-gray-800 mb-6">📊 Analyst Sentiment & Targets</h3>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-4">
@@ -1488,7 +1489,7 @@ export default function Stock({
 
               {/* Indicators */}
               {indicators && (
-                <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-6">
+                <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-6 section-technical-indicators">
                   <h3 className="text-xl font-semibold text-gray-800 mb-4">🎯 Technical Indicators</h3>
                   <TechnicalIndicatorsDisplay indicators={indicators} titleLevel="h4" />
                 </div>

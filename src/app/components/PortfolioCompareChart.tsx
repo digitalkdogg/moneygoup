@@ -153,7 +153,7 @@ export default function PortfolioCompareChart({
   const domain: [number, number] = [Math.max(0, minV - pad), maxV + pad]
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-5 flex flex-col h-full min-h-[480px]">
+    <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-5 flex flex-col h-full min-h-[480px] section-performance-chart">
       {/* Chart header */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
         <h2 className="section-heading">Performance Chart</h2>
