@@ -97,7 +97,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Architecture Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-07-09</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-07-12</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -162,7 +162,7 @@
       <span>Next.js 14 App Router</span>
       <span>TypeScript</span>
       <span>Tailwind CSS</span>
-      <span>Updated 2026-07-09</span>
+      <span>Updated 2026-07-12</span>
     </div>
 
     <div class="summary-grid">
@@ -188,7 +188,7 @@
             <tr><td>Authentication</td><td>NextAuth.js</td><td>CredentialsProvider, JWT session strategy, bcrypt password hashing</td></tr>
             <tr><td>Database</td><td>MySQL</td><td>Custom helper wrappers in <code>@/utils/databaseHelper</code></td></tr>
             <tr><td>Market Data</td><td>yahoo-finance2</td><td>Primary source for quotes, historical prices, analyst summaries, earnings. Historical data uses <code>yahooFinance.chart()</code> (migrated from deprecated <code>yahooFinance.historical()</code> in May 2026). ETF detection uses <code>quoteResult.quoteType === 'ETF'</code> (dynamic, replaces static company_tickers.json lookup).</td></tr>
-            <tr><td>ML Prediction</td><td>Python subprocess</td><td><code>scripts/predict_weighted_analysis.py</code> spawned via Node child_process</td></tr>
+            <tr><td>ML Prediction</td><td>Python subprocess</td><td><code>scripts/predict_weighted_analysis.py</code> spawned via Node child_process. Post-hoc adjustment stack version selected by <code>MODEL_VARIANT</code> env var (<code>v3</code>/<code>v4</code>/<code>v5</code>, default <code>v5</code>) — independent of <code>CS_MODEL_VERSION</code> which selects the cross-sectional model pickle.</td></tr>
             <tr><td>Charts</td><td>Recharts</td><td>Used for stock price history and portfolio value charts</td></tr>
             <tr><td>Email</td><td>Resend</td><td>Registration, approval, password reset, contact form</td></tr>
             <tr><td>Macro Data</td><td>World Bank API</td><td>GDP, inflation, unemployment; 6-hour cache</td></tr>
@@ -450,6 +450,20 @@ doc/                               All HTML documentation files</pre>
       </div>
 
       <div class="arch-card">
+        <h4>Post-Hoc Adjustment Stack Variant <span style="font-size:.75rem;font-weight:400;color:#64748b;">(added July 2026)</span></h4>
+        <p>The Python model applies a post-hoc adjustment stack (bearish-regime damping, momentum-overreach cap, calibration deadband, etc.) after raw model output. Which stack version runs is selected by the <code>MODEL_VARIANT</code> env var, read at import time in <code>scripts/predict_weighted_analysis.py:54</code>.</p>
+        <table class="props-table" style="margin-top:.75rem;">
+          <thead><tr><th>Value</th><th>Behavior</th></tr></thead>
+          <tbody>
+            <tr><td><code>v3</code></td><td>Legacy adjustments only (pre-June 2026).</td></tr>
+            <tr><td><code>v4</code></td><td>Adds inline telemetry + expanded bearish-regime handling.</td></tr>
+            <tr><td><code>v5</code></td><td><strong>Default.</strong> Adds beta-scaled deadband, momentum-overreach ceiling (30-day return &gt; 30% caps upside), and bearish-cascade damping when beta &gt; 0.8 and 30d/90d returns are both negative.</td></tr>
+          </tbody>
+        </table>
+        <div class="note" style="margin-top:.75rem;"><code>MODEL_VARIANT</code> is <strong>independent</strong> of <code>CS_MODEL_VERSION</code> — the former selects the post-hoc adjustment code path in <code>predict_weighted_analysis.py</code>; the latter selects which cross-sectional model pickle is loaded (e.g. <code>long_term_cs_v2.pkl</code>). Unrecognized values fall back to <code>v5</code> with a stderr warning.</div>
+      </div>
+
+      <div class="arch-card">
         <h4>Prediction Guards</h4>
         <table class="props-table">
           <thead><tr><th>Guard</th><th>Behavior</th></tr></thead>
@@ -551,7 +565,8 @@ Each variant uses:
             <tr><td><code>recommended_stocks</code></td><td>System-wide AI-curated hot stocks snapshot with GPS scores</td></tr>
             <tr><td><code>hot_etfs</code></td><td>System-wide AI-curated hot ETFs snapshot</td></tr>
             <tr><td><code>etf_stock_recommendations</code></td><td>Per-user ETF holding recommendations written by <code>update_predictions.py</code>. Each row links a user, a parent ETF ticker, and a holding ticker with GPS/prediction metadata.</td></tr>
-            <tr><td><code>prediction_records</code></td><td>Analytics + prefetch ledger of multi-horizon model predictions. Used by ModelAccuracyWidget and /search/[ticker] latest-prediction.</td></tr>
+            <tr><td><code>prediction_records</code></td><td>Analytics + prefetch ledger of multi-horizon model predictions. Used by ModelAccuracyWidget and /search/[ticker] latest-prediction. Extended 2026-07-11 with 11 new columns (<code>accuracy_metrics</code>, <code>data_quality</code>, <code>model_status</code>, <code>at_model_ceiling_6m</code>, <code>at_model_ceiling_1y</code>, <code>ceiling_direction</code>, <code>confidence_breakdown</code>, and <code>confidence_reason_1w/1m/6m/1y</code>) — see <code>scripts/migrations/2026_07_11_add_missing_prediction_records_columns.sql</code>.</td></tr>
+            <tr><td><code>prediction_details</code></td><td><strong>New (2026-07-10):</strong> 1:1 sibling of <code>prediction_records</code> via <code>prediction_record_id</code> FK (<code>ON DELETE CASCADE</code>). Stores the per-prediction feature snapshot (VIX, beta, RSI, momentum, sector medians, and other regime inputs) so segmented accuracy analysis can be done after resolution without re-fetching source data. Schema: <code>scripts/migrations/2026_07_10_create_prediction_details.sql</code>.</td></tr>
             <tr><td><code>ranking_training_snapshots</code></td><td>Historical snapshots of features and forward returns for training the cross-sectional ranker model.</td></tr>
           </tbody>
         </table>
@@ -689,7 +704,7 @@ Each variant uses:
           <li><a href="moneygoup_overview.html#env-vars-database">Database</a> — MySQL connection parameters.</li>
           <li><a href="moneygoup_overview.html#env-vars-email">Email</a> — Resend keys and addressing.</li>
           <li><a href="moneygoup_overview.html#env-vars-deepmoney">DeepMoney</a> — single <code>DEEPMONEY_ALGORITHM</code> knob (1–10, fractional supported).</li>
-          <li><a href="moneygoup_overview.html#env-vars-prediction">Prediction / GPS</a> — GPS formula tuning, dashboard rendering thresholds, ETF holding gates.</li>
+          <li><a href="moneygoup_overview.html#env-vars-prediction">Prediction / GPS</a> — GPS formula tuning, dashboard rendering thresholds, ETF holding gates, and the <code>MODEL_VARIANT</code> post-hoc stack selector (<code>v3</code>/<code>v4</code>/<code>v5</code>, default <code>v5</code>; see <a href="#prediction-pipeline">Prediction Pipeline</a>).</li>
         </ul>
       </div>
     </div>

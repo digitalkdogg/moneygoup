@@ -531,6 +531,62 @@
           <span class="src">scripts/update_predictions.py · save_gps_score_to_db</span>
         </div>
       </div>
+
+      <div class="rule danger">
+        <div class="rid">BR-5.11</div>
+        <div class="body">
+          <span class="tag py">Python</span>
+          <p>The <code>MODEL_VARIANT</code> env var gates which post-hoc adjustment stack is applied inside <code>predict()</code>. Three valid values: <code>v3</code> (no adjustments, bare model output — used as a control), <code>v4</code> (v4 adjustments only), <code>v5</code> (default; v4 base minus the VIX-conf mult, plus Fix A/B/C/D). Unknown values log a warning to stderr and fall back to <code>v5</code>. The variant is orthogonal to <code>CS_MODEL_VERSION</code>, which selects the cross-sectional model pickle file (<code>models/long_term_cs_{v1,v2}.pkl</code>).</p>
+          <span class="src">scripts/predict_weighted_analysis.py · _MODEL_VARIANT gate</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-5.12</div>
+        <div class="body">
+          <span class="tag py">Python</span>
+          <p>v4 post-hoc adjustments (applied when <code>MODEL_VARIANT ∈ {v4, v5}</code>):
+            <strong>(a) 90d momentum drift</strong> — when <code>|ret90d| &gt; 15%</code>, the raw 6m/1y prices are multiplied by <code>1 + (ret90d × 0.75)</code> and <code>1 + (ret90d × 1.25)</code> respectively.
+            <strong>(b) Direction deadband</strong> — a new field <code>predicted_direction_{h}</code> ∈ {up, down, neutral} is written; <code>|change| &lt; 2%</code> ⇒ <code>neutral</code>.
+            <strong>(c) RSI-beta short-term gate</strong> — RSI &gt; 70 with β &gt; 0.8 boosts 1w/1m confidence ×1.10; RSI &gt; 70 with β &lt; 0.5 damps ×0.85.
+            <strong>(d, v4 only)</strong> VIX × beta confidence multiplier — nerfs all 4 confidence scores when VIX &gt; 20 proportional to beta. In v5 this is replaced by Fix B (a price multiplier, not confidence).
+          </p>
+          <span class="src">scripts/predict_weighted_analysis.py · inline v4 block + _apply_variant_adjustments</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-5.13</div>
+        <div class="body">
+          <span class="tag py">Python</span>
+          <p>v5 post-hoc price adjustments (applied when <code>MODEL_VARIANT = v5</code>, layered after v4 drift):
+            <strong>Fix A (Downtrend Trap)</strong> — high-beta names (β &gt; 0.8) with both 30d &lt; -5% and 90d &lt; -10% get a downside price ceiling.
+            <strong>Fix B (Beta-signed VIX price mult)</strong> — applied before <code>predict_long_term()</code>; low-beta (β &lt; 0.5) gets a boost in high VIX (flight-to-quality), high-beta gets a softer dampener floored at 0.55.
+            <strong>Fix C (Structural Decline)</strong> — &gt;20% below 52w high AND 90d &lt; -15% triggers a continued-slow-decline prediction (5-10% down at 6m, 8-15% at 1y).
+            <strong>Fix D (Extreme Momentum)</strong> — when 90d &gt; 30%, scale the predicted move delta by up to 1.5× to counter mean-reversion bias in the extreme tail.
+            All price adjustments use <code>min()</code>/composition-safe math so Fix A and C can both fire without over-clipping.
+          </p>
+          <span class="src">scripts/predict_weighted_analysis.py · inline v5 block (Fix A/B/C/D)</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-5.14</div>
+        <div class="body">
+          <span class="tag py">Python</span>
+          <p>The direction deadband propagates to <code>compute_accuracy_metrics()</code> in both <code>resolve_predictions.py</code> and <code>backtest_predictions.py</code>. When <code>|predicted_change_pct| &lt; 2%</code>, <code>direction_correct_{h}</code> is written as <strong>NULL</strong>, not 0. This excludes near-flat calls from the direction-accuracy metric instead of counting them wrong. <code>DIRECTION_DEADBAND_PCT = 0.02</code> is a shared constant across both scripts and mirrors <code>V4_DEADBAND_PCT</code> in the predictor.</p>
+          <span class="src">scripts/resolve_predictions.py + scripts/backtest_predictions.py · compute_accuracy_metrics</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-5.15</div>
+        <div class="body">
+          <span class="tag py">Python</span>
+          <p>Fixes E, F, G (SMCI vol-bypass on Fix D, moderate-β VIX branch on Fix B, RSI recovery guard on Fix A/C) were implemented and tested against a 15-ticker v5-efg-newset backtest, showed no measurable improvement, and were reverted on 2026-07-12. Cache schema version 23 marks the revert. If reintroduced, they should be re-tested against the same v5-newset baseline.</p>
+          <span class="src">reports/data_4way_newset.txt · v5-newset vs v5-efg-newset</span>
+        </div>
+      </div>
     </section>
 
     <!-- ─────────────────────────── 6. DEEPMONEY DISCOVERY ─────────────────────────── -->
@@ -916,6 +972,24 @@
           <span class="tag db">Database</span>
           <p><code>recommended_stocks</code> intentionally has no UNIQUE constraint — multiple rows per ticker per date are allowed. Dedup happens in the API layer at read time.</p>
           <span class="src">doc/moneygoup_schema.sql · recommended_stocks</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-11.6</div>
+        <div class="body">
+          <span class="tag db">Database</span>
+          <p><code>prediction_details</code> is a 1:1 sidecar to <code>prediction_records</code> via <code>prediction_record_id</code> FK with <code>ON DELETE CASCADE</code>. Contains the 4 feature categories captured at prediction time: (1) stock characteristics (market_cap, market_cap_bucket, industry, beta_snapshot, avg_daily_volume_30d, dividend_yield); (2) market regime (vix_at_prediction, spy_return_30d, yield_curve_spread, sector_etf_return_30d); (3) stock state (stock_return_30d, stock_return_90d, realized_vol_30d, pct_from_52w_high, rsi_14d); (4) fundamentals snapshot (pe_ratio, sector_median_pe, revenue_growth, profit_margin). Populated by <code>backtest_predictions.py</code> and (per deploy plan) the live API. Enables segmented accuracy analysis (e.g. accuracy by VIX regime, by momentum bucket).</p>
+          <span class="src">doc/moneygoup_schema.sql + scripts/migrations/2026_07_10_create_prediction_details.sql</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-11.7</div>
+        <div class="body">
+          <span class="tag db">Database</span>
+          <p><code>prediction_records</code> gained 11 nullable columns on 2026-07-11 to catch up with what <code>prediction_recorder.py</code> was already trying to INSERT: <code>accuracy_metrics</code> (JSON), <code>data_quality</code> (JSON), <code>model_status</code> (VARCHAR), <code>at_model_ceiling_6m</code>/<code>_1y</code> (TINYINT), <code>ceiling_direction</code> (VARCHAR), <code>confidence_breakdown</code> (JSON), <code>confidence_reason_1w</code>/<code>_1m</code>/<code>_6m</code>/<code>_1y</code> (TEXT). Before the migration, every live-API and portfolio-sync insert hit <code>Unknown column 'accuracy_metrics' in 'field list'</code> silently.</p>
+          <span class="src">scripts/migrations/2026_07_11_add_missing_prediction_records_columns.sql</span>
         </div>
       </div>
     </section>

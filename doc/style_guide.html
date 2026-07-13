@@ -103,7 +103,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Style Guide</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-23</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-07-12</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">&lsaquo;</button>
@@ -676,6 +676,23 @@ getPredictionColor(value)  // null|0=text-black, &gt;0=text-green-600, &lt;0=tex
 
                 <h3>Animation</h3>
                 <p>The card grid animates each card in with a staggered <code>slideUp</code> keyframe (<code>0.4s ease-out</code> with a <code>0.05s</code> delay per index) — defined inline in <code>StockCardSection.tsx</code>.</p>
+
+                <h3>Bang-prefix override for global element rules (<code>!text-[16px]</code>)</h3>
+                <p>Tailwind v4 emits utility classes inside <code>@layer utilities</code>. Unlayered CSS in <code>src/app/globals.css</code> — for example the <code>h3 { font-size: 1.375rem }</code> rule at line 96 — wins over layered CSS <em>regardless of selector specificity</em>. When a Tailwind utility needs to beat a global element rule, prefix it with <code>!</code>, which compiles to an <code>!important</code> declaration and escapes the layer.</p>
+                <div class="type-sample" style="padding:1rem;">
+<code>{/* Beats globals.css h3 rule */}
+&lt;h3 className="!text-[16px] font-semibold text-blue-600"&gt;{article.title}&lt;/h3&gt;
+&lt;p className="!text-[14px] text-gray-500"&gt;{date}&lt;/p&gt;</code>
+                </div>
+                <p style="font-size:0.88rem;color:#475569;margin-top:0.5rem;">Live examples: <code>src/app/components/StockNews.tsx:61,64</code> (article title + date on <code>/search/[ticker]</code>) and <code>src/app/components/GpsTooltip.tsx:32</code> (<code>!text-[11px]</code> for the "View score" trigger). Reach for this pattern only when overriding a global element rule — do <em>not</em> use it to fight another utility class, since that indicates a specificity/order problem elsewhere.</p>
+
+                <h3>Site-wide <code>section-*</code> class convention</h3>
+                <p>Applied 2026-07-12. Every major UI region across the app — pages, dashboard components, <code>/search/[ticker]</code>, legal pages, portfolio — carries a stable <code>class="section-&lt;kebab-slug-of-heading&gt;"</code> on its parent <code>&lt;div&gt;</code>. Where a parent div wasn't available (e.g. a fragment root), an HTML comment <code>{/* section:section-&lt;name&gt; */}</code> marks the section start instead.</p>
+                <ul>
+                    <li><strong>Naming:</strong> <code>section-</code> prefix followed by the section's heading slugified to kebab-case (e.g. <code>section-portfolio-summary</code>, <code>section-recommendations</code>, <code>section-technical-indicators</code>).</li>
+                    <li><strong>Purpose:</strong> gives CSS, DevTools, and JS a stable, greppable handle on every landmark without polluting semantic markup. The prefix means <code>grep -r "section-"</code> enumerates every major region in the app.</li>
+                    <li><strong>Do not</strong> use <code>section-*</code> classes as styling hooks by default; treat them as identifiers. If a rule genuinely needs to target one region, that's fine, but the primary use case is discoverability and instrumentation.</li>
+                </ul>
             </div>
         </section>
 

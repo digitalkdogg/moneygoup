@@ -195,6 +195,7 @@
     <a href="#stock_gps_scores">stock_gps_scores</a>
     <a href="#stock_gps_score_history">stock_gps_score_history</a>
     <a href="#prediction_records">prediction_records</a>
+    <a href="#prediction_details">prediction_details</a> <span class="new-badge">new</span>
     <a href="#ranking_training_snapshots">ranking_training_snapshots</a> <span class="new-badge">new</span>
     <a href="#portfolio-tables">Portfolio Tables</a>
     <a href="#portfolio_transactions">portfolio_transactions</a>
@@ -650,6 +651,50 @@
                 </div>
                 <div class="highlight-box">
                     <strong>Accuracy formulas:</strong> For each row/horizon the resolver computes <code>accuracy_pct = MAX(0, 1 - ABS(predicted - actual) / actual) × 100</code>. <code>direction_correct = 1</code> when <code>sign(predicted - price_at_prediction) == sign(actual - price_at_prediction)</code>.
+                </div>
+                <p style="font-size:.8rem;color:#64748b;">Migration: <code>scripts/migrations/2026_07_11_add_missing_prediction_records_columns.sql</code> added the 11 nullable columns <code>accuracy_metrics</code>, <code>data_quality</code>, <code>model_status</code>, <code>at_model_ceiling_6m</code>, <code>at_model_ceiling_1y</code>, <code>ceiling_direction</code>, <code>confidence_breakdown</code>, and <code>confidence_reason_1w</code>/<code>_1m</code>/<code>_6m</code>/<code>_1y</code>.</p>
+            </div>
+
+            <!-- PREDICTION_DETAILS -->
+            <div id="prediction_details" class="table-card">
+                <div class="table-title">prediction_details<span class="new-badge">new</span></div>
+                <p>1:1 sidecar to <code>prediction_records</code> keyed on <code>prediction_record_id</code> (FK, <code>ON DELETE CASCADE</code>). Captures the point-in-time context around a prediction so backtests and post-hoc analyses can slice accuracy by market regime, stock state, size bucket, or fundamentals. Written by <code>scripts/backtest_predictions.py</code> via <code>upsert_prediction_details()</code>. Columns fall into four categories: (1) stock characteristics, (2) market regime at prediction time, (3) stock's own state at prediction time, (4) fundamentals snapshot proxy. Categories 2 and 3 are point-in-time from truncated price/macro series; categories 1 and 4 are snapshot proxies from Yahoo's <code>info</code> dict (current-day values, not point-in-time — see the docstring on <code>get_ticker_info()</code>).</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>id</code></td><td><code>BIGINT UNSIGNED</code></td><td>Primary key, auto-increment.</td></tr>
+                        <tr><td><code>prediction_record_id</code></td><td><code>BIGINT UNSIGNED</code></td><td>NOT NULL. FK to <code>prediction_records.id</code> ON DELETE CASCADE. Unique — enforces 1:1.</td></tr>
+                        <tr><td colspan="3" style="background:#f8fafc;font-weight:600;color:#64748b;">Category 1 — Stock characteristics (snapshot proxy from info dict)</td></tr>
+                        <tr><td><code>market_cap</code></td><td><code>DECIMAL(22,2)</code></td><td>Nullable. Yahoo <code>marketCap</code>.</td></tr>
+                        <tr><td><code>market_cap_bucket</code></td><td><code>VARCHAR(10)</code></td><td>Nullable. Derived bucket: <code>small</code> (&lt;$2B), <code>mid</code> (&lt;$10B), <code>large</code> (&lt;$200B), <code>mega</code>.</td></tr>
+                        <tr><td><code>industry</code></td><td><code>VARCHAR(128)</code></td><td>Nullable. Yahoo <code>industry</code> string.</td></tr>
+                        <tr><td><code>beta_snapshot</code></td><td><code>DECIMAL(8,4)</code></td><td>Nullable. Yahoo <code>beta</code>.</td></tr>
+                        <tr><td><code>avg_daily_volume_30d</code></td><td><code>DECIMAL(20,2)</code></td><td>Nullable. Mean of the trailing 30 daily volumes.</td></tr>
+                        <tr><td><code>dividend_yield</code></td><td><code>DECIMAL(10,6)</code></td><td>Nullable. Yahoo <code>dividendYield</code>.</td></tr>
+                        <tr><td colspan="3" style="background:#f8fafc;font-weight:600;color:#64748b;">Category 2 — Market regime at prediction time (point-in-time)</td></tr>
+                        <tr><td><code>vix_at_prediction</code></td><td><code>DECIMAL(8,4)</code></td><td>Nullable. Last VIX close on or before the prediction date.</td></tr>
+                        <tr><td><code>spy_return_30d</code></td><td><code>DECIMAL(10,6)</code></td><td>Nullable. SPY trailing-30-day return ending at the prediction date.</td></tr>
+                        <tr><td><code>yield_curve_spread</code></td><td><code>DECIMAL(8,4)</code></td><td>Nullable. 10Y − 3M treasury spread as of the prediction date.</td></tr>
+                        <tr><td><code>sector_etf_return_30d</code></td><td><code>DECIMAL(10,6)</code></td><td>Nullable. Sector ETF trailing-30-day return ending at the prediction date.</td></tr>
+                        <tr><td colspan="3" style="background:#f8fafc;font-weight:600;color:#64748b;">Category 3 — Stock's own state at prediction time (point-in-time)</td></tr>
+                        <tr><td><code>stock_return_30d</code></td><td><code>DECIMAL(10,6)</code></td><td>Nullable. Stock trailing-30-day return.</td></tr>
+                        <tr><td><code>stock_return_90d</code></td><td><code>DECIMAL(10,6)</code></td><td>Nullable. Stock trailing-90-day return.</td></tr>
+                        <tr><td><code>realized_vol_30d</code></td><td><code>DECIMAL(10,6)</code></td><td>Nullable. Annualised realised vol from trailing-30-day log returns.</td></tr>
+                        <tr><td><code>pct_from_52w_high</code></td><td><code>DECIMAL(10,6)</code></td><td>Nullable. <code>(price_now / 52w_high) − 1</code> using trailing 252 closes.</td></tr>
+                        <tr><td><code>rsi_14d</code></td><td><code>DECIMAL(8,4)</code></td><td>Nullable. 14-period RSI at prediction time.</td></tr>
+                        <tr><td colspan="3" style="background:#f8fafc;font-weight:600;color:#64748b;">Category 4 — Fundamentals snapshot proxy</td></tr>
+                        <tr><td><code>pe_ratio</code></td><td><code>DECIMAL(12,4)</code></td><td>Nullable. Yahoo <code>trailingPE</code>, falling back to <code>forwardPE</code>.</td></tr>
+                        <tr><td><code>sector_median_pe</code></td><td><code>DECIMAL(12,4)</code></td><td>Nullable. Median PE for the stock's sector (from <code>SECTOR_MEDIANS</code>).</td></tr>
+                        <tr><td><code>revenue_growth</code></td><td><code>DECIMAL(10,6)</code></td><td>Nullable. Yahoo <code>revenueGrowth</code>.</td></tr>
+                        <tr><td><code>profit_margin</code></td><td><code>DECIMAL(10,6)</code></td><td>Nullable. Yahoo <code>profitMargins</code>.</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>DATETIME</code></td><td>NOT NULL. Default CURRENT_TIMESTAMP.</td></tr>
+                        <tr><td><code>updated_at</code></td><td><code>DATETIME</code></td><td>NOT NULL. Default CURRENT_TIMESTAMP, ON UPDATE CURRENT_TIMESTAMP.</td></tr>
+                    </tbody>
+                </table>
+                <p style="font-size:.8rem;color:#64748b;">Unique key: <code>uk_prediction_record (prediction_record_id)</code>. Indexes: <code>idx_industry</code>, <code>idx_market_cap_bucket</code>. FK: <code>fk_prediction_details_record</code> → <code>prediction_records(id)</code> ON DELETE CASCADE.</p>
+                <p style="font-size:.8rem;color:#64748b;">Migration: <code>scripts/migrations/2026_07_10_create_prediction_details.sql</code>.</p>
+                <div class="highlight-box">
+                    <strong>Point-in-time caveat:</strong> Categories 1 and 4 are populated from Yahoo's <code>info</code> dict at the time the backtest runs, not at the historical prediction date. Sector/industry are stable, but <code>market_cap</code>, <code>beta_snapshot</code>, <code>pe_ratio</code>, <code>revenue_growth</code>, and <code>profit_margin</code> reflect today's snapshot. Categories 2 and 3 are properly point-in-time — computed from truncated price/macro series that only include data on or before the prediction date.
                 </div>
             </div>
 

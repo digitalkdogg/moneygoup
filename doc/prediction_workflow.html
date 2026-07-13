@@ -104,7 +104,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Developer Docs</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-28</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-07-12</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -145,6 +145,7 @@
     <h3>On this page</h3>
     <a href="#overview">Overview</a>
     <a href="#model-paths">Model Path Selection (env var)</a>
+    <a href="#model-variant">MODEL_VARIANT Fix Stack (v3/v4/v5)</a>
     <a href="#lifecycle">End-to-End Lifecycle</a>
     <a href="#strategy-integration">Strategy Integration</a>
     <a href="#step1">1. User Trigger (UI)</a>
@@ -205,11 +206,27 @@
       <span>src/app/api/prediction/save/route.ts</span>
       <span>src/utils/predictionRecorder.ts</span>
       <span>src/app/components/StockPrediction.tsx</span>
-      <span>Updated 2026-06-28</span>
+      <span>Updated 2026-07-12</span>
     </div>
 
     <section id="overview">
       <p>This document details the end-to-end execution path and mathematical logic behind the Stock Prediction System (v3.5). The pipeline produces 1-week, 1-month, 6-month, and 1-year price targets with Monte Carlo uncertainty bands and an 18-month trajectory chart. <strong>A single Python invocation returns all four horizons at once.</strong> Two model paths exist and are selected at runtime by the <code>USE_LEGACY_PREDICTION_MODEL</code> environment variable; the v3-split path further selects a cross-sectional long-term model version via <code>CS_MODEL_VERSION</code>. See <a href="#model-paths">Model Path Selection</a> for the full matrix.</p>
+
+      <div class="updated-box">
+        <strong>v5 / July 2026 — Variant-gated post-hoc fix stack:</strong>
+        <ul style="margin-top:.5rem;">
+          <li>The orchestrator (<code>scripts/predict_weighted_analysis.py</code>) now applies a stack of post-hoc adjustments gated by the <code>MODEL_VARIANT</code> env var: <code>v3</code> = bare model (no adjustments), <code>v4</code> = 90d drift + VIX×beta confidence multiplier + direction deadband + RSI-beta short-term gate, <code>v5</code> (default) = v4 base <em>minus</em> the VIX-conf multiplier <em>plus</em> Fix A/B/C/D. See the new <a href="#model-variant">MODEL_VARIANT Fix Stack</a> section for the full flow.</li>
+          <li><strong>Fix B</strong> (beta-signed VIX modifier on <code>long_term_multiplier</code>) runs <em>before</em> <code>predict_long_term()</code>, so the multiplier flows into the raw 6m/1y price. Low-beta names (β&lt;0.5) get a flight-to-quality boost; high-beta names get a softer dampener than v4 (threshold VIX=25, scale 35pts, floored at 0.55).</li>
+          <li><strong>v4 90d drift</strong> (unchanged, fires in v4 and v5) — when <code>|ret90d| &gt; 15%</code>, multiplies 6m/1y prices by <code>1 + ret90d × 0.75/1.25</code>.</li>
+          <li><strong>Fix A</strong> — downtrend-trap ceiling for high-beta (β&gt;0.8) names when 30d &lt; −5% AND 90d &lt; −10%.</li>
+          <li><strong>Fix C</strong> — structural-decline ceiling when &gt;20% below 52w high AND 90d &lt; −15%.</li>
+          <li><strong>Fix D</strong> — extreme-momentum move-delta scaler (up to 1.5×) when <code>ret90d &gt; 30%</code>.</li>
+          <li><strong>Deadband</strong> — <code>|Δ| &lt; 2%</code> ⇒ <code>predicted_direction_{h} = 'neutral'</code>. Propagates to <code>compute_accuracy_metrics()</code> in both <a href="#analytics-recording"><code>resolve_predictions.py</code></a> and <code>backtest_predictions.py</code>: near-flat predictions yield <code>direction_correct = NULL</code> and are excluded from the direction-accuracy metric.</li>
+          <li><strong>RSI-beta short-term gate</strong> — RSI&gt;70 boosts (β&gt;0.8) or damps (β&lt;0.5) <code>confidence_score_1w/1m</code>.</li>
+          <li><code>_apply_variant_adjustments()</code> emits a <code>variant_adjustments</code> telemetry block on every result (variant, VIX, RSI, beta, 30d/90d returns, and per-fix outputs when they fire).</li>
+          <li>Cache schema bumped to v23 (from v19). The intermediate versions covered v4→v5 A/B/C/D and short-lived E/F/G experiments (see footnote in <a href="#model-variant">MODEL_VARIANT Fix Stack</a>). <code>_sanitize_predictions()</code> is unchanged in role — still clamps out-of-bounds prices, floors at 0.01, and glide-paths opposite-sign 6m/1y.</li>
+        </ul>
+      </div>
 
       <div class="updated-box">
         <strong>v3.5 / June 2026 — Split orchestrator, CS long-term model, sanitize guard:</strong>
@@ -372,6 +389,160 @@ except Exception:
 
         <h4>prediction_records tagging</h4>
         <p>The unique key on <code>prediction_records</code> is <code>(symbol, predicted_at, model_version)</code> — so legacy and v3-split backtests for the same (ticker, date) can coexist as separate rows. The <code>model_version</code> column defaults to <code>'legacy'</code> for legacy live predictions; v3-split live predictions are tagged <code>'v3split'</code> by the route. Backtest runs can override the tag via <code>MODEL_VERSION_TAG</code> env var (e.g. <code>v3split_v2</code>, <code>v3split_v3</code>) for ad-hoc CS-version A/B tests without colliding on the unique key.</p>
+      </div>
+    </section>
+
+    <div class="flow-arrow">&#8595;</div>
+
+    <!-- ══════════════════════════════════════════ -->
+    <section id="model-variant">
+      <h2><span class="step-num" style="background:var(--purple);">V</span> MODEL_VARIANT Fix Stack (v3 / v4 / v5) <span class="new-badge">v5 · Jul 2026</span></h2>
+      <div class="step-card">
+        <p>Independent of the <code>USE_LEGACY_PREDICTION_MODEL</code> path selector, the v3-split orchestrator at <code>scripts/predict_weighted_analysis.py:54</code> reads a second env var — <code>MODEL_VARIANT</code> — that gates the entire stack of post-hoc adjustments applied on top of the raw model output. This is the switch used for A/B testing behavioral changes on top of the frozen model artifact, without retraining.</p>
+
+        <table>
+          <thead><tr><th><code>MODEL_VARIANT</code></th><th>Adjustments applied</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>v3</code></td>
+              <td>None. Bare model output. <code>predicted_direction_{h}</code> is still written for downstream compatibility, but derived directly from the raw predicted price with a zero deadband.</td>
+              <td>Control arm — measures the model artifact's unadjusted performance.</td>
+            </tr>
+            <tr>
+              <td><code>v4</code></td>
+              <td>90d momentum drift (<code>|ret90d| &gt; 15%</code>) + VIX×beta confidence multiplier + direction deadband (2%) + RSI-beta short-term confidence gate.</td>
+              <td>Prior stable stack. Kept alive so we can compare v5 against v4 on the same data.</td>
+            </tr>
+            <tr>
+              <td><code>v5</code> (default)</td>
+              <td>v4 base <em>minus</em> the VIX×beta confidence multiplier <em>plus</em> Fix A/B/C/D. Deadband + RSI-beta gate carry over unchanged.</td>
+              <td>Current production stack. Fix B replaces the v4 VIX-conf multiplier: instead of nerfing confidence in high VIX, it modifies <code>long_term_multiplier</code> so the price itself moves.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h4>Where the adjustments plug in — inline flow inside <code>predict()</code></h4>
+        <p>Some adjustments must run <em>before</em> the long-term model (so the multiplier affects the raw 6m/1y price), some <em>after</em> the model (so they compose with each other on the predicted price), and some at the very end on the result dict (deadband + confidence). The order is load-bearing.</p>
+
+        <div class="step-card" style="background:#f8fafc;border:1px dashed var(--purple);">
+          <p style="text-align:center;line-height:1.7;font-size:.9rem;">
+          Compute <code>long_term_multiplier</code> from <code>non_analyst_impact + analyst_impact × ANALYST_BOOST_LT × consumer_multiplier</code><br>&darr;<br>
+          <strong>v5 Fix B</strong> (beta-signed VIX modifier) multiplies <code>long_term_multiplier</code> — <em>before</em> the long-term model runs<br>&darr;<br>
+          <code>predict_long_term()</code> → raw 6m + 1y prices<br>&darr;<br>
+          <strong>v4 90d drift</strong> — multiplies 6m and 1y prices (fires in v4 AND v5 when <code>|ret90d| &gt; 15%</code>)<br>&darr;<br>
+          <strong>v5 Fix A</strong> (downtrend trap) — applies <code>min()</code> ceiling on 6m/1y prices<br>&darr;<br>
+          <strong>v5 Fix C</strong> (structural decline) — applies <code>min()</code> ceiling on 6m/1y prices<br>&darr;<br>
+          <strong>v5 Fix D</strong> (extreme momentum) — scales the move delta by up to 1.5×<br>&darr;<br>
+          <code>long_out['predicted_change_pct_6m/1y']</code> synced to match the adjusted prices<br>&darr;<br>
+          <code>predict_short_term()</code> — uses the pre-adjustment <code>predicted_price_6m_base</code> as its trajectory anchor<br>&darr;<br>
+          Assemble result dict (all four horizons + trajectory + confidence + metric analysis)<br>&darr;<br>
+          <strong><code>_apply_variant_adjustments()</code></strong> — writes <code>predicted_direction_{h}</code>, applies v4 VIX-conf mult (v4 only), applies RSI-beta short-term gate (v4/v5), stamps <code>variant_adjustments</code> telemetry<br>&darr;<br>
+          <strong><code>_sanitize_predictions()</code></strong> (in <code>predict_core.py</code>, called from the <code>__main__</code> block after <code>predict()</code> returns) — clamps out-of-bounds prices, floors at 0.01, glide-paths opposite-sign 6m/1y. Role unchanged from v3.5/v3.7.
+          </p>
+        </div>
+
+        <h4>Fix-by-fix reference</h4>
+
+        <h5 style="color:#334155;margin-top:1.25rem;">Fix B — Beta-signed VIX modifier on <code>long_term_multiplier</code> (v5 only)</h5>
+        <p><code>predict_weighted_analysis.py:387-401</code>. Runs BEFORE <code>predict_long_term()</code>. Reads current VIX and ticker beta:</p>
+        <div class="formula">
+if beta &lt; 0.5:   # low-beta defensive (KO/JNJ/PG)
+    vix_mod = 1.0 + max(0, (vix - 20) / 30) * 0.15   # flight-to-quality boost
+else:            # everyone else
+    vix_raw = 1.0 - max(0, (vix - 25) / 35) * (beta / 1.5)
+    vix_mod = max(0.55, vix_raw)                     # floored — never fully suppress
+
+long_term_multiplier *= vix_mod</div>
+        <p>Softer than v4's confidence-only nerf: threshold VIX=25 instead of 20, scale over 35pts instead of 30, floor at 0.55. The flight-to-quality branch is new in v5 — low-beta names get a <em>boost</em> in high VIX because their direction is more predictable, not less.</p>
+
+        <h5 style="color:#334155;margin-top:1.25rem;">v4 Fix #4 — 90d momentum drift (v4 and v5)</h5>
+        <p><code>predict_weighted_analysis.py:461-469</code>. Runs AFTER <code>predict_long_term()</code>.</p>
+        <div class="formula">
+if abs(ret90d) &gt; 0.15 and current_price &gt; 0:
+    predicted_price_6m *= (1.0 + ret90d * 0.75)
+    predicted_price_1y *= (1.0 + ret90d * 1.25)</div>
+        <p>The 1y multiplier is larger than the 6m multiplier because 90d momentum shows up more clearly at longer horizons. Fires in both v4 and v5. Fix D extends this for the extreme-momentum tail (ret90d &gt; 30%).</p>
+
+        <h5 style="color:#334155;margin-top:1.25rem;">Fix A — Downtrend trap ceiling (v5 only)</h5>
+        <p><code>predict_weighted_analysis.py:471-484</code>. Gate: <code>beta &gt; 0.8 AND ret30d &lt; -5% AND ret90d &lt; -10%</code>. Beta-scaled cap:</p>
+        <div class="formula">
+severity = min(1.0, (-ret90d - 0.10) / 0.25)
+cap      = 1.0 - (severity * 0.08 * min(beta, 2.0) / 2.0)
+predicted_price_6m = min(predicted_price_6m, current_price * cap)
+predicted_price_1y = min(predicted_price_1y, current_price * (cap - 0.03))</div>
+        <p>Excludes low-beta defensives that genuinely mean-revert after dips.</p>
+
+        <h5 style="color:#334155;margin-top:1.25rem;">Fix C — Structural decline (v5 only)</h5>
+        <p><code>predict_weighted_analysis.py:486-503</code>. Gate: <code>pct_from_52w_high &lt; -20% AND ret90d &lt; -15%</code>. The double gate (depth + recency) prevents misfiring on crash-then-recovery cases (e.g. AAPL April 2025).</p>
+        <div class="formula">
+decline_sev = min(1.0, (-pct_from_52w - 0.20) / 0.30)
+f6m         = 1.0 - (0.05 + decline_sev * 0.05)   # 5-10% down at 6m
+f1y         = 1.0 - (0.08 + decline_sev * 0.07)   # 8-15% down at 1y
+predicted_price_6m = min(predicted_price_6m, current_price * f6m)
+predicted_price_1y = min(predicted_price_1y, current_price * f1y)</div>
+
+        <h5 style="color:#334155;margin-top:1.25rem;">Fix D — Extreme positive momentum (v5 only)</h5>
+        <p><code>predict_weighted_analysis.py:505-518</code>. Gate: <code>ret90d &gt; 30%</code>. Scales the move <em>delta</em>, not the absolute price, so we amplify the direction of the model's call rather than pushing toward an arbitrary level. Mutually exclusive with Fix A/C by sign of ret90d.</p>
+        <div class="formula">
+excess   = ret90d - 0.30
+extra    = min(0.50, excess * 2.0)                 # capped at +50%
+xtscale  = 1.0 + extra                             # in [1.0, 1.5]
+predicted_price_6m = current_price + (predicted_price_6m - current_price) * xtscale
+predicted_price_1y = current_price + (predicted_price_1y - current_price) * xtscale</div>
+
+        <h5 style="color:#334155;margin-top:1.25rem;">Direction deadband + <code>predicted_direction_{h}</code> (v4 and v5)</h5>
+        <p><code>predict_weighted_analysis.py:732-747</code> inside <code>_apply_variant_adjustments()</code>. Writes a new field on the result dict for every horizon:</p>
+        <div class="formula">
+V4_DEADBAND_PCT = 0.02
+change = (predicted_price_h - current_price) / current_price
+if abs(change) &lt; deadband: predicted_direction_h = 'neutral'
+elif change &gt; 0:           predicted_direction_h = 'up'
+else:                       predicted_direction_h = 'down'</div>
+        <p><strong>Downstream propagation:</strong> the deadband threshold is duplicated in <code>compute_accuracy_metrics()</code> in both <code>scripts/resolve_predictions.py:48-84</code> and <code>scripts/backtest_predictions.py:477-514</code>. When a prediction lands inside the deadband it produces <code>direction_correct = NULL</code> — excluded from the direction-accuracy metric surfaced by <code>/api/analytics/model-accuracy</code> instead of counted as a miss. In v3, the deadband is 0.0 so every non-zero prediction produces up/down.</p>
+
+        <h5 style="color:#334155;margin-top:1.25rem;">v4 VIX × beta confidence multiplier (v4 ONLY — removed in v5)</h5>
+        <p><code>predict_weighted_analysis.py:749-761</code>. In v5 this is replaced by Fix B on <code>long_term_multiplier</code> (Fix B moves the price; the v4 mult only nerfed confidence). For A/B comparison it still runs when <code>MODEL_VARIANT=v4</code>:</p>
+        <div class="formula">
+stress          = max(0, (vix - 20) / 30)                    # 0 at VIX≤20, 1 at VIX=50
+beta_absorb     = max(0, beta) / 1.5                          # beta=1.5 ⇒ full absorption
+vix_conf_mult   = max(0, 1.0 - stress * beta_absorb)
+# multiplies confidence_score_{1w, 1m, 6m, 1y}</div>
+
+        <h5 style="color:#334155;margin-top:1.25rem;">RSI-gated short-term confidence (v4 and v5)</h5>
+        <p><code>predict_weighted_analysis.py:763-776</code>. Only fires when <code>RSI_14 &gt; 70</code>. Multiplies <code>confidence_score_1w</code> and <code>confidence_score_1m</code> only (long-horizon confidence unaffected):</p>
+        <ul>
+          <li>High-beta (β &gt; 0.8) overbought ⇒ ×<code>1.10</code> (boost — the trend is real)</li>
+          <li>Low-beta (β &lt; 0.5) overbought ⇒ ×<code>0.85</code> (damp — reversal likely)</li>
+        </ul>
+
+        <h5 style="color:#334155;margin-top:1.25rem;"><code>variant_adjustments</code> telemetry block</h5>
+        <p>Every result dict now carries a <code>variant_adjustments</code> field with the following shape (only fires that triggered are populated):</p>
+        <pre><code>{
+  "variant":         "v5",
+  "vix":             28.4,
+  "rsi_14d":         74.2,
+  "beta":            1.35,
+  "ret30d":          -0.083,
+  "ret90d":          -0.187,
+  "v4_drift_6m":     -0.140,   // when 90d drift fires
+  "v4_drift_1y":     -0.234,
+  "fixA_severity":   0.35,     // when Fix A fires
+  "fixA_cap":        0.981,
+  "fixC_pct_from_52w": -0.28,  // when Fix C fires
+  "fixC_severity":     0.27,
+  "fixD_xtscale":    1.18,     // when Fix D fires
+  "rsi_beta_factor": 1.10,     // when RSI-beta gate fires
+  "vix_conf_mult":   0.72      // v4 only
+}</code></pre>
+
+        <h4><code>CACHE_SCHEMA_VERSION</code> history</h4>
+        <p><code>scripts/predict_core.py:56</code>. Currently <code>23</code>. Bumped from 19 across the v4 → v5 A-D → revert-of-E-F-G evolution:</p>
+        <ul>
+          <li><strong>v19 → v20-22:</strong> incremental bumps as Fix A/B/C/D and short-lived Fix E/F/G refinements landed.</li>
+          <li><strong>v23 (current):</strong> reverted Fix E/F/G after a 15-ticker apples-to-apples backtest showed no measurable improvement. The current logic is v5 A/B/C/D only — that's why the version jumped without a corresponding change to the code path documented above.</li>
+        </ul>
+
+        <div class="warning-box"><strong>Why the fix stack is not baked into the model:</strong> the trained <code>long_term_cs_v2</code> artifact is expensive to retrain (~45min on the pooled 27k-row snapshot table) and needs periodic label re-extraction. Post-hoc fixes let us iterate on behavioral defects (e.g. mean-reversion bias in the extreme-momentum tail; runaway prediction on structural decline) without a full retrain cycle. The <code>v3</code> control arm exists so we can measure whether the stack is a net win against the raw artifact — <code>MODEL_VARIANT=v3</code> reproduces the pre-adjustment behavior byte-for-byte on the same feature vector.</div>
       </div>
     </section>
 
@@ -1156,7 +1327,7 @@ conf_threshold = ETF_HOLDING_MIN_CONFIDENCE * mult
       <h2>Cache Architecture</h2>
       <div class="step-card">
         <ul>
-          <li><strong>Python result cache (v13):</strong> keyed by <code>MD5(ticker + last_date + data_len + "v13")</code>. Full prediction JSON stored as <code>{key}.json</code> on disk by <code>predict_core.save_to_cache()</code>. Bumping <code>CACHE_SCHEMA_VERSION</code> in <code>scripts/predict_core.py</code> invalidates every stale cache file automatically — required whenever feature engineering, model architecture, or output shape changes.</li>
+          <li><strong>Python result cache (v23):</strong> keyed by <code>MD5(ticker + last_date + data_len + "v{CACHE_SCHEMA_VERSION}" + "cs{CS_MODEL_VERSION}" + "legacy{0|1}")</code>. Full prediction JSON stored as <code>{key}.json</code> on disk by <code>predict_core.save_to_cache()</code>. Bumping <code>CACHE_SCHEMA_VERSION</code> in <code>scripts/predict_core.py:56</code> invalidates every stale cache file automatically — required whenever feature engineering, model architecture, output shape, or the post-hoc fix stack changes. Version was bumped from 19 through the v4 → v5 A/B/C/D → revert-of-E-F-G evolution; see the <a href="#model-variant">MODEL_VARIANT Fix Stack</a> section for the full history.</li>
           <li><strong>Python feature cache:</strong> full feature DataFrame stored as <code>{ticker}_features_df.pkl</code>. Incremental updates only recompute new rows.</li>
           <li><strong>Node in-memory cache:</strong> <code>predictionCache</code> (defined in <code>src/utils/cache.ts</code>) keyed by <code>{ticker}_{outlook}_{modelTag}</code> where <code>modelTag</code> is <code>'legacy'</code> or <code>'v3split_{csModelVersion}'</code> (e.g. <code>v3split_v2</code>). Short-lived (TTL ≈ 15 minutes; bypass with <code>?refresh=true</code>). The model-tagged cache key ensures that flipping <code>USE_LEGACY_PREDICTION_MODEL</code> or <code>CS_MODEL_VERSION</code> produces fresh predictions instead of returning a stale prior-model result. Cached entries include every horizon's price, change %, and confidence score so user-horizon GPS can be recomputed on subsequent calls without re-running Python.</li>
           <li><strong>Batch script in-process cache:</strong> the <code>prediction_cache</code> dict inside <code>update_predictions.py</code> lives only for the duration of one sync run. Keyed by ticker; entries include all 8 per-horizon stats and the GPS result so multiple users sharing a ticker each get the right values without re-running the model.</li>
@@ -1168,7 +1339,19 @@ conf_threshold = ETF_HOLDING_MIN_CONFIDENCE * mult
     <section id="changelog">
       <h2>Recent Changes</h2>
       <div class="step-card">
-        <h4>2026-06-27 — v3.5 split orchestrator, CS long-term model, env-var model toggle</h4>
+        <h4>2026-07-12 — v5 variant-gated post-hoc fix stack</h4>
+        <table>
+          <thead><tr><th>File</th><th>Change</th></tr></thead>
+          <tbody>
+            <tr><td><code>scripts/predict_weighted_analysis.py</code></td><td>Added <code>MODEL_VARIANT</code> env-var gate (module scope, line 54) with three values: <code>v3</code> (bare model), <code>v4</code> (VIX-conf mult + 90d drift + deadband + RSI-beta gate), <code>v5</code> (default — v4 base minus VIX-conf mult, plus Fix A/B/C/D). Fix B multiplies <code>long_term_multiplier</code> before <code>predict_long_term()</code> runs. Fix A/C/D apply <code>min()</code> ceilings / delta scaling on the returned 6m/1y prices. All fixes emit a <code>variant_adjustments</code> telemetry block on the result.</td></tr>
+            <tr><td><code>scripts/predict_weighted_analysis.py</code></td><td>New helper <code>_apply_variant_adjustments()</code> — runs at the end of <code>predict()</code>. Writes <code>predicted_direction_{h}</code> ∈ up/down/neutral for every horizon (2% deadband in v4/v5; 0 in v3), applies the v4-only VIX×beta confidence multiplier, and applies the v4/v5 RSI-beta short-term confidence gate (1w/1m only).</td></tr>
+            <tr><td><code>scripts/resolve_predictions.py</code> &amp; <code>scripts/backtest_predictions.py</code></td><td><code>compute_accuracy_metrics()</code> in both files now mirrors the 2% deadband — near-flat predictions produce <code>direction_correct = NULL</code>, excluded from the direction-accuracy metric surfaced by <code>/api/analytics/model-accuracy</code>.</td></tr>
+            <tr><td><code>scripts/predict_core.py</code></td><td><code>CACHE_SCHEMA_VERSION</code> bumped from 19 → 23 across the v4 → v5 A/B/C/D → revert-of-E-F-G evolution. <code>_sanitize_predictions()</code> unchanged in role — still clamps out-of-bounds prices, floors at 0.01, and glide-paths opposite-sign 6m/1y.</td></tr>
+            <tr><td>Reports</td><td><code>reports/data_4way_newset.txt</code> — the 15-ticker backtest that motivated reverting Fix E/F/G (no measurable improvement over v5 A-D).</td></tr>
+          </tbody>
+        </table>
+
+        <h4 style="margin-top:2rem;">2026-06-27 — v3.5 split orchestrator, CS long-term model, env-var model toggle</h4>
         <table>
           <thead><tr><th>File</th><th>Change</th></tr></thead>
           <tbody>

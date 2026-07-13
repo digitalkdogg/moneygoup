@@ -97,7 +97,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">API Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-07-09</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-07-12</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -163,7 +163,7 @@
       <span>GrowMyStocks</span>
       <span>Next.js 14 App Router</span>
       <span>35+ routes documented</span>
-      <span>Updated 2026-07-09</span>
+      <span>Updated 2026-07-12</span>
     </div>
 
     <div class="summary-grid">
@@ -173,7 +173,7 @@
       <div class="stat-card"><div class="value">6h</div><div class="label">Max Cache TTL</div></div>
     </div>
 
-    <div class="updated"><strong>July 2026 changes summary:</strong> New <code>GET /api/stock_data/[ticker]/latest-prediction</code> returns the freshest &lt; 12h prediction from <code>prediction_records</code>, filtered by the current model version. Enables prefetched cards on <code>/search/[ticker]</code> without a click. The <code>prediction_records</code> table gained 15 new columns (per-horizon change_pct + confidence, gps score/breakdown, accuracy metrics, data quality, model status, ceiling flags, confidence breakdown + per-horizon reasons). The <code>[ticker]</code> route now writes those columns on <code>outlook='all' &amp;&amp; !isInternal</code> to avoid duplicate writes when the batch also calls the route. Sanitizer overhauled: vol-scaled per-horizon caps, signal-aware confidence (Proposal A), trajectory-smoothness gate for peak-and-reverse forecasts, directional pill flags (<code>at_model_ceiling_*</code>). Per-ticker cv_mape now computed at inference time via backtest of the last ~250 rows, with a vol-based proxy fallback — no more hardcoded 5% heuristic on the CS-model path.</div>
+    <div class="updated"><strong>July 2026 changes summary:</strong> <code>GET /api/analytics/model-accuracy?symbol=…</code> per-symbol response gains three fields under <code>horizons['1_month']</code> — <code>direction_correct_count</code>, <code>direction_resolved_count</code>, <code>direction_accuracy_pct</code> — sourced from <code>prediction_records.direction_correct_1m</code> (SUM/COUNT, excluding NULL neutral calls). Backs <code>SymbolAccuracyIndicator.tsx</code>'s "X/Y correct (Z%)" widget on <code>/search/[ticker]</code> and fixes a "NaN%" display bug (see <code>src/app/api/analytics/model-accuracy/route.ts</code>). New <code>GET /api/stock_data/[ticker]/latest-prediction</code> returns the freshest &lt; 12h prediction from <code>prediction_records</code>, filtered by the current model version. Enables prefetched cards on <code>/search/[ticker]</code> without a click. The <code>prediction_records</code> table gained 15 new columns (per-horizon change_pct + confidence, gps score/breakdown, accuracy metrics, data quality, model status, ceiling flags, confidence breakdown + per-horizon reasons). The <code>[ticker]</code> route now writes those columns on <code>outlook='all' &amp;&amp; !isInternal</code> to avoid duplicate writes when the batch also calls the route. Sanitizer overhauled: vol-scaled per-horizon caps, signal-aware confidence (Proposal A), trajectory-smoothness gate for peak-and-reverse forecasts, directional pill flags (<code>at_model_ceiling_*</code>). Per-ticker cv_mape now computed at inference time via backtest of the last ~250 rows, with a vol-based proxy fallback — no more hardcoded 5% heuristic on the CS-model path.</div>
     <div class="updated"><strong>June 2026 changes summary:</strong> Horizon-aware response shapes are now standard across <code>/api/user/portfolio</code>, <code>/api/user/watchlist</code>, and <code>/api/dashboard/recommendations</code> — each returns a top-level <code>horizonLabel</code> matching the user's <code>investment_timeframe.shortLabel</code>. Portfolio and watchlist rows additionally expose <code>predicted_price_horizon</code>, <code>predicted_change_pct_horizon</code>, and <code>confidence_score_horizon</code> picked from the per-horizon columns in <code>user_stock_predictions</code>. <code>POST /api/prediction/save</code> accepts 8 new optional fields (<code>predicted_change_pct_{1w,1m,6m,1y}</code> and <code>confidence_score_{1w,1m,6m,1y}</code>) and writes them to <code>user_stock_predictions</code>; <code>POST /api/prediction/[ticker]</code> now forwards all 4 horizons of prices + 4 change_pct + 4 confidence to <code>/api/prediction/save</code> via <code>savePredictionAsync</code>. The user profile endpoint accepts PATCH to update the strategy. A new <code>/api/analytics/model-accuracy</code> endpoint powers the dashboard's <code>ModelAccuracyWidget</code>. <code>/api/stock_data/[sector]/industry</code> now sorts by <strong>GPS score</strong> (not the prior Heat composite), joining each sector leader against <code>stock_gps_scores</code>. DeepMoney sync injects all 11 canonical-sector top-25 lists nightly into a sector-leader override lane that bypasses the ranker keep-cut and writes a GPS row for each — see <a href="business_rules.html#external">BR-14.4 / BR-14.5 / BR-14.6</a>. Stocks the sync hasn't reached yet surface with <code>gps_score: null</code> and a placeholder in the UI. See the <a href="strategy_system.html">Strategy System</a> doc for the full strategy model.</div>
 
     <div class="info">All routes are Next.js App Router Route Handlers (<code>route.ts</code> files). All authenticated routes validate the NextAuth JWT session. The <code>checkOrigin()</code> middleware is applied to most mutation endpoints. An internal bypass using the <code>x-api-key</code> header allows server-to-server calls. All authenticated data endpoints call <code>checkApprovalGuard(userId)</code> to re-verify approval status against the database on every request.</div>
@@ -949,11 +949,20 @@ total_accuracy_pct     = ROUND(100 × AVG(accuracy_score across all horizons), 2
   "total_accuracy_pct": number | null,
   "horizons": {
     "1_week":  { "resolved_count": number, "proximity_accuracy_pct": number, "high_accuracy_count": number },
-    "1_month": { ... },
+    "1_month": {
+      "resolved_count":           number,
+      "proximity_accuracy_pct":   number,
+      "high_accuracy_count":      number,
+      // Direction-accuracy fields (added 2026-07-12)
+      "direction_correct_count":  number,         // SUM(direction_correct_1m) — NULL rows (neutral calls) excluded
+      "direction_resolved_count": number,         // COUNT(direction_correct_1m) non-NULL — denominator for accuracy
+      "direction_accuracy_pct":   number | null   // ROUND(100 * correct / resolved); null when resolved = 0
+    },
     "6_month": { ... },
     "1_year":  { ... }
   }
 }</pre>
+        <div class="updated"><strong>Direction accuracy fields (July 12, 2026):</strong> Per-symbol responses now include <code>direction_correct_count</code>, <code>direction_resolved_count</code>, and <code>direction_accuracy_pct</code> under <code>horizons['1_month']</code>. These are computed from <code>prediction_records.direction_correct_1m</code> — the SUM is the numerator, the non-NULL COUNT is the denominator (NULL rows represent neutral calls and are excluded from both). <code>direction_accuracy_pct</code> is null when <code>resolved_count = 0</code>. Consumed by <code>SymbolAccuracyIndicator.tsx</code> on <code>/search/[ticker]</code> to render "13/21 correct (62%)" widgets — the missing fields previously caused a "21/21 correct (NaN%)" display bug. Global-mode response shape is unchanged. See <code>src/app/api/analytics/model-accuracy/route.ts</code> lines 222-226 (SQL) and 322-328 (response assembly).</div>
 
         <div class="sub-heading">Response (status = "insufficient_data", global)</div>
         <pre>{
