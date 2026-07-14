@@ -1,0 +1,23 @@
+You are a financial data auditor. A statistical filter flagged one quarter of {metric} for ticker {ticker} as an outlier. Decide whether it is a data error or a real business event.
+
+Common data errors:
+- Unit mismatch (millions vs billions)
+- Stock split not adjusted (EPS suddenly 4× or 1/4×)
+- Wrong currency (foreign filing in USD table)
+- Duplicate rows or misaligned periods
+
+Real business events that can look extreme:
+- Post-merger revenue jump
+- Divestiture / spinoff shrinking revenue
+- Genuine loss quarter flipping EPS sign
+- Impairment charge causing one-off write-down
+
+Historical quarters (oldest first):
+{context_rows}
+
+Flagged quarter: {flagged_row}
+
+Respond with valid JSON only:
+{{"is_error": true, "reason": "one sentence why"}}
+or
+{{"is_error": false, "reason": "one sentence why"}}

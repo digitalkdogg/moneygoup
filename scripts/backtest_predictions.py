@@ -807,6 +807,26 @@ def main():
             conn.close()
 
     print_summary(all_results)
+
+    # Item 3 — LLM narrative appended to the run output when Ollama is enabled
+    # and we have real data to describe (skip dry runs, --as-of-date one-shots,
+    # or runs where nothing landed). Never blocks completion; run_narration()
+    # itself is exit-0 safe on any Ollama failure path.
+    if not args.dry_run and all_results and args.from_date:
+        try:
+            from backtest_narrate import run_narration
+            _narr_from = args.from_date
+            _narr_to   = cap_date.isoformat() if cap_date else None
+            _narr_syms = [t.upper().strip() for t in args.tickers]
+            narrative = run_narration(_narr_syms, MODEL_VERSION, _narr_from, _narr_to,
+                                       include_prior_week=True)
+            if narrative:
+                print("\n=== LLM narrative ===")
+                print(narrative)
+        except Exception as _exc:
+            # Never let a narration exception mask backtest success
+            print(f"  [narrate] skipped due to internal error: {_exc}")
+
     print(f"\n[{datetime.now().isoformat()}] Backtest complete.")
 
 

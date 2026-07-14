@@ -356,11 +356,15 @@ def main() -> int:
     # (ticker, snap) pair has no matching row.
     print("[fundamentals] loading yahoo_historical_fundamentals...", file=sys.stderr)
     fund_cur = conn.cursor(dictionary=True)
+    # Item 4 (fundamentals anomaly triage): exclude rows the LLM flagged as
+    # likely data errors. NULL = not yet triaged; keep those (pre-triage
+    # backfill or triage disabled). Only drop rows explicitly marked = 1.
     fund_cur.execute("""
         SELECT symbol, period_end_date, free_cash_flow, operating_cash_flow,
                total_cash, total_debt, total_revenue, ebitda, eps,
                price_at_period_end, market_cap_at_period_end
         FROM yahoo_historical_fundamentals
+        WHERE flagged_anomaly IS NULL OR flagged_anomaly = 0
     """)
     fund_rows = fund_cur.fetchall()
     fund_cur.close()
