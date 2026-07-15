@@ -157,29 +157,60 @@ async function fetchFeed(url: string): Promise<string | null> {
  * Extract all plain text content (title + description) from RSS <item> elements.
  */
 function extractTextFromRSS(xml: string): string {
-    return extractArticlesFromRSS(xml).join(' ');
+    return extractArticlesFromRSS(xml).map(a => a.text).join(' ');
 }
 
 /**
- * Split an RSS body into one cleaned text snippet per <item> (title + description
- * joined). Used by the Ollama NER pass — each snippet becomes one prompt, so
- * we want them separated rather than concatenated.
+ * Split an RSS body into one record per <item>, keeping the metadata callers
+ * need for downstream persistence (news table) alongside the joined title+
+ * description text the Ollama NER pass consumes.
  */
-function extractArticlesFromRSS(xml: string): string[] {
-    const items: string[] = [];
+interface RssArticle {
+    text:    string;
+    title?:  string;
+    link?:   string;
+    pubDate?: string;
+    source?: string;
+}
+
+function extractArticlesFromRSS(xml: string, sourceHint?: string): RssArticle[] {
+    const items: RssArticle[] = [];
     const itemRegex = /<item[\s>]([\s\S]*?)<\/item>/gi;
     const tagRegex = /<[^>]+>/g;
+
+    // Decode the handful of XML entities that show up in RSS titles/descriptions
+    // ("&amp;", "&#39;", numeric refs). Enough for headline text — we're not
+    // trying to be a full XML parser here.
+    const decodeEntities = (s: string): string => s
+        .replace(/&amp;/g,  '&')
+        .replace(/&lt;/g,   '<')
+        .replace(/&gt;/g,   '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g,  "'")
+        .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n, 10)));
 
     let itemMatch: RegExpExecArray | null;
     while ((itemMatch = itemRegex.exec(xml)) !== null) {
         const itemBody = itemMatch[1];
-        const titleMatch = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(itemBody);
-        const descMatch = /<description[^>]*>([\s\S]*?)<\/description>/i.exec(itemBody);
+        const titleMatch   = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(itemBody);
+        const descMatch    = /<description[^>]*>([\s\S]*?)<\/description>/i.exec(itemBody);
+        const linkMatch    = /<link[^>]*>([\s\S]*?)<\/link>/i.exec(itemBody);
+        const pubDateMatch = /<pubDate[^>]*>([\s\S]*?)<\/pubDate>/i.exec(itemBody);
+        const sourceMatch  = /<source[^>]*>([\s\S]*?)<\/source>/i.exec(itemBody);
+
         const parts: string[] = [];
-        if (titleMatch) parts.push(titleMatch[1].replace(tagRegex, ' '));
-        if (descMatch)  parts.push(descMatch[1].replace(tagRegex, ' '));
-        const text = parts.join(' ').replace(/\s+/g, ' ').trim();
-        if (text) items.push(text);
+        const title = titleMatch ? decodeEntities(titleMatch[1].replace(tagRegex, ' ').replace(/\s+/g, ' ').trim()) : undefined;
+        if (title) parts.push(title);
+        if (descMatch) parts.push(descMatch[1].replace(tagRegex, ' '));
+        const text = decodeEntities(parts.join(' ').replace(/\s+/g, ' ').trim());
+        if (!text) continue;
+
+        const linkRaw = linkMatch ? linkMatch[1].replace(tagRegex, ' ').trim() : undefined;
+        const link    = linkRaw && /^https?:\/\//i.test(linkRaw) ? linkRaw : undefined;
+        const pubDate = pubDateMatch ? pubDateMatch[1].trim() : undefined;
+        const source  = sourceMatch ? decodeEntities(sourceMatch[1].replace(tagRegex, ' ').trim()) : sourceHint;
+
+        items.push({ text, title, link, pubDate, source });
     }
     return items;
 }
@@ -256,6 +287,11 @@ function extractTickersFromSECForm4Xml(xmlData: string): Set<string> {
 interface PrimaryDiscoveryResult {
     tickers: Set<string>;
     articleTexts: string[];
+    /** Rich article records (RSS only). Used by both the Ollama NER pass and
+     *  news-table persistence — text goes to Ollama, link/pubDate/source get
+     *  written alongside the extracted event_type. JSON/SEC-sourced entries
+     *  are omitted because they lack per-article metadata. */
+    articles: RssArticle[];
 }
 
 /**
@@ -270,20 +306,20 @@ async function fetchPrimaryTickers(): Promise<PrimaryDiscoveryResult> {
                 signal: AbortSignal.timeout(15_000),
             });
             if (!res.ok) return null;
-            
+
             const contentType = res.headers.get('content-type') || '';
             const body = await res.text();
 
             if (url.includes('type=4') && url.includes('output=atom')) {
-                return { type: 'sec_form_4_xml', data: body };
+                return { type: 'sec_form_4_xml', data: body, url };
             } else if (contentType.includes('application/json') || body.trim().startsWith('{')) {
                 try {
-                    return { type: 'json', data: JSON.parse(body) };
+                    return { type: 'json', data: JSON.parse(body), url };
                 } catch {
-                    return { type: 'rss', data: body };
+                    return { type: 'rss', data: body, url };
                 }
             }
-            return { type: 'rss', data: body };
+            return { type: 'rss', data: body, url };
         } catch (err) {
             logger.warn(`Failed to fetch primary source: ${url}`, { error: String(err) });
             return null;
@@ -292,10 +328,15 @@ async function fetchPrimaryTickers(): Promise<PrimaryDiscoveryResult> {
 
     const allTickers = new Set<string>();
     const articleTexts: string[] = [];
+    const articles: RssArticle[] = [];
 
     for (const result of results) {
         if (result.status === 'fulfilled' && result.value) {
-            const { type, data } = result.value;
+            const { type, data, url } = result.value as { type: string; data: any; url: string };
+            let sourceHint: string | undefined;
+            try {
+                sourceHint = new URL(url).hostname;
+            } catch { /* ignore malformed URLs — sourceHint stays undefined */ }
 
             if (type === 'json') {
                 // Specific handler for ApeWisdom JSON structure
@@ -339,17 +380,89 @@ async function fetchPrimaryTickers(): Promise<PrimaryDiscoveryResult> {
                     allTickers.add(ticker);
                 }
             } else {
-                const items = extractArticlesFromRSS(data);
+                const items = extractArticlesFromRSS(data, sourceHint);
                 for (const item of items) {
-                    articleTexts.push(item);
-                    for (const ticker of extractTickers(item)) {
+                    articleTexts.push(item.text);
+                    articles.push(item);
+                    for (const ticker of extractTickers(item.text)) {
                         allTickers.add(ticker);
                     }
                 }
             }
         }
     }
-    return { tickers: allTickers, articleTexts };
+    return { tickers: allTickers, articleTexts, articles };
+}
+
+/**
+ * Persist RSS articles (title/link/pubDate/source) into the `news` table,
+ * attaching the per-article event_type extracted by the Ollama NER pass when
+ * available. Runs once per discovery pass; safe to call with an empty pass.
+ *
+ * Idempotent by news.link (UNIQUE). Only rows with a valid http(s) link are
+ * written — links are the dedup key, and rows without one would collide.
+ * The event_type column is added on-demand (module-level guard) so we don't
+ * hammer the schema on every request.
+ */
+let _newsEventTypeColumnEnsured = false;
+
+async function persistNewsArticles(
+    articles: RssArticle[],
+    eventTypes: (string | null)[] | null,
+): Promise<void> {
+    if (articles.length === 0) return;
+    const pool = await getDbConnection();
+
+    if (!_newsEventTypeColumnEnsured) {
+        try {
+            await pool.query("ALTER TABLE news ADD COLUMN event_type VARCHAR(32) NULL");
+        } catch (err: any) {
+            // MySQL errno 1060 = duplicate column — expected on re-runs.
+            if (err?.errno !== 1060) {
+                logger.warn('news.event_type column ensure failed', { error: String(err) });
+                // Bail out — without the column, the INSERT below will fail.
+                return;
+            }
+        }
+        _newsEventTypeColumnEnsured = true;
+    }
+
+    // Normalise a raw <pubDate> string ("Tue, 14 Jul 2026 12:00:00 GMT") into
+    // MySQL DATETIME. Invalid or missing dates persist as NULL.
+    const toMysqlDate = (raw?: string): string | null => {
+        if (!raw) return null;
+        const t = Date.parse(raw);
+        if (Number.isNaN(t)) return null;
+        return new Date(t).toISOString().slice(0, 19).replace('T', ' ');
+    };
+
+    let written = 0;
+    for (let i = 0; i < articles.length; i++) {
+        const a = articles[i];
+        if (!a.link) continue;
+        const eventType = eventTypes ? (eventTypes[i] ?? null) : null;
+        const title  = (a.title || a.text).slice(0, 512);
+        const link   = a.link.slice(0, 1024);
+        const source = a.source ? a.source.slice(0, 255) : null;
+        try {
+            await pool.query(
+                `INSERT INTO news (title, link, pub_date, source, event_type)
+                 VALUES (?, ?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE
+                     title      = VALUES(title),
+                     pub_date   = COALESCE(VALUES(pub_date), pub_date),
+                     source     = COALESCE(VALUES(source), source),
+                     event_type = COALESCE(VALUES(event_type), event_type)`,
+                [title, link, toMysqlDate(a.pubDate), source, eventType],
+            );
+            written += 1;
+        } catch (err) {
+            // Silent per-row failure — mainly guards against oversized strings
+            // or transient DB errors that shouldn't nuke the whole batch.
+            logger.warn('news row insert failed', { link, error: String(err) });
+        }
+    }
+    logger.info('news persisted', { attempted: articles.length, written });
 }
 
 /**
@@ -536,21 +649,50 @@ async function fetchWorldBankData(forceRefresh: boolean = false): Promise<any> {
     }
 }
 
+// Per-ticker enrichment cache. Enrichment is 3 Yahoo calls per ticker (quote
+// summary, 1y chart, fundamentals timeseries) and is by far the outbound-HTTP
+// hotspot for the sync. A 30-min TTL means back-to-back deepmoney passes
+// (news pass + holdings pass in the same route call, or a sync that reruns
+// within the window) skip the fetch entirely for tickers already enriched.
+// Fundamentals rarely change intraday; sectors/PE/market cap never do.
+const ENRICHMENT_TTL_MS = 30 * 60 * 1000;
+const enrichmentCache: Map<string, { enriched: any; cachedAt: number }> = new Map();
+
 /**
  * Enrich a list of tickers with fundamental and technical metrics.
  * Processes all tickers in small batches to avoid overwhelming the API.
+ * Reads from a 30-min in-memory cache first; only uncached tickers hit Yahoo.
  */
 async function enrichTickers(tickers: string[]) {
     //logger.info(`Enriching ${tickers.length} tickers with metrics (Full Sweep)`);
 
+    const now = Date.now();
     const results: any[] = [];
-    const BATCH_SIZE = 5; // Process 5 tickers concurrently to avoid rate limits
-    
+    const uncached: string[] = [];
+    for (const t of tickers) {
+        const hit = enrichmentCache.get(t);
+        if (hit && (now - hit.cachedAt) < ENRICHMENT_TTL_MS) {
+            results.push(hit.enriched);
+        } else {
+            uncached.push(t);
+        }
+    }
+    if (results.length > 0) {
+        logger.info(`enrichTickers cache: ${results.length}/${tickers.length} hit, ${uncached.length} to fetch`);
+    }
+
+    // Raised from 5 → 12. Each ticker fires 3 Yahoo calls in parallel; at
+    // BATCH_SIZE=5 that's 15 concurrent calls per batch — Yahoo tolerates far
+    // more (the /holdings endpoint routinely fans out more aggressively).
+    // With ~500-1000 tickers per sync, 5→12 roughly halves batch count and
+    // cuts wall-clock enrichment time proportionally.
+    const BATCH_SIZE = 12;
+
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
 
-    for (let i = 0; i < tickers.length; i += BATCH_SIZE) {
-        const batch = tickers.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < uncached.length; i += BATCH_SIZE) {
+        const batch = uncached.slice(i, i + BATCH_SIZE);
         const batchResults = await Promise.all(batch.map(async (ticker) => {
             try {
                 const [summary, historicalResult, fundamentals] = await Promise.all([
@@ -646,6 +788,14 @@ async function enrichTickers(tickers: string[]) {
                 return { ticker, name: ticker, error: 'Enrichment failed' };
             }
         }));
+        // Only cache successful enrichments — failed rows should be retried
+        // next call rather than pinned to the cache for 30 min.
+        const cacheStamp = Date.now();
+        for (const row of batchResults) {
+            if (row && !row.error) {
+                enrichmentCache.set(row.ticker, { enriched: row, cachedAt: cacheStamp });
+            }
+        }
         results.push(...batchResults);
     }
 
@@ -725,6 +875,7 @@ export async function GET(request: NextRequest) {
         ]);
         const primaryTickers = primaryResult.tickers;
         const primaryArticleTexts = primaryResult.articleTexts;
+        const primaryArticles     = primaryResult.articles;
         
         let marketIndices = null;
         try {
@@ -747,9 +898,28 @@ export async function GET(request: NextRequest) {
         // and ranker gates as everything else.
         let ollamaResult: OllamaPassResult | null = null;
         if (isOllamaEnabled()) {
-            ollamaResult = await ollamaTickerPass(primaryArticleTexts);
+            // Pass rich article records (RSS only) so ollamaTickerPass can
+            // return per-article event_types aligned to the input, letting us
+            // persist news rows with their extracted event_type below.
+            ollamaResult = await ollamaTickerPass(primaryArticles);
             for (const t of ollamaResult.tickers) {
                 if (!TICKER_STOPLIST.has(t)) allTickersSet.add(t);
+            }
+            // Persist articles + Ollama-extracted event_type into the news
+            // table. Failures are swallowed — news persistence is best-effort
+            // and must not break the discovery pipeline.
+            try {
+                await persistNewsArticles(primaryArticles, ollamaResult.articleEventTypes);
+            } catch (err) {
+                logger.warn('news persistence failed', { error: String(err) });
+            }
+        } else {
+            // Persist news even when Ollama is disabled — we still get
+            // title/link/pubDate from the RSS feeds; event_type stays NULL.
+            try {
+                await persistNewsArticles(primaryArticles, null);
+            } catch (err) {
+                logger.warn('news persistence failed', { error: String(err) });
             }
         }
 
@@ -864,6 +1034,12 @@ export async function GET(request: NextRequest) {
                     companiesFound:  ollamaResult.companiesFound,
                     industriesFound: ollamaResult.industriesFound,
                     tickersResolved: ollamaResult.tickersResolved,
+                    // Item 5 — event-type classification. Absent when Ollama
+                    // was off. Consumers (deepmoney_sync.py, future ranker
+                    // feature) look for dominantEventByTicker to attribute
+                    // the primary event to each surfaced ticker.
+                    dominantEventByTicker: ollamaResult.dominantEventByTicker,
+                    eventTypeCounts:       ollamaResult.eventTypeCounts,
                 } : null,
                 debug: {
                     rejectedEnrichment: enrichedStocks.filter(s => s.error).length,

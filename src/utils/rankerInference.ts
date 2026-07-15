@@ -78,13 +78,25 @@ export interface SharedMacro {
 const sharedMacroCache: { value?: SharedMacro; fetchedAt?: number } = {};
 const SHARED_MACRO_TTL_MS = 30 * 60 * 1000;
 
+// Per-series timeout — yahoo-finance2's chart() doesn't accept an AbortSignal,
+// so we race against a timer. Symbols like DX-Y.NYB occasionally hang for
+// tens of seconds; without this, all 22 parallel calls block on the slowest.
+const MACRO_SERIES_TIMEOUT_MS = 10_000;
+
 async function fetchOneSeries(sym: string): Promise<MacroSeries> {
+    // History trimmed 5y → 3y. The ranker's rolling features max out at ~250
+    // trading days; anything beyond ~2y is just JSON parsing overhead. Cuts
+    // per-series payload ~40%.
+    const threeYearsAgo = new Date(Date.now() - 3 * 365.25 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+    const fetchPromise = yahooFinance.chart(sym, { period1: threeYearsAgo, period2: yesterday, interval: '1d' });
+    const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`timeout after ${MACRO_SERIES_TIMEOUT_MS}ms`)), MACRO_SERIES_TIMEOUT_MS),
+    );
+
     try {
-        const fiveYearsAgo = new Date(Date.now() - 5 * 365.25 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-        const now = new Date();
-        const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-        const today = yesterday.toISOString().slice(0, 10);
-        const chartResult = await yahooFinance.chart(sym, { period1: fiveYearsAgo, period2: today, interval: '1d' });
+        const chartResult = await Promise.race([fetchPromise, timeoutPromise]);
         const rows = chartResult.quotes || [];
         return rows
             .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())

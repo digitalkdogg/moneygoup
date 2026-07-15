@@ -174,6 +174,9 @@ export async function analyzeStocks(
     const stocksForPayload = Array.from(payloadCandidates.values());
 
     const payloads = new Map<string, any>();
+    logger.info(`Phase 1: fetching prediction payloads for ${stocksForPayload.length} stock(s) in batches of ${BATCH_SIZE}`);
+    let payloadDone = 0;
+    const payloadStart = Date.now();
     for (let i = 0; i < stocksForPayload.length; i += BATCH_SIZE) {
         const batch = stocksForPayload.slice(i, i + BATCH_SIZE);
         await Promise.all(batch.map(async (stock) => {
@@ -184,6 +187,13 @@ export async function analyzeStocks(
                 logger.error(`Payload fetch failed for ${stock.ticker}:`, { error: String(err) });
             }
         }));
+        payloadDone += batch.length;
+        const elapsedSec = (Date.now() - payloadStart) / 1000;
+        logger.info(
+            `Phase 1: fetched ${payloadDone}/${stocksForPayload.length} ` +
+            `(${(100 * payloadDone / stocksForPayload.length).toFixed(1)}%) ` +
+            `elapsed ${Math.round(elapsedSec)}s`
+        );
     }
 
     // ─── Phase 2 — ranker scoring (cross-sectional, single batch) ──────────
@@ -268,7 +278,10 @@ export async function analyzeStocks(
 
     // ─── Phase 4 — Monte Carlo + GPS-Full on ranker survivors only ─────────
     const filteredStocks: EnrichedStock[] = [];
+    logger.info(`Phase 4: running MC + GPS on ${survivors.length} survivor(s) in batches of ${BATCH_SIZE}`);
 
+    let completed = 0;
+    const phase4Start = Date.now();
     for (let i = 0; i < survivors.length; i += BATCH_SIZE) {
         const batch = survivors.slice(i, i + BATCH_SIZE);
 
@@ -280,16 +293,30 @@ export async function analyzeStocks(
                     return;
                 }
 
-                const predictions: Record<string, any> = {};
-                const timeframes = ['1_week', '1_month', '6_month', '1_year'] as const;
-                for (const tf of timeframes) {
-                    const result = await runPredictionInternal(stock.ticker, payload, tf);
-                    predictions[tf] = result;
-                }
+                // Python's --outlook='all' returns every horizon in one call.
+                // Previously we spawned Python 4× per stock (one per horizon) and
+                // paid the TF/Keras cold-load cost 4× for a computation the
+                // script always does in full anyway. Collapsing to a single
+                // spawn is the largest perf win in the sync pipeline.
+                const allHorizons = await runPredictionInternal(stock.ticker, payload, 'all');
+                if (!allHorizons || allHorizons.error) return;
 
-                const predictionResult = predictions['1_month'];
-                const predictedChangePct = predictionResult?.predicted_change_pct;
+                const predictedChangePct = allHorizons.predicted_change_pct_1m;
                 if (predictedChangePct === undefined) return;
+
+                // Reconstruct the per-horizon blobs the rest of this function
+                // (and prediction_input downstream) already expected. Shape
+                // matches what --outlook='<horizon>' used to return.
+                const predictions: Record<string, any> = {
+                    '1_week':  { predicted_price: allHorizons.predicted_price_1w,  predicted_change_pct: allHorizons.predicted_change_pct_1w, confidence_score: allHorizons.confidence_score_1w, predicted_range: allHorizons.predicted_range_1w },
+                    '1_month': { predicted_price: allHorizons.predicted_price_1m,  predicted_change_pct: allHorizons.predicted_change_pct_1m, confidence_score: allHorizons.confidence_score_1m },
+                    '6_month': { predicted_price: allHorizons.predicted_price_6m,  predicted_change_pct: allHorizons.predicted_change_pct_6m, confidence_score: allHorizons.confidence_score_6m, predicted_change_range: allHorizons.predicted_change_range },
+                    '1_year':  { predicted_price: allHorizons.predicted_price_1y,  predicted_change_pct: allHorizons.predicted_change_pct_1y, confidence_score: allHorizons.confidence_score_1y },
+                };
+                // predictionResult was previously the 1_month filtered blob;
+                // preserving the name keeps downstream code (GPS, prediction_input
+                // spread) unchanged.
+                const predictionResult = predictions['1_month'];
 
                 stock.prediction_1m = predictedChangePct;
 
@@ -343,12 +370,18 @@ export async function analyzeStocks(
                     stock.classification = 'standard';
                 }
 
+                // Spread the full --outlook='all' result so every _1w/_1m/_6m/_1y
+                // key AND common metadata (data_quality, accuracy_metrics,
+                // regime_info, llm_rationale, etc.) survive into prediction_input.
+                // Legacy unsuffixed keys (predicted_change_pct, confidence_score,
+                // predicted_price) are aliased to the 1_month values so consumers
+                // like deepmoney_sync.py's `pred_input.get('confidence_score')`
+                // (with no _1m fallback for metric_label) keep working.
                 stock.prediction_input = {
-                    ...predictionResult,
-                    predicted_price_1w: predictions['1_week']?.predicted_price,
-                    predicted_price_1m: predictions['1_month']?.predicted_price,
-                    predicted_price_6m: predictions['6_month']?.predicted_price,
-                    predicted_price_1y: predictions['1_year']?.predicted_price,
+                    ...allHorizons,
+                    predicted_price:      allHorizons.predicted_price_1m,
+                    predicted_change_pct: allHorizons.predicted_change_pct_1m,
+                    confidence_score:     allHorizons.confidence_score_1m,
                 };
                 // Priority: v2_engine > analyst_consensus > trending_48h > sector_leader.
                 // A stock that *also* happens to pass the ml gate is recorded as
@@ -368,6 +401,22 @@ export async function analyzeStocks(
                 logger.error(`Error processing prediction for ${stock.ticker}:`, { error: String(err) });
             }
         }));
+
+        // Per-batch heartbeat — makes the ~1h+ analyzer phase observable in
+        // the dev server terminal. Logs ticker count + elapsed + rough ETA so
+        // the operator can see "am I 20% through or 80% through" at a glance.
+        completed += batch.length;
+        const elapsedSec = (Date.now() - phase4Start) / 1000;
+        const rate = completed / elapsedSec;  // stocks/sec
+        const remainingSec = rate > 0 ? (survivors.length - completed) / rate : 0;
+        const eta = remainingSec >= 60
+            ? `${Math.round(remainingSec / 60)}m`
+            : `${Math.round(remainingSec)}s`;
+        logger.info(
+            `Phase 4: processed ${completed}/${survivors.length} ` +
+            `(${(100 * completed / survivors.length).toFixed(1)}%) ` +
+            `elapsed ${Math.round(elapsedSec)}s, ETA ${eta}`
+        );
     }
 
     // Suppress unused-param warnings for variables retained for future use.

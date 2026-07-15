@@ -75,7 +75,7 @@
     "WorldBank_Inflation",
     "WorldBank_Consumption"
   ],
-  "trained_at": "2026-06-18",
+  "trained_at": "2026-07-15",
   "train_rows": 39406,
   "val_rows": 10042,
   "train_date_range": [

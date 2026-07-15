@@ -1,11 +1,21 @@
 import json
 import os
+import sys
 import time
 import requests
 import mysql.connector
 from datetime import datetime
 from dotenv import load_dotenv
 from prediction_recorder import record_prediction
+
+# Force line-buffered stdout so progress lines appear in real time when the
+# script is piped (e.g. `python3 ... | tee log.txt`). Without this, Python
+# switches to block buffering on a pipe and the terminal stays silent until
+# the whole run finishes — masking the 1h+ analyzer wait entirely.
+try:
+    sys.stdout.reconfigure(line_buffering=True)
+except AttributeError:
+    pass  # Older Python without reconfigure; PYTHONUNBUFFERED=1 works as fallback.
 
 # Load environment variables from project root
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -289,8 +299,14 @@ def sync_deepmoney():
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         
-        for s in stocks:
+        total_stocks = len(stocks)
+        for idx, s in enumerate(stocks, start=1):
             ticker = s.get('ticker')
+            # Progress heartbeat — the analysis pass can run for tens of minutes;
+            # without this, the log looks stalled between ticker outputs when a
+            # stock gets skipped early (price ceiling, vol gate) with no other
+            # per-ticker log line.
+            print(f"  [{idx}/{total_stocks}] Processing {ticker}...")
             gps = s.get('gps_score', 0)
             gps_breakdown = s.get('gps_breakdown') or {}
             pred_input = s.get('prediction_input') or {}
@@ -759,6 +775,18 @@ def _print_run_summary(
             print(f"    Companies extracted:             {_fmt_int(ollama_pass.get('companiesFound'))}")
             print(f"    Industries extracted:            {_fmt_int(ollama_pass.get('industriesFound'))}")
             print(f"    Tickers resolved (merged):       {_fmt_int(ollama_pass.get('tickersResolved'))}")
+            # Item 5 — event-type classification. Absent from older API
+            # responses that predate the classifier.
+            dominant = ollama_pass.get('dominantEventByTicker') or {}
+            if dominant:
+                # Count how many tickers got each event type. Sorted by count
+                # desc so the loud events float to the top of the run summary.
+                by_type: dict = {}
+                for et in dominant.values():
+                    by_type[et] = by_type.get(et, 0) + 1
+                top = sorted(by_type.items(), key=lambda kv: (-kv[1], kv[0]))
+                summary = ', '.join(f"{et}={n}" for et, n in top)
+                print(f"    Event-type tags (n={len(dominant)}):    {summary}")
         else:
             print("    (API did not return meta.ollamaPass — feature flag off server-side)")
 
