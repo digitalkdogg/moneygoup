@@ -681,12 +681,11 @@ async function enrichTickers(tickers: string[]) {
         logger.info(`enrichTickers cache: ${results.length}/${tickers.length} hit, ${uncached.length} to fetch`);
     }
 
-    // Raised from 5 → 12. Each ticker fires 3 Yahoo calls in parallel; at
-    // BATCH_SIZE=5 that's 15 concurrent calls per batch — Yahoo tolerates far
-    // more (the /holdings endpoint routinely fans out more aggressively).
-    // With ~500-1000 tickers per sync, 5→12 roughly halves batch count and
-    // cuts wall-clock enrichment time proportionally.
-    const BATCH_SIZE = 12;
+    // Default 12: each ticker fires 3 Yahoo calls in parallel, so 12 tickers
+    // = 36 concurrent Yahoo requests per batch. Tunable via
+    // DEEPMONEY_ENRICH_BATCH_SIZE for resource-constrained hosts (VPS etc.)
+    // where lower concurrency keeps the CPU available to the web server.
+    const BATCH_SIZE = Math.max(1, Number(process.env.DEEPMONEY_ENRICH_BATCH_SIZE) || 12);
 
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
