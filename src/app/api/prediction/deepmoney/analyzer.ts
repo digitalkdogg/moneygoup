@@ -100,7 +100,12 @@ export interface AnalyzeOptions {
     trendingTickers?: Set<string>;
 }
 
-const BATCH_SIZE = 3;
+// 2 concurrent TF/Keras subprocesses keeps peak RAM under 4 GB on the VPS
+// (Ollama ~3 GB + 2× TF ~1 GB + Next.js/MySQL ~700 MB ≈ 4.7 GB with swap
+// headroom vs. the 6-8 GB that BATCH_SIZE=3 demanded).
+const BATCH_SIZE     = 2;
+// 750 ms between batches lets the web server reclaim CPU between TF spawns.
+const BATCH_SLEEP_MS = 750;
 
 /**
  * Analyzes and filters a list of enriched stocks. The LightGBM ranker is the
@@ -194,6 +199,9 @@ export async function analyzeStocks(
             `(${(100 * payloadDone / stocksForPayload.length).toFixed(1)}%) ` +
             `elapsed ${Math.round(elapsedSec)}s`
         );
+        if (BATCH_SLEEP_MS > 0 && i + BATCH_SIZE < stocksForPayload.length) {
+            await new Promise(r => setTimeout(r, BATCH_SLEEP_MS));
+        }
     }
 
     // ─── Phase 2 — ranker scoring (cross-sectional, single batch) ──────────
@@ -417,6 +425,9 @@ export async function analyzeStocks(
             `(${(100 * completed / survivors.length).toFixed(1)}%) ` +
             `elapsed ${Math.round(elapsedSec)}s, ETA ${eta}`
         );
+        if (BATCH_SLEEP_MS > 0 && i + BATCH_SIZE < survivors.length) {
+            await new Promise(r => setTimeout(r, BATCH_SLEEP_MS));
+        }
     }
 
     // Suppress unused-param warnings for variables retained for future use.
