@@ -360,6 +360,49 @@ def predict(ticker, input_data):
                   f"avg_analysts={analyst_sentiment_v2['avg_analyst_count']:.1f}",
                   file=sys.stderr)
 
+    # ── WRS composite grade (v3 — from frontend, 0-100) ─────────────────────
+    # The frontend computes a WRS-based composite (5-step algorithm) and sends
+    # it as analystGradeScore. Blend 50/50 with v2 final_score when both are
+    # present; build a minimal v2-compatible dict when v2 is absent.
+    wrs_grade_score = safe(input_data.get('analystGradeScore'), None)
+    if wrs_grade_score is not None:
+        wrs_grade_score = float(max(0.0, min(100.0, wrs_grade_score)))
+        import math as _math
+        if analyst_sentiment_v2 is not None:
+            blended = 0.5 * analyst_sentiment_v2['final_score'] + 0.5 * wrs_grade_score
+            # Recompute analyst_impact from the blended score (same formula as v2).
+            reliability = analyst_sentiment_v2.get('_reliability', None)
+            avg_count = analyst_sentiment_v2.get('avg_analyst_count', 0.0)
+            if reliability is None:
+                from analyst_sentiment import RELIABILITY_FLOOR, RELIABILITY_SATURATION
+                reliability = RELIABILITY_FLOOR + (1.0 - RELIABILITY_FLOOR) * _math.sqrt(
+                    min(avg_count / RELIABILITY_SATURATION, 1.0)
+                )
+            normalized = (blended - 50.0) / 50.0
+            from analyst_sentiment import MAX_ANALYST_IMPACT
+            blended_impact = normalized * MAX_ANALYST_IMPACT * reliability * (
+                1.0 - analyst_sentiment_v2.get('dispersion_penalty', 0.0)
+            )
+            analyst_sentiment_v2 = {**analyst_sentiment_v2,
+                                     'final_score': blended,
+                                     'analyst_impact': blended_impact}
+        else:
+            # No v2 data — build minimal dict from WRS score alone.
+            normalized = (wrs_grade_score - 50.0) / 50.0
+            from analyst_sentiment import MAX_ANALYST_IMPACT
+            analyst_sentiment_v2 = {
+                'final_score':        wrs_grade_score,
+                'rec_score':          wrs_grade_score,
+                'target_score':       wrs_grade_score,
+                'analyst_impact':     normalized * MAX_ANALYST_IMPACT,
+                'coverage_pts':       0,
+                'conviction_pts':     0,
+                'dispersion_penalty': 0.0,
+                'avg_analyst_count':  0.0,
+            }
+        print(f"[DEBUG] analyst WRS grade={wrs_grade_score:.1f} → blended final_score={analyst_sentiment_v2['final_score']:.1f} "
+              f"analyst_impact={analyst_sentiment_v2['analyst_impact']:+.4f}", file=sys.stderr)
+
     # ── Metric analysis (legacy, shared) ─────────────────────────────────────
     m_analysis = metric_analysis(feat_df, stock_metrics, news_sentiment,
                                   growth_rate, is_uptrend, earnings_beat_streak, external_tech_score, consensus_value, analyst_weighted_val,

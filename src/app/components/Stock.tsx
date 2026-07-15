@@ -17,6 +17,7 @@ import SellModal from './modals/SellModal'
 import RsuVestModal from './modals/RsuVestModal'
 import PurchaseFromWatchlistModal from './modals/PurchaseFromWatchlistModal'
 import { formatNumber, formatCurrency } from '@/utils/formatters' // Added import
+import { computeAnalystGrade, gradeColor } from '@/utils/analystGrade'
 
 const logger = createLogger('components/Stock')
 
@@ -549,6 +550,12 @@ export default function Stock({
 
     // currentPrice should prefer last, then close, then 0
     const currentPrice = stockData?.last || stockData?.close || 0
+
+    const analystGrade = computeAnalystGrade(
+      data.analyst?.recommendationTrend,
+      data.analyst?.priceTarget,
+      currentPrice || null,
+    )
 
     return (
       <div className="container mx-auto px-0 py-8 max-w-6xl">
@@ -1110,6 +1117,7 @@ export default function Stock({
             momentum={indicators?.momentum ?? undefined}
             technicalScore={indicators?.scoreBreakdown?.totalScore}
             recommendationKey={data.analyst?.recommendationKey ?? null}
+            analystGradeScore={analystGrade?.composite ?? undefined}
             newsArticles={news}
             historicalEarnings={earningsData?.historicalEarnings || []}
             titleLevel="h2"
@@ -1129,8 +1137,29 @@ export default function Stock({
         {/* Analyst Sentiment & Price Targets */}
         {data.analyst && (
           <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8 section-analyst-sentiment-targets">
-            <h2 className="section-heading">Analyst Sentiment & Targets</h2>
-            
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="section-heading" style={{ marginBottom: 0 }}>Analyst Sentiment & Targets</h2>
+              {analystGrade && (
+                <div className="flex items-center gap-3">
+                  <span className={`text-3xl font-bold px-4 py-1 rounded-xl border-2 ${gradeColor(analystGrade.grade)}`}>
+                    {analystGrade.grade}
+                  </span>
+                  <span className="text-sm text-gray-500">{analystGrade.composite.toFixed(1)}/100</span>
+                </div>
+              )}
+            </div>
+            {analystGrade && (
+              <div className="flex flex-wrap gap-3 mb-5 text-xs text-gray-600">
+                <span>Rec <strong>{analystGrade.recScore.toFixed(1)}</strong></span>
+                <span className="text-gray-300">|</span>
+                <span>Upside <strong>{analystGrade.upsideScore.toFixed(1)}</strong></span>
+                <span className="text-gray-300">|</span>
+                <span>Momentum <strong>{analystGrade.momentumScore.toFixed(1)}</strong></span>
+                <span className="text-gray-300">|</span>
+                <span>Conviction <strong>{analystGrade.convictionScore.toFixed(1)}</strong></span>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-4">
               {/* Recommendation Trend */}
               <div>
@@ -1332,6 +1361,12 @@ export default function Stock({
           const indicators = data.indicators
           const currentPrice = stockData?.last || stockData?.close || 0
 
+          const analystGrade = computeAnalystGrade(
+            data.analyst?.recommendationTrend,
+            data.analyst?.priceTarget,
+            currentPrice || null,
+          )
+
           return (
             <div key={t} className="border-t-2 border-gray-200 pt-8">
               {/* Stock Info */}
@@ -1407,6 +1442,7 @@ export default function Stock({
                 momentum={indicators?.momentum ?? undefined}
                 technicalScore={indicators?.scoreBreakdown?.totalScore}
                 recommendationKey={data.analyst?.recommendationKey ?? null}
+                analystGradeScore={analystGrade?.composite ?? undefined}
                 newsArticles={news}
                 titleLevel="h3"
               />
@@ -1414,7 +1450,17 @@ export default function Stock({
               {/* Analyst Sentiment & Price Targets */}
               {data.analyst && (
                 <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-6 section-analyst-sentiment-targets">
-                  <h3 className="text-xl font-semibold text-gray-800 mb-6">📊 Analyst Sentiment & Targets</h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xl font-semibold text-gray-800">📊 Analyst Sentiment & Targets</h3>
+                    {analystGrade && (
+                      <div className="flex items-center gap-2">
+                        <span className={`text-2xl font-bold px-3 py-1 rounded-xl border-2 ${gradeColor(analystGrade.grade)}`}>
+                          {analystGrade.grade}
+                        </span>
+                        <span className="text-xs text-gray-500">{analystGrade.composite.toFixed(1)}</span>
+                      </div>
+                    )}
+                  </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-4">
                     {/* Recommendation Trend */}

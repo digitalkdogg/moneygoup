@@ -18,7 +18,8 @@ interface StockPredictionProps {
   rsi?: number
   momentum?: number
   technicalScore?: number
-  recommendationKey: string | null; // Added recommendationKey
+  recommendationKey: string | null;
+  analystGradeScore?: number;
   newsArticles?: Array<{
     title?: string
     description?: string
@@ -486,6 +487,7 @@ export default function StockPrediction({
   momentum,
   technicalScore,
   recommendationKey,
+  analystGradeScore,
   newsArticles,
   historicalEarnings,
   titleLevel = 'h2',
@@ -539,6 +541,7 @@ export default function StockPrediction({
         newsArticles: newsArticles ?? [],
         technicalScore: technicalScore,
         recommendationKey: recommendationKey,
+        ...(analystGradeScore !== undefined && { analystGradeScore }),
         historicalEarnings:
           dataPayload.historicalEarnings?.length > 0
             ? dataPayload.historicalEarnings
