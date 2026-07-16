@@ -246,9 +246,13 @@ def score_candidates(
     if not feature_rows:
         return {}, skipped
 
-    # Build feature matrix in column order; replace inf with NaN (LightGBM
-    # handles NaN natively, but inf would crash).
-    x = pd.DataFrame(feature_rows)[feature_cols].replace([np.inf, -np.inf], np.nan)
+    # Build feature matrix in column order. LightGBM requires int/float/bool
+    # dtypes; ranker_features.py can emit Python None for missing features
+    # (macro data, valuation ratios), which pandas types as `object`. Coerce
+    # everything to float64 (None → NaN) so LightGBM's native NaN handling
+    # kicks in. Then strip infinities the same way.
+    x = pd.DataFrame(feature_rows)[feature_cols]
+    x = x.apply(pd.to_numeric, errors='coerce').replace([np.inf, -np.inf], np.nan)
     raw_scores = booster.predict(x)
 
     # Cross-sectional percentile rank within the batch

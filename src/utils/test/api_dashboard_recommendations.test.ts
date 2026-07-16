@@ -53,6 +53,11 @@ describe('GET /api/dashboard/recommendations', () => {
     jest.clearAllMocks();
     (checkOrigin as jest.Mock).mockReturnValue(null);
     (getServerSession as jest.Mock).mockResolvedValue({ user: { id: '123' } });
+    // fetchMacroContext makes a real HTTP call to /api/worldbank; stub it out
+    // so tests don't depend on the dev server being up or the World Bank API
+    // being fast. Returning { ok: false } makes fetchMacroContext return null,
+    // keeping macroGpsAdjustment at 0.
+    jest.spyOn(global, 'fetch').mockResolvedValue({ ok: false } as Response);
 
     mockRequest = {
       headers: new Headers(),

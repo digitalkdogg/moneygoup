@@ -1,0 +1,13 @@
+You are verifying whether a news article's company mention refers to a specific publicly-traded company.
+
+Company mentioned in article: "{companyName}"
+Candidate match: {longName} ({symbol})
+
+Article excerpt:
+{articleSlice}
+
+Question: Does "{companyName}" in this article refer to {longName} ({symbol})?
+
+Respond ONLY with valid JSON — no other text:
+{"match": true}   if yes, this is the same company
+{"match": false}  if no, this is a different company

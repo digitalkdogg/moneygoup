@@ -246,8 +246,26 @@ function runRankerSubprocess(payload: any): Promise<any> {
             python.stdout.on('data', d => { stdout += d; });
             python.stderr.on('data', d => { stderr += d; });
             python.on('close', code => {
+                if (code !== 0) {
+                    // Keep the input file and dump full stderr to disk so we can
+                    // diagnose ranker crashes without the log truncating.
+                    try {
+                        const debugDir = join(process.cwd(), 'logs');
+                        try { require('fs').mkdirSync(debugDir, { recursive: true }); } catch {}
+                        const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+                        const stderrPath = join(debugDir, `ranker_error_${stamp}.txt`);
+                        const inputPath  = join(debugDir, `ranker_input_${stamp}.json`);
+                        writeFileSync(stderrPath, stderr);
+                        require('fs').copyFileSync(tempFile, inputPath);
+                        console.error(
+                            `[rankerInference] score_ranker.py failed — full stderr saved to ${stderrPath}, ` +
+                            `input payload saved to ${inputPath}`
+                        );
+                    } catch {}
+                    try { unlinkSync(tempFile); } catch {}
+                    return reject(new Error(`score_ranker.py exit ${code}: ${stderr.slice(0, 2000)}`));
+                }
                 try { unlinkSync(tempFile); } catch {}
-                if (code !== 0) return reject(new Error(`score_ranker.py exit ${code}: ${stderr}`));
                 try { resolve(JSON.parse(stdout)); } catch (e) { reject(new Error('Invalid JSON from score_ranker.py: ' + String(e))); }
             });
         } catch (err) {

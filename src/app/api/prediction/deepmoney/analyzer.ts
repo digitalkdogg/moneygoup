@@ -2,6 +2,7 @@ import { createLogger } from '@/utils/logger';
 import { getStockDataForPrediction, runPredictionInternal } from '@/utils/stockDataHelper';
 import { calculateGpsScore } from '@/utils/gps';
 import { fetchRankerSharedMacro, scoreWithRanker, type RankerScoreMap } from '@/utils/rankerInference';
+import { runLightModelFilter } from '@/utils/lightModelFilter';
 
 const logger = createLogger('api/prediction/deepmoney/analyzer');
 
@@ -131,7 +132,13 @@ export async function analyzeStocks(
     stocks: EnrichedStock[],
     sharedContext?: { wbData?: any, marketIndices?: any },
     options: AnalyzeOptions = {},
-): Promise<EnrichedStock[]> {
+): Promise<{
+    stocks: EnrichedStock[];
+    rankerSurvivorCount:     number;
+    rankerFellThrough:       boolean;
+    lightModelPassedCount:   number;
+    lightModelFilteredCount: number;
+}> {
     const outlook                   = options.outlook                   ?? '1_month';
     const mlGate                    = options.mlGate                    ?? 1.5;
     const rankerKeepPct             = options.rankerKeepPct             ?? 0.25;
@@ -166,7 +173,13 @@ export async function analyzeStocks(
     });
 
     if (initialFilteredStocks.length === 0 && trendingPreFiltered.length === 0) {
-        return [];
+        return {
+            stocks: [],
+            rankerSurvivorCount:     0,
+            rankerFellThrough:       false,
+            lightModelPassedCount:   0,
+            lightModelFilteredCount: 0,
+        };
     }
 
     // ─── Phase 1 — fetch OHLCV payloads for every candidate stock ──────────
@@ -221,6 +234,7 @@ export async function analyzeStocks(
 
     // ─── Phase 3 — hard cut at the top rankerKeepPct fraction ──────────────
     let rankerSurvivors: EnrichedStock[];
+    let rankerFellThrough = false;
     if (rankerScores.size > 0) {
         const ranked = initialFilteredStocks
             .map(s => {
@@ -236,6 +250,12 @@ export async function analyzeStocks(
     } else {
         // Degraded fall-through (see Phase 2 catch).
         rankerSurvivors = initialFilteredStocks;
+        rankerFellThrough = true;
+        logger.warn(
+            `Ranker fell through — no ranker scores returned. ` +
+            `All ${rankerSurvivors.length} initialFilteredStocks passed to light model. ` +
+            `rankerKeepPct=${rankerKeepPct} was NOT applied.`
+        );
     }
 
     // ─── Phase 3b — analyst-strongBuy override lane ────────────────────────
@@ -282,7 +302,46 @@ export async function analyzeStocks(
         logger.info(`Sector-leader override added ${sectorLeaderOverrideStocks.length} stocks (out of ${sectorLeaderTickers.size} stale leaders)`);
     }
 
-    const survivors = [...rankerSurvivors, ...analystOverrideStocks, ...trendingOverrideStocks, ...sectorLeaderOverrideStocks];
+    // ─── Phase 3.5 — Light Model Filter (CS model pre-filter) ─────────────
+    // Gated behind DEEPMONEY_LIGHT_FILTER_ENABLED — defaults to ON.
+    // Set DEEPMONEY_LIGHT_FILTER_ENABLED=false to bypass (only takes 'false'
+    // literally; any other value or unset keeps it on).
+    //
+    // Runs the CS model on all ranker survivors in a single subprocess
+    // (~50-200ms per ticker, no TF/Keras cold start). Stocks the model
+    // predicts negative for 6m are dropped before Phase 4 Monte Carlo.
+    // Override lanes (analyst, trending, sector-leaders) bypass this step.
+    //
+    // Known caveat: the CS model can saturate on stocks outside the training
+    // distribution — grep the dev-server log for
+    // "Light model per-ticker 6m predictions:" to sanity-check output. If big
+    // names like AAPL/MSFT show up filtered at -60% ranges, disable this and
+    // retrain the CS model before re-enabling.
+    const lightFilterEnabled = process.env.DEEPMONEY_LIGHT_FILTER_ENABLED !== 'false';
+    let lightModelSurvivors: EnrichedStock[];
+    let lightModelFilteredCount = 0;
+    if (lightFilterEnabled) {
+        const lightModelResults = await runLightModelFilter(rankerSurvivors, payloads);
+        lightModelSurvivors = rankerSurvivors.filter(s => {
+            const r = lightModelResults.get(s.ticker);
+            return r ? r.passed : true;  // fail-open: missing result → treat as passed
+        });
+        lightModelFilteredCount = rankerSurvivors.length - lightModelSurvivors.length;
+        if (lightModelFilteredCount > 0) {
+            logger.info(
+                `Phase 3.5 (light model): ${lightModelSurvivors.length}/${rankerSurvivors.length} ` +
+                `survive (${lightModelFilteredCount} filtered by CS model)`
+            );
+        }
+    } else {
+        lightModelSurvivors = rankerSurvivors;
+        logger.info(
+            `Phase 3.5 (light model): DISABLED via DEEPMONEY_LIGHT_FILTER_ENABLED=false — ` +
+            `passing all ${rankerSurvivors.length} ranker survivors straight to Phase 4.`
+        );
+    }
+
+    const survivors = [...lightModelSurvivors, ...analystOverrideStocks, ...trendingOverrideStocks, ...sectorLeaderOverrideStocks];
 
     // ─── Phase 4 — Monte Carlo + GPS-Full on ranker survivors only ─────────
     const filteredStocks: EnrichedStock[] = [];
@@ -433,5 +492,11 @@ export async function analyzeStocks(
     // Suppress unused-param warnings for variables retained for future use.
     void outlook;
 
-    return filteredStocks;
+    return {
+        stocks: filteredStocks,
+        rankerSurvivorCount:     rankerSurvivors.length,
+        rankerFellThrough,
+        lightModelPassedCount:   lightModelSurvivors.length,
+        lightModelFilteredCount,
+    };
 }

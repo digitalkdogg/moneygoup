@@ -198,6 +198,15 @@ def sync_deepmoney():
             print(f"  [debug] History Rejected (<100d): {debug.get('rejectedHistory')}")
             print(f"  [debug] Passed to Analyzer: {debug.get('passedToAnalyzer')}")
             print(f"  [debug] Rejected by Ranker: {debug.get('rejectedByRanker')}")
+            rs = debug.get('rankerSurvivorCount')
+            rf = debug.get('rankerFellThrough')
+            if rs is not None:
+                tag = "  [!! FELL THROUGH]" if rf else ""
+                print(f"  [debug] Ranker Survivors: {rs}{tag}")
+            lm_p = debug.get('lightModelPassed')
+            lm_f = debug.get('lightModelFiltered')
+            if lm_p is not None:
+                print(f"  [debug] Light Model: {lm_p} passed, {lm_f} filtered")
             print(f"  [debug] Final Filtered Count: {debug.get('filteredCount')}")
             print(f"  [debug] ETF Holdings Surfaced: {meta.get('etfHoldingsSurfacedCount')}")
             print(f"  [debug] Popular-ETF Holdings Merged: {meta.get('etfPopularHoldingsCount')}")
@@ -750,6 +759,16 @@ def _print_run_summary(
     print(f"    Rejected on history (<100 days): {_fmt_int(debug.get('rejectedHistory'))}")
     print(f"    Passed to analyzer:              {_fmt_int(debug.get('passedToAnalyzer'))}")
     print(f"    Rejected by ranker:              {_fmt_int(debug.get('rejectedByRanker'))}")
+    ranker_survivors = debug.get('rankerSurvivorCount')
+    ranker_fellthrough = debug.get('rankerFellThrough')
+    if ranker_survivors is not None:
+        tag = "  [FELL THROUGH — ranker inactive]" if ranker_fellthrough else ""
+        print(f"    Ranker survivors → light model:  {_fmt_int(ranker_survivors)}{tag}")
+    lm_passed   = debug.get('lightModelPassed')
+    lm_filtered = debug.get('lightModelFiltered')
+    if lm_passed is not None:
+        print(f"    Light model passed:              {_fmt_int(lm_passed)}")
+        print(f"    Light model filtered:            {_fmt_int(lm_filtered)}")
     print(f"    Surfaced by API:                 {_fmt_int(counters.get('stocks_in_api_resp'))}")
 
     # ── Trending-48h override lane ─────────────────────────────────────────
@@ -775,6 +794,9 @@ def _print_run_summary(
             print(f"    Companies extracted:             {_fmt_int(ollama_pass.get('companiesFound'))}")
             print(f"    Industries extracted:            {_fmt_int(ollama_pass.get('industriesFound'))}")
             print(f"    Tickers resolved (merged):       {_fmt_int(ollama_pass.get('tickersResolved'))}")
+            rejected = ollama_pass.get('tickersRejected')
+            if rejected is not None:
+                print(f"    Tickers rejected by verifier:    {_fmt_int(rejected)}")
             # Item 5 — event-type classification. Absent from older API
             # responses that predate the classifier.
             dominant = ollama_pass.get('dominantEventByTicker') or {}

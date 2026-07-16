@@ -894,7 +894,7 @@ export async function GET(request: NextRequest) {
         // merged into allTickersSet so they flow through the same enrichment
         // and ranker gates as everything else.
         let ollamaResult: OllamaPassResult | null = null;
-        if (isOllamaEnabled()) {
+        if (isOllamaEnabled() && process.env.DEEPMONEY_NER_ENABLED === 'true') {
             // Pass rich article records (RSS only) so ollamaTickerPass can
             // return per-article event_types aligned to the input, letting us
             // persist news rows with their extracted event_type below.
@@ -986,7 +986,13 @@ export async function GET(request: NextRequest) {
         // analyst-strongBuy override lane (threshold also scaled by the
         // algorithm level — higher level surfaces more). All survivors then
         // run through Monte Carlo and the outlook-driven prediction gate.
-        const filteredStocks = await analyzeStocks(
+        const {
+            stocks: filteredStocks,
+            rankerSurvivorCount,
+            rankerFellThrough,
+            lightModelPassedCount,
+            lightModelFilteredCount,
+        } = await analyzeStocks(
             enrichedStocks,
             { wbData, marketIndices },
             {
@@ -1031,6 +1037,7 @@ export async function GET(request: NextRequest) {
                     companiesFound:  ollamaResult.companiesFound,
                     industriesFound: ollamaResult.industriesFound,
                     tickersResolved: ollamaResult.tickersResolved,
+                    tickersRejected: ollamaResult.tickersRejected,
                     // Item 5 — event-type classification. Absent when Ollama
                     // was off. Consumers (deepmoney_sync.py, future ranker
                     // feature) look for dominantEventByTicker to attribute
@@ -1044,6 +1051,10 @@ export async function GET(request: NextRequest) {
                     rejectedHistory: enrichedStocks.filter(s => !s.error && s.tradingSignalScore !== undefined && s.tradingSignalScore >= algorithm.signalScoreFloor && s.historyRows < 100).length,
                     passedToAnalyzer: enrichedStocks.filter(s => !s.error && s.tradingSignalScore !== undefined && s.tradingSignalScore >= algorithm.signalScoreFloor && s.historyRows >= 100).length,
                     rejectedByRanker: enrichedStocks.filter(s => !s.error && s.tradingSignalScore !== undefined && s.tradingSignalScore >= algorithm.signalScoreFloor && s.historyRows >= 100).length - filteredStocks.length,
+                    rankerSurvivorCount,
+                    rankerFellThrough,
+                    lightModelPassed:   lightModelPassedCount,
+                    lightModelFiltered: lightModelFilteredCount,
                     filteredCount: filteredStocks.length,
                     predictionThreshold: `${mlGate}%`,
                     analystConsensusSurfaced: filteredStocks.filter(s => s.discovery_source === 'analyst_consensus').length,

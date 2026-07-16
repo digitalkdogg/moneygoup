@@ -72,6 +72,9 @@ export interface OllamaPassResult {
     companiesFound: number;
     industriesFound: number;
     tickersResolved: number;
+    /** Count of (company → candidate-symbol) pairs the verifier rejected.
+     *  Zero when Ollama was off/unreachable or no candidates were wrong. */
+    tickersRejected: number;
     tickers:        Set<string>;
     /** Item 5 — per-ticker counts of event types seen across the articles
      *  that mentioned each ticker in this run. Empty when Ollama was off. */
@@ -192,13 +195,55 @@ async function resolveCompaniesToTickerMap(companies: string[]): Promise<Map<str
         const results = await Promise.allSettled(slice.map(name => resolveSingleCompany(name)));
         for (let j = 0; j < results.length; j++) {
             const r = results[j];
-            if (r.status === 'fulfilled' && r.value) map.set(slice[j], r.value);
+            if (r.status === 'fulfilled' && r.value) map.set(slice[j], r.value.symbol);
         }
     }
     return map;
 }
 
-async function resolveSingleCompany(name: string): Promise<string | null> {
+const TICKER_VERIFICATION_PROMPT = `You are verifying whether a news article's company mention refers to a specific publicly-traded company.
+
+Company mentioned in article: "{companyName}"
+Candidate match: {longName} ({symbol})
+
+Article excerpt:
+{articleSlice}
+
+Question: Does "{companyName}" in this article refer to {longName} ({symbol})?
+
+Respond ONLY with valid JSON — no other text:
+{"match": true}   if yes, this is the same company
+{"match": false}  if no, this is a different company`;
+
+/**
+ * Ask Ollama to verify that a Yahoo-resolved candidate ticker actually matches
+ * the company as discussed in the article. Returns true (accept) on any
+ * Ollama failure so heuristic-only behavior is preserved when the LLM is down.
+ */
+export async function verifyTickerMatch(
+    articleSlice: string,
+    companyName: string,
+    candidateSymbol: string,
+    longName: string,
+): Promise<boolean> {
+    const prompt = TICKER_VERIFICATION_PROMPT
+        .replace('{companyName}', companyName)
+        .replace('{longName}', longName)
+        .replace('{symbol}', candidateSymbol)
+        .replace('{articleSlice}', articleSlice.slice(0, 800));
+
+    const result = await generateJson<{ match?: unknown }>(prompt, { numPredict: 20 });
+    if (result === null) return true; // fail-open: Ollama unavailable → trust heuristic
+    const m = result?.match;
+    if (typeof m === 'boolean') return m;
+    if (typeof m === 'string') {
+        const s = m.trim().toLowerCase();
+        return s === 'true' || s === 'yes';
+    }
+    return true; // unknown shape → accept
+}
+
+async function resolveSingleCompany(name: string): Promise<{symbol: string; longName: string} | null> {
     try {
         const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(name)}&quotesCount=3&newsCount=0`;
         const res = await fetch(url, {
@@ -220,7 +265,8 @@ async function resolveSingleCompany(name: string): Promise<string | null> {
             if (quoteType !== 'EQUITY' && quoteType !== 'ETF') continue;
             if (!US_EXCHANGES.has(exchange)) continue;
 
-            const longName = (q?.longname || q?.shortname || '').toLowerCase();
+            const rawLong = q?.longname || q?.shortname || '';
+            const longName = rawLong.toLowerCase();
             if (!longName) continue;
 
             // Accept when either name contains the other, OR the result name
@@ -231,13 +277,88 @@ async function resolveSingleCompany(name: string): Promise<string | null> {
                 lowerName.includes(longName) ||
                 (queryFirstWord && longName.startsWith(queryFirstWord))
             ) {
-                return sym;
+                return { symbol: sym, longName: rawLong };
             }
         }
         return null;
     } catch {
         return null;
     }
+}
+
+/**
+ * Resolve company names to tickers, then verify each candidate against its
+ * source article using Ollama. Rejected matches are logged and counted.
+ * When doVerify=false, behaves identically to the old heuristic-only path.
+ */
+async function resolveAndVerifyMap(
+    companies: string[],
+    articleSliceByCompany: Map<string, string>,
+    doVerify: boolean,
+): Promise<{ map: Map<string, string>; tickersRejected: number }> {
+    const seen = new Set<string>();
+    const cleaned: string[] = [];
+    for (const c of companies) {
+        const trimmed = c.trim();
+        if (trimmed.length < 2) continue;
+        const k = trimmed.toLowerCase();
+        if (seen.has(k)) continue;
+        seen.add(k);
+        cleaned.push(trimmed);
+    }
+
+    // Step 1: Yahoo resolution — same batch size as before.
+    type Candidate = { company: string; symbol: string; longName: string; articleSlice: string };
+    const candidates: Candidate[] = [];
+    const BATCH = 5;
+    for (let i = 0; i < cleaned.length; i += BATCH) {
+        const slice = cleaned.slice(i, i + BATCH);
+        const results = await Promise.allSettled(slice.map(n => resolveSingleCompany(n)));
+        for (let j = 0; j < results.length; j++) {
+            const r = results[j];
+            if (r.status === 'fulfilled' && r.value) {
+                candidates.push({
+                    company:      slice[j],
+                    symbol:       r.value.symbol,
+                    longName:     r.value.longName,
+                    articleSlice: articleSliceByCompany.get(slice[j]) ?? '',
+                });
+            }
+        }
+    }
+
+    // Step 2: Ollama verification — batched at OLLAMA_CONCURRENCY.
+    const map = new Map<string, string>();
+    let tickersRejected = 0;
+
+    if (!doVerify || candidates.length === 0) {
+        for (const c of candidates) map.set(c.company, c.symbol);
+        return { map, tickersRejected: 0 };
+    }
+
+    for (let i = 0; i < candidates.length; i += OLLAMA_CONCURRENCY) {
+        const batch = candidates.slice(i, i + OLLAMA_CONCURRENCY);
+        const checks = await Promise.allSettled(
+            batch.map(c => verifyTickerMatch(c.articleSlice, c.company, c.symbol, c.longName))
+        );
+        for (let j = 0; j < batch.length; j++) {
+            const c = batch[j];
+            const check = checks[j];
+            const accepted = check.status === 'fulfilled' ? check.value : true;
+            if (accepted) {
+                map.set(c.company, c.symbol);
+            } else {
+                tickersRejected++;
+                logger.info('Ticker rejected by verifier', {
+                    companyName:    c.company,
+                    rejectedSymbol: c.symbol,
+                    longName:       c.longName,
+                });
+            }
+        }
+    }
+
+    return { map, tickersRejected };
 }
 
 export function resolveIndustriesToTickers(industries: string[]): Set<string> {
@@ -269,6 +390,7 @@ export async function ollamaTickerPass(input: string[] | OllamaArticle[]): Promi
         companiesFound: 0,
         industriesFound: 0,
         tickersResolved: 0,
+        tickersRejected: 0,
         tickers: new Set<string>(),
         eventTypeCounts: {},
         dominantEventByTicker: {},
@@ -302,6 +424,9 @@ export async function ollamaTickerPass(input: string[] | OllamaArticle[]): Promi
 
     const allCompanies  = new Set<string>();
     const allIndustries = new Set<string>();
+    // Maps each company name to the first article slice (≤800 chars) that
+    // mentioned it. Used by the ticker-verifier pass to check candidate symbols.
+    const companyArticleSlice = new Map<string, string>();
     // Item 5 — per-company list of event types seen across all articles that
     // mentioned it. The company → ticker resolution happens after this loop;
     // once we have (company, ticker) pairs we can roll counts up to tickers.
@@ -317,8 +442,15 @@ export async function ollamaTickerPass(input: string[] | OllamaArticle[]): Promi
             const r = results[j];
             if (r.status !== 'fulfilled' || !r.value) continue;
             const { companies, related, industries, event_type } = r.value;
-            for (const c of companies)  allCompanies.add(c);
-            for (const c of related)    allCompanies.add(c);
+            const slice = (deduped[i + j]?.text || '').slice(0, 800);
+            for (const c of companies) {
+                allCompanies.add(c);
+                if (!companyArticleSlice.has(c)) companyArticleSlice.set(c, slice);
+            }
+            for (const c of related) {
+                allCompanies.add(c);
+                if (!companyArticleSlice.has(c)) companyArticleSlice.set(c, slice);
+            }
             for (const ind of industries) allIndustries.add(ind);
 
             // Only track event_type when the LLM returned a valid enum value.
@@ -335,7 +467,11 @@ export async function ollamaTickerPass(input: string[] | OllamaArticle[]): Promi
         }
     }
 
-    const companyTickerMap = await resolveCompaniesToTickerMap(Array.from(allCompanies));
+    const { map: companyTickerMap, tickersRejected } = await resolveAndVerifyMap(
+        Array.from(allCompanies),
+        companyArticleSlice,
+        reachable,
+    );
     const industryTickers  = resolveIndustriesToTickers(Array.from(allIndustries));
 
     const merged = new Set<string>();
@@ -355,6 +491,7 @@ export async function ollamaTickerPass(input: string[] | OllamaArticle[]): Promi
         companies: allCompanies.size,
         industries: allIndustries.size,
         tickers: merged.size,
+        tickersRejected,
         tickersWithEventType: Object.keys(dominantEventByTicker).length,
     });
 
@@ -365,6 +502,7 @@ export async function ollamaTickerPass(input: string[] | OllamaArticle[]): Promi
         companiesFound: allCompanies.size,
         industriesFound: allIndustries.size,
         tickersResolved: merged.size,
+        tickersRejected,
         tickers: merged,
         eventTypeCounts,
         dominantEventByTicker,
