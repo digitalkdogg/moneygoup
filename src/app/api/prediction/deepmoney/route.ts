@@ -778,7 +778,8 @@ async function enrichTickers(tickers: string[]) {
                     tradingSignal: tech?.signal || 'Hold',
                     tradingSignalScore: tech?.scoreBreakdown.totalScore || 0,
                     signalStrength: tech?.signalStrength || 0,
-                    sector: profile.sector || 'Unknown'
+                    sector: profile.sector || 'Unknown',
+                    industry: profile.industry || null
                     };            } catch (err) {
 
                 logger.warn(`Failed to enrich ${ticker}`, { error: String(err) });

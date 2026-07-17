@@ -552,7 +552,7 @@ vix_conf_mult   = max(0, 1.0 - stress * beta_absorb)
       <h2><span class="step-num">1</span> User Interaction</h2>
       <div class="step-card">
         <div class="component-tag">Frontend: StockSignalPanel.tsx + StockPrediction.tsx</div>
-        <p>The prediction workflow is initiated from the single-ticker view (<code>/search/[ticker]</code>). Requires 45 trading days of sequence context (Python enforces this) and 365 days minimum of history (Node route enforces this). Supports short-lived server-side caching.</p>
+        <p>The prediction workflow is initiated from the single-ticker view (<code>/search/[ticker]</code>). Requires 45 trading days of sequence context (Python enforces this) and 200 days minimum of history (Node route enforces this). Supports short-lived server-side caching.</p>
 
         <h4>Prediction Cards (v3.3+)</h4>
         <table>
@@ -580,7 +580,7 @@ vix_conf_mult   = max(0, 1.0 - stress * beta_absorb)
         <div class="component-tag">GET /api/stock_data/[ticker]/data — route.ts</div>
         <p>Assembles a 5-year multi-dimensional dataset (~1,260 rows) that the Python script consumes as a single JSON payload. The script never makes outbound network calls itself.</p>
         <div class="grid">
-          <div class="mini-card"><h4>Historical OHLCV</h4><p style="font-size:.82rem;">5 years daily OHLCV from <code>yahooFinance.chart()</code>. Minimum 365 days enforced.</p></div>
+          <div class="mini-card"><h4>Historical OHLCV</h4><p style="font-size:.82rem;">5 years daily OHLCV from <code>yahooFinance.chart()</code>. Minimum 200 days enforced.</p></div>
           <div class="mini-card"><h4>Fundamentals &amp; Analyst Targets</h4><p style="font-size:.82rem;">PE, PB, margins, debt/equity, ROE, analyst target mean/median/high/low. Missing values imputed from sector medians.</p></div>
           <div class="mini-card"><h4>Options Market Data</h4><p style="font-size:.82rem;">IV, IV Rank, Put/Call Ratio.</p></div>
           <div class="mini-card"><h4>Earnings Surprises</h4><p style="font-size:.82rem;">EPS and revenue surprise % averaged over last 4 quarters.</p></div>

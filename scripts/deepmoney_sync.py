@@ -7,6 +7,9 @@ import mysql.connector
 from datetime import datetime
 from dotenv import load_dotenv
 from prediction_recorder import record_prediction
+# Reuse the exact size-bucket + search_tsv logic the backfill uses so a stock
+# discovered by DeepMoney is indexed identically to one populated retroactively.
+from backfill_stock_search import size_bucket_for, build_search_tsv
 
 # Force line-buffered stdout so progress lines appear in real time when the
 # script is piped (e.g. `python3 ... | tee log.txt`). Without this, Python
@@ -47,6 +50,52 @@ WB_API_URL = f"{INTERNAL_API_URL}/api/worldbank"
 # the regular ranker-survivor path and the sector-leader fast path, so these
 # stocks never reach recommended_stocks or stock_gps_scores.
 PRICE_CEILING_USD = 100_000
+
+
+def upsert_stock_with_search_fields(cursor, ticker, company_name, price,
+                                    market_cap, sector, industry):
+    """Ensure `stocks` has a row for `ticker` with search-index fields populated.
+
+    Returns the row's `stock_id`. Newly-inserted rows get sector/industry/
+    size_bucket/search_tsv set immediately so the ticker is searchable via
+    /api/search on the very next request — no waiting for a backfill run.
+    Existing rows get their search fields refreshed when we have fresh values
+    (market_cap can move a stock between size buckets over time).
+    """
+    bucket, size_tokens = size_bucket_for(market_cap)
+    tsv = build_search_tsv(ticker, company_name, sector, industry, size_tokens)
+
+    cursor.execute("SELECT id FROM stocks WHERE symbol = %s", (ticker,))
+    row = cursor.fetchone()
+    if row:
+        stock_id = row[0]
+        cursor.execute(
+            """
+            UPDATE stocks
+               SET company_name = COALESCE(%s, company_name),
+                   price        = COALESCE(%s, price),
+                   market_cap   = COALESCE(%s, market_cap),
+                   sector       = COALESCE(%s, sector),
+                   industry     = COALESCE(%s, industry),
+                   size_bucket  = COALESCE(%s, size_bucket),
+                   search_tsv   = %s
+             WHERE id = %s
+            """,
+            (company_name, price, market_cap, sector, industry, bucket, tsv, stock_id),
+        )
+        return stock_id
+
+    cursor.execute(
+        """
+        INSERT INTO stocks
+            (symbol, company_name, price, market_cap,
+             sector, industry, size_bucket, search_tsv)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """,
+        (ticker, company_name, price, market_cap, sector, industry, bucket, tsv),
+    )
+    return cursor.lastrowid
+
 
 # Global cache for market indices
 _indices_cache = None
@@ -396,17 +445,15 @@ def sync_deepmoney():
                 # feeds take this path regardless of vol-gate outcome —
                 # bearish trending stocks must not pollute recommended_stocks.
                 label = "sector-leader" if is_sector_leader else "trending-48h"
-                cursor.execute("SELECT id FROM stocks WHERE symbol = %s", (ticker,))
-                stock_row = cursor.fetchone()
-                if stock_row:
-                    stock_id = stock_row[0]
-                else:
-                    print(f"    - [{label}] Adding {ticker} to stocks table...")
-                    cursor.execute(
-                        "INSERT INTO stocks (symbol, company_name, price) VALUES (%s, %s, %s)",
-                        (ticker, s.get('name'), s.get('price'))
-                    )
-                    stock_id = cursor.lastrowid
+                stock_id = upsert_stock_with_search_fields(
+                    cursor,
+                    ticker,
+                    s.get('name'),
+                    s.get('price'),
+                    s.get('marketCap'),
+                    s.get('sector'),
+                    s.get('industry'),
+                )
                 cursor.execute("""
                     INSERT INTO stock_gps_scores (stock_id, as_of, gps_score, gps_breakdown, source)
                     VALUES (%s, NOW(), %s, %s, 'deepmoney_sync')
@@ -482,17 +529,15 @@ def sync_deepmoney():
 
             # 5. Ensure stock exists in 'stocks' table and persist GPS score for ALL
             #    qualifying stocks (those that passed the ML gate and volatility gate above).
-            cursor.execute("SELECT id FROM stocks WHERE symbol = %s", (ticker,))
-            stock_row = cursor.fetchone()
-            if stock_row:
-                stock_id = stock_row[0]
-            else:
-                print(f"    - Adding {ticker} to stocks table...")
-                cursor.execute(
-                    "INSERT INTO stocks (symbol, company_name, price) VALUES (%s, %s, %s)",
-                    (ticker, name, price)
-                )
-                stock_id = cursor.lastrowid
+            stock_id = upsert_stock_with_search_fields(
+                cursor,
+                ticker,
+                name,
+                price,
+                s.get('marketCap'),
+                s.get('sector'),
+                s.get('industry'),
+            )
 
             # GPS score upsert — always, not gated on dashboard threshold
             cursor.execute(

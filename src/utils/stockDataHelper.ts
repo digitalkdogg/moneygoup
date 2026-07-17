@@ -35,8 +35,8 @@ export async function getStockDataForPrediction(ticker: string, wbData?: any) {
     volume: (r.volume as number) ?? 0,
   }));
 
-  if (historicalData.length < 365) {
-  throw new Error(`Insufficient data for ${ticker}: ${historicalData.length} rows, need >= 365.`);
+  if (historicalData.length < 200) {
+  throw new Error(`Insufficient data for ${ticker}: ${historicalData.length} rows, need >= 200.`);
   }
 
   const price = (summary as any).price || {};

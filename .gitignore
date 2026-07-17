@@ -23,3 +23,7 @@ models/long_term_cs_v2.keras
 models/long_term_cs_v2.pkl
 models/long_term_cs_v2_manifest.json
 package-lock.json
+/models/backups
+models/long_term_cs_v2.keras
+models/long_term_cs_v2.pkl
+models/long_term_cs_v2_manifest.json

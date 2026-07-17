@@ -84,7 +84,7 @@ export async function POST(
     return NextResponse.json({ message: 'Invalid JSON' }, { status: 400 });
   }
 
-  if (!body.historicalData || !Array.isArray(body.historicalData) || body.historicalData.length < 365) {
+  if (!body.historicalData || !Array.isArray(body.historicalData) || body.historicalData.length < 200) {
     return validationErrorResponse('Insufficient historical data');
   }
 

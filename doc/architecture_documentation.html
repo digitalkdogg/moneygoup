@@ -441,7 +441,7 @@ doc/                               All HTML documentation files</pre>
         <div style="margin-top:1rem;">
           <ol class="flow-steps">
             <li><strong>Step 1 — Data fetch:</strong> <code>StockPrediction</code> component calls <code>GET /api/stock_data/{ticker}/data</code>, which assembles an enriched payload (historical prices, fundamentals, technicals, analyst data, macro context) formatted for the Python model. Result cached in <code>stockDataCache</code>.</li>
-            <li><strong>Step 2 — Model run:</strong> Component POSTs the payload to <code>POST /api/prediction/{ticker}</code>. Route checks <code>predictionCache</code> first. If no cache hit, validates ≥365 days history, then acquires a semaphore slot to cap concurrent Python spawns.</li>
+            <li><strong>Step 2 — Model run:</strong> Component POSTs the payload to <code>POST /api/prediction/{ticker}</code>. Route checks <code>predictionCache</code> first. If no cache hit, validates ≥200 days history, then acquires a semaphore slot to cap concurrent Python spawns.</li>
             <li><strong>Python execution:</strong> <code>child_process.spawn</code> runs <code>scripts/predict_weighted_analysis.py</code>, passing the JSON payload via stdin. The script outputs prediction JSON to stdout.</li>
             <li><strong>Result handling:</strong> Route caches the result in <code>predictionCache</code> and fires an async POST to <code>/api/prediction/save</code> to persist the result in <code>user_stock_predictions</code>.</li>
             <li><strong>Display:</strong> <code>StockPrediction</code> renders 4 horizon cards (1W/1M/3M/6M), an SVG trajectory chart with confidence bands, and a metric analysis accordion.</li>
@@ -471,7 +471,7 @@ doc/                               All HTML documentation files</pre>
             <tr><td>LimitService lookup quota</td><td>429 if user's daily lookups exhausted</td></tr>
             <tr><td>30-second per-user-per-ticker cooldown</td><td>Returns cached result immediately within window</td></tr>
             <tr><td>predictionCache</td><td>In-memory cache; returns stale prediction if fresh enough</td></tr>
-            <tr><td>Minimum history validation</td><td>422 if fewer than 365 days of historical prices available</td></tr>
+            <tr><td>Minimum history validation</td><td>422 if fewer than 200 days of historical prices available</td></tr>
             <tr><td>predictionSemaphore</td><td>Caps concurrent Python subprocesses to prevent server overload</td></tr>
           </tbody>
         </table>

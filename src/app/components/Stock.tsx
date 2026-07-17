@@ -1140,7 +1140,7 @@ export default function Stock({
             <div className="flex items-center justify-between mb-4">
               <h2 className="section-heading" style={{ marginBottom: 0 }}>Analyst Sentiment & Targets</h2>
               {analystGrade && (
-                <div className="flex items-center gap-3">
+                <div className="flex flex-col items-end gap-3 sm:flex-row sm:items-center sm:gap-3">
                   <span className={`text-3xl font-bold px-4 py-1 rounded-xl border-2 ${gradeColor(analystGrade.grade)}`}>
                     {analystGrade.grade}
                   </span>
@@ -1450,7 +1450,7 @@ export default function Stock({
               {/* Analyst Sentiment & Price Targets */}
               {data.analyst && (
                 <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-6 section-analyst-sentiment-targets">
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center justify-between mb-4 gap-4">
                     <h3 className="text-xl font-semibold text-gray-800">📊 Analyst Sentiment & Targets</h3>
                     {analystGrade && (
                       <div className="flex items-center gap-2">

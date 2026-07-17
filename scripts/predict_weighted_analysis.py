@@ -183,8 +183,8 @@ def predict(ticker, input_data):
                         'close': 'Close', 'volume': 'Volume', 'date': 'Date'},
               inplace=True)
 
-    if len(df) < 365:
-        raise ValueError(f"Insufficient data: {len(df)} rows, need >= 365.")
+    if len(df) < 200:
+        raise ValueError(f"Insufficient data: {len(df)} rows, need >= 200.")
 
     # Ensure numeric columns are actually numeric
     for col in ['Open', 'High', 'Low', 'Close', 'Volume']:

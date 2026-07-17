@@ -703,7 +703,7 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
             <tr><td>Approval guard</td><td>Rejects suspended accounts even with valid session</td></tr>
             <tr><td>LimitService lookup quota</td><td>403 LIMIT_EXCEEDED if daily lookup count exceeded</td></tr>
             <tr><td><code>predictionCache</code> check</td><td>Returns cached prediction if <code>?refresh=true</code> not set (still re-runs GPS for the requester's horizon)</td></tr>
-            <tr><td>Historical data validation</td><td>422 if fewer than 365 days of <code>historicalData</code></td></tr>
+            <tr><td>Historical data validation</td><td>422 if fewer than 200 days of <code>historicalData</code></td></tr>
             <tr><td><code>predictionSemaphore</code></td><td>Caps concurrent Python subprocesses; 503 Busy if full</td></tr>
           </tbody>
         </table>

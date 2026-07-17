@@ -46,6 +46,7 @@ export interface EnrichedStock {
     gps_score?: number;
     classification?: string;
     sector?: string;
+    industry?: string | null;
     prediction_input?: any;
     /** Why this stock made the cut. 'v2_engine' = passed the LightGBM ranker
      *  filter AND the mlGate. 'analyst_consensus' = bypassed the ranker via
@@ -321,7 +322,7 @@ export async function analyzeStocks(
     let lightModelSurvivors: EnrichedStock[];
     let lightModelFilteredCount = 0;
     if (lightFilterEnabled) {
-        const lightModelResults = await runLightModelFilter(rankerSurvivors, payloads);
+        const lightModelResults = await runLightModelFilter(rankerSurvivors, payloads, -50);
         lightModelSurvivors = rankerSurvivors.filter(s => {
             const r = lightModelResults.get(s.ticker);
             return r ? r.passed : true;  // fail-open: missing result → treat as passed
