@@ -383,7 +383,7 @@
             <!-- STOCKS -->
             <div id="stocks" class="table-card">
                 <div class="table-title">stocks</div>
-                <p>The master list of all stock tickers tracked by the system.</p>
+                <p>The master list of all stock tickers tracked by the system. Also serves as the search index for <code>/api/search</code> — the <code>sector</code>, <code>industry</code>, <code>size_bucket</code>, and <code>search_tsv</code> columns feed the FULLTEXT index that lets users search by category (e.g. "Large Retail" → WMT) in addition to ticker/company name.</p>
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
@@ -393,10 +393,21 @@
                         <tr><td><code>price</code></td><td><code>DECIMAL(10,2)</code></td><td>Nullable. Last cached price.</td></tr>
                         <tr><td><code>pe_ratio</code></td><td><code>DECIMAL(10,2)</code></td><td>Nullable. Trailing P/E ratio cache.</td></tr>
                         <tr><td><code>pb_ratio</code></td><td><code>DECIMAL(10,2)</code></td><td>Nullable. Price-to-book ratio cache.</td></tr>
-                        <tr><td><code>market_cap</code></td><td><code>BIGINT</code></td><td>Nullable. Market cap (raw dollars).</td></tr>
+                        <tr><td><code>market_cap</code></td><td><code>BIGINT</code></td><td>Nullable. Market cap (raw dollars). Also drives <code>size_bucket</code> classification.</td></tr>
+                        <tr><td><code>sector</code></td><td><code>VARCHAR(64)</code></td><td>Nullable. Yahoo <code>assetProfile.sector</code> (one of the 11 canonical sectors — see <code>src/utils/sectorTaxonomy.ts</code>). Populated by <code>scripts/backfill_stock_search.py</code>.</td></tr>
+                        <tr><td><code>industry</code></td><td><code>VARCHAR(128)</code></td><td>Nullable. Yahoo <code>assetProfile.industry</code> (e.g. "Discount Stores", "Semiconductors"). Populated by <code>scripts/backfill_stock_search.py</code>.</td></tr>
+                        <tr><td><code>size_bucket</code></td><td><code>ENUM</code></td><td>Nullable. <code>'mega' | 'large' | 'mid' | 'small' | 'micro' | 'nano'</code>. Derived from <code>market_cap</code> at backfill time using standard US-market thresholds (mega ≥ $200B, large ≥ $10B, mid ≥ $2B, small ≥ $300M, micro ≥ $50M, else nano). Indexed jointly with <code>sector</code> for category+size drill-down.</td></tr>
+                        <tr><td><code>search_tsv</code></td><td><code>TEXT</code></td><td>Nullable. Denormalized synonym blob feeding the FULLTEXT index — includes symbol, name, sector, industry, size synonyms ("mega-cap large big major giant"), and industry keyword expansions ("Discount Stores" → "retail shopping stores"). Regenerated in full by the backfill script; see <code>INDUSTRY_SYNONYMS</code> and <code>SIZE_THRESHOLDS</code> in <code>scripts/backfill_stock_search.py</code>.</td></tr>
                         <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Default CURRENT_TIMESTAMP.</td></tr>
                     </tbody>
                 </table>
+                <p style="margin-top:.75rem;"><strong>Indexes:</strong></p>
+                <ul style="margin-top:.25rem;">
+                    <li><code>ft_stocks_search</code> — FULLTEXT on (<code>symbol</code>, <code>company_name</code>, <code>sector</code>, <code>industry</code>, <code>search_tsv</code>). Consumed by <code>/api/search</code> via <code>MATCH … AGAINST(… IN BOOLEAN MODE)</code>.</li>
+                    <li><code>idx_stocks_sector_size</code> — btree on (<code>sector</code>, <code>size_bucket</code>) for cheap category+size drill-downs.</li>
+                    <li><code>idx_stocks_industry</code> — btree on <code>industry</code>.</li>
+                </ul>
+                <p style="margin-top:.5rem;"><strong>Migration &amp; backfill:</strong> Schema added by <code>scripts/migrations/001_stocks_search_columns.sql</code> (applied via <code>scripts/migrations/run_migrations.py</code>, idempotent). Values populated by <code>scripts/backfill_stock_search.py</code>, which reuses <code>scripts/prediction_cache/sector_map.json</code> and mirrors an <code>industry_map.json</code> alongside it to avoid re-hitting Yahoo on reruns.</p>
             </div>
 
             <!-- USER_STOCKS -->

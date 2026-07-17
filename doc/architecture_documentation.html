@@ -306,7 +306,7 @@ doc/                               All HTML documentation files</pre>
           <tbody>
             <tr><td><code>/</code></td><td>Dashboard</td><td>Required</td><td>Portfolio, watchlist, recommendations, indices strip</td></tr>
             <tr><td><code>/portfolio</code></td><td>Portfolio page</td><td>Required</td><td>Full portfolio view: history chart, KPIs, gains breakdown, compare chart, holdings sidebar, and Recommendations section. Passes <code>etf_holding</code> scope + <code>portfolioEtfTickers</code> to <code>RecommendationsSection</code> when user holds ETFs.</td></tr>
-            <tr><td><code>/search</code></td><td>Search page</td><td>Required</td><td>Search component + TrendingStocksGrid + SectorExplorer</td></tr>
+            <tr><td><code>/search</code></td><td>Search page</td><td>Required</td><td>Search component (debounced <code>/api/search</code>, keyboard-navigable dropdown) + TrendingStocksGrid + SectorExplorer</td></tr>
             <tr><td><code>/search/[ticker]</code></td><td>Stock detail page</td><td>Required</td><td>Renders Stock component for a single ticker</td></tr>
             <tr><td><code>/search/industry/[sector]</code></td><td>Sector page</td><td>Required</td><td>Renders IndustryStocks for a canonical Yahoo sector (Technology, Financial Services, etc.)</td></tr>
             <tr><td><code>/profile</code></td><td>Profile page</td><td>Required</td><td>Profile component — stats, account type</td></tr>
@@ -624,7 +624,11 @@ Each variant uses:
         </div>
         <div class="arch-card">
           <h4>SEC Company Tickers</h4>
-          <p>The full SEC company ticker list is served as a static public asset at <code>/company_tickers.json</code>. The <code>Search</code> component fetches and filters this client-side (up to 200 results), so no backend search API is needed for ticker autocomplete. Note: this file is <strong>not</strong> used for ETF detection — ETF status is determined at runtime via Yahoo Finance's <code>quoteType</code>.</p>
+          <p>The full SEC company ticker list is served as a static public asset at <code>/company_tickers.json</code>. It is <em>no longer</em> the source for the <code>Search</code> component — that flow was replaced by <code>GET /api/search</code>, which reads directly from the <code>stocks</code> table's FULLTEXT index and returns category-aware hits (e.g. "Large Retail" → WMT). The static file is still used by <code>src/app/api/stock_data/[ticker]/route.ts</code> (<code>fetchCompanyNameFromSec</code>) as a name-lookup fallback when Yahoo Finance is unreachable. Note: this file is <strong>not</strong> used for ETF detection — ETF status is determined at runtime via Yahoo Finance's <code>quoteType</code>.</p>
+        </div>
+        <div class="arch-card">
+          <h4>Search Index (FULLTEXT)</h4>
+          <p>Ticker/company/category search is served by <code>/api/search</code> against the <code>stocks</code> table's <code>ft_stocks_search</code> FULLTEXT index. The <code>Search</code> component debounces keystrokes (180 ms) and aborts in-flight requests on new input. Backing columns — <code>sector</code>, <code>industry</code>, <code>size_bucket</code>, <code>search_tsv</code> — are populated by <code>scripts/backfill_stock_search.py</code>, which pulls Yahoo <code>assetProfile</code> data, computes size buckets from <code>market_cap</code>, and expands industries through a hand-curated synonym map so colloquial queries ("chip", "banks", "Large Retail") reach the intended tickers.</p>
         </div>
       </div>
 
