@@ -3,7 +3,9 @@ backfill_stock_search.py — Populate stocks.sector / industry / size_bucket /
 search_tsv from Yahoo Finance so /api/search can serve category queries
 ("Large Retail", "banks", "chip") in addition to ticker/name lookups.
 
-Runs the 001 migration first (idempotent), then walks the `stocks` table:
+Assumes the schema in scripts/migrations/001_stocks_search_columns.sql has
+already been applied — the script does not touch DDL. Walks the `stocks`
+table:
   1. Reuses scripts/prediction_cache/sector_map.json when present.
   2. Fetches assetProfile from Yahoo for each ticker missing sector or
      industry (yfinance .info covers both fields in one call).
@@ -21,7 +23,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -206,15 +207,6 @@ def fetch_yahoo(ticker: str) -> tuple[str | None, str | None]:
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 
-def apply_migrations():
-    """Run the SQL migration runner in the same working process."""
-    runner = SCRIPT_DIR / 'migrations' / 'run_migrations.py'
-    if not runner.exists():
-        print(f"[migrate] runner not found at {runner}, skipping", file=sys.stderr)
-        return
-    subprocess.run([sys.executable, str(runner)], check=True)
-
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--tickers', help='Comma-separated list, e.g. WMT,AAPL')
@@ -222,12 +214,7 @@ def main():
                         help='Refetch Yahoo even if row already has sector/industry')
     parser.add_argument('--sleep', type=float, default=0.4,
                         help='Seconds between Yahoo calls (default 0.4)')
-    parser.add_argument('--skip-migrate', action='store_true',
-                        help='Skip the migration step (assume already applied)')
     args = parser.parse_args()
-
-    if not args.skip_migrate:
-        apply_migrations()
 
     sector_cache = load_json(SECTOR_CACHE)
     industry_cache = load_json(INDUSTRY_CACHE)
