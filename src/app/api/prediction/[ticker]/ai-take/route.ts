@@ -387,10 +387,15 @@ export async function GET(
     // promise on the dedup map so other concurrent requests can await it.
     let resolveGen!: (paragraph: string) => void;
     let rejectGen!:  (err: unknown) => void;
-    inFlight.set(
-      flightKey,
-      new Promise<string>((resolve, reject) => { resolveGen = resolve; rejectGen = reject; }),
-    );
+    const genPromise = new Promise<string>((resolve, reject) => {
+      resolveGen = resolve;
+      rejectGen  = reject;
+    });
+    // Attach a no-op catch so orphan rejections (client cancels mid-stream
+    // with no second awaiter) don't surface as Node unhandledRejection.
+    // Any real awaiter still gets the rejection via their own await.
+    genPromise.catch(() => { /* swallowed for orphan case only */ });
+    inFlight.set(flightKey, genPromise);
 
     const encoder = new TextEncoder();
     let   accumulator = '';
