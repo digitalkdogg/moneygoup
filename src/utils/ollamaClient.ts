@@ -35,6 +35,16 @@ export interface GenerateOptions {
   /** Cap on tokens generated. Keep low for classification (~200) and higher
    *  for free-text summaries (~500). */
   numPredict?: number;
+  /** How long Ollama should keep this model resident in memory after the
+   *  call. Accepts Ollama's usual formats: '5m', '24h', '-1' (forever), '0'
+   *  (unload immediately). Set to a long value for latency-sensitive
+   *  features that get sparse traffic (e.g. the /ai-take route) so the
+   *  first user of the day doesn't eat the ~30-40s model-load penalty. */
+  keepAlive?: string;
+  /** Optional stop sequences. Ollama halts generation the moment any of
+   *  these strings appears. Useful for enforcing single-paragraph outputs
+   *  (`['\n\n', '\n-', '\n1.']` etc.) so the model can't slip into lists. */
+  stop?: string[];
 }
 
 export function isOllamaEnabled(): boolean {
@@ -77,13 +87,17 @@ export async function generate(
   const temperature = opts.temperature ?? 0;
   const numPredict  = opts.numPredict  ?? 300;
 
+  const options: Record<string, unknown> = { temperature, num_predict: numPredict };
+  if (opts.stop && opts.stop.length > 0) options.stop = opts.stop;
+
   const body: Record<string, unknown> = {
     model,
     prompt,
     stream: false,
-    options: { temperature, num_predict: numPredict },
+    options,
   };
-  if (opts.json) body.format = 'json';
+  if (opts.json)      body.format     = 'json';
+  if (opts.keepAlive) body.keep_alive = opts.keepAlive;
 
   try {
     const res = await fetch(`${OLLAMA_BASE_URL}/api/generate`, {

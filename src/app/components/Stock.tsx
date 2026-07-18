@@ -11,7 +11,7 @@ import StockNews from './StockNews'
 import { createLogger } from '@/utils/logger'
 import StockPrediction from './StockPrediction'
 import StockSignalPanel, { GpsData } from './StockSignalPanel'
-import SymbolAccuracyIndicator from './SymbolAccuracyIndicator'
+import AiTakePanel from './AiTakePanel'
 import BuyMoreModal from './modals/BuyMoreModal'
 import SellModal from './modals/SellModal'
 import RsuVestModal from './modals/RsuVestModal'
@@ -1129,9 +1129,7 @@ export default function Stock({
             embedded
           />
 
-          <div className="mt-4">
-            <SymbolAccuracyIndicator ticker={primaryTicker} />
-          </div>
+          <AiTakePanel ticker={primaryTicker} />
         </div>
 
         {/* Analyst Sentiment & Price Targets */}

@@ -1,40 +1,25 @@
 // ---------------------------------------------------------------------------
-// Hoisted mocks — must be var (not const) so Jest can hoist them
+// Mocks live inside beforeEach — the previous top-level jest.mock pattern was
+// susceptible to cross-file jest state pollution. Other test files in the
+// same worker that touch yahoo-finance2 could disturb the module registry
+// such that this file's mock silently didn't apply, sending calls to the
+// real Yahoo network. Defenses (same as yahooFinanceHelper.test.ts):
+//   • jest.doMock inside beforeEach (not hoisted, so mock fns are freshly
+//     assigned before jest ever calls the factory)
+//   • jest.isolateModules around the require to guarantee '../etfHoldings'
+//     evaluates in a fresh registry that resolves via the just-registered
+//     mocks — regardless of what earlier tests cached
+//   • jest.dontMock in afterEach so we don't leak into the next test file
 // ---------------------------------------------------------------------------
-var mockYahooFinance = {
-  quoteSummary: jest.fn(),
-  chart:        jest.fn(),
-};
 
-var mockExecuteRawQuery = jest.fn();
-var mockRunPredictionInternal = jest.fn();
-var mockCalculateGpsScore = jest.fn();
-
-jest.mock('yahoo-finance2', () => ({
-  __esModule: true,
-  default: jest.fn().mockImplementation(() => mockYahooFinance),
-}));
-
-jest.mock('@/utils/databaseHelper', () => ({
-  executeRawQuery: (...args: any[]) => mockExecuteRawQuery(...args),
-}));
-
-jest.mock('../stockDataHelper', () => ({
-  runPredictionInternal: (...args: any[]) => mockRunPredictionInternal(...args),
-}));
-
-jest.mock('../gps', () => ({
-  calculateGpsScore: (...args: any[]) => mockCalculateGpsScore(...args),
-}));
-
-jest.mock('../../../public/company_tickers.json', () => [
+const COMPANY_TICKERS_FIXTURE = [
   { ticker: 'SPY',  name: 'SPDR S&P 500 ETF Trust',  is_etf: true  },
   { ticker: 'QQQ',  name: 'Invesco QQQ Trust',        is_etf: true  },
   { ticker: 'AAPL', name: 'Apple Inc.',                is_etf: null  },
   { ticker: 'MSFT', name: 'Microsoft Corporation',     is_etf: null  },
   { ticker: 'NVDA', name: 'NVIDIA Corporation',        is_etf: null  },
   { ticker: 'AMZN', name: 'Amazon.com Inc.',           is_etf: null  },
-], { virtual: true });
+];
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -80,6 +65,13 @@ describe('etfHoldings', () => {
   let scoreETFHoldings:  typeof import('../etfHoldings').scoreETFHoldings;
   type EtfHoldingPreset = import('../etfHoldingPreset').EtfHoldingPreset;
 
+  // Describe-scoped so test bodies can call `mockYahooFinance.chart.mock…`
+  // etc. even though the actual mock objects are recreated in beforeEach.
+  let mockYahooFinance:         { quoteSummary: jest.Mock; chart: jest.Mock };
+  let mockExecuteRawQuery:      jest.Mock;
+  let mockRunPredictionInternal: jest.Mock;
+  let mockCalculateGpsScore:    jest.Mock;
+
   // Pin GPS_PREDICTION_MAX + remaining ETF_HOLDING_* knobs to code defaults.
   // The test fixtures assume default behavior; .env.local (production tuning)
   // overrides them and leaks into the Jest process via Next.js route module
@@ -115,34 +107,47 @@ describe('etfHoldings', () => {
 
   beforeEach(() => {
     jest.resetModules();
-    jest.clearAllMocks();
 
-    // Re-register mocks after resetModules
-    jest.mock('yahoo-finance2', () => ({
+    // Fresh mock objects per test — no shared state that another file's
+    // jest.clearAllMocks or module registry churn can leave in a bad state.
+    mockYahooFinance         = { quoteSummary: jest.fn(), chart: jest.fn() };
+    mockExecuteRawQuery      = jest.fn();
+    mockRunPredictionInternal = jest.fn();
+    mockCalculateGpsScore    = jest.fn();
+
+    // doMock, not mock: applies right now (not hoisted), so the factory
+    // captures the mock refs we just assigned — no undefined-at-eval risk.
+    jest.doMock('yahoo-finance2', () => ({
       __esModule: true,
       default: jest.fn().mockImplementation(() => mockYahooFinance),
     }));
-    jest.mock('@/utils/databaseHelper', () => ({
+    jest.doMock('@/utils/databaseHelper', () => ({
       executeRawQuery: (...args: any[]) => mockExecuteRawQuery(...args),
     }));
-    jest.mock('../stockDataHelper', () => ({
+    jest.doMock('../stockDataHelper', () => ({
       runPredictionInternal: (...args: any[]) => mockRunPredictionInternal(...args),
     }));
-    jest.mock('../gps', () => ({
+    jest.doMock('../gps', () => ({
       calculateGpsScore: (...args: any[]) => mockCalculateGpsScore(...args),
     }));
-    jest.mock('../../../public/company_tickers.json', () => [
-      { ticker: 'SPY',  name: 'SPDR S&P 500 ETF Trust', is_etf: true },
-      { ticker: 'QQQ',  name: 'Invesco QQQ Trust',       is_etf: true },
-      { ticker: 'AAPL', name: 'Apple Inc.',               is_etf: null },
-      { ticker: 'MSFT', name: 'Microsoft Corporation',    is_etf: null },
-      { ticker: 'NVDA', name: 'NVIDIA Corporation',       is_etf: null },
-      { ticker: 'AMZN', name: 'Amazon.com Inc.',          is_etf: null },
-    ], { virtual: true });
+    jest.doMock('../../../public/company_tickers.json', () => COMPANY_TICKERS_FIXTURE, { virtual: true });
 
-    const mod = require('../etfHoldings');
-    fetchETFHoldings = mod.fetchETFHoldings;
-    scoreETFHoldings = mod.scoreETFHoldings;
+    // isolateModules gives etfHoldings.ts (and its yahooFinanceHelper import)
+    // a fresh module tree that will resolve via the just-registered mocks,
+    // even if a prior test file cached the un-mocked versions.
+    jest.isolateModules(() => {
+      const mod = require('../etfHoldings');
+      fetchETFHoldings = mod.fetchETFHoldings;
+      scoreETFHoldings = mod.scoreETFHoldings;
+    });
+  });
+
+  afterEach(() => {
+    jest.dontMock('yahoo-finance2');
+    jest.dontMock('@/utils/databaseHelper');
+    jest.dontMock('../stockDataHelper');
+    jest.dontMock('../gps');
+    jest.dontMock('../../../public/company_tickers.json');
   });
 
   // ==========================================================================
