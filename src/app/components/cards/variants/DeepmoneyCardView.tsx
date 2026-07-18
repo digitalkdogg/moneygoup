@@ -51,8 +51,18 @@ export const DeepmoneyCardView: React.FC<DeepmoneyCardViewProps> = ({ card }) =>
       {/* Header: ticker + company | price + change */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <div className="text-[18px] font-bold text-gray-900 tracking-wide leading-tight">
-            {card.symbol}
+          <div className="flex items-center gap-1.5">
+            <div className="text-[18px] font-bold text-gray-900 tracking-wide leading-tight">
+              {card.symbol}
+            </div>
+            {typeof card.consecutiveDays === 'number' && card.consecutiveDays <= 3 && (
+              <span
+                className="inline-block text-[9px] font-bold tracking-[0.06em] uppercase px-1.5 py-0.5 rounded bg-green-100 text-green-700 leading-none"
+                title={`On dashboard ${card.consecutiveDays} day${card.consecutiveDays === 1 ? '' : 's'}`}
+              >
+                New
+              </span>
+            )}
           </div>
           <div className="text-[13px] font-semibold text-gray-500 mt-0.5 truncate">
             {card.companyName}

@@ -5,7 +5,7 @@ import React from 'react';
 export type MiniDataCardTone = 'positive' | 'negative' | 'neutral';
 
 interface MiniDataCardProps {
-  label: string;
+  label: string | React.ReactNode;
   badge?: string;
   primaryText: string;
   secondaryText: string | React.ReactNode;

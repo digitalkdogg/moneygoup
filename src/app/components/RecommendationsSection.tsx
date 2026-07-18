@@ -125,7 +125,19 @@ const RecommendationsSection: React.FC<RecommendationsSectionProps> = ({ scopes,
                 className="block rounded-lg hover:shadow-md hover:-translate-y-1 transition-all duration-200 focus-ring"
               >
                 <MiniDataCard
-                  label={rec.symbol}
+                  label={
+                    <span className="inline-flex items-center gap-1.5">
+                      {rec.symbol}
+                      {typeof rec.consecutiveDays === 'number' && rec.consecutiveDays <= 3 && (
+                        <span
+                          className="inline-block text-[9px] font-bold tracking-[0.06em] uppercase px-1.5 py-0.5 rounded bg-green-100 text-green-700 leading-none"
+                          title={`On dashboard ${rec.consecutiveDays} day${rec.consecutiveDays === 1 ? '' : 's'}`}
+                        >
+                          New
+                        </span>
+                      )}
+                    </span>
+                  }
                   badge={getBadgeText(rec)}
                   primaryText={`Current ${formatCurrency(rec.currentPrice)}`}
                   secondaryText={
@@ -155,6 +167,15 @@ const RecommendationsSection: React.FC<RecommendationsSectionProps> = ({ scopes,
         );
         })()}
 
+        <div className="mt-6 pt-4 border-t border-gray-100 flex justify-end">
+          <Link
+            href="/search"
+            className="inline-flex items-center gap-1 text-sm font-semibold text-green-700 hover:text-green-800 transition-colors"
+          >
+            Discover more
+            <span aria-hidden="true">→</span>
+          </Link>
+        </div>
       </div>
     </section>
   );

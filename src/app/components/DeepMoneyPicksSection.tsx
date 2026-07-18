@@ -20,6 +20,8 @@ interface RecommendedStock {
   metric_value?: number;
   changeAmount?: number | null; // Add changeAmount
   changePercent?: number | null; // Add changePercent
+  /** Days this ticker has been on the dashboard; from dashboard_tenure. */
+  consecutive_days?: number | null;
 }
 
 interface RecommendedETF {
@@ -98,6 +100,7 @@ export default function DeepMoneyPicksSection() {
     gpsScore: stock.gps_score !== null ? parseFloat(stock.gps_score as any) : null,
     gpsBreakdown: stock.gps_breakdown ? (typeof stock.gps_breakdown === 'string' ? JSON.parse(stock.gps_breakdown) : stock.gps_breakdown) : null,
     timeframeLabel,
+    consecutiveDays: stock.consecutive_days ?? null,
   });
 
   const mapEtfToDeepmoneyCard = (etf: RecommendedETF): DeepmoneyCard => ({

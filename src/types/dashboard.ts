@@ -49,6 +49,10 @@ export interface DashboardRecommendation {
   lastRequestedAt: string;
   scope: 'portfolio' | 'watchlist' | 'discovery' | 'etf_holding';
   etfTicker?: string;         // set when scope === 'etf_holding'
+  /** Days this ticker has been on the dashboard; from dashboard_tenure.
+   *  Drives the "NEW" badge (≤3 days) and — for discovery / etf_holding —
+   *  eligibility for the fresh pool when tenure rotation is on. */
+  consecutiveDays?: number | null;
 }
 
 export interface DashboardRecommendationsResponse {

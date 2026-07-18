@@ -34,6 +34,9 @@ export interface DeepmoneyCard extends CardBase {
   timeframeLabel?: string | null
   /** Which prediction horizon the breakdown reflects (defaults to 1_month). */
   gpsHorizon?: '1_week' | '1_month' | '6_month' | '1_year'
+  /** Days this ticker has consecutively appeared on the dashboard. Sourced
+   *  from dashboard_tenure. Drives the "NEW" badge on cards ≤ 3 days old. */
+  consecutiveDays?: number | null
 }
 
 export interface PortfolioCard extends CardBase {

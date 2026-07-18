@@ -302,6 +302,17 @@ def sync_deepmoney():
                 if e.errno != 1060:  # 1060 = duplicate column → already present
                     raise
 
+        # Snapshot the prior dashboard ticker set BEFORE the wipe so we can
+        # reconcile it against the incoming set at the end and update
+        # dashboard_tenure (see the tenure block after the ETF-holdings loop).
+        # Only 'hot_stocks' rows are tracked — ETF holdings rotate on their own
+        # cadence via the parent ETF list and aren't the noisy names the
+        # rotation was designed to demote.
+        cursor.execute(
+            "SELECT ticker FROM recommended_stocks WHERE type = 'hot_stocks'"
+        )
+        prior_dashboard_tickers = {row[0] for row in cursor.fetchall()}
+
         # 3. Clear existing recommendation data
         print("Clearing existing recommendation data...")
         cursor.execute("DELETE FROM recommended_stocks")
@@ -689,6 +700,64 @@ def sync_deepmoney():
 
         counters["etf_holdings_written"] = holdings_written
         print(f"  ETF holdings persisted: {holdings_written}")
+
+        # Dashboard tenure bookkeeping. Reconciles the just-written hot_stocks
+        # set against the prior-sync snapshot captured before DELETE, then
+        # updates dashboard_tenure so /api/dashboard/deepmoney-picks can
+        # demote names that have overstayed their welcome.
+        cursor.execute(
+            "SELECT ticker FROM recommended_stocks WHERE snapshot_date = %s AND type = 'hot_stocks'",
+            (today,),
+        )
+        current_dashboard_tickers = {row[0] for row in cursor.fetchall()}
+
+        returning_tickers = current_dashboard_tickers & prior_dashboard_tickers
+        new_arrivals      = current_dashboard_tickers - prior_dashboard_tickers
+        evicted_tickers   = prior_dashboard_tickers   - current_dashboard_tickers
+
+        # Returning: bump consecutive_days only if we're on a new calendar day
+        # (avoids double-counting when the sync gets re-run twice in one day).
+        for tk in returning_tickers:
+            cursor.execute("""
+                UPDATE dashboard_tenure
+                   SET consecutive_days = consecutive_days + CASE WHEN last_seen_at < %s THEN 1 ELSE 0 END,
+                       last_seen_at     = %s,
+                       evicted_at       = NULL
+                 WHERE ticker = %s
+            """, (today, today, tk))
+
+        # New arrivals: either brand-new tickers (INSERT) or ones returning
+        # from an earlier eviction (the row already exists — reset the streak
+        # so tenure starts counting from today's re-entry, not the old stint).
+        for tk in new_arrivals:
+            cursor.execute("""
+                INSERT INTO dashboard_tenure
+                    (ticker, first_seen_at, last_seen_at, consecutive_days)
+                VALUES (%s, %s, %s, 1)
+                ON DUPLICATE KEY UPDATE
+                    first_seen_at    = VALUES(first_seen_at),
+                    last_seen_at     = VALUES(last_seen_at),
+                    consecutive_days = 1,
+                    evicted_at       = NULL
+            """, (tk, today, today))
+
+        # Evicted: stamp the drop-out time so the API cooldown filter can hold
+        # them out for a few syncs before they're eligible to return.
+        for tk in evicted_tickers:
+            cursor.execute("""
+                UPDATE dashboard_tenure
+                   SET evicted_at = NOW()
+                 WHERE ticker = %s AND evicted_at IS NULL
+            """, (tk,))
+
+        counters["dashboard_tenure_new"]       = len(new_arrivals)
+        counters["dashboard_tenure_returning"] = len(returning_tickers)
+        counters["dashboard_tenure_evicted"]   = len(evicted_tickers)
+        print(
+            f"Dashboard tenure: {len(new_arrivals)} new, "
+            f"{len(returning_tickers)} continuing, "
+            f"{len(evicted_tickers)} evicted."
+        )
 
         # Post-sync cleanup: remove discovery entries for stocks that didn't qualify this run.
         # This replaces the old pre-clear approach and is exact — only stocks not in

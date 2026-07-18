@@ -20,6 +20,20 @@ function getStockGpsThreshold(): number {
   const parsed = parseFloat(val)
   return isNaN(parsed) ? 65 : parsed
 }
+
+// Dashboard tenure rotation — on by default. Set DASHBOARD_TENURE_ROTATION=off
+// in .env.local to fall back to the flat GPS-sorted query.
+// When on, the hot_stocks section caps at TENURE_TARGET_CARDS, demotes tickers
+// that have been surfaced for TENURE_MAX_DAYS in a row, and holds evicted
+// tickers out for TENURE_COOLDOWN_DAYS before re-admitting them. If the fresh
+// pool falls below TENURE_MIN_CARDS the section is backfilled from the stale
+// pool by GPS so it's never empty.
+const TENURE_ROTATION_ENABLED = process.env.DASHBOARD_TENURE_ROTATION !== 'off';
+const TENURE_MAX_DAYS      = parseInt(process.env.DASHBOARD_TENURE_MAX_DAYS      || '7',  10);
+const TENURE_COOLDOWN_DAYS = parseInt(process.env.DASHBOARD_TENURE_COOLDOWN_DAYS || '5',  10);
+const TENURE_TARGET_CARDS  = parseInt(process.env.DASHBOARD_TENURE_TARGET_CARDS  || '12', 10);
+const TENURE_MIN_CARDS     = parseInt(process.env.DASHBOARD_TENURE_MIN_CARDS     || '8',  10);
+
 const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
 
 export async function GET(request: NextRequest) {
@@ -66,22 +80,28 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // 2. Fetch Stocks — filtered by GPS minimum threshold, sorted by GPS score
+    // 2. Fetch Stocks — filtered by GPS minimum threshold, sorted by GPS score.
+    //    When DASHBOARD_TENURE_ROTATION=on, a two-pass fresh-pool + backfill
+    //    query replaces the flat GPS sort to rotate stale names off the section.
     const stockGpsMin = getStockGpsThreshold();
     let allStocks: any[] = [];
     if (stockDate) {
-      const [rows] = await executeRawQuery(
-        `SELECT id, type, ticker, company_name, current_price, gps_score, gps_breakdown, classification,
-                analyst_upside_pct, revenue_growth_yoy, gross_margin_pct, rd_spend_pct,
-                market_cap_m, mention_count, discovery_source, trading_signal,
-                trading_signal_score, upcoming_earnings, snapshot_date,
-                trailing_pe, price_to_book, metric_value, metric_label
-         FROM recommended_stocks
-         WHERE snapshot_date = ? AND gps_score >= ?
-         ORDER BY gps_score DESC`,
-        [stockDate, stockGpsMin]
-      );
-      allStocks = rows as any[];
+      if (TENURE_ROTATION_ENABLED) {
+        allStocks = await fetchHotStocksWithRotation(stockDate, stockGpsMin);
+      } else {
+        const [rows] = await executeRawQuery(
+          `SELECT id, type, ticker, company_name, current_price, gps_score, gps_breakdown, classification,
+                  analyst_upside_pct, revenue_growth_yoy, gross_margin_pct, rd_spend_pct,
+                  market_cap_m, mention_count, discovery_source, trading_signal,
+                  trading_signal_score, upcoming_earnings, snapshot_date,
+                  trailing_pe, price_to_book, metric_value, metric_label
+           FROM recommended_stocks
+           WHERE snapshot_date = ? AND gps_score >= ?
+           ORDER BY gps_score DESC`,
+          [stockDate, stockGpsMin]
+        );
+        allStocks = rows as any[];
+      }
     }
 
     // 3. Fetch surfaced ETF holdings
@@ -260,6 +280,85 @@ function applyHorizonAdjustment<T extends { ticker?: string; gps_score?: number 
   } catch {
     return card;
   }
+}
+
+/**
+ * Two-pass hot_stocks query used when DASHBOARD_TENURE_ROTATION is on.
+ *
+ * Pass 1 (fresh pool): tickers with consecutive_days ≤ TENURE_MAX_DAYS AND
+ *   not in eviction-cooldown, ordered by GPS DESC, capped at TENURE_TARGET_CARDS.
+ * Pass 2 (backfill): only runs if Pass 1 returned fewer than TENURE_MIN_CARDS.
+ *   Takes remaining hot_stocks by GPS DESC — the "steady quality" names get
+ *   in as a safety valve so the section is never empty.
+ *
+ * Returns the same shape the legacy query does; adds one column
+ * (consecutive_days) that the card UI can key a "NEW" badge off of.
+ */
+const HOT_STOCK_COLUMNS = `
+  rs.id, rs.type, rs.ticker, rs.company_name, rs.current_price,
+  rs.gps_score, rs.gps_breakdown, rs.classification, rs.analyst_upside_pct,
+  rs.revenue_growth_yoy, rs.gross_margin_pct, rs.rd_spend_pct,
+  rs.market_cap_m, rs.mention_count, rs.discovery_source,
+  rs.trading_signal, rs.trading_signal_score, rs.upcoming_earnings,
+  rs.snapshot_date, rs.trailing_pe, rs.price_to_book,
+  rs.metric_value, rs.metric_label,
+  COALESCE(dt.consecutive_days, 1) AS consecutive_days
+`;
+
+async function fetchHotStocksWithRotation(
+  stockDate: unknown,
+  stockGpsMin: number,
+): Promise<any[]> {
+  const [freshRows] = await executeRawQuery(
+    `SELECT ${HOT_STOCK_COLUMNS}
+       FROM recommended_stocks rs
+       LEFT JOIN dashboard_tenure dt ON dt.ticker = rs.ticker
+      WHERE rs.snapshot_date = ?
+        AND rs.type = 'hot_stocks'
+        AND rs.gps_score >= ?
+        AND (dt.consecutive_days IS NULL OR dt.consecutive_days <= ?)
+        AND (dt.evicted_at        IS NULL OR dt.evicted_at        < NOW() - INTERVAL ? DAY)
+      ORDER BY rs.gps_score DESC
+      LIMIT ?`,
+    [stockDate, stockGpsMin, TENURE_MAX_DAYS, TENURE_COOLDOWN_DAYS, TENURE_TARGET_CARDS],
+  );
+  const fresh = freshRows as any[];
+
+  if (fresh.length >= TENURE_MIN_CARDS) {
+    logger.info('Dashboard tenure rotation: fresh pool sufficient', {
+      freshCount: fresh.length,
+      minCards: TENURE_MIN_CARDS,
+      cap: TENURE_TARGET_CARDS,
+    });
+    return fresh;
+  }
+
+  // Backfill from the stale/evicted pool to get to at least TENURE_MIN_CARDS.
+  const backfillLimit = TENURE_MIN_CARDS - fresh.length;
+  const excludeTickers = fresh.map(r => r.ticker as string);
+  const excludeClause = excludeTickers.length
+    ? `AND rs.ticker NOT IN (${excludeTickers.map(() => '?').join(',')})`
+    : '';
+  const [backfillRows] = await executeRawQuery(
+    `SELECT ${HOT_STOCK_COLUMNS}
+       FROM recommended_stocks rs
+       LEFT JOIN dashboard_tenure dt ON dt.ticker = rs.ticker
+      WHERE rs.snapshot_date = ?
+        AND rs.type = 'hot_stocks'
+        AND rs.gps_score >= ?
+        ${excludeClause}
+      ORDER BY rs.gps_score DESC
+      LIMIT ?`,
+    [stockDate, stockGpsMin, ...excludeTickers, backfillLimit],
+  );
+  const combined = [...fresh, ...(backfillRows as any[])];
+  logger.info('Dashboard tenure rotation: backfilled from stale pool', {
+    freshCount:    fresh.length,
+    backfillCount: (backfillRows as any[]).length,
+    totalCount:    combined.length,
+    minCards:      TENURE_MIN_CARDS,
+  });
+  return combined;
 }
 
 function parseBreakdown(val: unknown): GpsBreakdown | null {

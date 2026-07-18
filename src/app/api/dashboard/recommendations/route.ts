@@ -35,6 +35,45 @@ function getEnvThreshold(key: string, fallback: number): number {
   return isNaN(parsed) ? fallback : parsed
 }
 
+// Dashboard tenure rotation — on by default. Set DASHBOARD_TENURE_ROTATION=off
+// in .env.local to fall back to the flat GPS-sorted feed.
+// When on, non-owned BUY recs (watchlist / discovery / etf_holding) get
+// filtered by tenure: stocks past TENURE_MAX_DAYS or in TENURE_COOLDOWN_DAYS
+// after eviction fall out. Portfolio recs and all SELL warnings are always
+// kept. If the fresh BUY pool drops below TENURE_MIN_CARDS the section is
+// backfilled from the stale pool by GPS so it's never empty.
+const TENURE_ROTATION_ENABLED = process.env.DASHBOARD_TENURE_ROTATION !== 'off';
+const TENURE_MAX_DAYS      = parseInt(process.env.DASHBOARD_TENURE_MAX_DAYS      || '7',  10);
+const TENURE_COOLDOWN_DAYS = parseInt(process.env.DASHBOARD_TENURE_COOLDOWN_DAYS || '5',  10);
+const TENURE_TARGET_CARDS  = parseInt(process.env.DASHBOARD_TENURE_TARGET_CARDS  || '12', 10);
+const TENURE_MIN_CARDS     = parseInt(process.env.DASHBOARD_TENURE_MIN_CARDS     || '8',  10);
+
+interface TenureRow { consecutive_days: number; evicted_at: Date | null }
+
+async function fetchTenureMap(symbols: string[]): Promise<Map<string, TenureRow>> {
+  const out = new Map<string, TenureRow>();
+  if (symbols.length === 0) return out;
+  const unique = Array.from(new Set(symbols.map(s => s.toUpperCase())));
+  const placeholders = unique.map(() => '?').join(',');
+  try {
+    const [rows] = await executeRawQuery(
+      `SELECT ticker, consecutive_days, evicted_at
+         FROM dashboard_tenure
+        WHERE ticker IN (${placeholders})`,
+      unique,
+    );
+    for (const r of rows as Array<{ ticker: string; consecutive_days: number; evicted_at: Date | null }>) {
+      out.set(r.ticker.toUpperCase(), {
+        consecutive_days: Number(r.consecutive_days),
+        evicted_at:       r.evicted_at,
+      });
+    }
+  } catch (err) {
+    logger.warn('Failed to fetch dashboard_tenure lookup — rotation disabled for this request', { error: err });
+  }
+  return out;
+}
+
 export async function GET(request: NextRequest) {
   const originCheckResponse = checkOrigin(request);
   if (originCheckResponse) return originCheckResponse;
@@ -340,8 +379,68 @@ export async function GET(request: NextRequest) {
     // Sort by GPS score descending — strongest signals first
     recommendations.sort((a, b) => (b.gpsScore ?? 0) - (a.gpsScore ?? 0));
 
+    // Attach tenure to every rec (drives the "NEW" badge in the UI). We fetch
+    // the whole set in a single query keyed on the symbols we're about to
+    // return — cheap regardless of whether rotation is enabled.
+    const tenureMap = await fetchTenureMap(recommendations.map(r => r.symbol));
+    const now = new Date();
+    const cooldownCutoff = new Date(now.getTime() - TENURE_COOLDOWN_DAYS * 86_400_000);
+    for (const rec of recommendations) {
+      const t = tenureMap.get(rec.symbol.toUpperCase());
+      rec.consecutiveDays = t ? t.consecutive_days : null;
+    }
+
+    // Rotation: keep all SELL and all portfolio-scope recs unconditionally.
+    // For the remaining BUY recs (watchlist / discovery / etf_holding),
+    // fresh pool = tenure ≤ MAX_DAYS AND not in cooldown. Cap at
+    // TENURE_TARGET_CARDS. Backfill from the stale pool if below MIN_CARDS.
+    let finalRecs = recommendations;
+    if (TENURE_ROTATION_ENABLED) {
+      const isFresh = (rec: DashboardRecommendation): boolean => {
+        const t = tenureMap.get(rec.symbol.toUpperCase());
+        if (!t) return true;                                          // no row = fresh
+        if (t.consecutive_days > TENURE_MAX_DAYS) return false;
+        if (t.evicted_at && t.evicted_at > cooldownCutoff) return false;
+        return true;
+      };
+
+      const alwaysKeep: DashboardRecommendation[] = [];
+      const rotatable: DashboardRecommendation[] = [];
+      for (const rec of recommendations) {
+        if (rec.action === 'SELL' || rec.scope === 'portfolio') {
+          alwaysKeep.push(rec);
+        } else {
+          rotatable.push(rec);
+        }
+      }
+
+      const fresh = rotatable.filter(isFresh);
+      let capped  = fresh.slice(0, TENURE_TARGET_CARDS);
+
+      if (capped.length < TENURE_MIN_CARDS) {
+        const chosen = new Set(capped.map(r => r.symbol));
+        const backfill = rotatable
+          .filter(r => !chosen.has(r.symbol))
+          .slice(0, TENURE_MIN_CARDS - capped.length);
+        capped = [...capped, ...backfill];
+      }
+
+      finalRecs = [...alwaysKeep, ...capped];
+      // Re-sort by GPS so the merged list stays readable
+      finalRecs.sort((a, b) => (b.gpsScore ?? 0) - (a.gpsScore ?? 0));
+      logger.info('Dashboard tenure rotation applied', {
+        totalInput:    recommendations.length,
+        alwaysKeep:    alwaysKeep.length,
+        rotatable:     rotatable.length,
+        freshCount:    fresh.length,
+        finalCount:    finalRecs.length,
+        cap:           TENURE_TARGET_CARDS,
+        min:           TENURE_MIN_CARDS,
+      });
+    }
+
     const response: DashboardRecommendationsResponse = {
-      recommendations,
+      recommendations: finalRecs,
       horizonLabel,
       asOf: new Date().toISOString(),
     };
