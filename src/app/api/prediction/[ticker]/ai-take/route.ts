@@ -24,7 +24,7 @@ import { unauthorizedResponse, createErrorResponse } from '@/utils/errorResponse
 import { createLogger } from '@/utils/logger';
 import { executeRawQuery } from '@/utils/databaseHelper';
 import { tickerSchema } from '@/utils/validationSchemas';
-import { generate, checkOllamaReachable, isOllamaEnabled } from '@/utils/ollamaClient';
+import { generateStream, checkOllamaReachable } from '@/utils/ollamaClient';
 import { createHash } from 'crypto';
 
 const logger = createLogger('api/prediction/ai-take');
@@ -46,6 +46,31 @@ const AI_TAKE_TIMEOUT_MS          = parseInt(process.env.AI_TAKE_TIMEOUT_MS || '
 // single-node; a DB-backed store is the natural swap when we scale.
 const rateBucket = new Map<string, number[]>();          // key → recent request timestamps (ms)
 const inFlight   = new Map<string, Promise<string>>();   // (ticker, data_hash) → gen promise
+
+/**
+ * Build the metadata-header block that every successful response carries.
+ * Client reads these to decide badge rendering, rate-limit note, etc.
+ */
+function metadataHeaders(opts: {
+  cached:       boolean;
+  model:        string;
+  generatedAt:  string;
+  asOfGps:      number | string | null;
+  rateLimited?: boolean;
+  rateLimitNote?: string;
+}): Record<string, string> {
+  const h: Record<string, string> = {
+    'Content-Type':          'text/plain; charset=utf-8',
+    'Cache-Control':         'no-store',
+    'X-AiTake-Cached':       opts.cached ? 'true' : 'false',
+    'X-AiTake-Model':        opts.model,
+    'X-AiTake-Generated-At': opts.generatedAt,
+    'X-AiTake-Asof-Gps':     opts.asOfGps == null ? '' : String(opts.asOfGps),
+  };
+  if (opts.rateLimited)  h['X-AiTake-Rate-Limited']   = 'true';
+  if (opts.rateLimitNote) h['X-AiTake-Rate-Limit-Note'] = opts.rateLimitNote;
+  return h;
+}
 
 function rateLimitKey(userId: string, ticker: string) { return `${userId}:${ticker.toUpperCase()}`; }
 
@@ -130,19 +155,23 @@ function buildPrompt(
     ? headlines.map((h, i) => `${i + 1}. ${h}`).join('\n')
     : 'No recent headlines available.';
 
-  // Reinforce the anti-list constraints in three places — Gemma tends to
-  // ignore a single mention and default to structured output otherwise.
-  return `Write ONE flowing paragraph of 120-180 words about ${ticker} for a retail investor.
+  // Reinforce the anti-list + anti-filler constraints in multiple places —
+  // Gemma tends to ignore a single mention and default to structured output
+  // or "the company is a leader in X" filler otherwise.
+  return `Write ONE flowing paragraph of 80-120 words about ${ticker} for a retail investor.
 Cover: (1) what the data suggests right now, (2) key risks, and (3) whether it looks like a good buy over the next month based on the numbers.
 
 STRICT RULES — follow all of these:
 - Output exactly one paragraph. No headings, no bullet points, no numbered lists, no line breaks.
 - Do NOT begin with a title, heading, or the ticker symbol on its own line.
+- Do NOT describe what the company does or explain its business. Assume the reader already knows.
+- Do NOT restate obvious data points like "the current price is $X" — the reader has the numbers on screen.
 - Do NOT add disclaimers about consulting a financial advisor.
 - Do NOT invent facts. Use only the data below.
-- Write in a neutral, professional tone (no hype words like "moonshot", "rocket", or "guaranteed").
+- Write in a neutral, professional tone. No hype words ("moonshot", "rocket", "guaranteed").
+- Every sentence must add analytical value — spend the word budget on interpretation, not description.
 
-DATA FOR ${ticker} (${ctx.company_name ?? ticker}):
+DATA FOR ${ticker}:
 - Sector: ${ctx.sector ?? 'unknown'} / ${ctx.industry ?? 'unknown'}
 - Current price: $${ctx.current_price ?? 'n/a'}
 - GPS score: ${ctx.gps_score}/100 (components: ${gpsBreakdownStr})
@@ -258,29 +287,37 @@ export async function GET(
     const cached = await cacheLookup(ticker, dataHash);
 
     if (!fresh && cached) {
-      return NextResponse.json({
-        paragraph:      cached.paragraph,
-        cached:         true,
-        generatedAt:    cached.generatedAt,
-        model:          cached.model,
-        asOfGps:        ctx.gps_score,
+      return new Response(cached.paragraph, {
+        status: 200,
+        headers: metadataHeaders({
+          cached:      true,
+          model:       cached.model,
+          generatedAt: cached.generatedAt instanceof Date
+            ? cached.generatedAt.toISOString()
+            : String(cached.generatedAt),
+          asOfGps:     ctx.gps_score as number | string | null,
+        }),
       });
     }
 
     // Rate limit only applies to fresh generations. If the user is over
     // budget AND we have a cached copy, degrade gracefully: return the
-    // cache with a `rateLimited` flag so the UI can note that regeneration
+    // cache with a rateLimited flag so the UI can note that regeneration
     // is throttled. Only 429 when there's genuinely nothing to show.
     if (!withinRateLimit(userId, ticker)) {
       if (cached) {
-        return NextResponse.json({
-          paragraph:      cached.paragraph,
-          cached:         true,
-          generatedAt:    cached.generatedAt,
-          model:          cached.model,
-          asOfGps:        ctx.gps_score,
-          rateLimited:    true,
-          rateLimitNote:  `Regeneration limited to ${AI_TAKE_RATE_LIMIT_PER_HOUR} per hour — showing the latest cached take.`,
+        return new Response(cached.paragraph, {
+          status: 200,
+          headers: metadataHeaders({
+            cached:      true,
+            model:       cached.model,
+            generatedAt: cached.generatedAt instanceof Date
+              ? cached.generatedAt.toISOString()
+              : String(cached.generatedAt),
+            asOfGps:     ctx.gps_score as number | string | null,
+            rateLimited: true,
+            rateLimitNote: `Regeneration limited to ${AI_TAKE_RATE_LIMIT_PER_HOUR} per hour — showing the latest cached take.`,
+          }),
         });
       }
       return NextResponse.json(
@@ -302,57 +339,121 @@ export async function GET(
     }
 
     // In-flight dedup: if another request is already generating for this
-    // exact (ticker, data_hash), reuse its promise instead of firing another
-    // Gemma inference (~3GB, would thrash CPU).
-    const flightKey = `${ticker}:${dataHash}`;
-    let paragraph: string;
+    // exact (ticker, data_hash), await its final paragraph and return it as
+    // a single-chunk stream. Sacrifice: the second user waits for the first
+    // gen to complete instead of streaming in parallel — this is deliberate
+    // because two concurrent gemma3:4b runs (~3GB each) would thrash CPU.
+    const flightKey    = `${ticker}:${dataHash}`;
+    const generatedAt  = new Date().toISOString();
     if (inFlight.has(flightKey)) {
       logger.info('AI take dedup: awaiting in-flight generation', { ticker, flightKey });
-      paragraph = await inFlight.get(flightKey)!;
-    } else {
-      const prompt = buildPrompt(ticker, ctx, headlines);
-      const genPromise = (async (): Promise<string> => {
-        const raw = await generate(prompt, {
-          model:      AI_TAKE_MODEL,
-          timeoutMs:  AI_TAKE_TIMEOUT_MS,
-          numPredict: 350,
-          temperature: 0.3,       // slight creativity for prose; 0 reads robotic
-          keepAlive:  '24h',      // pin the model in memory between calls
-          stop:       ['\n\n', '\n-', '\n*', '\n1.', '\n2.', '**', '##'],
-        });
-        if (raw === null || raw.trim().length === 0) {
-          throw new Error('Ollama returned empty response.');
-        }
-        return raw.trim();
-      })();
-      inFlight.set(flightKey, genPromise);
       try {
-        paragraph = await genPromise;
-      } finally {
-        inFlight.delete(flightKey);
+        const paragraph = await inFlight.get(flightKey)!;
+        return new Response(paragraph, {
+          status: 200,
+          headers: metadataHeaders({
+            cached:      false,
+            model:       AI_TAKE_MODEL,
+            generatedAt,
+            asOfGps:     ctx.gps_score as number | string | null,
+          }),
+        });
+      } catch (err) {
+        logger.error('AI take dedup: upstream gen failed', { ticker, error: err });
+        return createErrorResponse(err, 'Failed to generate AI take.');
       }
     }
 
-    await cacheInsert(
-      ticker,
-      dataHash,
-      AI_TAKE_MODEL,
-      paragraph,
-      ctx.gps_score != null ? Number(ctx.gps_score) : null,
+    // Fresh generation — kick off Ollama with stream: true so the client can
+    // start rendering within seconds instead of waiting for the whole 80-120
+    // word paragraph. On CPU we're still bounded by tokens/sec, but perceived
+    // latency drops from "spinner for 60-90s" to "first sentence in ~5-10s".
+    const prompt = buildPrompt(ticker, ctx, headlines);
+    const ollamaStream = await generateStream(prompt, {
+      model:       AI_TAKE_MODEL,
+      timeoutMs:   AI_TAKE_TIMEOUT_MS,
+      numPredict:  220,          // was 350; 80-120 words ≈ 150-200 tokens
+      temperature: 0.3,          // slight creativity for prose; 0 reads robotic
+      keepAlive:   '24h',        // pin the model in memory between calls
+      stop:        ['\n\n', '\n-', '\n*', '\n1.', '\n2.', '**', '##'],
+    });
+    if (!ollamaStream) {
+      throw new Error('Ollama returned empty stream.');
+    }
+
+    // Bridge ReadableStream<string> from ollama → ReadableStream<Uint8Array>
+    // for the client response, while accumulating the full paragraph on the
+    // server for the cache write at end-of-stream. Register the accumulator
+    // promise on the dedup map so other concurrent requests can await it.
+    let resolveGen!: (paragraph: string) => void;
+    let rejectGen!:  (err: unknown) => void;
+    inFlight.set(
+      flightKey,
+      new Promise<string>((resolve, reject) => { resolveGen = resolve; rejectGen = reject; }),
     );
-    logger.info('AI take generated', {
-      ticker,
-      userId,
-      model: AI_TAKE_MODEL,
-      length: paragraph.length,
+
+    const encoder = new TextEncoder();
+    let   accumulator = '';
+
+    const clientStream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        const reader = ollamaStream.getReader();
+        try {
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            if (value) {
+              accumulator += value;
+              controller.enqueue(encoder.encode(value));
+            }
+          }
+          controller.close();
+          const trimmed = accumulator.trim();
+          if (trimmed.length === 0) {
+            const err = new Error('Ollama returned empty response.');
+            rejectGen(err);
+            return;
+          }
+          try {
+            await cacheInsert(
+              ticker,
+              dataHash,
+              AI_TAKE_MODEL,
+              trimmed,
+              ctx.gps_score != null ? Number(ctx.gps_score) : null,
+            );
+            logger.info('AI take generated (streamed)', {
+              ticker, userId, model: AI_TAKE_MODEL, length: trimmed.length,
+            });
+          } catch (cacheErr) {
+            logger.error('AI take cache write failed after stream', { ticker, error: cacheErr });
+          }
+          resolveGen(trimmed);
+        } catch (err) {
+          controller.error(err);
+          rejectGen(err);
+        } finally {
+          inFlight.delete(flightKey);
+        }
+      },
+      cancel(reason) {
+        // Client aborted mid-stream. Release the ollama reader and drop the
+        // in-flight entry so the next request can re-attempt. Partial
+        // paragraphs are not cached — either we complete the gen or we bail.
+        logger.info('AI take stream cancelled by client', { ticker, reason: String(reason) });
+        rejectGen(new Error('Client cancelled stream'));
+        inFlight.delete(flightKey);
+      },
     });
 
-    return NextResponse.json({
-      paragraph,
-      cached:      false,
-      generatedAt: new Date().toISOString(),
-      model:       AI_TAKE_MODEL,
-      asOfGps:     ctx.gps_score,
+    return new Response(clientStream, {
+      status: 200,
+      headers: metadataHeaders({
+        cached:      false,
+        model:       AI_TAKE_MODEL,
+        generatedAt,
+        asOfGps:     ctx.gps_score as number | string | null,
+      }),
     });
   } catch (err) {
     logger.error('AI take generation failed', { ticker, error: err });

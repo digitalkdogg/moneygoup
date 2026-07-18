@@ -197,6 +197,8 @@
     <a href="#prediction_records">prediction_records</a>
     <a href="#prediction_details">prediction_details</a> <span class="new-badge">new</span>
     <a href="#ranking_training_snapshots">ranking_training_snapshots</a> <span class="new-badge">new</span>
+    <a href="#dashboard_tenure">dashboard_tenure</a> <span class="new-badge">new</span>
+    <a href="#ai_ticker_takes">ai_ticker_takes</a> <span class="new-badge">new</span>
     <a href="#portfolio-tables">Portfolio Tables</a>
     <a href="#portfolio_transactions">portfolio_transactions</a>
     <a href="#portfolio_daily_snapshots">portfolio_daily_snapshots</a>
@@ -851,6 +853,55 @@
                         <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Default CURRENT_TIMESTAMP.</td></tr>
                     </tbody>
                 </table>
+            </div>
+
+            <!-- DASHBOARD_TENURE -->
+            <div id="dashboard_tenure" class="table-card">
+                <div class="table-title">dashboard_tenure</div>
+                <p>Tracks how many consecutive days each ticker has appeared in the dashboard Recommendations section so <code>/api/dashboard/recommendations</code> and <code>/api/dashboard/deepmoney-picks</code> can rotate stale mega-caps off the grid. Written by <code>deepmoney_sync.py</code> at the end of each run (after the ETF-holdings block, before stale-discovery cleanup). Lives outside <code>recommended_stocks</code> because that table is wiped on every sync — tenure state must survive the wipe. Applied via migration <code>003_dashboard_tenure.sql</code>.</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>ticker</code></td><td><code>VARCHAR(10)</code></td><td>Primary Key. Matches <code>recommended_stocks.ticker</code>. NOT NULL.</td></tr>
+                        <tr><td><code>first_seen_at</code></td><td><code>DATE</code></td><td>NOT NULL. First date of the current streak on the dashboard. Reset to today when a ticker returns from eviction.</td></tr>
+                        <tr><td><code>last_seen_at</code></td><td><code>DATE</code></td><td>NOT NULL. Most recent date this ticker appeared. Same-day re-syncs don't advance this.</td></tr>
+                        <tr><td><code>consecutive_days</code></td><td><code>INT</code></td><td>NOT NULL. Default 1. Distinct days in the current streak. Bumped only when <code>last_seen_at &lt; today</code> so double-runs on the same day don't double-count.</td></tr>
+                        <tr><td><code>evicted_at</code></td><td><code>DATETIME</code></td><td>Nullable. Set to <code>NOW()</code> the moment a ticker falls out of the incoming set; cleared back to NULL when the ticker returns. The API cooldown filter (<code>DASHBOARD_TENURE_COOLDOWN_DAYS</code>) keeps it out until this timestamp is older than the cutoff. Indexed.</td></tr>
+                        <tr><td><code>created_at</code></td><td><code>TIMESTAMP</code></td><td>Default CURRENT_TIMESTAMP.</td></tr>
+                        <tr><td><code>updated_at</code></td><td><code>TIMESTAMP</code></td><td>Default CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP.</td></tr>
+                    </tbody>
+                </table>
+                <div class="highlight-box">
+                    <strong>Sync-time flow (deepmoney_sync.py):</strong> Before the <code>DELETE FROM recommended_stocks</code>, the sync snapshots the current <code>hot_stocks</code> ticker set into memory. After all inserts, three branches reconcile against <code>dashboard_tenure</code>: tickers in <em>both</em> sets get <code>consecutive_days++</code> when the calendar day changed; new arrivals INSERT with <code>consecutive_days=1</code> (resetting any lingering <code>evicted_at</code> so returning tickers start a fresh streak); prior-only tickers UPDATE <code>evicted_at=NOW()</code>. Only <code>hot_stocks</code>-type rows participate — ETF holdings rotate via their parent-ETF cadence.
+                </div>
+            </div>
+
+            <!-- AI_TICKER_TAKES -->
+            <div id="ai_ticker_takes" class="table-card">
+                <div class="table-title">ai_ticker_takes</div>
+                <p>Cache for the Ask AI feature (<code>/api/prediction/[ticker]/ai-take</code>). Each row is a Gemma-generated paragraph analysis of one ticker at one specific data snapshot. Cache lookups are keyed on <code>(ticker, data_hash)</code> so regeneration only fires when the underlying inputs materially change. Applied via migration <code>003_ai_ticker_takes.sql</code>.</p>
+                <table class="schema-table">
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>id</code></td><td><code>BIGINT</code></td><td>Primary Key. Auto-increment. NOT NULL.</td></tr>
+                        <tr><td><code>ticker</code></td><td><code>VARCHAR(10)</code></td><td>NOT NULL. Uppercased. Matches <code>recommended_stocks.ticker</code>.</td></tr>
+                        <tr><td><code>data_hash</code></td><td><code>CHAR(64)</code></td><td>NOT NULL. SHA-256 hex of a JSON payload containing the model name + GPS score + gps_breakdown + predicted_change_pct + analyst_upside + trading_signal + top 5 news headlines. Guarantees a cache miss when either the model or the input data changes, so a future model swap invalidates every stale take.</td></tr>
+                        <tr><td><code>model</code></td><td><code>VARCHAR(40)</code></td><td>NOT NULL. Ollama model that generated this take (e.g. <code>gemma3:4b</code>). Redundant with <code>data_hash</code> but persisted for reporting.</td></tr>
+                        <tr><td><code>paragraph</code></td><td><code>TEXT</code></td><td>NOT NULL. The generated take (~120-180 words per prompt spec).</td></tr>
+                        <tr><td><code>gps_at_gen</code></td><td><code>DECIMAL(5,1)</code></td><td>Nullable. GPS score at generation time. Persisted for future drift analysis — "did the AI love this stock right before it crashed?". Not read on the hot path.</td></tr>
+                        <tr><td><code>generated_at</code></td><td><code>DATETIME</code></td><td>NOT NULL. Default CURRENT_TIMESTAMP. Also the input to the <code>AI_TAKE_CACHE_HOURS</code> TTL filter on read.</td></tr>
+                    </tbody>
+                </table>
+                <table class="schema-table">
+                    <thead><tr><th>Index</th><th>Type</th><th>Columns</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>uq_ai_ticker_takes_ticker_hash</code></td><td>UNIQUE</td><td><code>(ticker, data_hash)</code> — the cache-hit lookup key. UPSERT-safe.</td></tr>
+                        <tr><td><code>idx_ai_ticker_takes_ticker_generated</code></td><td>INDEX</td><td><code>(ticker, generated_at DESC)</code> — cheap "latest take for X" queries.</td></tr>
+                    </tbody>
+                </table>
+                <div class="highlight-box">
+                    <strong>Cache invalidation model:</strong> the read query is <code>WHERE ticker = ? AND data_hash = ? AND generated_at &gt; NOW() - INTERVAL AI_TAKE_CACHE_HOURS HOUR</code>. So a cache hit requires BOTH the same inputs (hash match) AND freshness (within TTL). Either changing → regenerate. The rate limiter only gates <em>fresh</em> generations — throttled users get the still-valid cached copy back (with a <code>rateLimited: true</code> flag), never a 429 when a cache exists.
+                </div>
             </div>
         </section>
 

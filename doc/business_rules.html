@@ -154,6 +154,7 @@
     <a href="#validation">13. Validation &amp; Drops</a>
     <a href="#external">14. External Data</a>
     <a href="#security">15. Security &amp; PII</a>
+    <a href="#ai-take">16. AI Take</a> <span class="new-badge">new</span>
     <div class="section-divider"></div>
     <a href="authentication_flow.html">Auth Flow</a>
     <a href="strategy_system.html">Strategy System</a>
@@ -829,6 +830,56 @@
           <span class="src">src/utils/gps.ts · src/app/components/GpsCallLabel.tsx · src/app/components/modals/GpsBreakdownModal.tsx</span>
         </div>
       </div>
+
+      <div class="rule">
+        <div class="rid">BR-8.8</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <span class="tag new">new — 2026-07-18</span>
+          <p><strong>Dashboard tenure rotation.</strong> When <code>DASHBOARD_TENURE_ROTATION</code> is on (default), the Recommendations section applies a two-pass filter after building the base BUY/SELL list. Pass 1 — the "fresh pool" — keeps only <code>watchlist</code>, <code>discovery</code>, and <code>etf_holding</code> BUY recs whose <code>dashboard_tenure.consecutive_days ≤ DASHBOARD_TENURE_MAX_DAYS</code> AND whose <code>evicted_at</code> is either NULL or older than <code>DASHBOARD_TENURE_COOLDOWN_DAYS</code>. That subset is sorted by GPS DESC and capped at <code>DASHBOARD_TENURE_TARGET_CARDS</code>. Pass 2 — the backfill — only fires when Pass 1 returned fewer than <code>DASHBOARD_TENURE_MIN_CARDS</code> stocks; it tops up from the stale/evicted pool by GPS DESC to guarantee the section is never empty.</p>
+          <span class="src">src/app/api/dashboard/recommendations/route.ts · src/app/api/dashboard/deepmoney-picks/route.ts</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-8.9</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <span class="tag new">new — 2026-07-18</span>
+          <p><strong>SELL warnings and portfolio-scope recs bypass rotation.</strong> Both are always kept regardless of tenure. Reasoning: users need to see divestment signals even for names they've held forever, and portfolio-scope BUY MORE / SELL cards are load-bearing for actionable decisions. Only <code>watchlist</code>, <code>discovery</code>, and <code>etf_holding</code> BUYs participate in the fresh-pool filter and the cap.</p>
+          <span class="src">src/app/api/dashboard/recommendations/route.ts</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-8.10</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <span class="tag new">new — 2026-07-18</span>
+          <p><strong>NEW badge condition.</strong> The green "NEW" pill next to the ticker in <code>RecommendationsSection</code> and <code>DeepmoneyCardView</code> renders when the response's <code>consecutiveDays ≤ 3</code>. It's purely a visual affordance — badge presence does not affect ranking or filtering.</p>
+          <span class="src">src/app/components/RecommendationsSection.tsx · src/app/components/cards/variants/DeepmoneyCardView.tsx</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-8.11</div>
+        <div class="body">
+          <span class="tag sync">Sync</span>
+          <span class="tag new">new — 2026-07-18</span>
+          <p><strong>Tenure write path.</strong> <code>dashboard_tenure</code> is written by <code>deepmoney_sync.py</code> in three branches per ticker at the end of each run (after ETF holdings persist, before stale-discovery cleanup): <em>returning</em> (in both prior + current) — increment <code>consecutive_days</code> only if <code>last_seen_at &lt; today</code>; <em>new arrival</em> (current only) — INSERT / reset streak to 1; <em>evicted</em> (prior only) — stamp <code>evicted_at = NOW()</code>. Only <code>type = 'hot_stocks'</code> rows are tracked. Same-day re-syncs do not double-count.</p>
+          <span class="src">scripts/deepmoney_sync.py · deepmoney_sync_workflow.html#step5-tenure</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-8.12</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <span class="tag new">new — 2026-07-18</span>
+          <p>A <strong>"Discover more →"</strong> link renders at the bottom of the Recommendations white box, under a hairline divider. Points to <code>/search</code>. Renders whether the recommendation grid has 0 cards or many.</p>
+          <span class="src">src/app/components/RecommendationsSection.tsx</span>
+        </div>
+      </div>
     </section>
 
     <!-- ─────────────────────────── 9. RATE LIMITS ─────────────────────────── -->
@@ -1213,6 +1264,92 @@
           <p>Rotating <code>DEEPMONEY_INTERNAL_SECRET</code> instantly breaks every Python sync script until they're redeployed with the new value. Sync scripts that hit a 401/403 fall back to the public auth path and get silently redirected to <code>/login</code>; the deepmoney run produces no data and no obvious error.</p>
           <div class="danger-note">If the dashboard's DeepMoney Picks widget, BUY / SELL / DISCOVERY cards, or ETF Holding cards suddenly all go stale together, suspect a broken internal secret first.</div>
           <span class="src">src/utils/internalAuth.ts · scripts/deepmoney_sync.py</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────── 16. AI TAKE ─────────────────────────── -->
+    <section id="ai-take">
+      <h2>16. AI Take</h2>
+      <p class="see-also"><strong>See also:</strong> <a href="api_documentation.html">API Docs</a> <span class="sep">·</span> <a href="database_documentation.html#ai_ticker_takes">Database · ai_ticker_takes</a> <span class="sep">·</span> <a href="moneygoup_overview.html#env-vars-ollama-ai">App Overview · Ollama / AI Take env vars</a></p>
+
+      <div class="rule">
+        <div class="rid">BR-16.1</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <span class="tag new">new — 2026-07-18</span>
+          <p><strong>Cache-first policy.</strong> The <code>/api/prediction/[ticker]/ai-take</code> endpoint always looks up <code>ai_ticker_takes</code> before generating. Cache hit criteria: matching <code>(ticker, data_hash)</code> AND <code>generated_at &gt; NOW() - INTERVAL AI_TAKE_CACHE_HOURS HOUR</code>. Hits return in &lt;100 ms; misses trigger a Gemma inference (typically 10-20 s warm, 60-90 s cold).</p>
+          <span class="src">src/app/api/prediction/[ticker]/ai-take/route.ts</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-16.2</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <span class="tag new">new — 2026-07-18</span>
+          <p><strong>data_hash includes the model name.</strong> The SHA-256 covers <code>{model, ticker, gps_score, gps_breakdown, predicted_change_pct, analyst_upside_pct, trading_signal, top-5 news headlines}</code>. Any change forces regeneration on next click. This means swapping <code>OLLAMA_MODEL_AI_TAKE</code> automatically invalidates every cached take across the site — no manual cache flush needed.</p>
+          <span class="src">src/app/api/prediction/[ticker]/ai-take/route.ts (hashPromptInputs)</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-16.3</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <span class="tag new">new — 2026-07-18</span>
+          <p><strong>Rate limit falls back to cache, not 429.</strong> The <code>AI_TAKE_RATE_LIMIT_PER_HOUR</code> per-user-per-ticker rate limit only applies to <em>fresh</em> generations (<code>fresh=1</code> or cache miss). When a throttled request has a valid cached copy to fall back to, the server returns 200 with <code>rateLimited: true</code> and a <code>rateLimitNote</code>; the UI renders a subtle italic note under the paragraph. A 429 is only returned when the user is throttled AND there is genuinely no cache to serve.</p>
+          <span class="src">src/app/api/prediction/[ticker]/ai-take/route.ts</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-16.4</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <span class="tag new">new — 2026-07-18</span>
+          <p><strong>In-flight dedup on <code>(ticker, data_hash)</code>.</strong> A module-level <code>Map&lt;string, Promise&lt;string&gt;&gt;</code> ensures two users clicking Ask AI on the same ticker within seconds share one Gemma inference. Prevents CPU thrash from concurrent 3.5 GB model runs on a shared host.</p>
+          <span class="src">src/app/api/prediction/[ticker]/ai-take/route.ts</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-16.5</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <span class="tag new">new — 2026-07-18</span>
+          <p><strong>Ollama unavailable → panel hides.</strong> If <code>AI_TAKE_ENABLED=off</code> or <code>checkOllamaReachable()</code> fails, the route returns 503. The <code>AiTakePanel</code> component sets a session-scoped <code>hidden</code> flag on 503 and removes itself from the DOM — no error message, no dead button. Users don't see a broken feature; they see nothing at all.</p>
+          <span class="src">src/app/api/prediction/[ticker]/ai-take/route.ts · src/app/components/AiTakePanel.tsx</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-16.6</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <span class="tag new">new — 2026-07-18</span>
+          <p><strong>Boot-time warmup.</strong> <code>src/instrumentation.ts</code> preloads the AI Take model at server startup with <code>keep_alive: '24h'</code> so the first user click of the day doesn't eat a 30-40 s cold-load penalty. Fire-and-forget: if Ollama is unreachable at boot, a stderr warning is emitted and the app boots normally.</p>
+          <span class="src">src/instrumentation.ts</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-16.7</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <span class="tag new">new — 2026-07-18</span>
+          <p><strong>Only fires with GPS data present.</strong> The route requires a non-null <code>gps_score</code> in <code>stock_gps_scores</code> for the requested ticker — without it, no meaningful take is possible. Returns 404 with "No GPS data available for this ticker yet." Tickers the DeepMoney sync hasn't reached fall in this category.</p>
+          <span class="src">src/app/api/prediction/[ticker]/ai-take/route.ts (fetchTickerContext)</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-16.8</div>
+        <div class="body">
+          <span class="tag prompt">Prompt</span>
+          <span class="tag new">new — 2026-07-18</span>
+          <p><strong>Anti-list prompt hardening.</strong> Gemma has a strong bias toward markdown headers, bullet lists, and numbered sections. The prompt reinforces "one flowing paragraph, no headings, no bullets, no numbered lists, no line breaks" in three places, plus <code>stop</code> sequences on the Ollama call (<code>['\n\n', '\n-', '\n*', '\n1.', '\n2.', '**', '##']</code>) that halt generation the moment structured output starts to appear. Temperature is 0.3 — enough creativity for prose, low enough for factual grounding.</p>
+          <span class="src">src/app/api/prediction/[ticker]/ai-take/route.ts (buildPrompt)</span>
         </div>
       </div>
     </section>

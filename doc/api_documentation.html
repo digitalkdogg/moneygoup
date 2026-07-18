@@ -173,6 +173,8 @@
       <div class="stat-card"><div class="value">6h</div><div class="label">Max Cache TTL</div></div>
     </div>
 
+    <div class="updated"><strong>July 2026 (late) changes summary:</strong> New <code>GET /api/prediction/[ticker]/ai-take</code> route powers the 🤖 <strong>Ask AI</strong> button on <code>/search/[ticker]</code>. Cache-first: a SHA-256 of <code>(model + gps + prediction + top-5 headlines)</code> is the invalidation key on <code>ai_ticker_takes</code>; hits return &lt;100ms, misses generate a ~120–180-word paragraph via Ollama (<code>gemma3:4b</code> default, ~10-20s warm / 60-90s cold) and persist. Includes in-flight dedup, per-user-per-ticker-per-hour rate limit with cache fallback (throttled users still get the cached copy — never a 429 when a cache exists), and a boot warmup ping via <code>src/instrumentation.ts</code> so the first click of the day doesn't eat the cold-load penalty. <br><br><code>GET /api/dashboard/recommendations</code> gains a tenure-rotation layer (on by default): non-portfolio BUY recs (watchlist / discovery / etf_holding) get filtered by <code>dashboard_tenure</code>, capped at <code>DASHBOARD_TENURE_TARGET_CARDS</code>, and backfilled from the stale pool if fresh count falls below <code>DASHBOARD_TENURE_MIN_CARDS</code>. Portfolio-scope BUYs and all SELL warnings bypass rotation. Response now includes a per-item <code>consecutiveDays</code> field that drives the <strong>NEW</strong> badge on cards ≤3 days old. Set <code>DASHBOARD_TENURE_ROTATION=off</code> to revert to the flat GPS sort. Same rotation added to <code>GET /api/dashboard/deepmoney-picks</code> for the search-page picks widget.</div>
+
     <div class="updated"><strong>July 2026 changes summary:</strong> <code>GET /api/analytics/model-accuracy?symbol=…</code> per-symbol response gains three fields under <code>horizons['1_month']</code> — <code>direction_correct_count</code>, <code>direction_resolved_count</code>, <code>direction_accuracy_pct</code> — sourced from <code>prediction_records.direction_correct_1m</code> (SUM/COUNT, excluding NULL neutral calls). Backs <code>SymbolAccuracyIndicator.tsx</code>'s "X/Y correct (Z%)" widget on <code>/search/[ticker]</code> and fixes a "NaN%" display bug (see <code>src/app/api/analytics/model-accuracy/route.ts</code>). New <code>GET /api/stock_data/[ticker]/latest-prediction</code> returns the freshest &lt; 12h prediction from <code>prediction_records</code>, filtered by the current model version. Enables prefetched cards on <code>/search/[ticker]</code> without a click. The <code>prediction_records</code> table gained 15 new columns (per-horizon change_pct + confidence, gps score/breakdown, accuracy metrics, data quality, model status, ceiling flags, confidence breakdown + per-horizon reasons). The <code>[ticker]</code> route now writes those columns on <code>outlook='all' &amp;&amp; !isInternal</code> to avoid duplicate writes when the batch also calls the route. Sanitizer overhauled: vol-scaled per-horizon caps, signal-aware confidence (Proposal A), trajectory-smoothness gate for peak-and-reverse forecasts, directional pill flags (<code>at_model_ceiling_*</code>). Per-ticker cv_mape now computed at inference time via backtest of the last ~250 rows, with a vol-based proxy fallback — no more hardcoded 5% heuristic on the CS-model path.</div>
     <div class="updated"><strong>June 2026 changes summary:</strong> Horizon-aware response shapes are now standard across <code>/api/user/portfolio</code>, <code>/api/user/watchlist</code>, and <code>/api/dashboard/recommendations</code> — each returns a top-level <code>horizonLabel</code> matching the user's <code>investment_timeframe.shortLabel</code>. Portfolio and watchlist rows additionally expose <code>predicted_price_horizon</code>, <code>predicted_change_pct_horizon</code>, and <code>confidence_score_horizon</code> picked from the per-horizon columns in <code>user_stock_predictions</code>. <code>POST /api/prediction/save</code> accepts 8 new optional fields (<code>predicted_change_pct_{1w,1m,6m,1y}</code> and <code>confidence_score_{1w,1m,6m,1y}</code>) and writes them to <code>user_stock_predictions</code>; <code>POST /api/prediction/[ticker]</code> now forwards all 4 horizons of prices + 4 change_pct + 4 confidence to <code>/api/prediction/save</code> via <code>savePredictionAsync</code>. The user profile endpoint accepts PATCH to update the strategy. A new <code>/api/analytics/model-accuracy</code> endpoint powers the dashboard's <code>ModelAccuracyWidget</code>. <code>/api/stock_data/[sector]/industry</code> now sorts by <strong>GPS score</strong> (not the prior Heat composite), joining each sector leader against <code>stock_gps_scores</code>. DeepMoney sync injects all 11 canonical-sector top-25 lists nightly into a sector-leader override lane that bypasses the ranker keep-cut and writes a GPS row for each — see <a href="business_rules.html#external">BR-14.4 / BR-14.5 / BR-14.6</a>. Stocks the sync hasn't reached yet surface with <code>gps_score: null</code> and a placeholder in the UI. See the <a href="strategy_system.html">Strategy System</a> doc for the full strategy model.</div>
 
@@ -545,6 +547,7 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
           <span class="route-file">src/app/api/dashboard/recommendations/route.ts</span>
         </div>
         <div class="route-desc">Aggregates GPS-scored predictions across four scopes — <strong>portfolio</strong>, <strong>watchlist</strong>, <strong>discovery</strong>, and <strong>etf_holding</strong> — and returns BUY/SELL recommendations sorted by GPS score descending. BUY/SELL action is determined purely by GPS thresholds and the user's strategy, not by delta percentage alone.</div>
+        <div class="updated"><strong>Tenure rotation (July 2026, late):</strong> When <code>DASHBOARD_TENURE_ROTATION</code> is on (default), a LEFT JOIN against <code>dashboard_tenure</code> attaches <code>consecutive_days</code> to every rec. Then a two-pass filter runs on the built list: SELL warnings + portfolio-scope recs are always kept (users need divestment signals; owned holdings need BUY MORE / SELL); watchlist / discovery / etf_holding BUYs are filtered to the "fresh pool" (<code>consecutive_days ≤ DASHBOARD_TENURE_MAX_DAYS</code> AND not in cooldown), sorted by GPS DESC, and capped at <code>DASHBOARD_TENURE_TARGET_CARDS</code>. If the fresh pool has fewer than <code>DASHBOARD_TENURE_MIN_CARDS</code> stocks, backfill from the stale pool by GPS DESC guarantees a never-empty section. Each rec carries <code>consecutiveDays</code> in the response so the UI can render a "NEW" badge on cards ≤3 days old. Log line: <code>"Dashboard tenure rotation applied"</code> with fresh/rotatable/final counts.</div>
         <div class="updated"><strong>Top-level horizonLabel (June 15, 2026):</strong> The response now includes a top-level <code>horizonLabel</code> string matching the user's <code>investment_timeframe.shortLabel</code> (e.g. <code>"in 6 months"</code>). This lets the dashboard recommendation cards render a single horizon caption without re-resolving the strategy client-side.</div>
         <div class="updated"><strong>Latest-snapshot ETF holdings (June 12, 2026):</strong> The ETF holding recommendations sub-query selects only rows where <code>snapshot_date = (SELECT MAX(snapshot_date) FROM etf_stock_recommendations WHERE user_id = ?)</code>, replacing the prior rolling 7-day window. This mirrors the deepmoney-picks pattern and prevents stale picks from earlier <code>update_predictions.py</code> runs from leaking into the current card list.</div>
         <div class="updated"><strong>Strategy-aware GPS (June 2026):</strong> All GPS thresholds are multiplied by the user's <code>envFloorMultiplier</code> (safe=1.05, neutral=1.0, aggressive=0.95). The sell threshold additionally shifts by <code>sellThresholdShift</code> (longer horizons tolerate more dip before a sell signal). The predicted-change gate is the strategy's <code>predChangeGate</code> multiplied by <code>predChangeMultiplier</code> (longer horizons require a larger absolute move). The GPS breakdown's <code>mlpUpside</code> component is patched to the user's horizon via <code>adjustGpsForHorizon()</code>, yielding a per-user GPS score rather than the cached 1-month baseline.</div>
@@ -585,7 +588,8 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
       "gpsHorizon":      string,              // e.g. "6_month"
       "lastRequestedAt": string,
       "scope":           "portfolio" | "watchlist" | "discovery" | "etf_holding",
-      "etfTicker":       string | undefined   // present only for etf_holding scope
+      "etfTicker":       string | undefined,  // present only for etf_holding scope
+      "consecutiveDays": number | null        // days on dashboard; drives "NEW" badge (≤3)
     }
   ],
   "horizonLabel": string,                     // top-level — e.g. "in 6 months"
@@ -599,6 +603,7 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
           <span class="dep-tag">GET /api/worldbank</span>
           <span class="dep-tag">checkApprovalGuard</span>
           <span class="dep-tag">etf_stock_recommendations (DB)</span>
+          <span class="dep-tag">dashboard_tenure (DB)</span>
         </div>
       </div>
 
@@ -736,6 +741,76 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
 
       <div class="route-card">
         <div class="route-header">
+          <span class="method method-GET">GET</span>
+          <span class="route-path">/api/prediction/[ticker]/ai-take</span>
+          <span class="badge badge-auth">Auth required</span>
+          <span class="badge badge-cache">Cache-first (12h TTL default)</span>
+          <span class="badge badge-rate">1 fresh gen / user / ticker / hour (default)</span>
+          <span class="badge badge-new">New 2026-07-17</span>
+          <span class="route-file">src/app/api/prediction/[ticker]/ai-take/route.ts</span>
+        </div>
+        <div class="route-desc">Returns a Gemma-generated ~120-180 word paragraph analysis of the given ticker. Backs the 🤖 <strong>Ask AI</strong> panel on <code>/search/[ticker]</code>. Cache-first: a SHA-256 of <code>(OLLAMA_MODEL_AI_TAKE + gps_score + gps_breakdown + predicted_change_pct + analyst_upside + trading_signal + top 5 news headlines)</code> is the invalidation key on <code>ai_ticker_takes</code>. Fresh generations run through the shared <code>ollamaClient.generate()</code> helper with <code>keep_alive: '24h'</code> so the model stays pinned in Ollama's memory between calls.</div>
+        <div class="sub-heading">Query Params</div>
+        <table class="props-table">
+          <thead><tr><th>Param</th><th>Type</th><th>Required</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><code>fresh</code></td><td><code>0</code> / <code>1</code></td><td>No</td><td>When <code>1</code>, bypasses cache lookup and forces a fresh generation. Still subject to rate limit and in-flight dedup. Used by the ↻ Regenerate button.</td></tr>
+          </tbody>
+        </table>
+        <div class="sub-heading">Flow</div>
+        <ol>
+          <li>Auth + approval guard</li>
+          <li>If <code>AI_TAKE_ENABLED=off</code> → 503</li>
+          <li>Ticker validation via <code>tickerSchema</code></li>
+          <li>Fetch context: <code>stocks</code> LEFT JOIN <code>stock_gps_scores</code> LEFT JOIN <code>recommended_stocks</code>. If no GPS → 404 "No analysis data yet"</li>
+          <li>Fetch top-5 recent headlines from <code>stock_news</code> (fail-open to empty list)</li>
+          <li>Compute <code>data_hash</code></li>
+          <li>Cache lookup (unless <code>fresh=1</code>). Hit → return with <code>cached: true</code></li>
+          <li>Rate-limit check. Over budget with cache → return the cached copy with <code>rateLimited: true</code>; over budget without cache → 429</li>
+          <li><code>checkOllamaReachable()</code> — 503 if Ollama down</li>
+          <li>In-flight dedup: if another request is generating for this exact <code>(ticker, data_hash)</code>, await its promise instead of firing a duplicate Gemma inference</li>
+          <li><code>ollamaClient.generate()</code> with <code>OLLAMA_MODEL_AI_TAKE</code>, <code>timeoutMs=AI_TAKE_TIMEOUT_MS</code> (default 120s to survive cold-loads), <code>numPredict=350</code>, <code>temperature=0.3</code>, <code>keepAlive='24h'</code>, <code>stop=['\n\n','\n-','\n*','\n1.','\n2.','**','##']</code> (blocks list/markdown output)</li>
+          <li>INSERT into <code>ai_ticker_takes</code> (upsert on unique key). Return with <code>cached: false</code></li>
+        </ol>
+        <div class="sub-heading">Response</div>
+        <pre>{
+  "paragraph":     string,                    // the generated take (~120-180 words)
+  "cached":        boolean,                   // true if served from ai_ticker_takes
+  "generatedAt":   string,                    // ISO datetime
+  "model":         string,                    // resolved OLLAMA_MODEL_AI_TAKE
+  "asOfGps":       number | string | null,    // GPS at fetch time (for UI reference)
+  "rateLimited":   boolean | undefined,       // present + true when serving cache due to throttle
+  "rateLimitNote": string   | undefined       // italic footer copy for the UI
+}</pre>
+        <div class="sub-heading">Status codes</div>
+        <table class="props-table">
+          <thead><tr><th>Status</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td>200</td><td>Paragraph returned (cached or fresh).</td></tr>
+            <tr><td>400</td><td>Invalid ticker (Zod schema failure).</td></tr>
+            <tr><td>401</td><td>No session.</td></tr>
+            <tr><td>403</td><td>User not approved.</td></tr>
+            <tr><td>404</td><td>No GPS data yet for this ticker (sync hasn't reached it).</td></tr>
+            <tr><td>429</td><td>Rate limited AND no cached copy to fall back to. When a cache exists this is 200 with <code>rateLimited: true</code>.</td></tr>
+            <tr><td>500</td><td>Ollama returned empty response or generation threw.</td></tr>
+            <tr><td>503</td><td><code>AI_TAKE_ENABLED=off</code> or Ollama unreachable — the UI hides the panel on 503.</td></tr>
+          </tbody>
+        </table>
+        <div class="dep-list">
+          <span class="dep-tag">ollamaClient.generate</span>
+          <span class="dep-tag">checkOllamaReachable</span>
+          <span class="dep-tag">tickerSchema</span>
+          <span class="dep-tag">checkApprovalGuard</span>
+          <span class="dep-tag">executeRawQuery</span>
+          <span class="dep-tag">ai_ticker_takes (DB)</span>
+          <span class="dep-tag">stock_gps_scores (DB)</span>
+          <span class="dep-tag">recommended_stocks (DB)</span>
+          <span class="dep-tag">stock_news (DB, fail-open)</span>
+        </div>
+      </div>
+
+      <div class="route-card">
+        <div class="route-header">
           <span class="method method-POST">POST</span>
           <span class="route-path">/api/prediction/save</span>
           <span class="badge badge-auth">Auth or internal API key</span>
@@ -790,44 +865,11 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
         </div>
       </div>
 
-      <div class="route-card">
-        <div class="route-header">
-          <span class="method method-POST">POST</span>
-          <span class="route-path">/api/prediction/bellwether</span>
-          <span class="badge badge-internal">Internal API key only</span>
-          <span class="badge badge-new">New 2026-07-09</span>
-          <span class="route-file">src/app/api/prediction/bellwether/route.ts</span>
-        </div>
-        <div class="route-desc">Predicts the 20 market bellwether ETFs and writes them to <code>prediction_records</code> with <code>model_version = 'bellwether_etf_v1'</code>. Runs before the main DeepMoney discovery pass so the individual stock prediction engine can read fresh broad-market/sector/macro signals from the ETF predictions to boost individual stock confidence.</div>
-        <div class="sub-heading">Response</div>
-        <pre>{
-  "success": true,
-  "summary": {
-    "total": number,
-    "succeeded": number,
-    "failed": number,
-    "elapsed_ms": number
-  },
-  "results": [
-    {
-      "ticker": string,
-      "category": "broad" | "sector" | "macro",
-      "ok": boolean,
-      "price": number,
-      "predicted_change_pct_1w": number | null,
-      "predicted_change_pct_1m": number | null,
-      "predicted_change_pct_6m": number | null,
-      "predicted_change_pct_1y": number | null,
-      "confidence_score_1m": number | null
-    }
-  ]
-}</pre>
-        <div class="dep-list">
-          <span class="dep-tag">scripts/deepmoney_sync.py</span>
-          <span class="dep-tag">recordPrediction (utils/predictionRecorder)</span>
-          <span class="dep-tag">runPredictionInternal (utils/stockDataHelper)</span>
-        </div>
-      </div>
+      <!-- REMOVED: /api/prediction/bellwether route-card. The 2026-07-09
+           bellwether endpoint (per session memory) was removed before this doc
+           audit; src/app/api/prediction/bellwether/ is now an empty directory
+           and scripts/deepmoney_sync.py no longer calls it. If bellwether is
+           being reintroduced, restore this card from git history at that time. -->
 
       <div class="route-card">
         <div class="route-header">

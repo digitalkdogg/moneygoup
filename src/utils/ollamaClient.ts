@@ -116,6 +116,110 @@ export async function generate(
 }
 
 /**
+ * Streaming variant of `generate()`. Opens a POST to Ollama's /api/generate
+ * with `stream: true` and returns a `ReadableStream<string>` that yields the
+ * text delta from each Ollama JSON line as it arrives. The caller is
+ * responsible for both consuming the stream AND deciding what to do at end
+ * (persist to cache, tee to the client, etc.).
+ *
+ * Returns `null` if the initial fetch fails, times out, or Ollama returns a
+ * non-2xx status. Any mid-stream error terminates the stream cleanly (the
+ * consumer sees an end-of-stream, not an exception).
+ *
+ * Metadata (final `done` message with eval counts / durations) is NOT exposed
+ * — this helper is only about the response text. If you need it, use the
+ * non-streaming `generate()` or extend this helper.
+ */
+export async function generateStream(
+  prompt: string,
+  opts: GenerateOptions = {},
+): Promise<ReadableStream<string> | null> {
+  if (!prompt || prompt.trim().length === 0) return null;
+
+  const model       = opts.model       ?? OLLAMA_MODEL;
+  const timeoutMs   = opts.timeoutMs   ?? OLLAMA_TIMEOUT_MS;
+  const temperature = opts.temperature ?? 0;
+  const numPredict  = opts.numPredict  ?? 300;
+
+  const options: Record<string, unknown> = { temperature, num_predict: numPredict };
+  if (opts.stop && opts.stop.length > 0) options.stop = opts.stop;
+
+  const body: Record<string, unknown> = {
+    model,
+    prompt,
+    stream: true,
+    options,
+  };
+  if (opts.json)      body.format     = 'json';
+  if (opts.keepAlive) body.keep_alive = opts.keepAlive;
+
+  let res: Response;
+  try {
+    res = await fetch(`${OLLAMA_BASE_URL}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch {
+    return null;
+  }
+  if (!res.ok || !res.body) return null;
+
+  // Parse Ollama's newline-delimited JSON stream into text deltas.
+  // Ollama emits one JSON object per line: {"response":"…","done":false}.
+  // We buffer partial lines across chunks and emit `response` fields as
+  // they resolve.
+  const decoder     = new TextDecoder();
+  const lineBuffer  = { chunk: '' };  // wrapped so we can mutate in nested scope
+  const upstream    = res.body.getReader();
+
+  return new ReadableStream<string>({
+    async pull(controller) {
+      try {
+        const { value, done } = await upstream.read();
+        if (done) {
+          // Flush any trailing partial line — Ollama's final line always ends
+          // with \n in practice, so this is defensive.
+          if (lineBuffer.chunk.trim()) {
+            try {
+              const obj = JSON.parse(lineBuffer.chunk) as { response?: string };
+              if (obj.response) controller.enqueue(obj.response);
+            } catch { /* ignore */ }
+          }
+          controller.close();
+          return;
+        }
+        lineBuffer.chunk += decoder.decode(value, { stream: true });
+        // Split on newlines; keep the last (possibly-incomplete) segment.
+        const lines = lineBuffer.chunk.split('\n');
+        lineBuffer.chunk = lines.pop() ?? '';
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const obj = JSON.parse(line) as { response?: string; done?: boolean };
+            if (obj.response) controller.enqueue(obj.response);
+            // done=true just means the eval finished; we let the loop close
+            // naturally on the next read() returning done.
+          } catch {
+            // Malformed line — skip. Common if a keep-alive keeps a partial
+            // message alive across a chunk boundary and we already flushed.
+          }
+        }
+      } catch {
+        // Reader exception (mid-stream disconnect) — close cleanly so the
+        // consumer sees end-of-stream rather than a throw.
+        controller.close();
+      }
+    },
+    cancel() {
+      // Client aborted — release the upstream reader.
+      upstream.cancel().catch(() => { /* ignore */ });
+    },
+  });
+}
+
+/**
  * Convenience wrapper around `generate()` that also runs JSON.parse on the
  * result and returns the parsed object (or null on any failure). Sets
  * `json: true` automatically so Ollama returns valid JSON.

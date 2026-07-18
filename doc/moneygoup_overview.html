@@ -260,6 +260,8 @@
     <a href="#env-vars-email">— Email</a>
     <a href="#env-vars-deepmoney">— DeepMoney</a>
     <a href="#env-vars-prediction">— Prediction / GPS</a>
+    <a href="#env-vars-ollama-ai">— Ollama / AI Take</a>
+    <a href="#env-vars-dashboard-tenure">— Dashboard Rotation</a>
     <a href="#read-next">Where to Read Next</a>
     <div class="section-divider"></div>
     <a href="authentication_flow.html">Auth Flow</a>
@@ -852,6 +854,166 @@ GPS_BASELINE=75           # stricter: BUY only above 75</pre>
                 <div class="field"><span class="field-label">Tuning</span>Effectively disable the widget filter (rely on the sync's own gates):
                     <pre class="example">GPS_DEEPMONEY_MIN_SCORE=4    # almost everything passes
 GPS_DEEPMONEY_MIN_SCORE=65   # default: only the top tier shows</pre>
+                </div>
+            </div>
+
+            <div class="env-category" id="env-vars-ollama-ai">Ollama / AI Take</div>
+
+            <div class="env-var-card">
+                <span class="name">OLLAMA_ENABLED</span>
+                <span class="default">optional · false</span>
+                <div class="field"><span class="field-label">Overview</span>Master switch for LLM-backed features (NER extraction in the DeepMoney sync, AI Take on <code>/search/[ticker]</code>). Must be the exact string <code>true</code> to enable — anything else, including unset, disables all LLM calls. Read once at module load by <code>isOllamaEnabled()</code>.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/utils/ollamaClient.ts</code>, <code>scripts/deepmoney_sync.py</code>.</div>
+                <div class="field"><span class="field-label">Visible on</span>The 🤖 AI Take panel on <code>/search/[ticker]</code> — falls back to hidden when off (the route returns 503 and the panel removes itself). Also gates the NER pass in the nightly sync (silently no-ops when off).</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">OLLAMA_ENABLED=true</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">OLLAMA_BASE_URL</span>
+                <span class="default">optional · http://localhost:11434</span>
+                <div class="field"><span class="field-label">Overview</span>HTTP endpoint of the Ollama server. Override when Ollama runs on a different host, port, or behind a reverse proxy.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/utils/ollamaClient.ts</code>, <code>src/instrumentation.ts</code> (boot-time warmup ping), <code>scripts/deepmoney_sync.py</code>.</div>
+                <div class="field"><span class="field-label">Visible on</span>Both LLM-backed features route through this URL. Misconfigured → <code>/api/prediction/[ticker]/ai-take</code> returns 503 and the AI Take card hides itself; NER pass silently no-ops in the sync log.</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">OLLAMA_BASE_URL=http://gpu-box.internal:11434</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">OLLAMA_MODEL</span>
+                <span class="default">optional · llama3.2</span>
+                <div class="field"><span class="field-label">Overview</span>Default model for generic Ollama calls (NER extraction over article text, other short classification tasks). Feature-specific overrides (e.g. <code>OLLAMA_MODEL_AI_TAKE</code>) take precedence within their own feature and don't affect this default.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/utils/ollamaClient.ts</code> as the fallback in <code>GenerateOptions.model</code>.</div>
+                <div class="field"><span class="field-label">Visible on</span>The DeepMoney sync's NER output (tickers extracted from news articles). Not consumed by AI Take, which resolves its own model via <code>OLLAMA_MODEL_AI_TAKE</code>.</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">OLLAMA_MODEL=llama3.2:3b</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">OLLAMA_TIMEOUT_MS</span>
+                <span class="default">optional · 8000 (8s)</span>
+                <div class="field"><span class="field-label">Overview</span>Default hard timeout for a single Ollama <code>/api/generate</code> call. Suited to short classification jobs. AI Take overrides this via <code>AI_TAKE_TIMEOUT_MS</code> because paragraph generation on CPU takes much longer, especially on cold-load.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/utils/ollamaClient.ts</code>.</div>
+                <div class="field"><span class="field-label">Visible on</span>How long the NER pass waits per article before giving up. Raising it may reduce dropped extractions on a slow Ollama host at the cost of sync throughput.</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">OLLAMA_TIMEOUT_MS=15000     # 15s — more tolerant of slow first calls</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">OLLAMA_MODEL_AI_TAKE</span>
+                <span class="default">optional · gemma3:4b</span>
+                <div class="field"><span class="field-label">Overview</span>Feature-local model override for the AI Take feature only. Kept independent from <code>OLLAMA_MODEL</code> so the NER pass can keep using a smaller/faster model. Must be a model already pulled locally (<code>ollama pull</code>). The chosen model name is included in the AI Take cache <code>data_hash</code> so swapping it forces a regeneration of every cached take.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/app/api/prediction/[ticker]/ai-take/route.ts</code>, <code>src/instrumentation.ts</code> (boot warmup ping preloads this exact model with <code>keep_alive: 24h</code>).</div>
+                <div class="field"><span class="field-label">Visible on</span>The paragraph text of the 🤖 AI Take card on <code>/search/[ticker]</code>. Model choice affects prose quality, tone, and generation latency (10-20s warm, 60-90s cold on CPU for a 3-4B model).</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">OLLAMA_MODEL_AI_TAKE=llama3.2:3b      # faster but less prose quality
+OLLAMA_MODEL_AI_TAKE=qwen2.5:3b       # alternative comparable to gemma3:4b</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">AI_TAKE_ENABLED</span>
+                <span class="default">optional · on (unset = enabled)</span>
+                <div class="field"><span class="field-label">Overview</span>Kill switch for the AI Take route and its UI panel. Unset defaults to enabled. Set to <code>off</code> to hard-disable — the route returns 503 and the <code>AiTakePanel</code> component hides itself for the rest of the browser session. Also short-circuits the boot warmup ping so a disabled feature doesn't touch Ollama at all.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/app/api/prediction/[ticker]/ai-take/route.ts</code>, <code>src/instrumentation.ts</code>.</div>
+                <div class="field"><span class="field-label">Visible on</span>The 🤖 AI Take card on <code>/search/[ticker]</code>. When off: card doesn't render at all.</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">AI_TAKE_ENABLED=off      # temporarily disable the whole feature</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">AI_TAKE_CACHE_HOURS</span>
+                <span class="default">optional · 12</span>
+                <div class="field"><span class="field-label">Overview</span>TTL for cached AI Take paragraphs in the <code>ai_ticker_takes</code> table. Cache is <em>also</em> keyed on a SHA-256 of the model name + GPS + prediction + news headlines, so cache entries also invalidate on material data change — this TTL is a secondary expiry that forces periodic refresh even when data is stable.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/app/api/prediction/[ticker]/ai-take/route.ts</code> (<code>cacheLookup</code>).</div>
+                <div class="field"><span class="field-label">Visible on</span>The 🤖 AI Take card. Higher = fewer regenerations, less CPU load; lower = fresher takes, more Ollama traffic. Users see the "Cached" state until either the TTL expires or the underlying data hash changes.</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">AI_TAKE_CACHE_HOURS=24      # halve daily regeneration traffic</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">AI_TAKE_RATE_LIMIT_PER_HOUR</span>
+                <span class="default">optional · 1</span>
+                <div class="field"><span class="field-label">Overview</span>How many <em>fresh</em> generations one user can trigger per ticker per hour. Cache hits are always free. A throttled user still gets the cached paragraph back (with a subtle "regeneration limited" italic note under it) — a 429 is only returned when there is genuinely nothing cached to fall back to.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/app/api/prediction/[ticker]/ai-take/route.ts</code> (in-memory rate bucket keyed on <code>userId:ticker</code>). Not backed by a DB table today — cheap enough for a single-node VPS deploy; swap to Redis when scaling out.</div>
+                <div class="field"><span class="field-label">Visible on</span>The ↻ Regenerate button behavior on the AI Take card. When over budget with a cache, the paragraph doesn't error — it silently returns the cached copy with an italic footer note.</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">AI_TAKE_RATE_LIMIT_PER_HOUR=3      # allow ~3 regens/hour per ticker per user</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">AI_TAKE_TIMEOUT_MS</span>
+                <span class="default">optional · 120000 (120s)</span>
+                <div class="field"><span class="field-label">Overview</span>Hard timeout for a single AI Take generation. Sized to allow model cold-loads on CPU-only hardware, which can hit 60-90s the first time after boot or after <code>ollama pull</code>. Warm-model generations typically return in 10-20s.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/app/api/prediction/[ticker]/ai-take/route.ts</code> (passed as <code>timeoutMs</code> into <code>generate()</code>, overriding the default <code>OLLAMA_TIMEOUT_MS</code>).</div>
+                <div class="field"><span class="field-label">Visible on</span>The AI Take spinner state on <code>/search/[ticker]</code>. If exceeded, <code>generate()</code> returns null and the UI shows "The AI service returned an error". Raise on resource-constrained hosts where cold-loads legitimately need more time.</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">AI_TAKE_TIMEOUT_MS=180000       # 3 min — very slow first-loads
+AI_TAKE_TIMEOUT_MS=45000        # tighter — warm-only, fail fast on cold miss</pre>
+                </div>
+            </div>
+
+            <div class="env-category" id="env-vars-dashboard-tenure">Dashboard Recommendations Rotation</div>
+
+            <div class="env-var-card">
+                <span class="name">DASHBOARD_TENURE_ROTATION</span>
+                <span class="default">optional · on (unset = enabled)</span>
+                <div class="field"><span class="field-label">Overview</span>Master switch for tenure-based rotation of the dashboard Recommendations section. When on, stocks that have been surfaced too many days in a row get demoted so newly-discovered tickers can rise. Tenure is tracked in the <code>dashboard_tenure</code> table (written by <code>deepmoney_sync.py</code> at the end of each run). Set to <code>off</code> to fall back to a flat GPS-sorted feed.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/app/api/dashboard/recommendations/route.ts</code>, <code>src/app/api/dashboard/deepmoney-picks/route.ts</code>.</div>
+                <div class="field"><span class="field-label">Visible on</span>The 💡 Recommendations section on <code>/dashboard</code> — non-portfolio BUY cards (watchlist / discovery / etf_holding) participate in rotation; SELL warnings and portfolio-scope cards are always kept regardless of tenure. Also affects the DeepMoney Picks search-page widget.</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">DASHBOARD_TENURE_ROTATION=off     # legacy: flat GPS sort, no rotation</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">DASHBOARD_TENURE_MAX_DAYS</span>
+                <span class="default">optional · 7</span>
+                <div class="field"><span class="field-label">Overview</span>Consecutive days a ticker can be surfaced before rotation demotes it out of the "fresh pool". Newly-arriving stocks get a green <strong>NEW</strong> pill next to the ticker for the first 3 days. Once a ticker crosses this threshold and drops out, it goes into a <code>DASHBOARD_TENURE_COOLDOWN_DAYS</code>-long hold-out before it can return.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/app/api/dashboard/recommendations/route.ts</code>, <code>src/app/api/dashboard/deepmoney-picks/route.ts</code>.</div>
+                <div class="field"><span class="field-label">Visible on</span>How long a mega-cap (NVDA, 2330.TW, SMCI) stays visible on <code>/dashboard</code> before rotating off. Higher = more stability, less churn; lower = feels fresher day-to-day.</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">DASHBOARD_TENURE_MAX_DAYS=14      # biweekly rotation</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">DASHBOARD_TENURE_COOLDOWN_DAYS</span>
+                <span class="default">optional · 5</span>
+                <div class="field"><span class="field-label">Overview</span>How long an evicted ticker stays out of the fresh pool before it becomes eligible again. Without this cooldown, a demoted mega-cap would re-qualify on the next sync and never actually rotate. Cooldown is enforced via <code>dashboard_tenure.evicted_at</code>.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/app/api/dashboard/recommendations/route.ts</code>, <code>src/app/api/dashboard/deepmoney-picks/route.ts</code>.</div>
+                <div class="field"><span class="field-label">Visible on</span>How quickly a demoted stock can return to <code>/dashboard</code>. Higher = enforced break; lower = ticker can return sooner (approaches a no-op if you drop it to 0).</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">DASHBOARD_TENURE_COOLDOWN_DAYS=3      # shorter break</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">DASHBOARD_TENURE_TARGET_CARDS</span>
+                <span class="default">optional · 12</span>
+                <div class="field"><span class="field-label">Overview</span>Preferred cap on rotatable BUY cards in the recommendations feed. Portfolio-scope BUYs and all SELL warnings do NOT count against this cap — they always render. Fresh pool is filled to this size ordered by GPS DESC; anything beyond is dropped.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/app/api/dashboard/recommendations/route.ts</code>, <code>src/app/api/dashboard/deepmoney-picks/route.ts</code>.</div>
+                <div class="field"><span class="field-label">Visible on</span>The size of the rotatable card grid on <code>/dashboard</code>. Portfolio + SELL cards render on top; the cap only affects the discovery / watchlist / ETF-holding subset.</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">DASHBOARD_TENURE_TARGET_CARDS=8      # tighter curation</pre>
+                </div>
+            </div>
+
+            <div class="env-var-card">
+                <span class="name">DASHBOARD_TENURE_MIN_CARDS</span>
+                <span class="default">optional · 8</span>
+                <div class="field"><span class="field-label">Overview</span>Safety valve: if the fresh pool has fewer than this many stocks (e.g. rotation demoted most of the qualified set on the same day), the section is backfilled from the stale/evicted pool by GPS DESC so the user never sees an empty grid. Backfill only fires when fresh count is below this floor.</div>
+                <div class="field"><span class="field-label">Where used</span><code>src/app/api/dashboard/recommendations/route.ts</code>, <code>src/app/api/dashboard/deepmoney-picks/route.ts</code>.</div>
+                <div class="field"><span class="field-label">Visible on</span>Whether stale mega-caps briefly reappear on <code>/dashboard</code> when the fresh pool is thin. Lower = more tolerant of small sections; higher = stale names re-emerge more aggressively.</div>
+                <div class="field"><span class="field-label">Tuning</span>
+                    <pre class="example">DASHBOARD_TENURE_MIN_CARDS=4      # allow smaller sections without backfill</pre>
                 </div>
             </div>
 

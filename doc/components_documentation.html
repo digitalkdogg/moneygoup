@@ -228,11 +228,10 @@
           </div>
           <span class="badge badge-server">Server</span>
         </div>
-        <div class="comp-desc">Root Next.js layout. Applies the Rubik font (weights 400/500/600/700). Wraps all pages in <code>Providers</code> (NextAuth SessionProvider), then sandwiches content between <code>Navigation</code> and <code>Footer</code>. Includes a "Skip to main content" anchor for accessibility.</div>
+        <div class="comp-desc">Root Next.js layout. Applies the Rubik font (weights 400/500/600/700), sets metadata + robots defaults, wraps all pages in <code>Providers</code> (NextAuth SessionProvider), and delegates chrome rendering to <code>AppShell</code> (a Client Component that conditionally renders <code>Navigation</code> + <code>Footer</code> based on the pathname — hidden on landing / marketing routes). Includes a "Skip to main content" anchor for accessibility.</div>
         <div class="dep-list">
           <span class="dep-tag">next/font/google · Rubik</span>
-          <span class="dep-tag">Navigation</span>
-          <span class="dep-tag">Footer</span>
+          <span class="dep-tag">AppShell</span>
           <span class="dep-tag">Providers</span>
         </div>
       </div>
@@ -347,8 +346,10 @@
         <table class="props-table">
           <thead><tr><th>Prop</th><th>Type</th><th>Required</th></tr></thead>
           <tbody>
-            <tr><td><code>portfolioItems</code></td><td>PortfolioItem[]</td><td><span class="required">required</span></td></tr>
-            <tr><td><code>loading</code></td><td>boolean</td><td><span class="required">required</span></td></tr>
+            <tr><td><code>portfolio</code></td><td>PortfolioItem[]</td><td><span class="required">required</span></td></tr>
+            <tr><td><code>marketStatus</code></td><td>'open' | 'closed'</td><td><span class="required">required</span></td></tr>
+            <tr><td><code>showChart</code></td><td>boolean</td><td><span class="required">required</span></td></tr>
+            <tr><td><code>onToggleChart</code></td><td>() =&gt; void</td><td><span class="required">required</span></td></tr>
           </tbody>
         </table>
         <div class="dep-list"><span class="dep-tag">SummaryCard</span></div>
@@ -359,14 +360,13 @@
           <div><div class="comp-name">SummaryCard</div><div class="comp-file">src/app/components/SummaryCard.tsx</div></div>
           <span class="badge badge-client">Client</span>
         </div>
-        <div class="comp-desc">Single KPI display card. Renders a label, a color-coded value (green for positive, red for negative, gray for zero/neutral), and an optional missing-data warning tooltip when some portfolio items were excluded from the calculation.</div>
+        <div class="comp-desc">Single KPI display card. Renders a label and a currency-formatted value (formatting happens inside the component, not by the caller). The <code>marketStatus</code> prop controls a live/closed visual affordance.</div>
         <table class="props-table">
           <thead><tr><th>Prop</th><th>Type</th><th>Required</th></tr></thead>
           <tbody>
             <tr><td><code>label</code></td><td>string</td><td><span class="required">required</span></td></tr>
-            <tr><td><code>value</code></td><td>string</td><td><span class="required">required</span></td></tr>
-            <tr><td><code>tone</code></td><td>'positive' | 'negative' | 'neutral'</td><td><span class="required">required</span></td></tr>
-            <tr><td><code>missingCount</code></td><td>number</td><td><span class="optional">optional</span></td></tr>
+            <tr><td><code>value</code></td><td>number | null</td><td><span class="required">required</span></td></tr>
+            <tr><td><code>marketStatus</code></td><td>'open' | 'closed'</td><td><span class="required">required</span></td></tr>
           </tbody>
         </table>
       </div>
@@ -376,7 +376,7 @@
           <div><div class="comp-name">MajorIndicesStrip</div><div class="comp-file">src/app/components/MajorIndicesStrip.tsx</div></div>
           <span class="badge badge-client">Client</span>
         </div>
-        <div class="comp-desc">Horizontal strip showing live prices and daily change for DJI, S&amp;P 500, NASDAQ, and VIX. Fetches from <code>GET /api/market/indices</code> on mount and re-fetches every 2 minutes. Displays a skeleton while loading.</div>
+        <div class="comp-desc">Horizontal strip showing live prices and daily change for DJI, S&amp;P 500, NASDAQ, and VIX. Fetches from <code>GET /api/market/indices</code> on mount and polls every 2 minutes <strong>only while the market is open</strong> (polling short-circuits via <code>if (!getMarketStatus().isOpen) return</code>). Displays a skeleton while loading.</div>
         <div class="dep-list"><span class="dep-tag">GET /api/market/indices</span></div>
       </div>
 
@@ -394,6 +394,7 @@
           </tbody>
         </table>
         <div class="updated"><strong>June 2026:</strong> Header pill no longer hardcodes "Based on 1-month prediction" — it now reads <code>data.horizonLabel</code> from the recommendations endpoint (e.g. "Based on 6M prediction"). The <code>portfolioEtfTickers</code> prop was added earlier: on the <code>/portfolio</code> page, <code>PortfolioPage</code> derives this list from items where <code>is_etf === true</code> and passes it alongside <code>scopes={['portfolio', 'watchlist', 'etf_holding']}</code>.</div>
+        <div class="updated"><strong>July 2026 (late):</strong> Each rendered card now honors the tenure metadata on the API response. When <code>rec.consecutiveDays &lt;= 3</code>, an inline green <strong>NEW</strong> pill renders next to the ticker (title tooltip: "On dashboard N day(s)"). The pill is placed inline with the ticker inside the <code>label</code> prop, which required widening <code>MiniDataCardProps.label</code> from <code>string</code> to <code>string | React.ReactNode</code>. Server-side rotation (see <code>/api/dashboard/recommendations</code>) is what determines which cards are surfaced — the component just renders whatever comes back. A new "Discover more →" link renders under the grid, centered under a hairline divider, pointing to <code>/search</code>.</div>
         <div class="dep-list"><span class="dep-tag">MiniDataCard</span><span class="dep-tag">GpsTooltip</span><span class="dep-tag">GET /api/dashboard/recommendations</span></div>
       </div>
 
@@ -597,11 +598,11 @@ interface CardActionHandlers {
           <div><div class="comp-name">MiniDataCard</div><div class="comp-file">src/app/components/cards/MiniDataCard.tsx</div></div>
           <span class="badge badge-util">Presentational</span>
         </div>
-        <div class="comp-desc">Compact display card used in <code>RecommendationsSection</code>. Shows a label, badge, primary text, secondary text, and sub-label. Background tinting is based on a <code>tone</code> prop ('positive', 'negative', 'neutral').</div>
+        <div class="comp-desc">Compact display card used in <code>RecommendationsSection</code>. Shows a label, badge, primary text, secondary text, and sub-label. Background tinting is based on a <code>tone</code> prop ('positive', 'negative', 'neutral'). <strong>Note (July 2026 late):</strong> <code>label</code> was widened from <code>string</code> to <code>string | React.ReactNode</code> so consumers can embed rich content (like the "NEW" tenure pill in <code>RecommendationsSection</code>) inline with the ticker.</div>
         <table class="props-table">
           <thead><tr><th>Prop</th><th>Type</th><th>Required</th></tr></thead>
           <tbody>
-            <tr><td><code>label</code></td><td>string</td><td><span class="required">required</span></td></tr>
+            <tr><td><code>label</code></td><td>string | React.ReactNode</td><td><span class="required">required</span></td></tr>
             <tr><td><code>badge</code></td><td>string</td><td><span class="optional">optional</span></td></tr>
             <tr><td><code>primaryText</code></td><td>string</td><td><span class="required">required</span></td></tr>
             <tr><td><code>secondaryText</code></td><td>string</td><td><span class="optional">optional</span></td></tr>
@@ -830,7 +831,7 @@ interface CardActionHandlers {
           <div><div class="comp-name">Stock</div><div class="comp-file">src/app/components/Stock.tsx</div></div>
           <span class="badge badge-client">Client</span>
         </div>
-        <div class="comp-desc">Large, comprehensive stock detail component. Supports both single-ticker and multi-ticker modes. On mount, fetches consolidated data from <code>GET /api/stock_data/{ticker}</code> and GPS score from <code>GET /api/stock_data/{ticker}/gps</code>. Also checks watchlist/portfolio membership via <code>GET /api/dashboard/on?ticker=</code>. Renders: price header with daily change, portfolio position panel (if owned), <code>StockSignalPanel</code> + <code>StockPrediction</code>, analyst sentiment table, <code>StockChart</code>, <code>TechnicalIndicatorsDisplay</code>, earnings table, and <code>StockNews</code>.</div>
+        <div class="comp-desc">Large, comprehensive stock detail component. Supports both single-ticker and multi-ticker modes. On mount, fetches consolidated data from <code>GET /api/stock_data/{ticker}</code> and GPS score from <code>GET /api/stock_data/{ticker}/gps</code>. Also checks watchlist/portfolio membership via <code>GET /api/dashboard/on?ticker=</code>. Renders: price header with daily change, portfolio position panel (if owned), <code>StockSignalPanel</code> + <code>StockPrediction</code>, an <code>AiTakePanel</code>, analyst sentiment table, <code>StockChart</code>, <code>TechnicalIndicatorsDisplay</code>, earnings table, and <code>StockNews</code>.</div>
         <table class="props-table">
           <thead><tr><th>Prop</th><th>Type</th><th>Required</th></tr></thead>
           <tbody>
@@ -838,10 +839,11 @@ interface CardActionHandlers {
             <tr><td><code>embedded</code></td><td>boolean</td><td><span class="optional">optional</span></td></tr>
           </tbody>
         </table>
+        <div class="updated"><strong>July 2026 (late):</strong> The <code>SymbolAccuracyIndicator</code> mount (blue "Past 1-month predictions" banner) was removed from the details panel. The slot is now occupied by <code>AiTakePanel</code>, which shares the same light-blue visual treatment (<code>bg-blue-50 border border-blue-200</code>) and hosts the 🤖 Ask AI button. <code>SymbolAccuracyIndicator.tsx</code> still exists on disk but has no importer.</div>
         <div class="dep-list">
           <span class="dep-tag">StockSignalPanel</span>
           <span class="dep-tag">StockPrediction</span>
-          <span class="dep-tag">SymbolAccuracyIndicator</span>
+          <span class="dep-tag">AiTakePanel</span>
           <span class="dep-tag">StockChart</span>
           <span class="dep-tag">TechnicalIndicatorsDisplay</span>
           <span class="dep-tag">StockNews</span>
@@ -892,10 +894,40 @@ interface CardActionHandlers {
 
       <div class="comp-card">
         <div class="comp-header">
+          <div><div class="comp-name">AiTakePanel</div><div class="comp-file">src/app/components/AiTakePanel.tsx</div></div>
+          <span class="badge badge-client">Client</span>
+          <span class="badge badge-new">New 2026-07-18</span>
+        </div>
+        <div class="comp-desc">Light-blue card on <code>/search/[ticker]</code> hosting the 🤖 <strong>Ask AI</strong> button. On click, fetches <code>GET /api/prediction/[ticker]/ai-take</code> and renders the returned paragraph. State machine has five kinds: <code>idle</code> (button shown), <code>loading</code> (spinner + "Analyzing…"), <code>ready</code> (paragraph + "Generated HH:MM" footer + optional italic rate-limit note + ↻ Regenerate button), <code>rate-limited</code> (no longer reachable in current server behavior — server falls back to cached), and <code>error</code> (red banner with Retry). A 503 response from the API sets a <code>hidden</code> flag on the component for the rest of the session so the whole panel disappears when Ollama is down or <code>AI_TAKE_ENABLED=off</code>. Mounted from <code>Stock.tsx</code> right after the prediction / signal panels.</div>
+        <table class="props-table">
+          <thead><tr><th>Prop</th><th>Type</th><th>Required</th></tr></thead>
+          <tbody>
+            <tr><td><code>ticker</code></td><td>string</td><td><span class="required">required</span></td></tr>
+          </tbody>
+        </table>
+        <div class="sub-heading">Response fields consumed</div>
+        <table class="props-table">
+          <thead><tr><th>Field</th><th>Behavior</th></tr></thead>
+          <tbody>
+            <tr><td><code>paragraph</code></td><td>Rendered as <code>whitespace-pre-line</code> in the card body.</td></tr>
+            <tr><td><code>cached</code></td><td>Not surfaced visually in the current build — the model + "Cached" chips were removed per user request. Footer shows only "Generated HH:MM".</td></tr>
+            <tr><td><code>generatedAt</code></td><td>Formatted to <code>HH:MM</code> in the footer via <code>toLocaleTimeString</code>.</td></tr>
+            <tr><td><code>rateLimited</code> + <code>rateLimitNote</code></td><td>When present, a subtle gray italic line renders under the footer: "Regeneration limited to N per hour — showing the latest cached take."</td></tr>
+          </tbody>
+        </table>
+        <div class="sub-heading">Regenerate</div>
+        <div class="comp-desc">The ↻ Regenerate button hits the same endpoint with <code>?fresh=1</code>. If the user is rate-limited, the server responds 200 with <code>rateLimited: true</code> and returns the cached copy — no error surface, just the italic note.</div>
+        <div class="dep-list">
+          <span class="dep-tag">GET /api/prediction/[ticker]/ai-take</span>
+        </div>
+      </div>
+
+      <div class="comp-card">
+        <div class="comp-header">
           <div><div class="comp-name">SymbolAccuracyIndicator</div><div class="comp-file">src/app/components/SymbolAccuracyIndicator.tsx</div></div>
           <span class="badge badge-client">Client</span>
         </div>
-        <div class="comp-desc">Small blue info banner rendered on <code>/search/[ticker]</code> (mounted from <code>Stock.tsx:1125</code>). On mount, fetches <code>GET /api/analytics/model-accuracy?symbol={ticker}</code> and, when <code>status === 'ready'</code> and the <code>1_month</code> horizon has resolved samples, renders "Past 1-month predictions for <strong>TICKER</strong>: X/Y correct (Z%)". Reads <code>direction_correct_count</code> / <code>direction_resolved_count</code> / <code>direction_accuracy_pct</code> from the horizon block. Renders <code>null</code> while loading, on error, or when the endpoint returns <code>insufficient_data</code> / <code>no_data</code>.</div>
+        <div class="comp-desc"><strong>Orphaned as of July 2026 (late)</strong> — the file still exists but is no longer imported from <code>Stock.tsx</code>. When it was live, it rendered a small blue info banner on <code>/search/[ticker]</code>: on mount it fetched <code>GET /api/analytics/model-accuracy?symbol={ticker}</code> and, when <code>status === 'ready'</code> and the <code>1_month</code> horizon had resolved samples, rendered "Past 1-month predictions for <strong>TICKER</strong>: X/Y correct (Z%)". The blue slot on the details panel is now occupied by <code>AiTakePanel</code>. Safe to delete if no other consumer emerges.</div>
         <table class="props-table">
           <thead><tr><th>Prop</th><th>Type</th><th>Required</th></tr></thead>
           <tbody>

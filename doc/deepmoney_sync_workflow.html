@@ -137,7 +137,6 @@
     <a href="#overview">Overview</a>
     <a href="#entrypoint">Entrypoint &amp; Env Loading</a>
     <a href="#step1">1. Macro Data Sync</a>
-    <a href="#step1-bellwether">1.5. Bellwether ETF Pass</a> <span class="new-badge">new</span>
     <a href="#step2">2. DeepMoney Discovery</a>
     <a href="#step2-feeds">— Discovery Sources (28)</a>
     <a href="#strategy-link">— Strategy-Driven ML Gate</a>
@@ -146,6 +145,7 @@
     <a href="#ath-warn">— ATH Proximity Warning</a>
     <a href="#step4">4. Dashboard Qualification</a>
     <a href="#step5">5. ETF Holdings</a>
+    <a href="#step5-tenure">5.5. Dashboard Tenure Reconciliation</a> <span class="new-badge">new</span>
     <a href="#step6">6. Persistence &amp; Cleanup</a>
     <a href="#analytics-record">— Analytics Recording</a>
     <a href="#summary-block">— End-of-Run Summary</a>
@@ -250,22 +250,11 @@
       </div>
     <div class="flow-arrow">&#8595;</div>
 
-    <section id="step1-bellwether">
-      <h2><span class="step-num">1.5</span> Bellwether ETF Pass <span class="new-badge">new</span></h2>
-      <div class="step-card">
-        <div class="component-tag">scripts/deepmoney_sync.py — run_bellwether_pass()</div>
-        <p>Before triggering the main individual stock discovery cycle, the sync script runs a dedicated pass to predict the 20 market bellwether ETFs.</p>
-        <ul>
-          <li><strong>Endpoint called:</strong> <code>POST /api/prediction/bellwether</code> (internal-only, authenticated via the <code>x-api-key</code> header).</li>
-          <li><strong>ETFs Predicted:</strong> Loops over the 20 bellwether ETFs defined in <code>src/utils/sectorTaxonomy.ts</code> (spanning broad index funds like SPY/QQQ, sector-specific funds like XLK/XLF, and macro/commodity indicators like GLD/USO).</li>
-          <li><strong>Execution:</strong> Each ETF runs through the full prediction pipeline with <code>outlook='all'</code>.</li>
-          <li><strong>Persistence:</strong> Saves the predictions to <code>prediction_records</code> with <code>model_version = 'bellwether_etf_v1'</code>.</li>
-          <li><strong>Downstream Impact:</strong> These ETF predictions act as the broad-market, sector, and macro signal inputs. The server-side stock prediction endpoint (<code>analyzeStocks()</code> / <code>analyzer.ts</code>) reads these fresh bellwether records to adjust and boost individual stock confidence scores.</li>
-        </ul>
-      </div>
-    </section>
-
-    <div class="flow-arrow">&#8595;</div>
+    <!-- REMOVED: Step 1.5 Bellwether ETF Pass. The 2026-07-09 bellwether
+         implementation (per session memory) was removed before this audit;
+         src/app/api/prediction/bellwether/ is now an empty directory and
+         run_bellwether_pass() no longer exists in scripts/deepmoney_sync.py.
+         If bellwether is being reintroduced, restore this section from git. -->
 
     <section id="step2">
       <h2><span class="step-num">2</span> DeepMoney Discovery Trigger</h2>
@@ -468,6 +457,57 @@ if hi_ratio &gt; 0.97 and beta_val &gt; 2.0:
         <div class="highlight-box">
           <strong>Tuning note:</strong> If holdings rarely surface in your environment, check the distribution of <code>stock_gps_scores.gps_score</code> against <code>preset.gpsSurfaceValue</code> (resolved from <code>ETF_HOLDING_ALGORITHM</code>). Levels ≤ 2 set the floor to 72–75 and produce near-empty holding sets on most market days since the analyzer's GPS output peaks in the 50–60 range during typical conditions. Raise <code>ETF_HOLDING_ALGORITHM</code> (toward 10) to loosen all five ETF gates at once.
         </div>
+      </div>
+    </section>
+
+    <div class="flow-arrow">&#8595;</div>
+
+    <section id="step5-tenure">
+      <h2><span class="step-num">5.5</span> Dashboard Tenure Reconciliation <span class="new-badge">new</span></h2>
+      <div class="step-card">
+        <div class="component-tag">deepmoney_sync.py — dashboard_tenure UPSERT block (after ETF holdings, before stale-discovery cleanup)</div>
+        <p>Tracks how many consecutive days each hot-stocks ticker has appeared on the dashboard so <code>/api/dashboard/recommendations</code> and <code>/api/dashboard/deepmoney-picks</code> can rotate stale mega-caps off the Recommendations section. See <a href="database_documentation.html#dashboard_tenure"><code>dashboard_tenure</code></a> for the table schema.</p>
+
+        <h3 style="background:none;padding:0;color:#334155;margin-top:1rem;">Why this step exists outside <code>recommended_stocks</code></h3>
+        <p>The sync's first act is <code>DELETE FROM recommended_stocks</code> (see step 6) — so tenure state cannot live inside that table. Instead, the sync stashes the pre-DELETE ticker set into a Python <code>set</code> <strong>before</strong> the wipe, then reconciles it against the just-inserted set here after all hot-stocks and ETF-holdings inserts have committed.</p>
+
+        <h3 style="background:none;padding:0;color:#334155;margin-top:1rem;">Three branches per ticker</h3>
+        <table class="props-table">
+          <thead><tr><th>Set membership</th><th>SQL action</th><th>Effect</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>Returning</strong> — in <em>both</em> prior and current sets</td>
+              <td><code>UPDATE dashboard_tenure SET consecutive_days = consecutive_days + CASE WHEN last_seen_at &lt; today THEN 1 ELSE 0 END, last_seen_at = today, evicted_at = NULL WHERE ticker = ?</code></td>
+              <td>Streak advances only when a calendar day has actually passed — same-day re-runs of the sync don't double-count. Clears any lingering <code>evicted_at</code> defensively.</td>
+            </tr>
+            <tr>
+              <td><strong>New arrival</strong> — in current only</td>
+              <td><code>INSERT ... ON DUPLICATE KEY UPDATE first_seen_at = today, last_seen_at = today, consecutive_days = 1, evicted_at = NULL</code></td>
+              <td>Brand-new tickers get a fresh row. Tickers returning from a prior eviction have their streak reset — they're treated as a new arrival, not a continuation of the old stint.</td>
+            </tr>
+            <tr>
+              <td><strong>Evicted</strong> — in prior only</td>
+              <td><code>UPDATE dashboard_tenure SET evicted_at = NOW() WHERE ticker = ? AND evicted_at IS NULL</code></td>
+              <td>Stamps the drop-out moment so the API cooldown filter (<code>DASHBOARD_TENURE_COOLDOWN_DAYS</code>) can hold the ticker out for a few syncs before re-admitting it.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 style="background:none;padding:0;color:#334155;margin-top:1rem;">What's tracked</h3>
+        <p>Only <code>type = 'hot_stocks'</code> rows participate. ETF holdings rotate via their parent-ETF cadence and their tenure is not tracked. Sector-leader and trending-48h fast-path stocks that never land in <code>recommended_stocks</code> are also not tracked — the reconciliation is scoped to what's actually about to render on the dashboard.</p>
+
+        <div class="highlight-box">
+          <strong>Counter output:</strong> The end-of-run summary block reports <code>dashboard_tenure_new</code>, <code>dashboard_tenure_returning</code>, and <code>dashboard_tenure_evicted</code> so you can see how much churn is happening day to day. Log line at the end of the block: <code>"Dashboard tenure: N new, R continuing, E evicted."</code>
+        </div>
+
+        <h3 style="background:none;padding:0;color:#334155;margin-top:1rem;">Env vars that consume this state</h3>
+        <p>All read-side; the sync writes unconditionally regardless of these values. See <a href="moneygoup_overview.html#env-vars-dashboard-tenure">Overview → Dashboard Rotation env vars</a> for full docs.</p>
+        <ul>
+          <li><code>DASHBOARD_TENURE_ROTATION</code> — master switch (default on)</li>
+          <li><code>DASHBOARD_TENURE_MAX_DAYS</code> — days-in-streak before demotion (default 7)</li>
+          <li><code>DASHBOARD_TENURE_COOLDOWN_DAYS</code> — hold-out after eviction (default 5)</li>
+          <li><code>DASHBOARD_TENURE_TARGET_CARDS</code> / <code>DASHBOARD_TENURE_MIN_CARDS</code> — cap + backfill floor for the rotatable pool</li>
+        </ul>
       </div>
     </section>
 

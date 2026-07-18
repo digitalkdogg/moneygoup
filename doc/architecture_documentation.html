@@ -159,14 +159,14 @@
     <div class="page-title">Architecture</div>
     <div class="page-meta">
       <span>GrowMyStocks</span>
-      <span>Next.js 14 App Router</span>
+      <span>Next.js 16 App Router</span>
       <span>TypeScript</span>
       <span>Tailwind CSS</span>
       <span>Updated 2026-07-12</span>
     </div>
 
     <div class="summary-grid">
-      <div class="stat-card"><div class="value">Next.js 14</div><div class="label">Framework</div></div>
+      <div class="stat-card"><div class="value">Next.js 16</div><div class="label">Framework</div></div>
       <div class="stat-card"><div class="value">MySQL</div><div class="label">Database</div></div>
       <div class="stat-card"><div class="value">JWT</div><div class="label">Session Strategy</div></div>
       <div class="stat-card"><div class="value">Python</div><div class="label">ML Backend</div></div>
@@ -181,11 +181,11 @@
         <table class="props-table">
           <thead><tr><th>Layer</th><th>Technology</th><th>Notes</th></tr></thead>
           <tbody>
-            <tr><td>Framework</td><td>Next.js 14 (App Router)</td><td>Server Components + Client Components; RSC streaming supported</td></tr>
+            <tr><td>Framework</td><td>Next.js 16 (App Router)</td><td>Server Components + Client Components; RSC streaming supported</td></tr>
             <tr><td>Language</td><td>TypeScript</td><td>Strict mode; Zod for runtime validation</td></tr>
             <tr><td>Styling</td><td>Tailwind CSS</td><td>Brand color via CSS custom properties (<code>--brand-green-700</code>)</td></tr>
             <tr><td>Font</td><td>Rubik (Google Fonts)</td><td>Weights 400/500/600/700, latin subset</td></tr>
-            <tr><td>Authentication</td><td>NextAuth.js</td><td>CredentialsProvider, JWT session strategy, bcrypt password hashing</td></tr>
+            <tr><td>Authentication</td><td>NextAuth.js</td><td>CredentialsProvider, JWT session strategy, bcryptjs password hashing</td></tr>
             <tr><td>Database</td><td>MySQL</td><td>Custom helper wrappers in <code>@/utils/databaseHelper</code></td></tr>
             <tr><td>Market Data</td><td>yahoo-finance2</td><td>Primary source for quotes, historical prices, analyst summaries, earnings. Historical data uses <code>yahooFinance.chart()</code> (migrated from deprecated <code>yahooFinance.historical()</code> in May 2026). ETF detection uses <code>quoteResult.quoteType === 'ETF'</code> (dynamic, replaces static company_tickers.json lookup).</td></tr>
             <tr><td>ML Prediction</td><td>Python subprocess</td><td><code>scripts/predict_weighted_analysis.py</code> spawned via Node child_process. Post-hoc adjustment stack version selected by <code>MODEL_VARIANT</code> env var (<code>v3</code>/<code>v4</code>/<code>v5</code>, default <code>v5</code>) — independent of <code>CS_MODEL_VERSION</code> which selects the cross-sectional model pickle.</td></tr>
@@ -206,7 +206,7 @@
         <pre>src/
 ├── app/
 │   ├── layout.tsx                  Root layout (font, Navigation, Footer, Providers)
-│   ├── page.tsx                    Home page — renders Dashboard component
+│   ├── page.tsx                    Home / landing page — renders LandingPage (marketing page); Dashboard lives at /dashboard
 │   ├── globals.css
 │   ├── providers.tsx               SessionProvider wrapper
 │   │
@@ -319,7 +319,6 @@ doc/                               All HTML documentation files</pre>
             <tr><td><code>/legal/privacy</code></td><td>Privacy Policy</td><td>Public</td><td>Static content</td></tr>
             <tr><td><code>/legal/terms</code></td><td>Terms of Service</td><td>Public</td><td>Static content</td></tr>
             <tr><td><code>/legal/disclaimer</code></td><td>Disclaimer</td><td>Public</td><td>Static content</td></tr>
-            <tr><td><code>/preview</code></td><td>Preview page</td><td>Public</td><td>Navigation hidden on this route</td></tr>
           </tbody>
         </table>
       </div>
@@ -335,7 +334,7 @@ doc/                               All HTML documentation files</pre>
           <ol class="flow-steps">
             <li>User submits registration form (username, email, password)</li>
             <li>POST /api/auth/register validates input via Zod. Checks email + username uniqueness.</li>
-            <li>Password hashed with bcrypt (10 rounds). User inserted with <code>approval_status: 'pending'</code>.</li>
+            <li>Password hashed with bcryptjs (10 rounds). User inserted with <code>approval_status: 'pending'</code>.</li>
             <li>Resend sends confirmation email to user and notification to admin.</li>
             <li>User cannot log in until an admin approves the account.</li>
           </ol>
@@ -357,7 +356,7 @@ doc/                               All HTML documentation files</pre>
           <ol class="flow-steps">
             <li>User submits credentials (email + password).</li>
             <li>NextAuth CredentialsProvider calls <code>loginLimiter</code> rate check.</li>
-            <li>Looks up user by email. Runs <code>bcrypt.compare(password, hash)</code>.</li>
+            <li>Looks up user by email. Runs <code>bcryptjs.compare(password, hash)</code>.</li>
             <li>Calls <code>evaluateApprovalStatus()</code> — throws a descriptive error if pending or rejected.</li>
             <li>JWT created with <code>id</code>, <code>role</code>, <code>approvalStatus</code>. Redirects to home.</li>
           </ol>
@@ -369,7 +368,7 @@ doc/                               All HTML documentation files</pre>
             <li>If email found: SHA256 token generated, stored in <code>password_reset_tokens</code> (1-hour expiry). Resend emails reset link.</li>
             <li>User clicks link → /reset-password?token=…</li>
             <li>GET /api/auth/reset-password validates token.</li>
-            <li>User submits new password. POST validates + consumes token, bcrypt hashes, updates user.</li>
+            <li>User submits new password. POST validates + consumes token, bcryptjs hashes, updates user.</li>
           </ol>
         </div>
       </div>
@@ -565,8 +564,8 @@ Each variant uses:
             <tr><td><code>recommended_stocks</code></td><td>System-wide AI-curated hot stocks snapshot with GPS scores</td></tr>
             <tr><td><code>hot_etfs</code></td><td>System-wide AI-curated hot ETFs snapshot</td></tr>
             <tr><td><code>etf_stock_recommendations</code></td><td>Per-user ETF holding recommendations written by <code>update_predictions.py</code>. Each row links a user, a parent ETF ticker, and a holding ticker with GPS/prediction metadata.</td></tr>
-            <tr><td><code>prediction_records</code></td><td>Analytics + prefetch ledger of multi-horizon model predictions. Used by ModelAccuracyWidget and /search/[ticker] latest-prediction. Extended 2026-07-11 with 11 new columns (<code>accuracy_metrics</code>, <code>data_quality</code>, <code>model_status</code>, <code>at_model_ceiling_6m</code>, <code>at_model_ceiling_1y</code>, <code>ceiling_direction</code>, <code>confidence_breakdown</code>, and <code>confidence_reason_1w/1m/6m/1y</code>) — see <code>scripts/migrations/2026_07_11_add_missing_prediction_records_columns.sql</code>.</td></tr>
-            <tr><td><code>prediction_details</code></td><td><strong>New (2026-07-10):</strong> 1:1 sibling of <code>prediction_records</code> via <code>prediction_record_id</code> FK (<code>ON DELETE CASCADE</code>). Stores the per-prediction feature snapshot (VIX, beta, RSI, momentum, sector medians, and other regime inputs) so segmented accuracy analysis can be done after resolution without re-fetching source data. Schema: <code>scripts/migrations/2026_07_10_create_prediction_details.sql</code>.</td></tr>
+            <tr><td><code>prediction_records</code></td><td>Analytics + prefetch ledger of multi-horizon model predictions. Used by ModelAccuracyWidget and /search/[ticker] latest-prediction. Extended 2026-07-11 with 11 new columns (<code>accuracy_metrics</code>, <code>data_quality</code>, <code>model_status</code>, <code>at_model_ceiling_6m</code>, <code>at_model_ceiling_1y</code>, <code>ceiling_direction</code>, <code>confidence_breakdown</code>, and <code>confidence_reason_1w/1m/6m/1y</code>). Migration file for the July 11 extension is not present in <code>scripts/migrations/</code> — the columns may have been applied directly against the DB or via a script since removed. Verify against live schema before restoring.</td></tr>
+            <tr><td><code>prediction_details</code></td><td><strong>New (2026-07-10):</strong> 1:1 sibling of <code>prediction_records</code> via <code>prediction_record_id</code> FK (<code>ON DELETE CASCADE</code>). Stores the per-prediction feature snapshot (VIX, beta, RSI, momentum, sector medians, and other regime inputs) so segmented accuracy analysis can be done after resolution without re-fetching source data. Migration file not present in <code>scripts/migrations/</code>; live schema is the source of truth.</td></tr>
             <tr><td><code>ranking_training_snapshots</code></td><td>Historical snapshots of features and forward returns for training the cross-sectional ranker model.</td></tr>
           </tbody>
         </table>
@@ -636,6 +635,17 @@ Each variant uses:
         <h4>Brand Color Enrichment</h4>
         <p>When a user adds a stock to their portfolio (<code>POST /api/user/stocks</code>), a background async call fires <code>getBrandColorFromScript(ticker)</code>. This fetches the company's primary brand color and stores it in the <code>stock_brand</code> table. The color is then used as the accent bar at the top of each <code>PortfolioCardView</code>. This is a best-effort operation — it does not block the portfolio add response.</p>
       </div>
+
+      <div class="arch-card">
+        <h4>Ollama (local LLM)</h4>
+        <p>Runs on the same host as the Next.js app at <code>OLLAMA_BASE_URL</code> (default <code>http://localhost:11434</code>). Two features route through it:</p>
+        <ul>
+          <li><strong>DeepMoney NER pass</strong> — extracts tickers from news article text during the nightly sync; uses <code>OLLAMA_MODEL</code> (default <code>llama3.2</code>) with tight timeouts and JSON output mode.</li>
+          <li><strong>AI Take</strong> — <code>GET /api/prediction/[ticker]/ai-take</code> generates the ~120-180 word paragraph on <code>/search/[ticker]</code> via <code>gemma3:4b</code> (<code>OLLAMA_MODEL_AI_TAKE</code>). Cache-first: hits <code>ai_ticker_takes</code> keyed on a SHA-256 of model+data. Fresh calls run with <code>keep_alive: '24h'</code> so the model stays resident between clicks.</li>
+        </ul>
+        <p>Both features share one client in <code>src/utils/ollamaClient.ts</code> with <code>isOllamaEnabled()</code> as the master gate (<code>OLLAMA_ENABLED=true</code>) and <code>checkOllamaReachable()</code> as a cheap probe. Every consumer must accept <code>null</code> as "Ollama unavailable" and degrade gracefully — the wrapper never throws.</p>
+        <p>Peak RAM footprint on gemma3:4b: ~3.5 GB while resident. On a shared VPS, plan headroom accordingly; see the deployment notes below.</p>
+      </div>
     </div>
 
     <!-- ══════════════════════════════════════════ -->
@@ -647,6 +657,14 @@ Each variant uses:
         <p>The stock data route (<code>GET /api/stock_data/[ticker]</code>) maintains a module-level Map:</p>
         <pre>const inflightRequests = new Map&lt;string, Promise&lt;Response&gt;&gt;()</pre>
         <p>If a second request for the same ticker arrives while the first is still awaiting Yahoo Finance, the second request is attached to the existing Promise instead of spawning a duplicate fetch. The entry is deleted from the Map once the Promise resolves.</p>
+        <p>The AI Take route (<code>GET /api/prediction/[ticker]/ai-take</code>) uses the same pattern keyed on <code>(ticker, data_hash)</code>: if two users click Ask AI on the same ticker within seconds of each other, only one Gemma inference actually runs — the second request awaits the first's promise. Important because concurrent gemma3:4b runs on CPU would thrash a shared host.</p>
+      </div>
+
+      <div class="arch-card">
+        <h4>Boot-time Model Warmup (<code>src/instrumentation.ts</code>) <span class="new-badge">new</span></h4>
+        <p>Next.js instrumentation hook that runs once per server process at startup. Fires a fire-and-forget POST to Ollama's <code>/api/generate</code> with the AI Take model and <code>keep_alive: '24h'</code>, preloading the ~3.5 GB gemma3:4b weights into memory before any user click.</p>
+        <p>Without warmup, the first Ask AI click of the day would eat a 30-40 s cold-load penalty on top of the normal 10-20 s generation. With it, that penalty is paid at boot instead. Warmup respects the same env gates as the feature (<code>AI_TAKE_ENABLED=off</code> short-circuits the ping) and never blocks the server on failure — an unreachable Ollama produces a single stderr warning and the app keeps booting.</p>
+        <p>Guarded by <code>process.env.NEXT_RUNTIME !== 'nodejs'</code> so the Edge runtime never attempts to reach a localhost service.</p>
       </div>
 
       <div class="arch-card">
