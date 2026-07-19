@@ -20,7 +20,6 @@ import { resolveAlgorithm } from '@/utils/algorithmPreset';
 import { getSectorStocks, getTrendingStocks } from '@/utils/yahooFinanceHelper';
 import { CANONICAL_SECTORS } from '@/utils/sectorTaxonomy';
 import { getDbConnection } from '@/utils/db';
-import { ollamaTickerPass, isOllamaEnabled, type OllamaPassResult } from '@/utils/ollamaTicker';
 
 const logger = createLogger('api/prediction/deepmoney');
 const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
@@ -954,37 +953,11 @@ export async function GET(request: NextRequest) {
 
         const allTickersSet = await fetchSecondaryTickers(primaryTickers);
 
-        // --- Stage 2: Ollama NER pass (feature-flagged) ---
-        // Re-uses the raw article text already fetched in Stage 1 — no extra
-        // outbound HTTP. Disabled, unreachable, or timed-out runs return an
-        // empty ticker set and the pipeline proceeds unchanged. Tickers are
-        // merged into allTickersSet so they flow through the same enrichment
-        // and ranker gates as everything else.
-        let ollamaResult: OllamaPassResult | null = null;
-        if (isOllamaEnabled() && process.env.DEEPMONEY_NER_ENABLED === 'true') {
-            // Pass rich article records (RSS only) so ollamaTickerPass can
-            // return per-article event_types aligned to the input, letting us
-            // persist news rows with their extracted event_type below.
-            ollamaResult = await ollamaTickerPass(primaryArticles);
-            for (const t of ollamaResult.tickers) {
-                if (!TICKER_STOPLIST.has(t)) allTickersSet.add(t);
-            }
-            // Persist articles + Ollama-extracted event_type into the news
-            // table. Failures are swallowed — news persistence is best-effort
-            // and must not break the discovery pipeline.
-            try {
-                await persistNewsArticles(primaryArticles, ollamaResult.articleEventTypes);
-            } catch (err) {
-                logger.warn('news persistence failed', { error: String(err) });
-            }
-        } else {
-            // Persist news even when Ollama is disabled — we still get
-            // title/link/pubDate from the RSS feeds; event_type stays NULL.
-            try {
-                await persistNewsArticles(primaryArticles, null);
-            } catch (err) {
-                logger.warn('news persistence failed', { error: String(err) });
-            }
+        // Persist news articles — event_type stays NULL (NER classifier removed).
+        try {
+            await persistNewsArticles(primaryArticles, null);
+        } catch (err) {
+            logger.warn('news persistence failed', { error: String(err) });
         }
 
         // --- Merge popular-ETF holdings + Trending + Sector leaders ---
@@ -1106,23 +1079,7 @@ export async function GET(request: NextRequest) {
                 // Resolved DEEPMONEY_ALGORITHM preset. deepmoney_sync.py reads
                 // back from here — it is the only knob for run aggressiveness.
                 algorithm,
-                // Ollama NER pass status — surfaces in the deepmoney_sync.py
-                // run summary. Null when the feature flag is off.
-                ollamaPass: ollamaResult ? {
-                    enabled:         ollamaResult.enabled,
-                    reachable:       ollamaResult.reachable,
-                    articlesScanned: ollamaResult.articlesScanned,
-                    companiesFound:  ollamaResult.companiesFound,
-                    industriesFound: ollamaResult.industriesFound,
-                    tickersResolved: ollamaResult.tickersResolved,
-                    tickersRejected: ollamaResult.tickersRejected,
-                    // Item 5 — event-type classification. Absent when Ollama
-                    // was off. Consumers (deepmoney_sync.py, future ranker
-                    // feature) look for dominantEventByTicker to attribute
-                    // the primary event to each surfaced ticker.
-                    dominantEventByTicker: ollamaResult.dominantEventByTicker,
-                    eventTypeCounts:       ollamaResult.eventTypeCounts,
-                } : null,
+                ollamaPass: null,
                 debug: {
                     rejectedEnrichment: enrichedStocks.filter(s => s.error).length,
                     rejectedSignalScore: enrichedStocks.filter(s => !s.error && (s.tradingSignalScore === undefined || s.tradingSignalScore < algorithm.signalScoreFloor)).length,
