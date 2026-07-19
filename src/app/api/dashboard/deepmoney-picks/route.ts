@@ -317,10 +317,10 @@ async function fetchHotStocksWithRotation(
         AND rs.type = 'hot_stocks'
         AND rs.gps_score >= ?
         AND (dt.consecutive_days IS NULL OR dt.consecutive_days <= ?)
-        AND (dt.evicted_at        IS NULL OR dt.evicted_at        < NOW() - INTERVAL ? DAY)
+        AND (dt.evicted_at        IS NULL OR dt.evicted_at        < NOW() - INTERVAL ${TENURE_COOLDOWN_DAYS} DAY)
       ORDER BY rs.gps_score DESC
       LIMIT ?`,
-    [stockDate, stockGpsMin, TENURE_MAX_DAYS, TENURE_COOLDOWN_DAYS, TENURE_TARGET_CARDS],
+    [stockDate, stockGpsMin, TENURE_MAX_DAYS, TENURE_TARGET_CARDS],
   );
   const fresh = freshRows as any[];
 
