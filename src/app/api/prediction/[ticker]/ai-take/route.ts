@@ -62,6 +62,10 @@ function metadataHeaders(opts: {
   const h: Record<string, string> = {
     'Content-Type':          'text/plain; charset=utf-8',
     'Cache-Control':         'no-store',
+    // Disable proxy buffering on nginx (X-Accel-Buffering) and hint to any
+    // Cloudflare-style CDN not to buffer — otherwise the whole streamed
+    // response gets held on the edge and the browser sees a cut connection.
+    'X-Accel-Buffering':     'no',
     'X-AiTake-Cached':       opts.cached ? 'true' : 'false',
     'X-AiTake-Model':        opts.model,
     'X-AiTake-Generated-At': opts.generatedAt,
