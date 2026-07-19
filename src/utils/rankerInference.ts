@@ -104,7 +104,7 @@ async function fetchOneSeries(sym: string): Promise<MacroSeries> {
                 date:  new Date(r.date).toISOString().slice(0, 10),
                 close: r.adjclose ?? r.close ?? 0,
             }))
-            .filter(r => r.close > 0);
+            .filter((r: any) => r.close > 0);
     } catch (err) {
         logger.warn(`Macro series fetch failed for ${sym}`, { error: String(err) });
         return [];
