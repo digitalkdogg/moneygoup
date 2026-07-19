@@ -18,7 +18,7 @@ export async function getStockDataForPrediction(ticker: string, wbData?: any) {
 
   // Parallel fetch of all components needed for the prediction payload
   const [chartResult, summary, optionsRes] = await Promise.all([
-    yahooFinance.chart(ticker, { period1: fiveYearsAgo, period2: today, interval: '1d' }).catch(() => ({ quotes: [] })),
+    (yahooFinance.chart as any)(ticker, { period1: fiveYearsAgo, period2: today, interval: '1d' }, { validateResult: false }).catch((err: any) => { logger.error(`Yahoo chart error for ${ticker}: ${err?.message}`); return { quotes: [] }; }),
     yahooFinance.quoteSummary(ticker, {
       modules: ['price', 'summaryDetail', 'financialData', 'defaultKeyStatistics', 'assetProfile', 'calendarEvents']
     }).catch(() => ({})),
