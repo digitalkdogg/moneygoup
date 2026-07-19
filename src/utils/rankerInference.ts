@@ -90,7 +90,7 @@ async function fetchOneSeries(sym: string): Promise<MacroSeries> {
     const threeYearsAgo = new Date(Date.now() - 3 * 365.25 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-    const fetchPromise = yahooFinance.chart(sym, { period1: threeYearsAgo, period2: yesterday, interval: '1d' });
+    const fetchPromise = (yahooFinance.chart as any)(sym, { period1: threeYearsAgo, period2: yesterday, interval: '1d' }, { validateResult: false });
     const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error(`timeout after ${MACRO_SERIES_TIMEOUT_MS}ms`)), MACRO_SERIES_TIMEOUT_MS),
     );
@@ -99,10 +99,10 @@ async function fetchOneSeries(sym: string): Promise<MacroSeries> {
         const chartResult = await Promise.race([fetchPromise, timeoutPromise]);
         const rows = chartResult.quotes || [];
         return rows
-            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-            .map(r => ({
+            .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
+            .map((r: any) => ({
                 date:  new Date(r.date).toISOString().slice(0, 10),
-                close: (r as any).adjclose ?? (r as any).close ?? 0,
+                close: r.adjclose ?? r.close ?? 0,
             }))
             .filter(r => r.close > 0);
     } catch (err) {
