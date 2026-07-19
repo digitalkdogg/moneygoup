@@ -26,6 +26,26 @@ type RankerInputStock = { ticker: string; sector?: string };
 const logger = createLogger('utils/rankerInference');
 const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
 
+const RATE_LIMIT_BACKOFF_MS = 60_000;
+const MAX_RETRIES = 3;
+
+async function yahooChartWithRetry(sym: string, params: any): Promise<any> {
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return await (yahooFinance.chart as any)(sym, params, { validateResult: false });
+    } catch (err: any) {
+      const msg = String(err?.message ?? err);
+      if (msg.includes('Too Many Requests') && attempt < MAX_RETRIES) {
+        logger.warn(`Yahoo rate-limited on ${sym}, waiting ${RATE_LIMIT_BACKOFF_MS / 1000}s (attempt ${attempt}/${MAX_RETRIES})`);
+        await new Promise(r => setTimeout(r, RATE_LIMIT_BACKOFF_MS));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error(`Yahoo chart failed for ${sym} after ${MAX_RETRIES} attempts`);
+}
+
 // ─── Sector → ETF mapping (mirrors src/app/api/stock_data/[ticker]/data/route.ts) ──
 const SECTOR_ETF: Record<string, string> = {
     Technology: 'XLK',
@@ -90,7 +110,7 @@ async function fetchOneSeries(sym: string): Promise<MacroSeries> {
     const threeYearsAgo = new Date(Date.now() - 3 * 365.25 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-    const fetchPromise = (yahooFinance.chart as any)(sym, { period1: threeYearsAgo, period2: yesterday, interval: '1d' }, { validateResult: false });
+    const fetchPromise = yahooChartWithRetry(sym, { period1: threeYearsAgo, period2: yesterday, interval: '1d' });
     const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error(`timeout after ${MACRO_SERIES_TIMEOUT_MS}ms`)), MACRO_SERIES_TIMEOUT_MS),
     );

@@ -10,6 +10,27 @@ import { randomUUID } from 'crypto';
 const logger = createLogger('utils/stockDataHelper');
 const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
 
+const RATE_LIMIT_BACKOFF_MS = 60_000;
+const MAX_RETRIES = 3;
+
+async function yahooChartWithRetry(ticker: string, params: any): Promise<any> {
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return await (yahooFinance.chart as any)(ticker, params, { validateResult: false });
+    } catch (err: any) {
+      const msg = String(err?.message ?? err);
+      if (msg.includes('Too Many Requests') && attempt < MAX_RETRIES) {
+        logger.warn(`Yahoo rate-limited on ${ticker}, waiting ${RATE_LIMIT_BACKOFF_MS / 1000}s (attempt ${attempt}/${MAX_RETRIES})`);
+        await new Promise(r => setTimeout(r, RATE_LIMIT_BACKOFF_MS));
+        continue;
+      }
+      logger.error(`Yahoo chart error for ${ticker}: ${msg}`);
+      return { quotes: [] };
+    }
+  }
+  return { quotes: [] };
+}
+
 export async function getStockDataForPrediction(ticker: string, wbData?: any) {
   const fiveYearsAgo = new Date(Date.now() - 5 * 365.25 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const now = new Date();
@@ -18,12 +39,12 @@ export async function getStockDataForPrediction(ticker: string, wbData?: any) {
 
   // Parallel fetch of all components needed for the prediction payload
   const [chartResult, summary, optionsRes] = await Promise.all([
-    (yahooFinance.chart as any)(ticker, { period1: fiveYearsAgo, period2: today, interval: '1d' }, { validateResult: false }).catch((err: any) => { logger.error(`Yahoo chart error for ${ticker}: ${err?.message}`); return { quotes: [] }; }),
+    yahooChartWithRetry(ticker, { period1: fiveYearsAgo, period2: today, interval: '1d' }),
     yahooFinance.quoteSummary(ticker, {
       modules: ['price', 'summaryDetail', 'financialData', 'defaultKeyStatistics', 'assetProfile', 'calendarEvents']
     }).catch(() => ({})),
     // Instead of internal fetch, we could just return null for options if not critical for sync
-    Promise.resolve(null) 
+    Promise.resolve(null)
   ]);
 
   const historicalData = (chartResult.quotes || []).map((r: any) => ({
