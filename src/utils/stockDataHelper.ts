@@ -26,7 +26,7 @@ export async function getStockDataForPrediction(ticker: string, wbData?: any) {
     Promise.resolve(null) 
   ]);
 
-  const historicalData = (chartResult.quotes || []).map(r => ({
+  const historicalData = (chartResult.quotes || []).map((r: any) => ({
     date: new Date(r.date).toISOString().slice(0, 10),
     open: (r.open as number) ?? 0,
     high: (r.high as number) ?? 0,
