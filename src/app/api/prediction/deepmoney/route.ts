@@ -518,6 +518,72 @@ async function fetchTrendingTickers(limit: number = 50): Promise<Set<string>> {
 }
 
 /**
+ * Pull upcoming-earnings tickers from the NASDAQ calendar API for the next
+ * `businessDays` sessions (weekends skipped). Companies about to report tend
+ * to see elevated volatility and analyst attention; injecting them here
+ * ensures the ranker gets a look before the print rather than the day after.
+ * A single-day failure is non-fatal — we surface whatever the successful
+ * calls returned.
+ *
+ * Returns both the merged ticker set and a plain array so the API can echo
+ * the raw list back to callers (deepmoney_sync uses it to backfill the
+ * `stocks` master table for tickers that don't survive the analyzer).
+ */
+async function fetchEarningsCalendarTickers(
+    businessDays: number = 5,
+): Promise<{ tickers: Set<string>; entries: { symbol: string; name: string }[] }> {
+    const found = new Set<string>();
+    const nameBySymbol = new Map<string, string>();
+    const dates: string[] = [];
+    const cursor = new Date();
+    while (dates.length < businessDays) {
+        const day = cursor.getUTCDay(); // 0 = Sun, 6 = Sat
+        if (day !== 0 && day !== 6) {
+            dates.push(cursor.toISOString().slice(0, 10));
+        }
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+
+    // NASDAQ blocks generic UAs — use a real browser string. Timeout is per
+    // day so a single hung request can't stall the whole discovery pass.
+    const headers: HeadersInit = {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json',
+    };
+
+    const results = await Promise.allSettled(dates.map(async (date) => {
+        const res = await fetch(
+            `https://api.nasdaq.com/api/calendar/earnings?date=${date}`,
+            { headers, signal: AbortSignal.timeout(10_000) },
+        );
+        if (!res.ok) throw new Error(`nasdaq earnings ${date} returned ${res.status}`);
+        return res.json();
+    }));
+
+    for (const r of results) {
+        if (r.status !== 'fulfilled' || !r.value) continue;
+        const rows = r.value?.data?.rows;
+        if (!Array.isArray(rows)) continue;
+        for (const row of rows) {
+            const t = (row?.symbol || '').toUpperCase().trim();
+            if (!t || TICKER_STOPLIST.has(t)) continue;
+            found.add(t);
+            // First non-empty name wins across days — company_name doesn't
+            // change between reporting dates, so no dedup logic needed.
+            if (!nameBySymbol.has(t)) {
+                const name = String(row?.name || '').trim();
+                if (name) nameBySymbol.set(t, name);
+            }
+        }
+    }
+    const entries = Array.from(found).sort().map((symbol) => ({
+        symbol,
+        name: nameBySymbol.get(symbol) || symbol,
+    }));
+    return { tickers: found, entries };
+}
+
+/**
  * Pull the top ~25 sector leaders per canonical Yahoo sector via the
  * ms_<sector> predefined screener. Powers GPS coverage on the
  * /search/industry/[sector] page — every leader needs a fresh GPS row in
@@ -927,14 +993,17 @@ export async function GET(request: NextRequest) {
         // Yahoo sectors; injected so /search/industry/[sector] always has fresh GPS.
         // (Yahoo earnings-calendar HTML scrape removed: Cloudflare bot-block
         // made it return zero tickers while burning a 15s timeout per run.)
-        const [popularEtfHoldingTickers, trendingTickers, sectorLeaderTickers] = await Promise.all([
+        const [popularEtfHoldingTickers, trendingTickers, sectorLeaderTickers, earningsCalendarResult] = await Promise.all([
             fetchEtfHoldingTickers(POPULAR_ETF_TICKERS),
             fetchTrendingTickers(100),
             fetchSectorLeaderTickers(),
+            fetchEarningsCalendarTickers(5),
         ]);
+        const earningsCalendarTickers = earningsCalendarResult.tickers;
         for (const t of popularEtfHoldingTickers) allTickersSet.add(t);
         for (const t of trendingTickers) allTickersSet.add(t);
         for (const t of sectorLeaderTickers) allTickersSet.add(t);
+        for (const t of earningsCalendarTickers) allTickersSet.add(t);
 
         // Freshness gate: skip MC + GPS for sector leaders that already have a
         // GPS row newer than 7 days. Steady-state, this drops the override-lane
@@ -1025,6 +1094,14 @@ export async function GET(request: NextRequest) {
                 primaryCount: primaryTickers.size,
                 secondaryCount: allTickersSet.size - primaryTickers.size,
                 etfPopularHoldingsCount: popularEtfHoldingTickers.size,
+                // Full ticker list from the NASDAQ earnings calendar (next 5
+                // business days). deepmoney_sync.py backfills these into the
+                // `stocks` master table even when they don't survive the
+                // analyzer, so search + earnings widgets can resolve them.
+                // Entries carry {symbol, name} so the stocks-table insert
+                // can satisfy the NOT NULL company_name column.
+                earningsCalendarTickers: earningsCalendarResult.entries,
+                earningsCalendarCount:   earningsCalendarResult.entries.length,
                 feedsQueried: PRIMARY_FEED_URLS.length + primaryTickers.size,
                 // Resolved DEEPMONEY_ALGORITHM preset. deepmoney_sync.py reads
                 // back from here — it is the only knob for run aggressiveness.
@@ -1062,6 +1139,7 @@ export async function GET(request: NextRequest) {
                     trending48hSurfaced: filteredStocks.filter(s => s.discovery_source === 'trending_48h').length,
                     sectorLeadersSurfaced: filteredStocks.filter(s => s.discovery_source === 'sector_leader').length,
                     sectorLeadersInjected: sectorLeaderTickers.size,
+                    earningsCalendarInjected: earningsCalendarTickers.size,
                     sectorLeadersSkippedFresh: sectorLeaderTickers.size - staleSectorLeaderTickers.size,
                     sectorLeadersComputed: staleSectorLeaderTickers.size,
                     newsTickerCount: newsTickerArray.length,

@@ -168,6 +168,8 @@ def sync_deepmoney():
         "ath_warnings":          0,   # high-beta near-ATH stocks flagged
         "etf_holdings_written":  0,   # rows inserted from ETF holdings pass
         "stale_cleaned":         0,   # discovery rows removed in cleanup pass
+        "earnings_cal_seen":     0,   # tickers surfaced by NASDAQ earnings calendar
+        "earnings_cal_added":    0,   # of those, rows newly inserted into `stocks`
         "active_users":          0,
         "hot_etfs":              0,
         "stocks_in_api_resp":    0,
@@ -348,6 +350,37 @@ def sync_deepmoney():
         active_user_ids = [row[0] for row in cursor.fetchall()]
         counters["active_users"] = len(active_user_ids)
         print(f"Found {len(active_user_ids)} approved users.")
+
+        # 3.6 Earnings-calendar backfill.
+        # The Node discovery pass surfaces every ticker with an upcoming
+        # earnings print (next 5 business days from the NASDAQ calendar).
+        # Tickers that survive the analyzer already get a full stocks row via
+        # upsert_stock_with_search_fields below, but many won't survive — e.g.
+        # thin float, insufficient history — and we still want them in the
+        # `stocks` master so search + earnings widgets can resolve them.
+        # Insert bare rows here (symbol + company_name only); the next
+        # backfill_stock_search run will fill sector/industry/size_bucket.
+        earnings_entries = meta.get('earningsCalendarTickers') or []
+        counters["earnings_cal_seen"] = len(earnings_entries)
+        if earnings_entries:
+            print(f"Backfilling {len(earnings_entries)} earnings-calendar tickers into stocks table...")
+            for entry in earnings_entries:
+                symbol = (entry.get('symbol') or '').strip().upper()
+                if not symbol:
+                    continue
+                company_name = (entry.get('name') or '').strip() or symbol
+                cursor.execute("SELECT id FROM stocks WHERE symbol = %s", (symbol,))
+                if cursor.fetchone():
+                    continue
+                # Bare insert: NOT NULL columns only. search_tsv left empty;
+                # backfill_stock_search will populate it on its next pass.
+                cursor.execute(
+                    "INSERT INTO stocks (symbol, company_name) VALUES (%s, %s)",
+                    (symbol, company_name),
+                )
+                counters["earnings_cal_added"] += 1
+            print(f"  {counters['earnings_cal_added']} new stocks-table rows inserted; "
+                  f"{counters['earnings_cal_seen'] - counters['earnings_cal_added']} already present.")
 
         # 4. Process Stocks from (stocks array)
         stocks = data.get('stocks', [])
@@ -938,6 +971,16 @@ def _print_run_summary(
         print(f"    Skipped (GPS fresh <7d):         {_fmt_int(sl_skipped_fresh)}")
         print(f"    Ran MC + GPS this pass:          {_fmt_int(sl_computed)}")
         print(f"    Surfaced in API response:        {_fmt_int(sl_surfaced)}")
+
+    # ── Earnings-calendar backfill (NASDAQ) ─────────────────────────────────
+    ec_seen  = counters.get('earnings_cal_seen') or 0
+    ec_added = counters.get('earnings_cal_added') or 0
+    if ec_seen:
+        print()
+        print("  EARNINGS-CALENDAR BACKFILL")
+        print(f"    Tickers from NASDAQ calendar:    {_fmt_int(ec_seen)}")
+        print(f"    Newly added to `stocks`:         {_fmt_int(ec_added)}")
+        print(f"    Already present:                 {_fmt_int(ec_seen - ec_added)}")
 
     # ── Local gating (this script's filters on top of API output) ───────────
     print()
