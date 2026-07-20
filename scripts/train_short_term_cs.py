@@ -44,7 +44,9 @@ PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 MODELS_DIR   = Path(PROJECT_ROOT) / 'models'
 MODELS_DIR.mkdir(exist_ok=True)
 
-load_dotenv(os.path.join(PROJECT_ROOT, '.env.local'))
+if os.path.exists(os.path.join(PROJECT_ROOT, '.env.production')):
+    load_dotenv(os.path.join(PROJECT_ROOT, '.env.production'))
+load_dotenv(os.path.join(PROJECT_ROOT, '.env.local'), override=True)
 
 DB_HOST     = os.getenv('DB_HOST', 'localhost')
 DB_USER     = os.getenv('DB_USER')
