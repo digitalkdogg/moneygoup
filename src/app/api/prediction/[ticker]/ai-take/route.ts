@@ -215,9 +215,9 @@ async function cacheLookup(ticker: string, dataHash: string): Promise<{ paragrap
     `SELECT paragraph, model, generated_at
        FROM ai_ticker_takes
       WHERE ticker = ? AND data_hash = ?
-        AND generated_at > NOW() - INTERVAL ? HOUR
+        AND generated_at > NOW() - INTERVAL ${AI_TAKE_CACHE_HOURS} HOUR
       ORDER BY generated_at DESC LIMIT 1`,
-    [ticker.toUpperCase(), dataHash, AI_TAKE_CACHE_HOURS],
+    [ticker.toUpperCase(), dataHash],
   );
   const row = (rows as any[])[0];
   if (!row) return null;

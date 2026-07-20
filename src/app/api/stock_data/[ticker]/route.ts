@@ -34,6 +34,7 @@ async function fetchCompanyNameFromSec(ticker: string): Promise<string | null> {
     if (!secCompanyData) {
       const res = await fetch('https://www.sec.gov/files/company_tickers.json', {
         signal: controller.signal,
+        headers: { 'User-Agent': 'GrowMyStocks digitalkdogg@gmail.com' },
       });
 
       if (!res.ok) {

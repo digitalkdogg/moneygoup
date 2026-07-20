@@ -243,7 +243,7 @@ export async function executeRawQuery(
   sql: string,
   params: readonly unknown[]
 ): Promise<[mysql.RowDataPacket[] | mysql.ResultSetHeader, mysql.FieldPacket[]]> {
-  return withConnection((conn) => conn.execute(sql, params));
+  return withConnection((conn) => conn.query(sql, params) as any);
 }
 
 /**

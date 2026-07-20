@@ -58,8 +58,9 @@ export async function GET(request: NextRequest) {
     const [stockDateRows] = await executeRawQuery('SELECT MAX(snapshot_date) as d FROM recommended_stocks', []);
     const [etfDateRows] = await executeRawQuery('SELECT MAX(snapshot_date) as d FROM hot_etfs', []);
 
-    const stockDate = (stockDateRows as any[])[0]?.d;
-    const etfDate = (etfDateRows as any[])[0]?.d;
+    const toDateStr = (v: any) => v instanceof Date ? v.toISOString().slice(0, 10) : v;
+    const stockDate = toDateStr((stockDateRows as any[])[0]?.d);
+    const etfDate   = toDateStr((etfDateRows as any[])[0]?.d);
 
     // Resolve user's investment timeframe so we can both label correctly AND
     // patch each card's GPS via adjustGpsForHorizon (same approach as the
