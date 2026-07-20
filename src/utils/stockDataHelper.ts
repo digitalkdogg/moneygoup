@@ -97,7 +97,7 @@ export async function getStockDataForPrediction(ticker: string, wbData?: any) {
   };
 }
 
-export function runPredictionInternal(ticker: string, payload: any, outlook: string): Promise<any> {
+export function runPredictionInternal(ticker: string, payload: any, outlook: string, opts: { skipNarrator?: boolean } = {}): Promise<any> {
   return new Promise((resolve, reject) => {
     const tempFile = join(tmpdir(), `tf_sync_input_${randomUUID()}.json`);
     try {
@@ -106,7 +106,10 @@ export function runPredictionInternal(ticker: string, payload: any, outlook: str
       const scriptName = useLegacyModel
         ? 'scripts/predict_weighted_analysis_baseline.py'
         : 'scripts/predict_weighted_analysis.py';
-      const python = spawn(getPythonExecutable(), [scriptName, ticker, '--input_file', tempFile, '--outlook', outlook]);
+      const spawnEnv = opts.skipNarrator
+        ? { ...process.env, OLLAMA_ENABLED: 'false' }
+        : process.env;
+      const python = spawn(getPythonExecutable(), [scriptName, ticker, '--input_file', tempFile, '--outlook', outlook], { env: spawnEnv });
       let stdout = '', stderr = '';
       python.stdout.on('data', d => { stdout += d; });
       python.stderr.on('data', d => { stderr += d; });

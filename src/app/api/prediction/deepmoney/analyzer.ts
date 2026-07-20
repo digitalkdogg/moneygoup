@@ -366,7 +366,7 @@ export async function analyzeStocks(
                 // paid the TF/Keras cold-load cost 4× for a computation the
                 // script always does in full anyway. Collapsing to a single
                 // spawn is the largest perf win in the sync pipeline.
-                const allHorizons = await runPredictionInternal(stock.ticker, payload, 'all');
+                const allHorizons = await runPredictionInternal(stock.ticker, payload, 'all', { skipNarrator: true });
                 if (!allHorizons || allHorizons.error) return;
 
                 const predictedChangePct = allHorizons.predicted_change_pct_1m;
