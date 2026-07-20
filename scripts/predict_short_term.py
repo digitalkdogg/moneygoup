@@ -3,7 +3,7 @@ predict_short_term.py — 1w / 1m horizon model.
 
 Trains a 2-output MLP head on (p1d, p1w) using only the SHORT_TERM_FEATURES
 mask (momentum / technical / microstructure). Post-processes:
-  - 1w price = 30/70 blend of (MLP raw output, 1w trajectory anchor toward 6m)
+  - 1w price = 50/50 blend of (MLP raw output, 1w trajectory anchor toward 6m)
     clamped to ±2× ATR(14) × √5.
   - 1m price = linear interpolation between predicted_price_1w and
     predicted_price_6m at t+21 trading days (matches the legacy trajectory
@@ -17,9 +17,19 @@ Per-horizon optimizations vs the legacy monolithic 4-output MLP:
     annual indicators that contribute little signal on 1w/1m timescales.
   - Hidden layers shrunk (96/48/24) since the mask is ~half the column
     count — same effective capacity-per-feature, faster training.
-"""
 
+Cross-sectional pretrained path (Plan 4):
+  Set ST_CS_MODEL_VERSION=v1 (or later) in .env.local to activate a
+  pretrained snapshot model loaded from models/short_term_cs_v1.pkl.
+  The per-ticker .fit() path is kept as a fallback and is always used when
+  the env var is absent or the artifact is missing.
+"""
+from __future__ import annotations
+
+import os
+import sys
 from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 from sklearn.neural_network import MLPRegressor
@@ -39,6 +49,44 @@ T21 = 21    # 1 trading month (approx)
 T6 = 126    # 6 months
 
 
+# ── Cross-sectional pretrained model loader (best-effort) ──────────────────
+# Mirrors the pattern used in predict_long_term.py for the CS long-term model.
+# Loaded once at module import; ST_CS_MODEL_VERSION='disabled' (default) skips
+# loading so existing per-ticker behaviour is completely unchanged.
+_ST_CS_MODEL: dict | None = None
+_ST_CS_MODEL_VERSION = os.environ.get('ST_CS_MODEL_VERSION', 'disabled')
+
+if _ST_CS_MODEL_VERSION != 'disabled':
+    _st_cs_path = (
+        Path(os.path.dirname(os.path.abspath(__file__))).parent
+        / 'models'
+        / f'short_term_cs_{_ST_CS_MODEL_VERSION}.pkl'
+    )
+    try:
+        import joblib as _joblib
+        if _st_cs_path.exists():
+            _ST_CS_MODEL = _joblib.load(str(_st_cs_path))
+            print(
+                f'[short_term] loaded CS model v{_ST_CS_MODEL_VERSION}: '
+                f'{len(_ST_CS_MODEL.get("feature_columns", []))} features, '
+                f'trained_at {_ST_CS_MODEL.get("trained_at", "?")}',
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f'[short_term] CS model artifact not found at {_st_cs_path}; '
+                'falling back to per-ticker training.',
+                file=sys.stderr,
+            )
+    except Exception as _exc:
+        print(
+            f'[short_term] CS model load failed ({_exc}); '
+            'falling back to per-ticker training.',
+            file=sys.stderr,
+        )
+        _ST_CS_MODEL = None
+
+
 def build_short_term_model(seed: int = SEED) -> MLPRegressor:
     """
     2-output MLP for [p1d, p1w]. Smaller than long-term: short-horizon
@@ -55,6 +103,89 @@ def build_short_term_model(seed: int = SEED) -> MLPRegressor:
         n_iter_no_change=8,
         random_state=seed,
     )
+
+
+def _predict_with_st_cs_model(
+    *,
+    feat_df,
+    current_price: float,
+    mult_1w: float,
+    mult_1m: float,
+    predicted_price_6m_base: float,
+    confidence_score_6m: int,
+    stock_metrics: dict,
+) -> dict:
+    """
+    CS pretrained path: scale the current feature snapshot with the saved
+    StandardScaler, predict [return_5d, return_21d], then apply the same
+    post-processing (trajectory blend + ATR clamp + multipliers) as the
+    per-ticker path.  No .fit() call occurs at inference time.
+    """
+    payload = _ST_CS_MODEL
+    model = payload['model']
+    scaler_cs = payload['scaler']
+    cs_feature_cols = payload['feature_columns']
+
+    # Build current feature vector from the last row of feat_df.
+    # Columns absent from feat_df (schema drift or missing features) default to 0.
+    last_row = feat_df.iloc[-1]
+    x_current = np.array([
+        float(last_row[col]) if col in feat_df.columns and not _isnan(last_row[col]) else 0.0
+        for col in cs_feature_cols
+    ], dtype=np.float32).reshape(1, -1)
+    x_current = np.nan_to_num(x_current, nan=0.0, posinf=0.0, neginf=0.0)
+    x_current_s = scaler_cs.transform(x_current)
+
+    pred_returns = model.predict(x_current_s)[0]   # [return_5d, return_21d]
+    _mlp_1w_base = current_price * (1.0 + float(pred_returns[0]))
+    _mlp_1m_base = current_price * (1.0 + float(pred_returns[1]))
+
+    # 1w: 50/50 blend with trajectory anchor (same logic as per-ticker path).
+    _traj_anchor_1w_base = current_price + (predicted_price_6m_base - current_price) * (T5 / T6)
+    _blended_1w_base = 0.50 * _mlp_1w_base + 0.50 * _traj_anchor_1w_base
+    _blended_1w = _blended_1w_base * mult_1w
+
+    _atr_1w = float(feat_df['ATR_14'].iloc[-1]) if 'ATR_14' in feat_df.columns else current_price * 0.02
+    _max_move_1w = 2.0 * _atr_1w * np.sqrt(5)
+    predicted_price_1w = float(np.clip(_blended_1w, current_price - _max_move_1w, current_price + _max_move_1w))
+    pct_1w = round((predicted_price_1w - current_price) / (current_price + 1e-9) * 100, 2)
+
+    # 1m: blend the CS 1m base with the 6m trajectory (mirrors per-ticker interpolation).
+    t_norm = (T21 - T5) / (T6 - T5)
+    _blended_1m_base = _blended_1w_base + (predicted_price_6m_base - _blended_1w_base) * t_norm
+    _cs_1m_base = 0.50 * _mlp_1m_base + 0.50 * _blended_1m_base
+    predicted_price_1m = _cs_1m_base * mult_1m
+    pct_1m = round((predicted_price_1m - current_price) / (current_price + 1e-9) * 100, 2)
+
+    # Confidence: same earnings-window logic as per-ticker path.
+    days_to_earnings = 999
+    next_earnings_str = stock_metrics.get('nextEarningsDate')
+    if next_earnings_str:
+        try:
+            days_to_earnings = (
+                datetime.fromisoformat(str(next_earnings_str)).date()
+                - datetime.today().date()
+            ).days
+        except Exception:
+            pass
+    cs1m = max(0, confidence_score_6m - 10) if days_to_earnings <= 14 else min(100, confidence_score_6m + 10)
+    cs1w = min(100, cs1m + 3)
+
+    return {
+        'predicted_price_1w': predicted_price_1w,
+        'predicted_change_pct_1w': pct_1w,
+        'confidence_score_1w': cs1w,
+        'predicted_price_1m': predicted_price_1m,
+        'predicted_change_pct_1m': pct_1m,
+        'confidence_score_1m': cs1m,
+    }
+
+
+def _isnan(v) -> bool:
+    try:
+        return v != v  # NaN check without importing math
+    except Exception:
+        return False
 
 
 def predict_short_term(
@@ -102,7 +233,21 @@ def predict_short_term(
     mult_1w = (1.0 + non_analyst_impact + applied_analyst * ANALYST_BOOST_1W) * consumer_multiplier
     mult_1m = (1.0 + non_analyst_impact + applied_analyst * ANALYST_BOOST_1M) * consumer_multiplier
 
-    # ── Feature mask + sequence build ────────────────────────────────────────
+    # ── CS pretrained path (ST_CS_MODEL_VERSION != 'disabled') ───────────────
+    # Short-circuits before the per-ticker .fit() call if the pretrained
+    # artifact was successfully loaded at module import.
+    if _ST_CS_MODEL is not None:
+        return _predict_with_st_cs_model(
+            feat_df=feat_df,
+            current_price=current_price,
+            mult_1w=mult_1w,
+            mult_1m=mult_1m,
+            predicted_price_6m_base=predicted_price_6m_base,
+            confidence_score_6m=confidence_score_6m,
+            stock_metrics=stock_metrics,
+        )
+
+    # ── Per-ticker training path (default) ───────────────────────────────────
     short_features = extend_with_regime_cols(SHORT_TERM_FEATURES)
     mask_indices = [feature_columns.index(f) for f in short_features if f in feature_columns]
 

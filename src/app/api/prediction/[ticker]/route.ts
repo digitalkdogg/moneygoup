@@ -241,11 +241,19 @@ export async function POST(
     return NextResponse.json({ message: 'Busy' }, { status: 503 });
   }
 
-  const tempFile = join(tmpdir(), `tf_prediction_input_${randomUUID()}.json`);
   await predictionSemaphore.acquire();
+  // Warm service path: when PREDICTION_SERVICE_URL is configured and we're not
+  // in legacy mode, call the persistent FastAPI service instead of spawning a
+  // new Python process. Eliminates TF import + model-load overhead per request.
+  const warmServiceUrl = process.env.PREDICTION_SERVICE_URL;
+  const useWarmService = !useLegacyModel && !!warmServiceUrl;
+
+  const tempFile = useWarmService ? null : join(tmpdir(), `tf_prediction_input_${randomUUID()}.json`);
   try {
-    writeFileSync(tempFile, JSON.stringify(body));
-    const result: any = await runPythonPrediction(validatedTicker, tempFile, validatedOutlook, useLegacyModel, csModelVersion);
+    if (!useWarmService) writeFileSync(tempFile!, JSON.stringify(body));
+    const result: any = useWarmService
+      ? await runWarmPrediction(validatedTicker, body, validatedOutlook, warmServiceUrl!)
+      : await runSpawnPrediction(validatedTicker, tempFile!, validatedOutlook, useLegacyModel, csModelVersion);
     // Tag the result so callers (and the cache) can tell which model produced
     // it. Useful when comparing legacy vs v3-split in the UI / dev logs.
     result.model_version = modelTag;
@@ -282,11 +290,31 @@ export async function POST(
     return createErrorResponse(error, 'Prediction failed', { status: 500 });
   } finally {
     predictionSemaphore.release();
-    try { unlinkSync(tempFile); } catch {}
+    if (tempFile) { try { unlinkSync(tempFile); } catch {} }
   }
 }
 
-function runPythonPrediction(ticker: string, inputFile: string, outlook: string, useLegacy: boolean = false, csModelVersion: string = 'v2'): Promise<unknown> {
+async function runWarmPrediction(
+  ticker: string,
+  inputData: unknown,
+  outlook: string,
+  serviceUrl: string,
+): Promise<unknown> {
+  logger.info(`Predict (warm-service) ${ticker} outlook=${outlook}`);
+  const res = await fetch(`${serviceUrl}/predict`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ticker, input_data: inputData, outlook }),
+    signal: AbortSignal.timeout(120_000),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`Warm service ${res.status}: ${detail}`);
+  }
+  return res.json();
+}
+
+function runSpawnPrediction(ticker: string, inputFile: string, outlook: string, useLegacy: boolean = false, csModelVersion: string = 'v2'): Promise<unknown> {
   return new Promise((resolve, reject) => {
     // Legacy = the frozen pre-refactor monolithic 4-output MLP. v3-split =
     // the current orchestrator (cross-sectional long-term + per-ticker short-term).

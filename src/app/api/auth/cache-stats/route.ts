@@ -1,52 +1,59 @@
 import { createLogger } from '@/utils/logger';
 import { NextResponse, NextRequest } from 'next/server';
-import { secCompanyCache, stockDataCache, technicalIndicatorsCache } from '@/utils/cache';
-import { getServerSession } from 'next-auth'; // Add this import
-import { authOptions } from '@/lib/auth'; // Add this import
-import { checkOrigin } from '@/utils/originCheck'; // Add this import
-import { unauthorizedResponse, forbiddenResponse } from '@/utils/errorResponse'; // Add this import
+import {
+  secCompanyCache,
+  stockDataCache,
+  technicalIndicatorsCache,
+  predictionCache,
+  deepmoneyCache,
+  macroCache,
+} from '@/utils/cache';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { checkOrigin } from '@/utils/originCheck';
+import { isInternalRequest } from '@/utils/internalAuth';
+import { unauthorizedResponse } from '@/utils/errorResponse';
 
 const logger = createLogger('api/cache-stats');
 
-/**
- * Cache Statistics Endpoint
- * Returns information about current cache usage and expiration times
- * Useful for monitoring and debugging cache behavior
- */
-export async function GET(request: NextRequest) { // Add NextRequest type
+export async function GET(request: NextRequest) {
   const originCheckResponse = checkOrigin(request as any);
-  if (originCheckResponse) {
-    return originCheckResponse;
+  if (originCheckResponse) return originCheckResponse;
+
+  const isInternal = isInternalRequest(request);
+  if (!isInternal) {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) return unauthorizedResponse();
   }
-  // Add authentication check
-  const session = await getServerSession(authOptions);
-  if (!session || !session.user || !session.user.id) {
-    return unauthorizedResponse();
-  }
 
-  // Add authorization check (placeholder for admin role, currently denies all)
-  return forbiddenResponse('Forbidden: This action requires administrative privileges.');
+  logger.info('Cache stats requested');
 
-
+  return NextResponse.json({
+    prediction: predictionCache.getStats(),
+    stockData: stockDataCache.getStats(),
+    technicalIndicators: technicalIndicatorsCache.getStats(),
+    secCompany: secCompanyCache.getStats(),
+    deepmoney: deepmoneyCache.getStats(),
+    macro: macroCache.getStats(),
+  });
 }
 
-/**
- * Clear all caches
- * Useful for maintenance or resetting stale data
- */
-export async function DELETE(request: NextRequest) { // Add NextRequest type
+export async function DELETE(request: NextRequest) {
   const originCheckResponse = checkOrigin(request as any);
-  if (originCheckResponse) {
-    return originCheckResponse;
+  if (originCheckResponse) return originCheckResponse;
+
+  const isInternal = isInternalRequest(request);
+  if (!isInternal) {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) return unauthorizedResponse();
   }
-  // Add authentication check
-  const session = await getServerSession(authOptions);
-  if (!session || !session.user || !session.user.id) {
-    return unauthorizedResponse();
-  }
 
-  // Add authorization check (placeholder for admin role, currently denies all)
-  return forbiddenResponse('Forbidden: This action requires administrative privileges.');
+  predictionCache.clear();
+  stockDataCache.clear();
+  technicalIndicatorsCache.clear();
+  deepmoneyCache.clear();
+  macroCache.clear();
 
-
+  logger.info('All caches cleared');
+  return NextResponse.json({ cleared: true });
 }
