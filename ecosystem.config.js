@@ -20,7 +20,7 @@ module.exports = {
       max_memory_restart: '900M',
       restart_delay: 8000,
       exp_backoff_restart_delay: 200,
-      max_restarts: 5,
+      max_restarts: 20,
       merge_logs: true,
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       // Health-check: PM2 won't mark this ready until /health returns 200.
