@@ -46,6 +46,18 @@ if os.path.exists(os.path.join(PROJECT_ROOT, '.env.production')):
     load_dotenv(os.path.join(PROJECT_ROOT, '.env.production'))
 load_dotenv(os.path.join(PROJECT_ROOT, '.env.local'), override=True)
 
+import threading
+
+DB_HOST     = os.getenv('DB_HOST', 'localhost')
+DB_USER     = os.getenv('DB_USER')
+DB_PASSWORD = os.getenv('DB_PASSWORD')
+DB_DATABASE = os.getenv('DB_DATABASE')
+DB_PORT     = int(os.getenv('DB_PORT', '3306'))
+
+# Narration runs in uvicorn's thread pool (sync endpoint).  Cap at 2 so a
+# stuck Ollama daemon can queue at most 2 jobs without touching /predict.
+_narrate_sem = threading.Semaphore(2)
+
 # ── Heavy imports — happen once at service startup ─────────────────────────
 print('[prediction_service] Loading model stack...', file=sys.stderr, flush=True)
 _load_error: str | None = None
@@ -99,17 +111,9 @@ def predict(req: PredictRequest):
             result = _pwa.predict(req.ticker, req.input_data)
             save_to_cache(ckey, result)
 
-        # Narrator runs on every call (same as CLI), regardless of cache hit.
-        try:
-            from prediction_narrator import build_prediction_rationale
-            stock_metrics = req.input_data.get('stockMetrics', {}) or {}
-            result['llm_rationale'] = build_prediction_rationale(
-                req.ticker,
-                result,
-                feature_ctx={'analyst_rating': stock_metrics.get('recommendationKey')},
-            )
-        except Exception:
-            result['llm_rationale'] = None
+        # llm_rationale is always None here — route.ts fires /narrate
+        # asynchronously after this response is returned to the user (Plan 2).
+        result['llm_rationale'] = None
 
         result = _sanitize_predictions(result)
 
@@ -166,6 +170,71 @@ def predict(req: PredictRequest):
             status_code=500,
             detail={'error': str(exc), 'traceback': traceback.format_exc()},
         )
+
+
+class NarrateRequest(BaseModel):
+    ticker: str
+    result: dict
+    analyst_rating: str | None = None
+
+
+@app.post('/narrate')
+def narrate(req: NarrateRequest):
+    """Async narration endpoint — called non-awaited from route.ts after the
+    prediction response has been sent to the user.
+
+    Uses a threading.Semaphore(2) so at most 2 Ollama calls run concurrently.
+    If both slots are occupied (Ollama slow or busy), returns immediately with
+    llm_rationale=None rather than queuing — narration is optional.
+
+    On success, UPDATEs the most recent prediction_records row for the ticker
+    so the UI picks up the rationale on the next cache miss.
+    """
+    if not _narrate_sem.acquire(blocking=False):
+        print(f'[narrate] {req.ticker}: semaphore full, skipping', file=sys.stderr, flush=True)
+        return JSONResponse(content={'llm_rationale': None})
+    print(f'[narrate] {req.ticker}: starting Ollama generation', file=sys.stderr, flush=True)
+    try:
+        from prediction_narrator import build_prediction_rationale
+        rationale = build_prediction_rationale(
+            req.ticker,
+            req.result,
+            feature_ctx={'analyst_rating': req.analyst_rating},
+        )
+    except Exception as exc:
+        print(f'[narrate] {req.ticker}: narrator raised {exc}', file=sys.stderr, flush=True)
+        rationale = None
+    finally:
+        _narrate_sem.release()
+
+    if not rationale:
+        print(f'[narrate] {req.ticker}: no rationale returned (Ollama disabled/down/timeout)',
+              file=sys.stderr, flush=True)
+    else:
+        print(f'[narrate] {req.ticker}: rationale generated ({len(rationale)} chars)',
+              file=sys.stderr, flush=True)
+        try:
+            import mysql.connector
+            conn = mysql.connector.connect(
+                host=DB_HOST, user=DB_USER, password=DB_PASSWORD,
+                database=DB_DATABASE, port=DB_PORT,
+            )
+            cur = conn.cursor()
+            cur.execute(
+                'UPDATE prediction_records SET llm_rationale = %s '
+                'WHERE symbol = %s ORDER BY predicted_at DESC LIMIT 1',
+                (rationale, req.ticker),
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+            print(f'[narrate] {req.ticker}: DB updated', file=sys.stderr, flush=True)
+        except Exception as exc:
+            print(f'[narrate] {req.ticker}: DB update failed: {exc}',
+                  file=sys.stderr, flush=True)
+
+    safe = json.loads(json.dumps({'llm_rationale': rationale}, cls=NumpyEncoder))
+    return JSONResponse(content=safe)
 
 
 if __name__ == '__main__':

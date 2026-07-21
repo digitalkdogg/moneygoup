@@ -850,26 +850,13 @@ if __name__ == '__main__':
             result = predict(args.ticker, input_data)
             save_to_cache(ckey, result)
 
-        # LLM narrative generation runs on EVERY prediction (cache hit or
-        # miss). Placing this here (not inside predict()) means:
-        #   • Old cached results without llm_rationale still get one on next
-        #     load without needing to nuke the whole prediction cache.
-        #   • The narrator is called deterministically once per CLI invocation
-        #     — easier to trace than a nested call inside the fitting path.
-        # The narrator returns None on any failure (Ollama disabled/down/
-        # timeout/etc.) so setting llm_rationale to None is the safe default.
-        try:
-            from prediction_narrator import build_prediction_rationale
-            _stock_metrics = input_data.get('stockMetrics', {}) or {}
-            result['llm_rationale'] = build_prediction_rationale(
-                args.ticker,
-                result,
-                feature_ctx={'analyst_rating': _stock_metrics.get('recommendationKey')},
-            )
-        except Exception:
-            # Any narrator failure leaves llm_rationale as None — the UI
-            # falls back to the rule-based confidence_reason_{h} strings.
-            result['llm_rationale'] = None
+        # LLM narration is now async (Plan 2): route.ts fires /narrate on the
+        # warm service (or scripts/generate_rationale.py on the spawn path)
+        # after the prediction response is returned to the user, so narration
+        # never holds a semaphore slot.  Setting None here is safe — the UI
+        # falls back to confidence_reason_{h} strings until the DB backfill
+        # from the async narration job completes.
+        result['llm_rationale'] = None
 
         # Clamp out-of-bounds predictions before anything downstream sees them
         result = _sanitize_predictions(result)

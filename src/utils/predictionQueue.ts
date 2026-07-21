@@ -31,3 +31,7 @@ export class AsyncSemaphore {
 
 /** Max 3 Python prediction processes running simultaneously. */
 export const predictionSemaphore = new AsyncSemaphore(3);
+
+/** Max 5 concurrent async narration jobs.  Completely separate from the
+ *  prediction semaphore so a slow/stuck Ollama daemon never stalls predictions. */
+export const narrationSemaphore = new AsyncSemaphore(5);

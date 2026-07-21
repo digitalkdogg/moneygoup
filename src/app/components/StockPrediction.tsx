@@ -507,11 +507,19 @@ export default function StockPrediction({
   const loading = step === 'fetching' || step === 'predicting'
   const TitleTag = titleLevel;
 
+  // Async rationale backfill state (Plan 2).
+  const [rationaleLoading, setRationaleLoading] = useState(false)
+  const pollTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pollAttemptsRef = useRef(0)
+
   const generate = async (refresh = false) => {
     setError(null)
     setPrediction(null)
     setDataQuality(null)
     setBannerDismissed(false)
+    pollAttemptsRef.current = 0
+    setRationaleLoading(false)
+    if (pollTimerRef.current) { clearTimeout(pollTimerRef.current); pollTimerRef.current = null }
 
     // ---- Step 1: fetch enriched data payload ----
     setStep('fetching')
@@ -634,6 +642,49 @@ export default function StockPrediction({
     setPrediction(inflated)
     setStep('done')
   }, [prefetchedPrediction]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Poll for llm_rationale backfill after async narration (Plan 2).
+  // Shows "Generating rationale..." immediately, then polls latest-prediction
+  // (fast DB read) every 20s up to 3 times (~60s window).  Each poll schedules
+  // the next one from within its own callback so the effect only needs to fire
+  // once — avoids the re-run dependency problem when llm_rationale stays null.
+  useEffect(() => {
+    if (!prediction) return
+    if (prediction.llm_rationale) { setRationaleLoading(false); return }
+    if (pollAttemptsRef.current >= 3) { setRationaleLoading(false); return }
+
+    setRationaleLoading(true)
+
+    const poll = async () => {
+      pollAttemptsRef.current++
+      try {
+        const res = await fetch(`/api/stock_data/${ticker}/latest-prediction`)
+        if (res.ok) {
+          const data = await res.json()
+          const rationale: string | null = data?.prediction?.llm_rationale ?? null
+          if (rationale) {
+            setPrediction(prev => prev ? { ...prev, llm_rationale: rationale } : prev)
+            setRationaleLoading(false)
+            pollAttemptsRef.current = 0
+            return
+          }
+        }
+      } catch { /* narration is optional */ }
+
+      // Schedule next attempt or give up
+      if (pollAttemptsRef.current < 3) {
+        pollTimerRef.current = setTimeout(poll, 20_000)
+      } else {
+        setRationaleLoading(false)
+      }
+    }
+
+    pollTimerRef.current = setTimeout(poll, 20_000)
+
+    return () => {
+      if (pollTimerRef.current) { clearTimeout(pollTimerRef.current); pollTimerRef.current = null }
+    }
+  }, [prediction?.llm_rationale, ticker]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const btnLabel =
     step === 'fetching'   ? 'Fetching 5-year data...' :
@@ -829,8 +880,8 @@ export default function StockPrediction({
             </div>
           </div>
 
-          {/* ---- "Why this range" LLM narrative (only when Ollama produced one) ---- */}
-          {prediction.llm_rationale && (
+          {/* ---- "Why this range" LLM narrative ---- */}
+          {prediction.llm_rationale ? (
             <div className="mt-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-r-lg">
               <div className="text-[11px] font-semibold text-blue-700 uppercase tracking-wide mb-1">
                 Why this range
@@ -839,7 +890,17 @@ export default function StockPrediction({
                 {prediction.llm_rationale}
               </p>
             </div>
-          )}
+          ) : rationaleLoading ? (
+            <div className="mt-6 p-4 bg-blue-50 border-l-4 border-blue-300 rounded-r-lg">
+              <div className="text-[11px] font-semibold text-blue-400 uppercase tracking-wide mb-1">
+                Why this range
+              </div>
+              <p className="text-sm text-blue-400 italic flex items-center gap-2">
+                <span className="inline-block w-2 h-2 rounded-full bg-blue-300 animate-pulse" />
+                Generating rationale...
+              </p>
+            </div>
+          ) : null}
 
           {/* ---- 18-month SVG trajectory chart ---- */}
           {prediction.monthly_trajectory?.length > 0 && (
