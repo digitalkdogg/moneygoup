@@ -1,12 +1,9 @@
 You are writing a plain-English explanation for a retail investor about a stock price prediction.
 
-The prediction model just produced these outputs for {ticker}:
+The prediction model produced these directional forecasts for {ticker}:
 
-Current price: ${current_price}
-Predicted price 6m: ${predicted_price_6m} ({predicted_change_pct_6m}%)
-Predicted price 1y: ${predicted_price_1y} ({predicted_change_pct_1y}%)
-Confidence score 6m: {confidence_score_6m}/100
-Confidence score 1y: {confidence_score_1y}/100
+6-month outlook: {direction_6m}
+1-year outlook: {direction_1y}
 
 Signals the model considered:
 - RSI (14-day): {rsi_14d}
@@ -21,6 +18,6 @@ Rule-based confidence reasons (verbatim, do not contradict these):
 6m: {confidence_reason_6m}
 1y: {confidence_reason_1y}
 
-Write 2-3 sentences (max 60 words total). Explain in plain terms why the model landed on this prediction. Cite the two strongest signals from the list. Do not invent numbers. Do not use hedging phrases like "of course" or "it should be noted". Do not give financial advice or use words like "buy", "sell", or "recommend". Do not include disclaimers. Write in the third person about "the model", not first person.
+Write 2-3 sentences (max 60 words total). Start with the directional forecast using plain words (e.g. "rise over the next 6 months", "fall over the next year", "flatten out"). Then explain why by citing the two strongest signals from the list. Do not mention specific prices, percentages, or confidence scores. Do not invent numbers. Do not use hedging phrases like "of course" or "it should be noted". Do not give financial advice or use words like "buy", "sell", or "recommend". Do not include disclaimers. Write in the third person about "the model", not first person.
 
 Respond with just the explanation — no preamble, no JSON, no quotes around it.

@@ -168,52 +168,55 @@ export async function generateStream(
 
   // Parse Ollama's newline-delimited JSON stream into text deltas.
   // Ollama emits one JSON object per line: {"response":"…","done":false}.
-  // We buffer partial lines across chunks and emit `response` fields as
-  // they resolve.
-  const decoder     = new TextDecoder();
-  const lineBuffer  = { chunk: '' };  // wrapped so we can mutate in nested scope
-  const upstream    = res.body.getReader();
+  //
+  // IMPORTANT: uses async start() not async pull(). In Node.js v22, a
+  // pull-based ReadableStream that calls controller.enqueue() multiple times
+  // per pull invocation stalls — the stream stops scheduling further pull
+  // calls after the consumer drains the first batch, deadlocking reads.
+  // start() is a push source: it runs its own loop and pushes tokens as they
+  // arrive without waiting to be asked, which avoids that scheduling gap.
+  const upstream = res.body.getReader();
 
   return new ReadableStream<string>({
-    async pull(controller) {
+    async start(controller) {
+      const decoder    = new TextDecoder();
+      let   lineBuffer = '';
       try {
-        const { value, done } = await upstream.read();
-        if (done) {
-          // Flush any trailing partial line — Ollama's final line always ends
-          // with \n in practice, so this is defensive.
-          if (lineBuffer.chunk.trim()) {
-            try {
-              const obj = JSON.parse(lineBuffer.chunk) as { response?: string };
-              if (obj.response) controller.enqueue(obj.response);
-            } catch { /* ignore */ }
+        while (true) {
+          const { value, done } = await upstream.read();
+          if (done) {
+            // Flush any trailing partial line (defensive — Ollama always ends
+            // its final line with \n, but guard against edge cases).
+            if (lineBuffer.trim()) {
+              try {
+                const obj = JSON.parse(lineBuffer) as { response?: string };
+                if (obj.response) controller.enqueue(obj.response);
+              } catch { /* ignore */ }
+            }
+            controller.close();
+            return;
           }
-          controller.close();
-          return;
-        }
-        lineBuffer.chunk += decoder.decode(value, { stream: true });
-        // Split on newlines; keep the last (possibly-incomplete) segment.
-        const lines = lineBuffer.chunk.split('\n');
-        lineBuffer.chunk = lines.pop() ?? '';
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          try {
-            const obj = JSON.parse(line) as { response?: string; done?: boolean };
-            if (obj.response) controller.enqueue(obj.response);
-            // done=true just means the eval finished; we let the loop close
-            // naturally on the next read() returning done.
-          } catch {
-            // Malformed line — skip. Common if a keep-alive keeps a partial
-            // message alive across a chunk boundary and we already flushed.
+          lineBuffer += decoder.decode(value, { stream: true });
+          // Split on newlines; keep the last (possibly-incomplete) segment.
+          const lines = lineBuffer.split('\n');
+          lineBuffer = lines.pop() ?? '';
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+              const obj = JSON.parse(line) as { response?: string; done?: boolean };
+              if (obj.response) controller.enqueue(obj.response);
+            } catch { /* malformed line — skip */ }
           }
         }
       } catch {
-        // Reader exception (mid-stream disconnect) — close cleanly so the
-        // consumer sees end-of-stream rather than a throw.
+        // upstream error (timeout, disconnect) — close cleanly.
         controller.close();
       }
     },
     cancel() {
-      // Client aborted — release the upstream reader.
+      // Consumer aborted — release the upstream reader. If start() is mid-
+      // await on upstream.read(), upstream.cancel() causes it to throw, which
+      // the catch above turns into a clean controller.close().
       upstream.cancel().catch(() => { /* ignore */ });
     },
   });

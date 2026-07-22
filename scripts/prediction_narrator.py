@@ -94,17 +94,23 @@ def build_prediction_rationale(
     fc = feature_ctx or {}
     va = result.get('variant_adjustments') or {}
 
+    def _direction(pct) -> str:
+        try:
+            v = float(pct)
+        except (TypeError, ValueError):
+            return 'hold steady'
+        if v > 3:
+            return 'rise'
+        if v < -3:
+            return 'fall'
+        return 'flatten out'
+
     try:
         prompt = load_prompt(
             'prediction_rationale',
             ticker=ticker,
-            current_price=_fmt(result.get('regularMarketPrice')),
-            predicted_price_6m=_fmt(result.get('predicted_price_6m')),
-            predicted_price_1y=_fmt(result.get('predicted_price_1y')),
-            predicted_change_pct_6m=_fmt(result.get('predicted_change_pct_6m'), '.1f'),
-            predicted_change_pct_1y=_fmt(result.get('predicted_change_pct_1y'), '.1f'),
-            confidence_score_6m=_fmt(result.get('confidence_score_6m'), '.0f'),
-            confidence_score_1y=_fmt(result.get('confidence_score_1y'), '.0f'),
+            direction_6m=_direction(result.get('predicted_change_pct_6m')),
+            direction_1y=_direction(result.get('predicted_change_pct_1y')),
             rsi_14d=_fmt(va.get('rsi_14d') or fc.get('rsi_14d'), '.0f'),
             ret30d_pct=_fmt((va.get('ret30d') or fc.get('ret30d') or 0) * 100, '.1f'),
             ret90d_pct=_fmt((va.get('ret90d') or fc.get('ret90d') or 0) * 100, '.1f'),

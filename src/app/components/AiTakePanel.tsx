@@ -181,12 +181,15 @@ const AiTakePanel: React.FC<AiTakePanelProps> = ({ ticker }) => {
               />
             )}
           </p>
-          {isReady && meta && (
-            <div className="mt-3 text-[11px] text-gray-500 font-medium">
+          {meta && (
+            <div className="mt-3 flex items-center gap-2 text-[11px] text-gray-500 font-medium">
+              <span className={`px-1.5 py-0.5 rounded font-semibold ${meta.cached ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                {meta.cached ? 'cached' : 'live'}
+              </span>
               Generated {formatGeneratedAt(meta.generatedAt)}
             </div>
           )}
-          {isReady && meta?.rateLimited && meta.rateLimitNote && (
+          {meta?.rateLimited && meta.rateLimitNote && (
             <div className="mt-2 text-[11px] text-gray-500 italic">
               {meta.rateLimitNote}
             </div>

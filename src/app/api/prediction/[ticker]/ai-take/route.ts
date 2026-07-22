@@ -9,8 +9,8 @@
  * Behavior notes:
  *   - Returns 503 if Ollama isn't reachable or AI_TAKE_ENABLED=off — the UI
  *     can then hide the button gracefully.
- *   - Rate-limits per user per ticker per hour via an in-memory Map (fine for
- *     a single-node dev deploy; swap to a DB table when we shard).
+ *   - Enforces a 1-minute global per-ticker cooldown between fresh generations
+ *     via an in-memory Map (fine for single-node; swap to Redis when we shard).
  *   - Deduplicates in-flight requests for the same (ticker, data_hash) so
  *     two users clicking simultaneously don't run two Gemma inferences.
  *   - `?fresh=1` bypasses the cache but still respects rate-limit + dedup.
@@ -25,6 +25,8 @@ import { createLogger } from '@/utils/logger';
 import { executeRawQuery } from '@/utils/databaseHelper';
 import { tickerSchema } from '@/utils/validationSchemas';
 import { generateStream, checkOllamaReachable } from '@/utils/ollamaClient';
+import { newsDataCache } from '@/utils/cache';
+import { XMLParser } from 'fast-xml-parser';
 import { createHash } from 'crypto';
 
 const logger = createLogger('api/prediction/ai-take');
@@ -32,7 +34,10 @@ const logger = createLogger('api/prediction/ai-take');
 // ── Feature config — all overridable via env, sensible defaults baked in. ────
 const AI_TAKE_ENABLED             = process.env.AI_TAKE_ENABLED             !== 'off';
 const AI_TAKE_CACHE_HOURS         = parseInt(process.env.AI_TAKE_CACHE_HOURS         || '12', 10);
-const AI_TAKE_RATE_LIMIT_PER_HOUR = parseInt(process.env.AI_TAKE_RATE_LIMIT_PER_HOUR || '1',  10);
+// Global per-ticker cooldown between fresh generations (applies to ?fresh=1).
+// Normal requests always hit the 12h DB cache first, so this only fires on
+// cache misses or explicit refresh clicks.
+const AI_TAKE_REGEN_COOLDOWN_MS = parseInt(process.env.AI_TAKE_REGEN_COOLDOWN_MS || String(60 * 1000), 10);
 // Feature-local model override — leave OLLAMA_MODEL (used by NER/other
 // features) untouched. Gemma 3 4B was chosen for prose quality on CPU.
 const AI_TAKE_MODEL               = process.env.OLLAMA_MODEL_AI_TAKE || 'gemma3:4b';
@@ -42,10 +47,11 @@ const AI_TAKE_MODEL               = process.env.OLLAMA_MODEL_AI_TAKE || 'gemma3:
 // stuck request wedge the client forever.
 const AI_TAKE_TIMEOUT_MS          = parseInt(process.env.AI_TAKE_TIMEOUT_MS || '120000', 10);
 
-// Rate-limit and in-flight buckets. Both are in-memory — good enough for
-// single-node; a DB-backed store is the natural swap when we scale.
-const rateBucket = new Map<string, number[]>();          // key → recent request timestamps (ms)
-const inFlight   = new Map<string, Promise<string>>();   // (ticker, data_hash) → gen promise
+// Per-ticker generation cooldown (global — not per user).  Tracks the last
+// time a fresh generation completed for each ticker so rapid refresh clicks
+// from any user don't hammer Ollama back-to-back.
+const lastGenAt = new Map<string, number>();             // ticker → timestamp (ms)
+const inFlight  = new Map<string, Promise<string>>();    // (ticker, data_hash) → gen promise
 
 /**
  * Build the metadata-header block that every successful response carries.
@@ -76,20 +82,13 @@ function metadataHeaders(opts: {
   return h;
 }
 
-function rateLimitKey(userId: string, ticker: string) { return `${userId}:${ticker.toUpperCase()}`; }
+function withinCooldown(ticker: string): boolean {
+  const last = lastGenAt.get(ticker.toUpperCase());
+  return last !== undefined && Date.now() - last < AI_TAKE_REGEN_COOLDOWN_MS;
+}
 
-function withinRateLimit(userId: string, ticker: string): boolean {
-  const key    = rateLimitKey(userId, ticker);
-  const now    = Date.now();
-  const cutoff = now - 60 * 60 * 1000;
-  const prior  = (rateBucket.get(key) ?? []).filter(t => t > cutoff);
-  if (prior.length >= AI_TAKE_RATE_LIMIT_PER_HOUR) {
-    rateBucket.set(key, prior);
-    return false;
-  }
-  prior.push(now);
-  rateBucket.set(key, prior);
-  return true;
+function recordGen(ticker: string): void {
+  lastGenAt.set(ticker.toUpperCase(), Date.now());
 }
 
 // ── Prompt-input assembly ────────────────────────────────────────────────────
@@ -120,18 +119,32 @@ async function fetchTickerContext(ticker: string): Promise<Record<string, unknow
 }
 
 async function fetchRecentNewsHeadlines(ticker: string): Promise<string[]> {
+  // Check the in-memory cache populated by /api/stock_data/[ticker]/news first
+  // (avoids a redundant network call when the news panel already loaded).
+  const cached = newsDataCache.get(ticker.toUpperCase());
+  if (cached && Array.isArray(cached) && cached.length > 0) {
+    return (cached as Array<{ title: string }>)
+      .slice(0, 5)
+      .map(a => a.title)
+      .filter(Boolean);
+  }
+
+  // Cache cold — fetch directly from Yahoo Finance RSS.
   try {
-    const [rows] = await executeRawQuery(
-      `SELECT title
-         FROM stock_news
-        WHERE symbol = ?
-        ORDER BY published_at DESC
-        LIMIT 5`,
-      [ticker.toUpperCase()],
-    );
-    return (rows as Array<{ title: string }>).map(r => r.title).filter(Boolean);
+    const url = `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${encodeURIComponent(ticker)}&region=US&lang=en-US`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(6_000) });
+    if (!res.ok) return [];
+    const xml = await res.text();
+    const parser = new XMLParser();
+    const parsed = parser.parse(xml);
+    const items = parsed?.rss?.channel?.item;
+    if (!items) return [];
+    const arr = Array.isArray(items) ? items : [items];
+    return arr
+      .slice(0, 5)
+      .map((item: { title?: string }) => item.title)
+      .filter(Boolean) as string[];
   } catch {
-    // stock_news schema may vary; fall back silently. The prompt handles [].
     return [];
   }
 }
@@ -162,8 +175,8 @@ function buildPrompt(
   // Reinforce the anti-list + anti-filler constraints in multiple places —
   // Gemma tends to ignore a single mention and default to structured output
   // or "the company is a leader in X" filler otherwise.
-  return `Write ONE flowing paragraph of 80-120 words about ${ticker} for a retail investor.
-Cover: (1) what the data suggests right now, (2) key risks, and (3) whether it looks like a good buy over the next month based on the numbers.
+  return `Write ONE flowing paragraph of 60-80 words about ${ticker} for a retail investor.
+Cover: (1) the one or two strongest signals in the data, (2) the biggest risk, and (3) end with a single plain-English verdict: is this worth a closer look right now, or not? The verdict must be direct — e.g. "Worth a closer look given..." or "Not compelling right now because...".
 
 STRICT RULES — follow all of these:
 - Output exactly one paragraph. No headings, no bullet points, no numbered lists, no line breaks.
@@ -173,7 +186,7 @@ STRICT RULES — follow all of these:
 - Do NOT add disclaimers about consulting a financial advisor.
 - Do NOT invent facts. Use only the data below.
 - Write in a neutral, professional tone. No hype words ("moonshot", "rocket", "guaranteed").
-- Every sentence must add analytical value — spend the word budget on interpretation, not description.
+- Every sentence must add analytical value — no filler or hedging.
 
 DATA FOR ${ticker}:
 - Sector: ${ctx.sector ?? 'unknown'} / ${ctx.industry ?? 'unknown'}
@@ -194,18 +207,18 @@ ${headlineList}
 Now write the paragraph.`;
 }
 
-function hashPromptInputs(model: string, ticker: string, ctx: Record<string, unknown>, headlines: string[]): string {
-  // Include model in the hash so a model swap invalidates every cached take
-  // rather than serving stale prose from a different model.
+function hashPromptInputs(model: string, ticker: string, ctx: Record<string, unknown>): string {
+  // Headlines are intentionally excluded — live news changes too frequently
+  // and would bust the 12-hour cache on almost every request. The cache key
+  // is stable stock metrics only; news is fetched fresh on each generation.
   const payload = JSON.stringify({
     model,
     ticker: ticker.toUpperCase(),
-    gps:       ctx.gps_score,
+    gps:       ctx.gps_score != null ? Math.round(Number(ctx.gps_score) * 10) / 10 : null,
     breakdown: ctx.gps_breakdown,
     predPct:   ctx.predicted_change_pct,
     upside:    ctx.analyst_upside_pct,
     signal:    ctx.trading_signal,
-    headlines,
   });
   return createHash('sha256').update(payload).digest('hex');
 }
@@ -281,14 +294,11 @@ export async function GET(
         { status: 404 },
       );
     }
-    const headlines = await fetchRecentNewsHeadlines(ticker);
-    const dataHash  = hashPromptInputs(AI_TAKE_MODEL, ticker, ctx, headlines);
 
-    // Always look up the cache — used for both cache-hit fast paths AND as
-    // a rate-limit fallback when the user asked for `fresh=1` but is over
-    // budget. Fresh users only skip the cache when they're inside their
-    // per-hour allowance AND haven't been rate-limited.
-    const cached = await cacheLookup(ticker, dataHash);
+    // Hash is based on stable metrics only (headlines excluded) so the cache
+    // lookup happens before the RSS fetch — cache hits skip the news call entirely.
+    const dataHash = hashPromptInputs(AI_TAKE_MODEL, ticker, ctx);
+    const cached   = await cacheLookup(ticker, dataHash);
 
     if (!fresh && cached) {
       return new Response(cached.paragraph, {
@@ -304,11 +314,14 @@ export async function GET(
       });
     }
 
-    // Rate limit only applies to fresh generations. If the user is over
-    // budget AND we have a cached copy, degrade gracefully: return the
-    // cache with a rateLimited flag so the UI can note that regeneration
-    // is throttled. Only 429 when there's genuinely nothing to show.
-    if (!withinRateLimit(userId, ticker)) {
+    // Only fetch news when we're actually going to generate — avoids the
+    // 6-second RSS fallback timeout on every cache-hit request.
+    const headlines = await fetchRecentNewsHeadlines(ticker);
+
+    // Cooldown only applies to fresh generations — normal cache-hit requests
+    // never reach here. If the ticker was generated in the last minute, serve
+    // the cached copy (or 429 if nothing cached yet).
+    if (withinCooldown(ticker)) {
       if (cached) {
         return new Response(cached.paragraph, {
           status: 200,
@@ -320,14 +333,12 @@ export async function GET(
               : String(cached.generatedAt),
             asOfGps:     ctx.gps_score as number | string | null,
             rateLimited: true,
-            rateLimitNote: `Regeneration limited to ${AI_TAKE_RATE_LIMIT_PER_HOUR} per hour — showing the latest cached take.`,
+            rateLimitNote: 'Regeneration cooldown active — showing latest cached take.',
           }),
         });
       }
       return NextResponse.json(
-        {
-          message: `Rate limited — max ${AI_TAKE_RATE_LIMIT_PER_HOUR} fresh AI take${AI_TAKE_RATE_LIMIT_PER_HOUR === 1 ? '' : 's'} per hour per ticker.`,
-        },
+        { message: 'Rate limited — please wait 1 minute between regenerations.' },
         { status: 429 },
       );
     }
@@ -376,7 +387,7 @@ export async function GET(
     const ollamaStream = await generateStream(prompt, {
       model:       AI_TAKE_MODEL,
       timeoutMs:   AI_TAKE_TIMEOUT_MS,
-      numPredict:  220,          // was 350; 80-120 words ≈ 150-200 tokens
+      numPredict:  160,          // 60-80 words ≈ 100-130 tokens
       temperature: 0.3,          // slight creativity for prose; 0 reads robotic
       keepAlive:   '24h',        // pin the model in memory between calls
       stop:        ['\n\n', '\n-', '\n*', '\n1.', '\n2.', '**', '##'],
@@ -385,73 +396,65 @@ export async function GET(
       throw new Error('Ollama returned empty stream.');
     }
 
-    // Bridge ReadableStream<string> from ollama → ReadableStream<Uint8Array>
-    // for the client response, while accumulating the full paragraph on the
-    // server for the cache write at end-of-stream. Register the accumulator
-    // promise on the dedup map so other concurrent requests can await it.
     let resolveGen!: (paragraph: string) => void;
     let rejectGen!:  (err: unknown) => void;
     const genPromise = new Promise<string>((resolve, reject) => {
       resolveGen = resolve;
       rejectGen  = reject;
     });
-    // Attach a no-op catch so orphan rejections (client cancels mid-stream
-    // with no second awaiter) don't surface as Node unhandledRejection.
-    // Any real awaiter still gets the rejection via their own await.
     genPromise.catch(() => { /* swallowed for orphan case only */ });
     inFlight.set(flightKey, genPromise);
 
-    const encoder = new TextEncoder();
-    let   accumulator = '';
-
+    // async start() drives both streaming to the client AND the cache write.
+    // Using start() (not a separate IIFE) is required — Next.js's HTTP layer
+    // only streams a ReadableStream when the stream drives itself internally.
+    // clientGone is set by cancel() when the browser disconnects; start()
+    // checks it before each enqueue but keeps reading Ollama to accumulate
+    // the full paragraph so the cache write always runs at the end.
+    const encoder   = new TextEncoder();
+    let clientGone  = false;
     const clientStream = new ReadableStream<Uint8Array>({
       async start(controller) {
+        let acc = '';
         const reader = ollamaStream.getReader();
         try {
           while (true) {
             const { value, done } = await reader.read();
             if (done) break;
             if (value) {
-              accumulator += value;
-              controller.enqueue(encoder.encode(value));
+              acc += value;
+              if (!clientGone) {
+                try { controller.enqueue(encoder.encode(value)); } catch { clientGone = true; }
+              }
             }
           }
-          controller.close();
-          const trimmed = accumulator.trim();
-          if (trimmed.length === 0) {
-            const err = new Error('Ollama returned empty response.');
-            rejectGen(err);
-            return;
+          if (!clientGone) {
+            try { controller.close(); } catch { /* already closed/cancelled */ }
           }
-          try {
-            await cacheInsert(
-              ticker,
-              dataHash,
-              AI_TAKE_MODEL,
-              trimmed,
-              ctx.gps_score != null ? Number(ctx.gps_score) : null,
-            );
-            logger.info('AI take generated (streamed)', {
-              ticker, userId, model: AI_TAKE_MODEL, length: trimmed.length,
-            });
-          } catch (cacheErr) {
-            logger.error('AI take cache write failed after stream', { ticker, error: cacheErr });
-          }
+          const trimmed = acc.trim();
+          if (!trimmed) { rejectGen(new Error('Ollama returned empty response.')); return; }
           resolveGen(trimmed);
+          await cacheInsert(
+            ticker, dataHash, AI_TAKE_MODEL, trimmed,
+            ctx.gps_score != null ? Number(ctx.gps_score) : null,
+          );
+          recordGen(ticker);
+          logger.info('AI take cached', { ticker, model: AI_TAKE_MODEL, length: trimmed.length });
         } catch (err) {
-          controller.error(err);
+          logger.error('AI take cache task failed', { ticker, error: err });
           rejectGen(err);
+          if (!clientGone) {
+            try { controller.error(err); } catch { /* already closed/cancelled */ }
+          }
         } finally {
           inFlight.delete(flightKey);
         }
       },
       cancel(reason) {
-        // Client aborted mid-stream. Release the ollama reader and drop the
-        // in-flight entry so the next request can re-attempt. Partial
-        // paragraphs are not cached — either we complete the gen or we bail.
         logger.info('AI take stream cancelled by client', { ticker, reason: String(reason) });
-        rejectGen(new Error('Client cancelled stream'));
-        inFlight.delete(flightKey);
+        clientGone = true;
+        // start() is still running — it will keep reading Ollama and write
+        // the cache when done, then exit cleanly.
       },
     });
 
