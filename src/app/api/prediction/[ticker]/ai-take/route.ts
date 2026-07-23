@@ -237,6 +237,23 @@ async function cacheLookup(ticker: string, dataHash: string): Promise<{ paragrap
   return { paragraph: row.paragraph, generatedAt: row.generated_at, model: row.model };
 }
 
+// Ticker-only lookup — no data hash required. Used by ?cache_only=1 requests
+// (auto-load on page mount) so we don't need to join GPS tables just to check
+// if any recent paragraph exists.
+async function cacheLookupByTicker(ticker: string): Promise<{ paragraph: string; generatedAt: Date; model: string } | null> {
+  const [rows] = await executeRawQuery(
+    `SELECT paragraph, model, generated_at
+       FROM ai_ticker_takes
+      WHERE ticker = ?
+        AND generated_at > NOW() - INTERVAL ${AI_TAKE_CACHE_HOURS} HOUR
+      ORDER BY generated_at DESC LIMIT 1`,
+    [ticker.toUpperCase()],
+  );
+  const row = (rows as any[])[0];
+  if (!row) return null;
+  return { paragraph: row.paragraph, generatedAt: row.generated_at, model: row.model };
+}
+
 async function cacheInsert(
   ticker: string,
   dataHash: string,
@@ -282,9 +299,28 @@ export async function GET(
   if (!parsed.success) {
     return NextResponse.json({ message: 'Invalid ticker.' }, { status: 400 });
   }
-  const ticker = parsed.data.toUpperCase();
-  const url    = new URL(request.url);
-  const fresh  = url.searchParams.get('fresh') === '1';
+  const ticker    = parsed.data.toUpperCase();
+  const url       = new URL(request.url);
+  const fresh     = url.searchParams.get('fresh') === '1';
+  const cacheOnly = url.searchParams.get('cache_only') === '1';
+
+  // Fast path: page auto-load just wants to know if a cached take exists.
+  // Skip the GPS join, news fetch, and Ollama entirely — ticker-only lookup.
+  if (cacheOnly) {
+    const hit = await cacheLookupByTicker(ticker);
+    if (!hit) return new Response(null, { status: 204 });
+    return new Response(hit.paragraph, {
+      status: 200,
+      headers: metadataHeaders({
+        cached:      true,
+        model:       hit.model,
+        generatedAt: hit.generatedAt instanceof Date
+          ? hit.generatedAt.toISOString()
+          : String(hit.generatedAt),
+        asOfGps:     null,
+      }),
+    });
+  }
 
   try {
     const ctx = await fetchTickerContext(ticker);

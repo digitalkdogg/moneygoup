@@ -508,7 +508,8 @@ export default function StockPrediction({
   const TitleTag = titleLevel;
 
   // Async rationale backfill state (Plan 2).
-  const [rationaleLoading, setRationaleLoading] = useState(false)
+  const [rationaleLoading,    setRationaleLoading]    = useState(false)
+  const [rationaleRefreshing, setRationaleRefreshing] = useState(false)
   const pollTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pollAttemptsRef = useRef(0)
 
@@ -685,6 +686,22 @@ export default function StockPrediction({
       if (pollTimerRef.current) { clearTimeout(pollTimerRef.current); pollTimerRef.current = null }
     }
   }, [prediction?.llm_rationale, ticker]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const refreshRationale = async () => {
+    if (rationaleRefreshing) return;
+    setRationaleRefreshing(true);
+    try {
+      const res = await fetch(`/api/prediction/${encodeURIComponent(ticker)}/rationale`, { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.rationale) {
+          setPrediction(prev => prev ? { ...prev, llm_rationale: data.rationale } : prev);
+        }
+      }
+    } catch { /* narration is optional */ } finally {
+      setRationaleRefreshing(false);
+    }
+  };
 
   const btnLabel =
     step === 'fetching'   ? 'Fetching 5-year data...' :
@@ -883,12 +900,32 @@ export default function StockPrediction({
           {/* ---- "Why this range" LLM narrative ---- */}
           {prediction.llm_rationale ? (
             <div className="mt-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-r-lg">
-              <div className="text-[11px] font-semibold text-blue-700 uppercase tracking-wide mb-1">
-                Why this range
+              <div className="flex items-center justify-between mb-1">
+                <div className="text-[11px] font-semibold text-blue-700 uppercase tracking-wide">
+                  Why this range
+                </div>
+                <button
+                  onClick={refreshRationale}
+                  disabled={rationaleRefreshing}
+                  className="sm rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white transition-colors focus-ring"
+                  style={{ padding: '0.375rem', fontSize: '1rem', lineHeight: 1, width: '2rem', height: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  title="Regenerate rationale"
+                >
+                  {rationaleRefreshing
+                    ? <span className="inline-block w-3 h-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                    : '↻'}
+                </button>
               </div>
-              <p className="text-sm text-gray-800 leading-relaxed">
-                {prediction.llm_rationale}
-              </p>
+              {rationaleRefreshing ? (
+                <p className="text-sm text-blue-400 italic flex items-center gap-2">
+                  <span className="inline-block w-2 h-2 rounded-full bg-blue-300 animate-pulse" />
+                  Regenerating rationale...
+                </p>
+              ) : (
+                <p className="text-sm text-gray-800 leading-relaxed">
+                  {prediction.llm_rationale}
+                </p>
+              )}
             </div>
           ) : rationaleLoading ? (
             <div className="mt-6 p-4 bg-blue-50 border-l-4 border-blue-300 rounded-r-lg">

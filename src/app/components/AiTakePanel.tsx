@@ -22,7 +22,7 @@
  *   • 404 → no GPS data for this ticker yet; show a friendly message.
  *   • Anything else → generic error with a Retry button.
  */
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 
 interface AiTakeMeta {
   cached:        boolean;
@@ -58,6 +58,28 @@ function readMetadataFromHeaders(res: Response): AiTakeMeta {
 const AiTakePanel: React.FC<AiTakePanelProps> = ({ ticker }) => {
   const [state,  setState]  = useState<PanelState>({ kind: 'idle' });
   const [hidden, setHidden] = useState(false);   // true only if the service reported 503
+
+  // On mount, silently check for a cached take. Returns in ~100ms if the DB
+  // has a hit; 204 if not — in which case we stay idle and show the button.
+  useEffect(() => {
+    let cancelled = false;
+    const ctrl    = new AbortController();
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/prediction/${encodeURIComponent(ticker)}/ai-take?cache_only=1`,
+          { signal: ctrl.signal },
+        );
+        if (cancelled) return;
+        if (res.status === 503) { setHidden(true); return; }
+        if (!res.ok) return; // 204 = no cache, 401/403 = not authed — stay idle
+        const text = await res.text();
+        if (cancelled || !text.trim()) return;
+        setState({ kind: 'ready', paragraph: text.trim(), meta: readMetadataFromHeaders(res) });
+      } catch { /* aborted or network error — stay idle */ }
+    })();
+    return () => { cancelled = true; ctrl.abort(); };
+  }, [ticker]);
 
   const fetchTake = useCallback(async (fresh: boolean) => {
     setState({ kind: 'loading' });
@@ -115,14 +137,6 @@ const AiTakePanel: React.FC<AiTakePanelProps> = ({ ticker }) => {
 
   if (hidden) return null;
 
-  const formatGeneratedAt = (iso: string) => {
-    try {
-      return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } catch {
-      return iso;
-    }
-  };
-
   const isStreaming = state.kind === 'streaming';
   const isReady     = state.kind === 'ready';
   const hasBody     = isStreaming || isReady;
@@ -130,7 +144,7 @@ const AiTakePanel: React.FC<AiTakePanelProps> = ({ ticker }) => {
   const meta        = hasBody ? state.meta : null;
 
   return (
-    <div className="mt-6 bg-blue-50 border border-blue-200 p-6 rounded-lg section-ai-take">
+    <div className="mt-6 bg-[#f0fdf4] border border-[#86efac] p-6 rounded-lg section-ai-take">
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-center gap-2">
           <span className="text-xl" role="img" aria-label="ai-take">🤖</span>
@@ -149,10 +163,11 @@ const AiTakePanel: React.FC<AiTakePanelProps> = ({ ticker }) => {
         {isReady && (
           <button
             onClick={() => fetchTake(true)}
-            className="px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 text-green-700 text-xs font-semibold transition-colors focus-ring"
+            className="sm rounded-lg bg-[#017e3b] hover:bg-[#016a32] text-white transition-colors focus-ring"
+            style={{ padding: '0.375rem', fontSize: '1rem', lineHeight: 1, width: '2rem', height: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             title="Regenerate the take from the latest data"
           >
-            ↻ Regenerate
+            ↻
           </button>
         )}
       </div>
@@ -181,14 +196,6 @@ const AiTakePanel: React.FC<AiTakePanelProps> = ({ ticker }) => {
               />
             )}
           </p>
-          {meta && (
-            <div className="mt-3 flex items-center gap-2 text-[11px] text-gray-500 font-medium">
-              <span className={`px-1.5 py-0.5 rounded font-semibold ${meta.cached ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
-                {meta.cached ? 'cached' : 'live'}
-              </span>
-              Generated {formatGeneratedAt(meta.generatedAt)}
-            </div>
-          )}
           {meta?.rateLimited && meta.rateLimitNote && (
             <div className="mt-2 text-[11px] text-gray-500 italic">
               {meta.rateLimitNote}
