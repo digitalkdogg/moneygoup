@@ -66,8 +66,9 @@ from predict_core import (
     calculate_earnings_beat_streak,
 )
 
-MODELS_DIR    = Path(__file__).parent.parent / 'models'
-CS_MODEL_PATH = MODELS_DIR / 'long_term_cs_v2.pkl'
+MODELS_DIR         = Path(__file__).parent.parent / 'models'
+CS_MODEL_PATH      = MODELS_DIR / 'long_term_cs_v2.pkl'
+CALIBRATION_SCALAR = 0.55  # v5 regression-to-mean: scales final pct after post-hoc fixes
 
 # ── Load CS model once at process startup ─────────────────────────────────────
 _CS_MODEL = None
@@ -197,7 +198,43 @@ def _predict_one(ticker: str, input_data: dict, threshold: float) -> dict:
 
         # pred_returns = [return_126d, return_252d] (raw return fractions, not %)
         pred_returns = model.predict(x_current_s)[0]
-        pct_6m = round(float(pred_returns[0]) * 100.0, 2)
+        pct_6m = float(pred_returns[0]) * 100.0
+
+        # ── v4 drift + v5 Fix A/C/D + 0.55 calibration scalar ────────────────
+        close_arr = [row['close'] for row in historical_data]
+        beta = float(stock_metrics.get('beta') or 1.0)
+        predicted_price = current_price * (1.0 + pct_6m / 100.0)
+
+        ret30d = (close_arr[-1] / close_arr[-22] - 1.0) if len(close_arr) >= 22 else 0.0
+        ret90d = (close_arr[-1] / close_arr[-64] - 1.0) if len(close_arr) >= 64 else 0.0
+
+        # v4 momentum drift — fires when |90d return| > 15%
+        if abs(ret90d) > 0.15:
+            predicted_price *= (1.0 + ret90d * 0.75)
+
+        # Fix A — downtrend trap ceiling
+        if beta > 0.8 and ret30d < -0.05 and ret90d < -0.10:
+            severity = min(1.0, (-ret90d - 0.10) / 0.25)
+            cap = 1.0 - (severity * 0.08 * min(beta, 2.0) / 2.0)
+            predicted_price = min(predicted_price, current_price * cap)
+
+        # Fix C — structural decline override
+        hi_52w = max((row['high'] for row in historical_data[-252:]), default=0.0)
+        if hi_52w > 0:
+            pct_from_52w = close_arr[-1] / hi_52w - 1.0
+            if pct_from_52w < -0.20 and ret90d < -0.15:
+                decline_sev = min(1.0, (-pct_from_52w - 0.20) / 0.30)
+                f6m = 1.0 - (0.05 + decline_sev * 0.05)
+                predicted_price = min(predicted_price, current_price * f6m)
+
+        # Fix D — extreme positive momentum amplifier
+        if ret90d > 0.30:
+            xtscale = 1.0 + min(0.50, (ret90d - 0.30) * 2.0)
+            predicted_price = current_price + (predicted_price - current_price) * xtscale
+
+        # Calibration scalar — squeezes magnitude toward zero (reduces overconfidence)
+        raw_pct = (predicted_price - current_price) / current_price * 100.0
+        pct_6m = round(raw_pct * CALIBRATION_SCALAR, 2)
 
         return {
             'passed':                  pct_6m >= threshold,

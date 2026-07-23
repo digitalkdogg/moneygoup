@@ -1,19 +1,14 @@
 /**
  * yahooFinanceHelper.test.ts — unit tests for the yahoo-finance2 wrapper.
  *
- * These tests must NEVER hit the real Yahoo network. The pattern below is
- * deliberately verbose to survive cross-file jest state pollution seen in
- * the full suite: other test files that touch yahoo-finance2 can leave the
- * module registry in a state where a top-level `jest.mock` gets bypassed
- * for this file, sending calls to the real library and failing on Yahoo's
- * "No set-cookie header" crumb error.
+ * These tests must NEVER hit the real Yahoo network.
  *
- * Defenses used:
- *   • `jest.doMock` inside beforeEach (not hoisted, no closure timing issues)
- *   • `jest.isolateModules` around require() to force a fresh module tree
- *     that resolves via the just-registered mock
- *   • Fresh mock fns per test — no outer-scope singletons that can get
- *     cleared by another file's jest.clearAllMocks
+ * Pattern: jest.resetModules() clears the module cache before each test,
+ * then jest.doMock registers the factory, then require re-evaluates the
+ * helper module inside that same registry so its top-level `new YahooFinance()`
+ * call picks up our mock constructor. jest.isolateModules was removed because
+ * in Jest 30 it creates a registry that does not reliably inherit doMock
+ * registrations from the outer context, causing the real library to be used.
  */
 
 describe('yahooFinanceHelper', () => {
@@ -26,9 +21,10 @@ describe('yahooFinanceHelper', () => {
     mockQuote        = jest.fn();
     mockQuoteSummary = jest.fn();
 
-    // doMock (not mock): applies right now, not hoisted. The factory is called
-    // when yahoo-finance2 is next resolved, at which point our mock fns above
-    // are already assigned.
+    // Clear module cache so the helper re-evaluates on next require,
+    // picking up the doMock registered immediately below.
+    jest.resetModules();
+
     jest.doMock('yahoo-finance2', () => ({
       __esModule: true,
       default: jest.fn().mockImplementation(() => ({
@@ -37,14 +33,9 @@ describe('yahooFinanceHelper', () => {
       })),
     }));
 
-    // isolateModules guarantees the helper module is re-evaluated within a
-    // fresh registry so its top-level `new YahooFinance(...)` picks up our
-    // just-registered mock, regardless of what earlier test files left behind.
-    jest.isolateModules(() => {
-      const helper = require('../yahooFinanceHelper');
-      fetchYahooQuotesForSymbols = helper.fetchYahooQuotesForSymbols;
-      fetchYahooStockSummary     = helper.fetchYahooStockSummary;
-    });
+    const helper = require('../yahooFinanceHelper');
+    fetchYahooQuotesForSymbols = helper.fetchYahooQuotesForSymbols;
+    fetchYahooStockSummary     = helper.fetchYahooStockSummary;
   });
 
   afterEach(() => {
