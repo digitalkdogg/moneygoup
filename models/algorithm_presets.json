@@ -1,12 +1,12 @@
 {
-  "1":  { "rankerKeepPct": 0.05, "mlpConfidenceFloor": 75, "volGateFloor": 75, "analystStrongBuyThreshold": 10, "signalScoreFloor": 0 },
-  "2":  { "rankerKeepPct": 0.10, "mlpConfidenceFloor": 70, "volGateFloor": 75, "analystStrongBuyThreshold": 8,  "signalScoreFloor": 0 },
-  "3":  { "rankerKeepPct": 0.15, "mlpConfidenceFloor": 65, "volGateFloor": 75, "analystStrongBuyThreshold": 6,  "signalScoreFloor": 0 },
-  "4":  { "rankerKeepPct": 0.20, "mlpConfidenceFloor": 65, "volGateFloor": 70, "analystStrongBuyThreshold": 5,  "signalScoreFloor": 0 },
-  "5":  { "rankerKeepPct": 0.25, "mlpConfidenceFloor": 60, "volGateFloor": 65, "analystStrongBuyThreshold": 4,  "signalScoreFloor": 0 },
-  "6":  { "rankerKeepPct": 0.35, "mlpConfidenceFloor": 55, "volGateFloor": 60, "analystStrongBuyThreshold": 3,  "signalScoreFloor": -3 },
-  "7":  { "rankerKeepPct": 0.45, "mlpConfidenceFloor": 50, "volGateFloor": 55, "analystStrongBuyThreshold": 3,  "signalScoreFloor": -7 },
-  "8":  { "rankerKeepPct": 0.60, "mlpConfidenceFloor": 45, "volGateFloor": 50, "analystStrongBuyThreshold": 2,  "signalScoreFloor": -12 },
-  "9":  { "rankerKeepPct": 0.80, "mlpConfidenceFloor": 35, "volGateFloor": 45, "analystStrongBuyThreshold": 1,  "signalScoreFloor": -18 },
-  "10": { "rankerKeepPct": 1.00, "mlpConfidenceFloor": 30, "volGateFloor": 35, "analystStrongBuyThreshold": 1,  "signalScoreFloor": -25 }
+  "1":  { "rankerKeepPct": 0.05, "mlpConfidenceFloor": 75, "volGateFloor": 75, "signalScoreFloor": 0 },
+  "2":  { "rankerKeepPct": 0.10, "mlpConfidenceFloor": 70, "volGateFloor": 75, "signalScoreFloor": 0 },
+  "3":  { "rankerKeepPct": 0.15, "mlpConfidenceFloor": 65, "volGateFloor": 75, "signalScoreFloor": 0 },
+  "4":  { "rankerKeepPct": 0.20, "mlpConfidenceFloor": 65, "volGateFloor": 70, "signalScoreFloor": 0 },
+  "5":  { "rankerKeepPct": 0.25, "mlpConfidenceFloor": 60, "volGateFloor": 65, "signalScoreFloor": 0 },
+  "6":  { "rankerKeepPct": 0.35, "mlpConfidenceFloor": 55, "volGateFloor": 60, "signalScoreFloor": -3 },
+  "7":  { "rankerKeepPct": 0.45, "mlpConfidenceFloor": 50, "volGateFloor": 55, "signalScoreFloor": -7 },
+  "8":  { "rankerKeepPct": 0.60, "mlpConfidenceFloor": 45, "volGateFloor": 50, "signalScoreFloor": -12 },
+  "9":  { "rankerKeepPct": 0.80, "mlpConfidenceFloor": 35, "volGateFloor": 45, "signalScoreFloor": -18 },
+  "10": { "rankerKeepPct": 1.00, "mlpConfidenceFloor": 30, "volGateFloor": 35, "signalScoreFloor": -25 }
 }

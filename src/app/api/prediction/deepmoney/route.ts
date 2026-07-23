@@ -17,6 +17,7 @@ import { checkApprovalGuard } from '@/utils/approvalStatus';
 import { performETFDiscovery } from '@/utils/etfDiscovery';
 import { getUserStrategy, resolveStrategy, DEFAULT_STRATEGY } from '@/utils/strategy';
 import { resolveAlgorithm } from '@/utils/algorithmPreset';
+import { computeAnalystGrade, RecommendationPeriod } from '@/utils/analystGrade';
 import { getSectorStocks, getTrendingStocks } from '@/utils/yahooFinanceHelper';
 import { CANONICAL_SECTORS } from '@/utils/sectorTaxonomy';
 import { getDbConnection } from '@/utils/db';
@@ -785,15 +786,6 @@ async function enrichTickers(tickers: string[]) {
                 const rdSeries = (fundamentals as any) || [];
                 const researchDevelopment = rdSeries[rdSeries.length - 1]?.researchAndDevelopment ?? 0;
 
-                // Analyst recommendation trend — pull the current-month ('0m')
-                // strongBuy count for the analyst-consensus override gate in
-                // analyzer.ts. Falls back to null when Yahoo has no trend data.
-                const trend = ((summary as any).recommendationTrend?.trend ?? []) as Array<{ period?: string; strongBuy?: number }>;
-                const currentTrend = trend.find(t => t.period === '0m') ?? trend[0];
-                const analystStrongBuy = (typeof currentTrend?.strongBuy === 'number')
-                    ? currentTrend.strongBuy
-                    : null;
-
                 const marketCap = price.marketCap || detail.marketCap || 0;
                 const currentPrice = price.regularMarketPrice || 0;
                 // Technical & Growth calculations
@@ -801,6 +793,27 @@ async function enrichTickers(tickers: string[]) {
                 const earningsGrowth = financial.earningsGrowth || 0;
                 const analystTarget = financial.targetMeanPrice || 0;
                 const analystUpside = analystTarget > 0 ? (analystTarget - currentPrice) / currentPrice : 0;
+
+                // Compute the full analyst grade (A+ → F-) for the analyst-grade
+                // override lane in analyzer.ts. Uses the 4-period recommendation
+                // trend + price target bounds — all already fetched above.
+                const rawTrend = ((summary as any).recommendationTrend?.trend ?? []) as Array<any>;
+                const analystTrend: RecommendationPeriod[] = rawTrend
+                    .filter((t: any) => typeof t.period === 'string')
+                    .map((t: any) => ({
+                        period:     t.period,
+                        strongBuy:  t.strongBuy  ?? 0,
+                        buy:        t.buy        ?? 0,
+                        hold:       t.hold       ?? 0,
+                        sell:       t.sell       ?? 0,
+                        strongSell: t.strongSell ?? 0,
+                    }));
+                const analystPriceTarget = {
+                    low:  (financial.targetLowPrice  as number | null) ?? null,
+                    mean: (financial.targetMeanPrice as number | null) ?? null,
+                    high: (financial.targetHighPrice as number | null) ?? null,
+                };
+                const analystGradeResult = computeAnalystGrade(analystTrend, analystPriceTarget, currentPrice || null);
                 const fiftyTwoWeekChange = stats.fiftyTwoWeekChange || 0;
 
                 const histData = (historical || []).map((r: any) => ({
@@ -836,7 +849,8 @@ async function enrichTickers(tickers: string[]) {
                     totalRevenue: financial.totalRevenue || 0,
                     fiftyTwoWeekChange: fiftyTwoWeekChange,
                     analystUpside: analystUpside,
-                    analystStrongBuy: analystStrongBuy,
+                    analystGradeComposite: analystGradeResult?.composite ?? null,
+                    analystGrade: analystGradeResult?.grade ?? null,
                     sma20: tech?.sma20 || null,
                     sma50: tech?.sma50 || null,
                     rsi: tech?.rsi14 || null,
@@ -1042,7 +1056,6 @@ export async function GET(request: NextRequest) {
                 outlook,
                 mlGate,
                 rankerKeepPct: algorithm.rankerKeepPct,
-                analystStrongBuyThreshold: algorithm.analystStrongBuyThreshold,
                 signalScoreFloor: algorithm.signalScoreFloor,
                 sectorLeaderTickers: staleSectorLeaderTickers,
                 trendingTickers,

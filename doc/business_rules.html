@@ -107,7 +107,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Business Rules</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-21</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-07-22</div>
   </div>
   <div class="nav-scroll-controls"><button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">&lsaquo;</button></div>
   <nav class="top-bar-nav">
@@ -154,7 +154,7 @@
     <a href="#validation">13. Validation &amp; Drops</a>
     <a href="#external">14. External Data</a>
     <a href="#security">15. Security &amp; PII</a>
-    <a href="#ai-take">16. AI Take</a> <span class="new-badge">new</span>
+    <a href="#ai-take">16. AI Take &amp; Rationale</a>
     <div class="section-divider"></div>
     <a href="authentication_flow.html">Auth Flow</a>
     <a href="strategy_system.html">Strategy System</a>
@@ -922,6 +922,23 @@
           <span class="src">src/utils/redisRateLimiter.ts</span>
         </div>
       </div>
+
+      <div class="rule">
+        <div class="rid">BR-9.3</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p><strong>Concurrency semaphores.</strong> Two module-level semaphores cap in-process parallelism independently of the per-route sliding-window rate limits above:</p>
+          <table class="rule-table">
+            <thead><tr><th>Semaphore</th><th>Slots</th><th>Covers</th></tr></thead>
+            <tbody>
+              <tr><td><code>predictionSemaphore</code></td><td>3</td><td>Concurrent Python MLP prediction subprocesses</td></tr>
+              <tr><td><code>narrationSemaphore</code></td><td>5</td><td>Concurrent Ollama narration jobs (LLM rationale generation)</td></tr>
+            </tbody>
+          </table>
+          <p>Requests that arrive when all slots are full queue behind the semaphore. This prevents CPU/RAM thrash on the shared host — each MLP subprocess loads a 3–5 GB model and each Ollama call uses the same GPU/CPU pool.</p>
+          <span class="src">src/utils/predictionQueue.ts · predictionSemaphore · narrationSemaphore</span>
+        </div>
+      </div>
     </section>
 
     <!-- ─────────────────────────── 10. CACHING ─────────────────────────── -->
@@ -1270,7 +1287,7 @@
 
     <!-- ─────────────────────────── 16. AI TAKE ─────────────────────────── -->
     <section id="ai-take">
-      <h2>16. AI Take</h2>
+      <h2>16. AI Take &amp; Rationale</h2>
       <p class="see-also"><strong>See also:</strong> <a href="api_documentation.html">API Docs</a> <span class="sep">·</span> <a href="database_documentation.html#ai_ticker_takes">Database · ai_ticker_takes</a> <span class="sep">·</span> <a href="moneygoup_overview.html#env-vars-ollama-ai">App Overview · Ollama / AI Take env vars</a></p>
 
       <div class="rule">
@@ -1288,7 +1305,7 @@
         <div class="body">
           <span class="tag app">Web App</span>
           <span class="tag new">new — 2026-07-18</span>
-          <p><strong>data_hash includes the model name.</strong> The SHA-256 covers <code>{model, ticker, gps_score, gps_breakdown, predicted_change_pct, analyst_upside_pct, trading_signal, top-5 news headlines}</code>. Any change forces regeneration on next click. This means swapping <code>OLLAMA_MODEL_AI_TAKE</code> automatically invalidates every cached take across the site — no manual cache flush needed.</p>
+          <p><strong>data_hash includes the model name.</strong> The SHA-256 covers <code>{model, ticker, gps_score, gps_breakdown, predicted_change_pct, analyst_upside_pct, trading_signal}</code>. News headlines are <strong>intentionally excluded</strong> from the hash — their high churn would invalidate the cache on every sync cycle, defeating the point of caching. Any change to the included fields forces regeneration. Swapping <code>OLLAMA_MODEL_AI_TAKE</code> automatically invalidates every cached take site-wide — no manual flush needed.</p>
           <span class="src">src/app/api/prediction/[ticker]/ai-take/route.ts (hashPromptInputs)</span>
         </div>
       </div>
@@ -1348,14 +1365,45 @@
         <div class="body">
           <span class="tag prompt">Prompt</span>
           <span class="tag new">new — 2026-07-18</span>
-          <p><strong>Anti-list prompt hardening.</strong> Gemma has a strong bias toward markdown headers, bullet lists, and numbered sections. The prompt reinforces "one flowing paragraph, no headings, no bullets, no numbered lists, no line breaks" in three places, plus <code>stop</code> sequences on the Ollama call (<code>['\n\n', '\n-', '\n*', '\n1.', '\n2.', '**', '##']</code>) that halt generation the moment structured output starts to appear. Temperature is 0.3 — enough creativity for prose, low enough for factual grounding.</p>
+          <p><strong>Anti-list prompt hardening.</strong> Gemma has a strong bias toward markdown headers, bullet lists, and numbered sections. The prompt reinforces "one flowing paragraph, no headings, no bullets, no numbered lists, no line breaks" in three places, plus <code>stop</code> sequences on the Ollama call (<code>['\n\n', '\n-', '\n*', '\n1.', '\n2.', '**', '##']</code>) that halt generation the moment structured output starts to appear. Temperature 0.3, token budget 160 (<code>num_predict</code>), Ollama request timeout <code>AI_TAKE_TIMEOUT_MS</code> (default 120 s).</p>
           <span class="src">src/app/api/prediction/[ticker]/ai-take/route.ts (buildPrompt)</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-16.9</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <span class="tag new">new — 2026-07-22</span>
+          <p><strong>Cache-only fast path and auto-display on mount.</strong> Passing <code>?cache_only=1</code> to <code>GET /api/prediction/[ticker]/ai-take</code> skips all GPS data fetches and Ollama calls. It queries <code>ai_ticker_takes</code> by ticker alone (no data-hash join) and returns either the cached paragraph (<code>200</code>) or <code>204 No Content</code> if nothing exists. <code>AiTakePanel</code> fires this request on component mount — without user interaction — so a cached take is silently displayed the moment the <code>/search/[ticker]</code> page loads. The <code>Ask AI</code> button only appears when no cache exists (idle state).</p>
+          <span class="src">src/app/api/prediction/[ticker]/ai-take/route.ts · src/app/components/AiTakePanel.tsx (useEffect on mount)</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-16.10</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <span class="tag new">new — 2026-07-22</span>
+          <p><strong>"Why This Range" rationale — on-demand regeneration.</strong> <code>POST /api/prediction/[ticker]/rationale</code> re-runs narration for a ticker's latest prediction record without triggering a full MLP re-prediction. It reads <code>predicted_change_pct_6m</code>, <code>predicted_change_pct_1y</code>, <code>confidence_reason_6m</code>, and <code>confidence_reason_1y</code> from <code>prediction_records</code>, writes a temp JSON file, and runs <code>generate_rationale.py</code> as a waited (not detached) subprocess with a 40 s timeout. On success it reads the updated <code>llm_rationale</code> back and returns <code>{rationale: "..."}</code>. Returns 404 if no recent prediction exists, 503 if <code>OLLAMA_ENABLED ≠ true</code>. The component shows a spinner and swaps the paragraph text to "Regenerating rationale…" while the call is in flight.</p>
+          <p>Narration parameters (in <code>scripts/prediction_narrator.py</code>): model = <code>OLLAMA_MODEL_RATIONALE</code> env var (falls back to <code>OLLAMA_MODEL</code>), timeout = <code>OLLAMA_TIMEOUT_MS_RATIONALE</code> (default 30 s), tokens = 160 (<code>RATIONALE_NUM_PREDICT</code>), temperature 0.2. Hard length cap: 600 characters truncated at the last period.</p>
+          <span class="src">src/app/api/prediction/[ticker]/rationale/route.ts · scripts/prediction_narrator.py · src/app/components/StockPrediction.tsx (refreshRationale)</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-16.11</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <span class="tag new">new — 2026-07-22</span>
+          <p><strong>"Why This Range" rationale — async backfill polling.</strong> When a prediction completes but <code>llm_rationale</code> is not yet written (narration fires async as a detached subprocess), <code>StockPrediction</code> polls <code>GET /api/stock_data/[ticker]/latest-prediction</code> every 20 s, up to 3 attempts (~60 s window). On the first poll that returns a non-null <code>llm_rationale</code>, the paragraph appears and polling stops. If all 3 attempts return null, the "Why this range" callout stays hidden for this session. The polling does <strong>not</strong> apply to the on-demand regeneration path (BR-16.10), which is synchronous.</p>
+          <span class="src">src/app/components/StockPrediction.tsx (useEffect rationale poll · pollTimerRef)</span>
         </div>
       </div>
     </section>
 
     <footer>
-      GrowMyStocks Business Rules &copy; 2026 · Generated from codebase 2026-06-21
+      GrowMyStocks Business Rules &copy; 2026 · Updated from codebase 2026-07-22
     </footer>
   </main>
 </div>

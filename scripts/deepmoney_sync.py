@@ -51,6 +51,10 @@ WB_API_URL = f"{INTERNAL_API_URL}/api/worldbank"
 # stocks never reach recommended_stocks or stock_gps_scores.
 PRICE_CEILING_USD = 100_000
 
+# Analyst-grade override lane: minimum composite score (A-) to qualify.
+# Vol-gate discounts are applied when a stock has a grade at or above this.
+ANALYST_GRADE_MIN_COMPOSITE = 82
+
 
 def upsert_stock_with_search_fields(cursor, ticker, company_name, price,
                                     market_cap, sector, industry):
@@ -450,6 +454,28 @@ def sync_deepmoney():
                     predicted_price_1m=predicted_price_1m,
                     predicted_price_6m=predicted_price_6m,
                     predicted_price_1y=predicted_price_1y,
+                    predicted_change_pct_1w=pred_input.get('predicted_change_pct_1w'),
+                    predicted_change_pct_1m=pred_input.get('predicted_change_pct_1m') or pred_input.get('predicted_change_pct'),
+                    predicted_change_pct_6m=pred_input.get('predicted_change_pct_6m'),
+                    predicted_change_pct_1y=pred_input.get('predicted_change_pct_1y'),
+                    confidence_score_1w=pred_input.get('confidence_score_1w'),
+                    confidence_score_1m=pred_input.get('confidence_score_1m') or pred_input.get('confidence_score'),
+                    confidence_score_6m=pred_input.get('confidence_score_6m'),
+                    confidence_score_1y=pred_input.get('confidence_score_1y'),
+                    gps_score=gps,
+                    gps_breakdown=gps_breakdown if gps_breakdown else None,
+                    accuracy_metrics=pred_input.get('accuracy_metrics'),
+                    data_quality=pred_input.get('data_quality'),
+                    model_status=pred_input.get('model_status'),
+                    at_model_ceiling_6m=pred_input.get('at_model_ceiling_6m'),
+                    at_model_ceiling_1y=pred_input.get('at_model_ceiling_1y'),
+                    ceiling_direction=pred_input.get('ceiling_direction'),
+                    confidence_breakdown=pred_input.get('confidence_breakdown'),
+                    confidence_reason_1w=pred_input.get('confidence_reason_1w'),
+                    confidence_reason_1m=pred_input.get('confidence_reason_1m'),
+                    confidence_reason_6m=pred_input.get('confidence_reason_6m'),
+                    confidence_reason_1y=pred_input.get('confidence_reason_1y'),
+                    model_version='deepmoney_sync',
                 )
 
             # 4.1 (removed) Per-stock GPS gate — the LightGBM ranker already
@@ -474,9 +500,32 @@ def sync_deepmoney():
             high_beta = beta_val > 2.5
             confidence_floor = vol_gate_floor if high_beta else mlp_confidence_floor
             floor_label = "vol-floor" if high_beta else "mlp-floor"
-            vol_gate_failed = conf_score < confidence_floor and not is_sector_leader
+
+            # Analyst-grade vol-gate discount: stocks that qualified for the
+            # analyst override lane (composite ≥ A-) get a lower confidence
+            # floor. The discount scales with grade — A+ gets more headroom
+            # than A-, reflecting that stronger analyst consensus is a partial
+            # substitute for MLP confidence on volatile names.
+            analyst_composite = s.get('analystGradeComposite') or 0
+            if analyst_composite >= 93:        # A+
+                grade_discount = 20
+            elif analyst_composite >= 87:      # A
+                grade_discount = 15
+            elif analyst_composite >= ANALYST_GRADE_MIN_COMPOSITE:  # A-
+                grade_discount = 10
+            else:
+                grade_discount = 0
+            effective_floor = max(0, confidence_floor - grade_discount)
+            effective_label = f"{floor_label}(grade-adj-{grade_discount})" if grade_discount else floor_label
+
+            vol_gate_failed = conf_score < effective_floor and not is_sector_leader
+            if grade_discount and not vol_gate_failed and conf_score < confidence_floor:
+                # Stock would have been rejected without the grade discount — log it.
+                analyst_grade = s.get('analystGrade', '?')
+                print(f"  [vol-gate] PASS {ticker} via grade discount ({analyst_grade}/{analyst_composite:.0f}): "
+                      f"CS {conf_score} >= adj-floor {effective_floor} (base {confidence_floor}, -({grade_discount}))")
             if vol_gate_failed:
-                print(f"  [vol-gate] SKIP {ticker} ({floor_label}): CS {conf_score} < floor {confidence_floor} (beta {beta_val:.2f})")
+                print(f"  [vol-gate] SKIP {ticker} ({effective_label}): CS {conf_score} < floor {effective_floor} (beta {beta_val:.2f})")
                 counters["vol_gate_rejected"] += 1
                 if not is_trending_48h:
                     # Non-trending vol-gate failure → drop entirely (no GPS, no recommended_stocks).
@@ -917,6 +966,13 @@ def _print_run_summary(
         print(f"    Light model passed:              {_fmt_int(lm_passed)}")
         print(f"    Light model filtered:            {_fmt_int(lm_filtered)}")
     print(f"    Surfaced by API:                 {_fmt_int(counters.get('stocks_in_api_resp'))}")
+
+    # ── Analyst-grade override lane (A- or better bypasses ranker) ────────────
+    analyst_surfaced = debug.get('analystConsensusSurfaced')
+    if analyst_surfaced is not None:
+        print()
+        print("  ANALYST-GRADE OVERRIDE LANE  (grade >= A-, composite >= 82)")
+        print(f"    Surfaced via grade override:     {_fmt_int(analyst_surfaced)}")
 
     # ── Trending-48h override lane ─────────────────────────────────────────
     trending_merged   = debug.get('trendingTickerCount')

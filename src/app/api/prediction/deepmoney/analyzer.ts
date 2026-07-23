@@ -28,11 +28,13 @@ export interface EnrichedStock {
     totalRevenue?: number | null;
     fiftyTwoWeekChange?: number | null;
     analystUpside?: number | null;
-    /** Count of analyst opinions in the strongBuy bucket for the current month
-     *  (recommendationTrend "0m" period). Currently kept on the stock for
-     *  visibility but no longer gates surfacing — the ranker is the sole
-     *  filter. Slated to become a ranker training feature. */
-    analystStrongBuy?: number | null;
+    /** Composite analyst grade score (0–100) computed from the full
+     *  4-period recommendation trend + price target spread during enrichment.
+     *  Drives the analyst-grade override lane: stocks scoring ≥ 82 (A-)
+     *  bypass the LightGBM ranker keep-cut. */
+    analystGradeComposite?: number | null;
+    /** Letter grade derived from analystGradeComposite (A+/A/A-/B+/…/F-). */
+    analystGrade?: string | null;
     sma20?: number | null;
     sma50?: number | null;
     rsi?: number | null;
@@ -50,9 +52,9 @@ export interface EnrichedStock {
     prediction_input?: any;
     /** Why this stock made the cut. 'v2_engine' = passed the LightGBM ranker
      *  filter AND the mlGate. 'analyst_consensus' = bypassed the ranker via
-     *  the analyst-strongBuy override lane (threshold scales with
-     *  DEEPMONEY_ALGORITHM); these stocks still require positive predicted
-     *  change, but skip the ranker keep-cut and the mlGate floor.
+     *  the analyst-grade override lane (composite score ≥ 82 = A-); these
+     *  stocks still require positive predicted change, but skip the ranker
+     *  keep-cut and the mlGate floor.
      *  'sector_leader' = a top-25 stock in one of the 11 canonical Yahoo
      *  sectors, injected to keep /search/industry/[sector] supplied with
      *  fresh GPS scores. Bypasses ranker keep-cut and mlGate entirely;
@@ -82,10 +84,6 @@ export interface AnalyzeOptions {
     /** Fraction of ranker-scored stocks (sorted by rank_pct desc) to keep.
      *  Driven by DEEPMONEY_ALGORITHM via models/algorithm_presets.json. */
     rankerKeepPct?: number;
-    /** Minimum current-month analyst strongBuy count for a pre-filtered stock
-     *  to bypass the ranker keep-cut. Also driven by DEEPMONEY_ALGORITHM —
-     *  higher levels lower this threshold, surfacing more analyst picks. */
-    analystStrongBuyThreshold?: number;
     /** Pre-filter floor on the technical signal score. Stocks with
      *  tradingSignalScore below this floor are dropped before the ranker.
      *  Defaults to 0 (preserves the historic >= 0 gate). */
@@ -143,7 +141,6 @@ export async function analyzeStocks(
     const outlook                   = options.outlook                   ?? '1_month';
     const mlGate                    = options.mlGate                    ?? 1.5;
     const rankerKeepPct             = options.rankerKeepPct             ?? 0.25;
-    const analystStrongBuyThreshold = options.analystStrongBuyThreshold ?? 4;
     const signalScoreFloor          = options.signalScoreFloor          ?? 0;
     const sectorLeaderTickers       = options.sectorLeaderTickers       ?? new Set<string>();
     const trendingTickers           = options.trendingTickers           ?? new Set<string>();
@@ -259,19 +256,27 @@ export async function analyzeStocks(
         );
     }
 
-    // ─── Phase 3b — analyst-strongBuy override lane ────────────────────────
-    // Any pre-filtered stock whose current-month analyst strongBuy count
-    // clears the algorithm-scaled threshold bypasses the ranker keep-cut.
+    // ─── Phase 3b — analyst-grade override lane ───────────────────────────
+    // Any pre-filtered stock whose composite analyst grade score is ≥ 82
+    // (A- or better) bypasses the LightGBM ranker keep-cut. The grade is
+    // computed during enrichment from the full 4-period recommendation trend
+    // + price target spread — a richer signal than the raw strongBuy count
+    // the previous implementation used.
     // These stocks still go through MC and must yield positive predicted
     // change to surface, but they skip the mlGate floor.
+    const ANALYST_GRADE_MIN_COMPOSITE = 82; // A- threshold
     const rankerTickers = new Set(rankerSurvivors.map(s => s.ticker));
     const analystOverrideStocks = initialFilteredStocks.filter(s =>
         !rankerTickers.has(s.ticker) &&
-        (s.analystStrongBuy ?? 0) >= analystStrongBuyThreshold,
+        (s.analystGradeComposite ?? 0) >= ANALYST_GRADE_MIN_COMPOSITE,
     );
     const analystOverrideTickers = new Set(analystOverrideStocks.map(s => s.ticker));
     if (analystOverrideStocks.length > 0) {
-        logger.info(`Analyst override added ${analystOverrideStocks.length} stocks (threshold=${analystStrongBuyThreshold})`);
+        logger.info(
+            `Analyst-grade override added ${analystOverrideStocks.length} stocks ` +
+            `(grade ≥ A-, composite ≥ ${ANALYST_GRADE_MIN_COMPOSITE}): ` +
+            analystOverrideStocks.map(s => `${s.ticker}(${s.analystGrade}/${s.analystGradeComposite})`).join(', ')
+        );
     }
 
     // ─── Phase 3c — trending-48h override lane ─────────────────────────────

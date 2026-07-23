@@ -21,12 +21,6 @@ export interface AlgorithmPreset {
     mlpConfidenceFloor: number;
     /** Minimum confidence for high-beta (>2.5) stocks specifically. */
     volGateFloor: number;
-    /** Minimum current-month analyst strongBuy count required for a stock to
-     *  bypass the LightGBM ranker filter. Decreases as the level rises so
-     *  higher DEEPMONEY_ALGORITHM values surface more analyst-consensus
-     *  picks. Stocks routed via this lane still need positive predicted
-     *  change to be surfaced (mlGate is bypassed, the > 0 floor is not). */
-    analystStrongBuyThreshold: number;
     /** Pre-filter floor on the technical signal score. Stocks with
      *  tradingSignalScore below this floor are dropped before the ranker
      *  runs. Lower levels demand bullish technicals (positive scores);
@@ -83,9 +77,8 @@ function snapToBucketCeiling(value: number): number {
 
 /** Return the preset for the given level. Integer levels return the table
  *  entry directly; fractional levels are linearly interpolated between the
- *  two adjacent integer entries. analystStrongBuyThreshold is rounded to the
- *  nearest integer at the end since strongBuy counts from Yahoo are integers.
- *  MLP/vol floors are snapped to discrete CS buckets {35,50,65,75}. */
+ *  two adjacent integer entries. MLP/vol floors are snapped to discrete CS
+ *  buckets {35,50,65,75}. */
 export function loadAlgorithmPreset(level: number): AlgorithmPreset {
     const table = loadTable();
     const lowerKey = Math.floor(level);
@@ -104,7 +97,6 @@ export function loadAlgorithmPreset(level: number): AlgorithmPreset {
         rankerKeepPct:             lerp(lowerEntry.rankerKeepPct,             upperEntry.rankerKeepPct,             t),
         mlpConfidenceFloor:        snapToBucketCeiling(lerp(lowerEntry.mlpConfidenceFloor, upperEntry.mlpConfidenceFloor, t)),
         volGateFloor:              snapToBucketCeiling(lerp(lowerEntry.volGateFloor,       upperEntry.volGateFloor,       t)),
-        analystStrongBuyThreshold: Math.round(lerp(lowerEntry.analystStrongBuyThreshold, upperEntry.analystStrongBuyThreshold, t)),
         signalScoreFloor:          lerp(lowerEntry.signalScoreFloor,          upperEntry.signalScoreFloor,          t),
     };
 }
