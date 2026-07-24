@@ -288,9 +288,11 @@ type TooltipState = { x: number; y: number; label: string; price: number; pct: n
 function TrajectoryChart({
   trajectory,
   currentPrice,
+  anchorPcts,
 }: {
   trajectory: TrajectoryPoint[]
   currentPrice: number
+  anchorPcts?: { w1?: number | null; m1?: number | null; m6?: number | null; y1?: number | null }
 }) {
   const [tooltip, setTooltip] = useState<TooltipState>(null)
 
@@ -380,28 +382,28 @@ function TrajectoryChart({
         {/* 1-week dot */}
         <circle
           cx={m1wX} cy={m1wY} r="6" fill="#2563EB" stroke="#1d4ed8" style={{ cursor: 'pointer' }}
-          onMouseEnter={() => { const p = pts[m1wIdx]?.predicted_price ?? currentPrice; setTooltip({ x: m1wX, y: m1wY, label: '1 Week', price: p, pct: (p - currentPrice) / currentPrice * 100 }) }}
+          onMouseEnter={() => { const p = pts[m1wIdx]?.predicted_price ?? currentPrice; setTooltip({ x: m1wX, y: m1wY, label: '1 Week', price: p, pct: anchorPcts?.w1 ?? (p - currentPrice) / currentPrice * 100 }) }}
           onMouseLeave={() => setTooltip(null)}
         />
 
         {/* 1-month dot */}
         <circle
           cx={m1X} cy={m1Y} r="6" fill="#2563EB" stroke="#1d4ed8" style={{ cursor: 'pointer' }}
-          onMouseEnter={() => { const p = pts[m1Idx]?.predicted_price ?? currentPrice; setTooltip({ x: m1X, y: m1Y, label: '1 Month', price: p, pct: (p - currentPrice) / currentPrice * 100 }) }}
+          onMouseEnter={() => { const p = pts[m1Idx]?.predicted_price ?? currentPrice; setTooltip({ x: m1X, y: m1Y, label: '1 Month', price: p, pct: anchorPcts?.m1 ?? (p - currentPrice) / currentPrice * 100 }) }}
           onMouseLeave={() => setTooltip(null)}
         />
 
         {/* 6-month dot */}
         <circle
           cx={m6X} cy={m6Y} r="6" fill="#2563EB" stroke="#1d4ed8" style={{ cursor: 'pointer' }}
-          onMouseEnter={() => { const p = pts[m6Idx]?.predicted_price ?? currentPrice; setTooltip({ x: m6X, y: m6Y, label: '6 Months', price: p, pct: (p - currentPrice) / currentPrice * 100 }) }}
+          onMouseEnter={() => { const p = pts[m6Idx]?.predicted_price ?? currentPrice; setTooltip({ x: m6X, y: m6Y, label: '6 Months', price: p, pct: anchorPcts?.m6 ?? (p - currentPrice) / currentPrice * 100 }) }}
           onMouseLeave={() => setTooltip(null)}
         />
 
         {/* 12-month dot */}
         <circle
           cx={m12X} cy={m12Y} r="6" fill="#2563EB" stroke="#1d4ed8" style={{ cursor: 'pointer' }}
-          onMouseEnter={() => { const p = pts[m12Idx]?.predicted_price ?? currentPrice; setTooltip({ x: m12X, y: m12Y, label: '12 Months', price: p, pct: (p - currentPrice) / currentPrice * 100 }) }}
+          onMouseEnter={() => { const p = pts[m12Idx]?.predicted_price ?? currentPrice; setTooltip({ x: m12X, y: m12Y, label: '12 Months', price: p, pct: anchorPcts?.y1 ?? (p - currentPrice) / currentPrice * 100 }) }}
           onMouseLeave={() => setTooltip(null)}
         />
 
@@ -944,6 +946,12 @@ export default function StockPrediction({
             <TrajectoryChart
               trajectory={prediction.monthly_trajectory}
               currentPrice={prediction.regularMarketPrice}
+              anchorPcts={{
+                w1: prediction.predicted_change_pct_1w,
+                m1: prediction.predicted_change_pct_1m,
+                m6: prediction.predicted_change_pct_6m,
+                y1: prediction.predicted_change_pct_1y,
+              }}
             />
           )}
 

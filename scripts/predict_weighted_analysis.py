@@ -310,6 +310,7 @@ def predict(ticker, input_data):
 
     # ── Build training targets (1d, 1w, 6m, 1y) ──────────────────────────────
     T1, T5  = 1, 5
+    T1M = 21    # ~1 month  (anchor for trajectory wiggle suppression)
     T6  = 126   # ~6 months
     T12 = 252   # ~12 months
     T18 = 378   # ~18 months (trajectory extrapolation)
@@ -597,8 +598,8 @@ def predict(ticker, input_data):
 
     # Deterministic per-stock perturbation source for the trajectory wiggle.
     # Seeded from SEED so reruns of the same ticker emit the same path. The
-    # wiggle envelope is anchored at the milestone waypoints (T5/T6/T12) so
-    # those points still match predicted_price_1w/_6m/_1y exactly; only the
+    # wiggle envelope is anchored at the milestone waypoints (T5/T1M/T6/T12) so
+    # those points still match predicted_price_1w/_1m/_6m/_1y exactly; only the
     # in-between waypoints move. Without this the trajectory is a perfectly
     # straight $0.X/month line, which reads as extrapolation rather than a
     # probabilistic forecast.
@@ -618,6 +619,9 @@ def predict(ticker, input_data):
         if td == T5:
             mid    = predicted_price_1w
             spread = spread_6m * (T5 / T6)
+        elif td == T1M:
+            mid    = predicted_price_1m
+            spread = spread_6m * (T1M / T6)
         elif td <= T6:
             t      = (td - T5) / (T6 - T5)
             mid    = predicted_price_1w + (predicted_price_6m - predicted_price_1w) * t
