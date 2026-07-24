@@ -161,7 +161,7 @@ const normalizeYahooData = (data: any, currentSources: string[], secCompanyNames
   const newSources = [...currentSources, 'Yahoo'];
   return {
     symbol: data.symbol,
-    name: data.longName || secCompanyNames[data.symbol],
+    name: (data.longName || secCompanyNames[data.symbol] || '').replace(/[^a-zA-Z0-9\s&.,'-]/g, '').trim() || undefined,
     last: data.regularMarketPrice,
     close: data.regularMarketPrice,
     open: data.regularMarketOpen,
