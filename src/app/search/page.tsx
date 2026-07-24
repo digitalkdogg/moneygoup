@@ -3,6 +3,7 @@
 import Search from '../components/Search'
 import SectorExplorer from '../components/SectorExplorer'
 import MajorIndicesStrip from '../components/MajorIndicesStrip'
+import EarningsCalendar from '../components/EarningsCalendar'
 import DeepMoneyPicksSection from '../components/DeepMoneyPicksSection'
 import TrendingStocksGrid from '../components/TrendingStocksGrid'
 
@@ -28,6 +29,10 @@ export default function SearchPage() {
 
         <section className="mb-16 section-major-indices">
           <MajorIndicesStrip />
+        </section>
+
+        <section className="mb-16 section-earnings-calendar">
+          <EarningsCalendar />
         </section>
 
         <section className="mb-16 section-deep-money-picks">
