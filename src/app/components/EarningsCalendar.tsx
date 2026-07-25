@@ -174,9 +174,16 @@ function DayModal({ day, isToday, onClose }: { day: DayEarnings; isToday: boolea
                 >
                   <Avatar symbol={e.symbol} size="sm" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-gray-900 group-hover:text-[#16a34a] leading-tight transition-colors">
-                      {e.symbol}
-                    </p>
+                    <div className="flex items-center gap-1.5 leading-tight">
+                      <p className="text-sm font-bold text-gray-900 group-hover:text-[#16a34a] transition-colors">
+                        {e.symbol}
+                      </p>
+                      {e.gps_score != null && (
+                        <span className="text-[10px] font-semibold text-[#16a34a] bg-[#f0fdf4] border border-[#86efac] rounded px-1 py-0.5 leading-none">
+                          {Math.round(e.gps_score)}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-[11px] text-gray-400 truncate leading-tight">{e.name}</p>
                   </div>
                   <TimeTag time={e.time} />
@@ -235,9 +242,16 @@ function DayCard({ day, isToday }: { day: DayEarnings; isToday: boolean }) {
                   <Link href={`/search/${e.symbol}`} className="flex items-center gap-2.5 group">
                     <Avatar symbol={e.symbol} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-gray-900 group-hover:text-[#16a34a] leading-tight transition-colors">
-                        {e.symbol}
-                      </p>
+                      <div className="flex items-center gap-1.5 leading-tight">
+                        <p className="text-sm font-bold text-gray-900 group-hover:text-[#16a34a] transition-colors">
+                          {e.symbol}
+                        </p>
+                        {e.gps_score != null && (
+                          <span className="text-[10px] font-semibold text-[#16a34a] bg-[#f0fdf4] border border-[#86efac] rounded px-1 py-0.5 leading-none">
+                            {Math.round(e.gps_score)}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[11px] text-gray-400 truncate leading-tight">{e.name}</p>
                     </div>
                     <TimeTag time={e.time} />

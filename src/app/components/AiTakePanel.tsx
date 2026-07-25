@@ -93,20 +93,63 @@ const QUADRANT_STYLES: Record<Quadrant, string> = {
   'Caution':        'bg-red-600     text-white',
 };
 
+const QUADRANT_TIPS: Record<Quadrant, string> = {
+  'Quality Growth': 'Strong growth outlook with manageable risk. Solid fundamentals and positive momentum point to a stock worth serious consideration.',
+  'Speculative':    'High growth potential but elevated risk. Could outperform significantly — or disappoint. Best suited for investors comfortable with volatility.',
+  'Defensive':      'Lower growth expectations but also lower risk. Tends to hold value in downturns. Good fit for capital preservation or a portfolio anchor.',
+  'Caution':        'Weak growth signals combined with elevated risk. The data suggests limited upside with meaningful downside. Warrants extra scrutiny before investing.',
+};
+
+const GROWTH_TIPS: Record<GrowthLabel, string> = {
+  'Low Growth':  'Revenue growth, analyst targets, and our prediction model all point to limited upside in the near term.',
+  'Moderate':    'Modest growth signals — some positive indicators but not enough to stand out. May suit income-focused or value investors.',
+  'Growth':      'Solid growth signals across revenue trends, analyst targets, and model prediction. Above-average upside potential.',
+  'High Growth': 'Strong growth signals on multiple dimensions. Revenue expanding, analysts bullish, and model predicts meaningful price appreciation.',
+};
+
+const RISK_TIPS: Record<RiskLabel, string> = {
+  'Low Risk':      'Stable fundamentals, reasonable valuation, and no major warning signals. Lower likelihood of a sharp drawdown.',
+  'Moderate Risk': 'Some risk factors present — valuation, signal, or earnings quality — but nothing extreme. Typical of a healthy mid-cap or established large-cap.',
+  'High Risk':     'Multiple elevated risk factors: stretched valuation, weakening signal, or earnings uncertainty. Position sizing and stop-losses matter here.',
+  'Speculative':   'Significant risk on several fronts — negative earnings, bearish signal, or extreme valuation. High potential reward, but equally high potential loss.',
+};
+
+function Tooltip({ text, children }: { text: string; children: React.ReactNode }) {
+  return (
+    <span className="relative group/tip inline-flex">
+      {children}
+      <span className="
+        pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50
+        w-56 rounded-lg bg-gray-900 text-white text-[11px] leading-snug px-3 py-2 shadow-lg
+        opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150
+      ">
+        {text}
+        <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+      </span>
+    </span>
+  );
+}
+
 function ClassificationBadges({ c }: { c: StockClassification }) {
   return (
     <div className="flex flex-wrap items-center gap-2 mb-3">
       {/* Quadrant — primary pill */}
-      <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${QUADRANT_STYLES[c.quadrant]}`}>
-        {c.quadrant}
-      </span>
+      <Tooltip text={QUADRANT_TIPS[c.quadrant]}>
+        <span className={`text-xs font-bold px-2.5 py-1 rounded-full cursor-default ${QUADRANT_STYLES[c.quadrant]}`}>
+          {c.quadrant}
+        </span>
+      </Tooltip>
       {/* Growth + Risk — secondary outline badges */}
-      <span className={`text-[11px] font-semibold px-2 py-0.5 rounded border ${GROWTH_STYLES[c.growthLabel]}`}>
-        {c.growthLabel}
-      </span>
-      <span className={`text-[11px] font-semibold px-2 py-0.5 rounded border ${RISK_STYLES[c.riskLabel]}`}>
-        {c.riskLabel}
-      </span>
+      <Tooltip text={GROWTH_TIPS[c.growthLabel]}>
+        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded border cursor-default ${GROWTH_STYLES[c.growthLabel]}`}>
+          {c.growthLabel}
+        </span>
+      </Tooltip>
+      <Tooltip text={RISK_TIPS[c.riskLabel]}>
+        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded border cursor-default ${RISK_STYLES[c.riskLabel]}`}>
+          {c.riskLabel}
+        </span>
+      </Tooltip>
     </div>
   );
 }
