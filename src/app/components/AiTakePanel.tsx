@@ -24,13 +24,24 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 
+type GrowthLabel = 'Low Growth' | 'Moderate' | 'Growth' | 'High Growth';
+type RiskLabel   = 'Low Risk'   | 'Moderate Risk' | 'High Risk' | 'Speculative';
+type Quadrant    = 'Quality Growth' | 'Speculative' | 'Defensive' | 'Caution';
+
+interface StockClassification {
+  growthLabel: GrowthLabel;
+  riskLabel:   RiskLabel;
+  quadrant:    Quadrant;
+}
+
 interface AiTakeMeta {
-  cached:        boolean;
-  generatedAt:   string;
-  model:         string;
-  asOfGps:       string | null;
-  rateLimited:   boolean;
-  rateLimitNote?: string;
+  cached:           boolean;
+  generatedAt:      string;
+  model:            string;
+  asOfGps:          string | null;
+  classification:   StockClassification | null;
+  rateLimited:      boolean;
+  rateLimitNote?:   string;
 }
 
 interface AiTakePanelProps {
@@ -45,14 +56,59 @@ type PanelState =
   | { kind: 'error';     message: string };
 
 function readMetadataFromHeaders(res: Response): AiTakeMeta {
+  const growthLabel = res.headers.get('X-AiTake-Growth-Label') as GrowthLabel | null;
+  const riskLabel   = res.headers.get('X-AiTake-Risk-Label')   as RiskLabel   | null;
+  const quadrant    = res.headers.get('X-AiTake-Quadrant')     as Quadrant    | null;
   return {
-    cached:        res.headers.get('X-AiTake-Cached') === 'true',
-    generatedAt:   res.headers.get('X-AiTake-Generated-At') ?? new Date().toISOString(),
-    model:         res.headers.get('X-AiTake-Model') ?? '',
-    asOfGps:       res.headers.get('X-AiTake-Asof-Gps') || null,
-    rateLimited:   res.headers.get('X-AiTake-Rate-Limited') === 'true',
-    rateLimitNote: res.headers.get('X-AiTake-Rate-Limit-Note') ?? undefined,
+    cached:         res.headers.get('X-AiTake-Cached') === 'true',
+    generatedAt:    res.headers.get('X-AiTake-Generated-At') ?? new Date().toISOString(),
+    model:          res.headers.get('X-AiTake-Model') ?? '',
+    asOfGps:        res.headers.get('X-AiTake-Asof-Gps') || null,
+    classification: growthLabel && riskLabel && quadrant
+      ? { growthLabel, riskLabel, quadrant }
+      : null,
+    rateLimited:    res.headers.get('X-AiTake-Rate-Limited') === 'true',
+    rateLimitNote:  res.headers.get('X-AiTake-Rate-Limit-Note') ?? undefined,
   };
+}
+
+const GROWTH_STYLES: Record<GrowthLabel, string> = {
+  'Low Growth':  'bg-gray-100  text-gray-600  border-gray-200',
+  'Moderate':    'bg-blue-50   text-blue-700  border-blue-200',
+  'Growth':      'bg-green-50  text-green-700 border-green-200',
+  'High Growth': 'bg-emerald-50 text-emerald-700 border-emerald-300',
+};
+
+const RISK_STYLES: Record<RiskLabel, string> = {
+  'Low Risk':      'bg-green-50  text-green-700  border-green-200',
+  'Moderate Risk': 'bg-amber-50  text-amber-700  border-amber-200',
+  'High Risk':     'bg-orange-50 text-orange-700 border-orange-200',
+  'Speculative':   'bg-red-50    text-red-700    border-red-200',
+};
+
+const QUADRANT_STYLES: Record<Quadrant, string> = {
+  'Quality Growth': 'bg-emerald-600 text-white',
+  'Speculative':    'bg-orange-500  text-white',
+  'Defensive':      'bg-slate-500   text-white',
+  'Caution':        'bg-red-600     text-white',
+};
+
+function ClassificationBadges({ c }: { c: StockClassification }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 mb-3">
+      {/* Quadrant — primary pill */}
+      <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${QUADRANT_STYLES[c.quadrant]}`}>
+        {c.quadrant}
+      </span>
+      {/* Growth + Risk — secondary outline badges */}
+      <span className={`text-[11px] font-semibold px-2 py-0.5 rounded border ${GROWTH_STYLES[c.growthLabel]}`}>
+        {c.growthLabel}
+      </span>
+      <span className={`text-[11px] font-semibold px-2 py-0.5 rounded border ${RISK_STYLES[c.riskLabel]}`}>
+        {c.riskLabel}
+      </span>
+    </div>
+  );
 }
 
 const AiTakePanel: React.FC<AiTakePanelProps> = ({ ticker }) => {
@@ -187,6 +243,7 @@ const AiTakePanel: React.FC<AiTakePanelProps> = ({ ticker }) => {
 
       {hasBody && (
         <>
+          {meta?.classification && <ClassificationBadges c={meta.classification} />}
           <p className="text-gray-800 leading-relaxed whitespace-pre-line">
             {bodyText}
             {isStreaming && (

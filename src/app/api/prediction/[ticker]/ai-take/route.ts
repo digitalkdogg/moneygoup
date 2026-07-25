@@ -39,8 +39,9 @@ const AI_TAKE_CACHE_HOURS         = parseInt(process.env.AI_TAKE_CACHE_HOURS    
 // cache misses or explicit refresh clicks.
 const AI_TAKE_REGEN_COOLDOWN_MS = parseInt(process.env.AI_TAKE_REGEN_COOLDOWN_MS || String(60 * 1000), 10);
 // Feature-local model override — leave OLLAMA_MODEL (used by NER/other
-// features) untouched. Gemma 3 4B was chosen for prose quality on CPU.
-const AI_TAKE_MODEL               = process.env.OLLAMA_MODEL_AI_TAKE || 'gemma3:4b';
+// features) untouched. gemma3:1b generates 3-5x faster than 4b and fits in
+// ~1GB RAM; the structured prompt + low temperature compensate for model size.
+const AI_TAKE_MODEL               = process.env.OLLAMA_MODEL_AI_TAKE || 'gemma3:1b';
 // Generation is ~12-18s on CPU for a WARM model, but cold-load (first click
 // after boot, or after `ollama pull`) can push total request time to 60-90s
 // on modest hardware. 120s gives cold calls headroom without letting a truly
@@ -53,17 +54,110 @@ const AI_TAKE_TIMEOUT_MS          = parseInt(process.env.AI_TAKE_TIMEOUT_MS || '
 const lastGenAt = new Map<string, number>();             // ticker → timestamp (ms)
 const inFlight  = new Map<string, Promise<string>>();    // (ticker, data_hash) → gen promise
 
+// ── Stock classifier ─────────────────────────────────────────────────────────
+
+interface StockClassification {
+  growthLabel: 'Low Growth' | 'Moderate' | 'Growth' | 'High Growth';
+  riskLabel:   'Low Risk'   | 'Moderate Risk' | 'High Risk' | 'Speculative';
+  quadrant:    'Quality Growth' | 'Speculative' | 'Defensive' | 'Caution';
+}
+
+function classifyStock(ctx: Record<string, unknown>): StockClassification {
+  const gps          = Number(ctx.gps_score          ?? 50);
+  const predPct      = Number(ctx.predicted_change_pct ?? 0);
+  const analystUp    = Number(ctx.analyst_upside_pct  ?? 0);
+  const revGrowth    = Number(ctx.revenue_growth_yoy  ?? 0);
+  const trailingPe   = Number(ctx.trailing_pe         ?? 0);
+  const ptb          = Number(ctx.price_to_book       ?? 0);
+  const signal       = String(ctx.trading_signal      ?? '').toLowerCase();
+
+  // ── Growth score (0–100) ──────────────────────────────────────────────────
+  // GPS (0–40): direct proportion — our best single-signal quality metric.
+  const gpsComp  = (gps / 100) * 40;
+  // Predicted 1m change (0–25): clamp –20 % … +30 %, map linearly.
+  const predComp = ((Math.max(-20, Math.min(30, predPct)) + 20) / 50) * 25;
+  // Analyst upside (0–20): clamp 0 % … 40 %.
+  const upComp   = (Math.max(0, Math.min(40, analystUp)) / 40) * 20;
+  // Revenue growth YoY (0–15): clamp –20 % … +50 %.
+  const revComp  = ((Math.max(-20, Math.min(50, revGrowth)) + 20) / 70) * 15;
+
+  const growthScore = Math.round(gpsComp + predComp + upComp + revComp);
+
+  // ── Risk score (0–100) ────────────────────────────────────────────────────
+  // P/E: negative earnings = genuine risk; nosebleed = speculation premium.
+  // High PTB alone is NOT a reliable risk signal (AAPL, MSFT, GOOG all trade
+  // at extreme book multiples yet are low-volatility businesses), so PTB
+  // max is capped at 12 and only negative book value scores the ceiling.
+  let peComp = 18;
+  if (trailingPe <= 0)       peComp = 28;  // no earnings = real risk
+  else if (trailingPe <= 20) peComp = 5;   // reasonable valuation
+  else if (trailingPe <= 35) peComp = 10;  // moderate premium (normal for quality)
+  else if (trailingPe <= 60) peComp = 18;  // stretched
+  else                        peComp = 25;  // nosebleed
+
+  // PTB: only distressed (<0) or extreme (>10) add meaningful risk signal.
+  // High-quality brands (PTB 5-30+) are intentionally capped — they carry
+  // brand/IP moats that the raw book number doesn't capture.
+  let ptbComp = 6;
+  if (ptb < 0)        ptbComp = 12;  // negative book = distress
+  else if (ptb < 1)   ptbComp = 4;   // cheap on book
+  else if (ptb < 5)   ptbComp = 6;   // normal range
+  else if (ptb < 10)  ptbComp = 8;   // quality premium — mild uplift only
+  else                ptbComp = 12;  // extreme stretch (cap same as distress)
+
+  // Prediction magnitude (0–18): large swings either direction = more
+  // uncertainty, but cap is lower now to avoid double-penalizing with PE.
+  const magComp = Math.min(18, (Math.abs(predPct) / 30) * 18);
+
+  // Trading signal (0–25): primary directional risk indicator.
+  // Neutral baseline drops to 10 — a neutral signal is not inherently risky.
+  let sigComp = 10;
+  if      (signal.includes('strong') && signal.includes('bull')) sigComp = 4;
+  else if (signal.includes('bull'))                               sigComp = 7;
+  else if (signal.includes('neutral') || signal === '')          sigComp = 10;
+  else if (signal.includes('strong') && signal.includes('bear')) sigComp = 25;
+  else if (signal.includes('bear'))                               sigComp = 19;
+
+  // Revenue health (0–12): contraction is a genuine distress signal.
+  const revRisk = revGrowth < -10 ? 12 : revGrowth < 0 ? 8 : revGrowth > 30 ? 4 : 5;
+
+  const riskScore = Math.min(100, Math.round(peComp + ptbComp + magComp + sigComp + revRisk));
+
+  // ── Labels ────────────────────────────────────────────────────────────────
+  // Thresholds shifted up vs v1 — a healthy neutral-signal S&P 500 stock
+  // now lands in Moderate Risk (~38–45) rather than High Risk.
+  const growthLabel: StockClassification['growthLabel'] =
+    growthScore >= 70 ? 'High Growth' :
+    growthScore >= 50 ? 'Growth'      :
+    growthScore >= 30 ? 'Moderate'    : 'Low Growth';
+
+  const riskLabel: StockClassification['riskLabel'] =
+    riskScore >= 75 ? 'Speculative'   :
+    riskScore >= 55 ? 'High Risk'     :
+    riskScore >= 35 ? 'Moderate Risk' : 'Low Risk';
+
+  const highGrowth = growthScore >= 50;
+  const highRisk   = riskScore   >= 50;
+  const quadrant: StockClassification['quadrant'] =
+    highGrowth && !highRisk ? 'Quality Growth' :
+    highGrowth &&  highRisk ? 'Speculative'    :
+   !highGrowth && !highRisk ? 'Defensive'      : 'Caution';
+
+  return { growthLabel, riskLabel, quadrant };
+}
+
 /**
  * Build the metadata-header block that every successful response carries.
  * Client reads these to decide badge rendering, rate-limit note, etc.
  */
 function metadataHeaders(opts: {
-  cached:       boolean;
-  model:        string;
-  generatedAt:  string;
-  asOfGps:      number | string | null;
-  rateLimited?: boolean;
-  rateLimitNote?: string;
+  cached:          boolean;
+  model:           string;
+  generatedAt:     string;
+  asOfGps:         number | string | null;
+  classification?: StockClassification | null;
+  rateLimited?:    boolean;
+  rateLimitNote?:  string;
 }): Record<string, string> {
   const h: Record<string, string> = {
     'Content-Type':          'text/plain; charset=utf-8',
@@ -77,7 +171,12 @@ function metadataHeaders(opts: {
     'X-AiTake-Generated-At': opts.generatedAt,
     'X-AiTake-Asof-Gps':     opts.asOfGps == null ? '' : String(opts.asOfGps),
   };
-  if (opts.rateLimited)  h['X-AiTake-Rate-Limited']   = 'true';
+  if (opts.classification) {
+    h['X-AiTake-Growth-Label'] = opts.classification.growthLabel;
+    h['X-AiTake-Risk-Label']   = opts.classification.riskLabel;
+    h['X-AiTake-Quadrant']     = opts.classification.quadrant;
+  }
+  if (opts.rateLimited)   h['X-AiTake-Rate-Limited']    = 'true';
   if (opts.rateLimitNote) h['X-AiTake-Rate-Limit-Note'] = opts.rateLimitNote;
   return h;
 }
@@ -304,25 +403,37 @@ export async function GET(
   const fresh     = url.searchParams.get('fresh') === '1';
   const cacheOnly = url.searchParams.get('cache_only') === '1';
 
-  // Fast path: page auto-load just wants to know if a cached take exists.
-  // Skip the GPS join, news fetch, and Ollama entirely — ticker-only lookup.
+  // Fast path: page auto-load checks for a cached take. Runs the GPS join in
+  // parallel with the cache lookup so classification badges are available
+  // immediately when we return the cached paragraph.
   if (cacheOnly) {
-    const hit = await cacheLookupByTicker(ticker);
+    const [hit, ctx] = await Promise.all([
+      cacheLookupByTicker(ticker),
+      fetchTickerContext(ticker),
+    ]);
     if (!hit) return new Response(null, { status: 204 });
     return new Response(hit.paragraph, {
       status: 200,
       headers: metadataHeaders({
-        cached:      true,
-        model:       hit.model,
-        generatedAt: hit.generatedAt instanceof Date
+        cached:         true,
+        model:          hit.model,
+        generatedAt:    hit.generatedAt instanceof Date
           ? hit.generatedAt.toISOString()
           : String(hit.generatedAt),
-        asOfGps:     null,
+        asOfGps:        ctx ? (ctx.gps_score as number | null) : null,
+        classification: ctx ? classifyStock(ctx) : null,
       }),
     });
   }
 
   try {
+    // Fire news fetch immediately — it can take up to 6s on a cold RSS call.
+    // We await it only if we end up needing to generate; on a cache hit we
+    // just let it resolve in the background (suppressing the unhandled
+    // rejection so Node doesn't warn).
+    const newsPromise = fetchRecentNewsHeadlines(ticker);
+    newsPromise.catch(() => { /* background — ignored on cache hit */ });
+
     const ctx = await fetchTickerContext(ticker);
     if (!ctx) {
       return NextResponse.json(
@@ -331,28 +442,33 @@ export async function GET(
       );
     }
 
+    // Compute once — used in every response branch below.
+    const classification = classifyStock(ctx);
+
     // Hash is based on stable metrics only (headlines excluded) so the cache
-    // lookup happens before the RSS fetch — cache hits skip the news call entirely.
+    // lookup can short-circuit before the news fetch completes.
     const dataHash = hashPromptInputs(AI_TAKE_MODEL, ticker, ctx);
     const cached   = await cacheLookup(ticker, dataHash);
 
     if (!fresh && cached) {
+      // Cache hit — news fetch is already in flight but we don't need it.
       return new Response(cached.paragraph, {
         status: 200,
         headers: metadataHeaders({
-          cached:      true,
-          model:       cached.model,
-          generatedAt: cached.generatedAt instanceof Date
+          cached:         true,
+          model:          cached.model,
+          generatedAt:    cached.generatedAt instanceof Date
             ? cached.generatedAt.toISOString()
             : String(cached.generatedAt),
-          asOfGps:     ctx.gps_score as number | string | null,
+          asOfGps:        ctx.gps_score as number | string | null,
+          classification,
         }),
       });
     }
 
-    // Only fetch news when we're actually going to generate — avoids the
-    // 6-second RSS fallback timeout on every cache-hit request.
-    const headlines = await fetchRecentNewsHeadlines(ticker);
+    // Cache miss — await the already-in-flight news promise. It started at
+    // the same time as the DB calls so most of its latency is already gone.
+    const headlines = await newsPromise;
 
     // Cooldown only applies to fresh generations — normal cache-hit requests
     // never reach here. If the ticker was generated in the last minute, serve
@@ -362,14 +478,15 @@ export async function GET(
         return new Response(cached.paragraph, {
           status: 200,
           headers: metadataHeaders({
-            cached:      true,
-            model:       cached.model,
-            generatedAt: cached.generatedAt instanceof Date
+            cached:         true,
+            model:          cached.model,
+            generatedAt:    cached.generatedAt instanceof Date
               ? cached.generatedAt.toISOString()
               : String(cached.generatedAt),
-            asOfGps:     ctx.gps_score as number | string | null,
-            rateLimited: true,
-            rateLimitNote: 'Regeneration cooldown active — showing latest cached take.',
+            asOfGps:        ctx.gps_score as number | string | null,
+            classification,
+            rateLimited:    true,
+            rateLimitNote:  'Regeneration cooldown active — showing latest cached take.',
           }),
         });
       }
@@ -393,7 +510,7 @@ export async function GET(
     // exact (ticker, data_hash), await its final paragraph and return it as
     // a single-chunk stream. Sacrifice: the second user waits for the first
     // gen to complete instead of streaming in parallel — this is deliberate
-    // because two concurrent gemma3:4b runs (~3GB each) would thrash CPU.
+    // because two concurrent gemma3:1b runs would thrash CPU.
     const flightKey    = `${ticker}:${dataHash}`;
     const generatedAt  = new Date().toISOString();
     if (inFlight.has(flightKey)) {
@@ -403,10 +520,11 @@ export async function GET(
         return new Response(paragraph, {
           status: 200,
           headers: metadataHeaders({
-            cached:      false,
-            model:       AI_TAKE_MODEL,
+            cached:         false,
+            model:          AI_TAKE_MODEL,
             generatedAt,
-            asOfGps:     ctx.gps_score as number | string | null,
+            asOfGps:        ctx.gps_score as number | string | null,
+            classification,
           }),
         });
       } catch (err) {
@@ -497,10 +615,11 @@ export async function GET(
     return new Response(clientStream, {
       status: 200,
       headers: metadataHeaders({
-        cached:      false,
-        model:       AI_TAKE_MODEL,
+        cached:         false,
+        model:          AI_TAKE_MODEL,
         generatedAt,
-        asOfGps:     ctx.gps_score as number | string | null,
+        asOfGps:        ctx.gps_score as number | string | null,
+        classification,
       }),
     });
   } catch (err) {
