@@ -213,7 +213,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">App Overview</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-06-15</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-07-24</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -905,13 +905,13 @@ GPS_DEEPMONEY_MIN_SCORE=65   # default: only the top tier shows</pre>
 
             <div class="env-var-card">
                 <span class="name">OLLAMA_MODEL_AI_TAKE</span>
-                <span class="default">optional · gemma3:4b</span>
-                <div class="field"><span class="field-label">Overview</span>Feature-local model override for the AI Take feature only. Kept independent from <code>OLLAMA_MODEL</code> so the NER pass can keep using a smaller/faster model. Must be a model already pulled locally (<code>ollama pull</code>). The chosen model name is included in the AI Take cache <code>data_hash</code> so swapping it forces a regeneration of every cached take.</div>
+                <span class="default">optional · gemma3:1b</span>
+                <div class="field"><span class="field-label">Overview</span>Feature-local model override for the AI Take feature only. Kept independent from <code>OLLAMA_MODEL</code> so the NER pass can keep using a smaller/faster model. Must be a model already pulled locally (<code>ollama pull</code>). The chosen model name is included in the AI Take cache <code>data_hash</code> so swapping it forces a regeneration of every cached take. Default changed to <code>gemma3:1b</code> (2026-07-24) for lower RAM footprint (~1 GB vs 3.5 GB) while keeping comparable prose quality for short 60-80 word outputs.</div>
                 <div class="field"><span class="field-label">Where used</span><code>src/app/api/prediction/[ticker]/ai-take/route.ts</code>, <code>src/instrumentation.ts</code> (boot warmup ping preloads this exact model with <code>keep_alive: 24h</code>).</div>
-                <div class="field"><span class="field-label">Visible on</span>The paragraph text of the 🤖 AI Take card on <code>/search/[ticker]</code>. Model choice affects prose quality, tone, and generation latency (10-20s warm, 60-90s cold on CPU for a 3-4B model).</div>
+                <div class="field"><span class="field-label">Visible on</span>The AI Take card on <code>/search/[ticker]</code>. Model choice affects prose quality, tone, and generation latency (8-18s warm, 12-25s cold on CPU for gemma3:1b).</div>
                 <div class="field"><span class="field-label">Tuning</span>
-                    <pre class="example">OLLAMA_MODEL_AI_TAKE=llama3.2:3b      # faster but less prose quality
-OLLAMA_MODEL_AI_TAKE=qwen2.5:3b       # alternative comparable to gemma3:4b</pre>
+                    <pre class="example">OLLAMA_MODEL_AI_TAKE=llama3.2:3b      # comparable size, alternative prose style
+OLLAMA_MODEL_AI_TAKE=gemma3:4b        # higher quality, ~3.5 GB RAM</pre>
                 </div>
             </div>
 
@@ -1082,7 +1082,7 @@ AI_TAKE_TIMEOUT_MS=45000        # tighter — warm-only, fail fast on cold miss<
         </section>
 
         <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem; text-align: center;">
-            MoneyGoUp Web Application Overview &copy; 2026 &mdash; Last updated: June 15, 2026
+            MoneyGoUp Web Application Overview &copy; 2026 &mdash; Last updated: July 24, 2026
         </footer>
     </main>
     </div>

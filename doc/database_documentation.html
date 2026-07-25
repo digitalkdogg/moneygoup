@@ -138,7 +138,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Database Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Generated 2026-07-09</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-07-24</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -391,7 +391,7 @@
                     <tbody>
                         <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key. Auto-increment. NOT NULL.</td></tr>
                         <tr><td><code>symbol</code></td><td><code>VARCHAR(10)</code></td><td>NOT NULL. Unique ticker (e.g. AAPL).</td></tr>
-                        <tr><td><code>company_name</code></td><td><code>VARCHAR(255)</code></td><td>NOT NULL. Legal name.</td></tr>
+                        <tr><td><code>company_name</code></td><td><code>VARCHAR(255)</code></td><td>NOT NULL. Legal name. Values are sanitized by <code>normalizeYahooData()</code> in <code>/api/stock_data/[ticker]/route.ts</code> before write — characters outside <code>[a-zA-Z0-9 &amp;.,'-]</code> are stripped so SEC EDGAR names with forward slashes (e.g. "AMPHENOL CORP /DE/") do not fail column validation.</td></tr>
                         <tr><td><code>price</code></td><td><code>DECIMAL(10,2)</code></td><td>Nullable. Last cached price.</td></tr>
                         <tr><td><code>pe_ratio</code></td><td><code>DECIMAL(10,2)</code></td><td>Nullable. Trailing P/E ratio cache.</td></tr>
                         <tr><td><code>pb_ratio</code></td><td><code>DECIMAL(10,2)</code></td><td>Nullable. Price-to-book ratio cache.</td></tr>
@@ -1069,7 +1069,7 @@
         </section>
 
         <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem; text-align: center;">
-            GrowMyStocks Database Documentation &copy; 2026 &mdash; Last updated: July 9, 2026
+            GrowMyStocks Database Documentation &copy; 2026 &mdash; Last updated: July 24, 2026
         </footer>
     </main>
     </div>

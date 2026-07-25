@@ -104,7 +104,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Developer Docs</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-07-12</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-07-24</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -206,7 +206,7 @@
       <span>src/app/api/prediction/save/route.ts</span>
       <span>src/utils/predictionRecorder.ts</span>
       <span>src/app/components/StockPrediction.tsx</span>
-      <span>Updated 2026-07-12</span>
+      <span>Updated 2026-07-24</span>
     </div>
 
     <section id="overview">
@@ -543,6 +543,18 @@ vix_conf_mult   = max(0, 1.0 - stress * beta_absorb)
         </ul>
 
         <div class="warning-box"><strong>Why the fix stack is not baked into the model:</strong> the trained <code>long_term_cs_v2</code> artifact is expensive to retrain (~45min on the pooled 27k-row snapshot table) and needs periodic label re-extraction. Post-hoc fixes let us iterate on behavioral defects (e.g. mean-reversion bias in the extreme-momentum tail; runaway prediction on structural decline) without a full retrain cycle. The <code>v3</code> control arm exists so we can measure whether the stack is a net win against the raw artifact — <code>MODEL_VARIANT=v3</code> reproduces the pre-adjustment behavior byte-for-byte on the same feature vector.</div>
+
+        <h4>predict_light.py — v4/v5 Corrections Also Applied <span class="new-badge">July 2026</span></h4>
+        <p>The fast CS-model pre-filter script (<code>scripts/predict_light.py</code>) now applies a matching subset of the v4/v5 post-hoc fix stack after its raw 6m CS-model inference, before comparing against the pipeline's pass/fail threshold. This ensures candidates are evaluated on the same adjusted output a user would see — not raw model output.</p>
+        <p>Corrections applied by <code>predict_light.py</code>:</p>
+        <ul>
+          <li><strong>v4 momentum drift:</strong> when <code>|ret90d| &gt; 15%</code>, multiplies the predicted price by <code>(1 + ret90d × 0.75)</code>.</li>
+          <li><strong>Fix A — downtrend trap ceiling:</strong> when <code>beta &gt; 0.8</code> and <code>ret30d &lt; -5%</code> and <code>ret90d &lt; -10%</code>, applies a beta-scaled ceiling on the predicted price.</li>
+          <li><strong>Fix C — structural decline:</strong> when <code>pct_from_52w_high &lt; -20%</code> and <code>ret90d &lt; -15%</code>, applies a second min() ceiling.</li>
+          <li><strong>Fix D — extreme positive momentum:</strong> when <code>ret90d &gt; 30%</code>, amplifies the move delta by up to 1.5×.</li>
+          <li><strong>CALIBRATION_SCALAR = 0.55:</strong> final step squeezes the adjusted percentage toward zero to reduce overconfidence on all output from <code>predict_light.py</code>.</li>
+        </ul>
+        <p>Fix B (VIX modifier on <code>long_term_multiplier</code>) is <strong>not</strong> applied in <code>predict_light.py</code> because the fast path does not run <code>predict_long_term()</code> — the CS model inference is used directly.</p>
       </div>
     </section>
 

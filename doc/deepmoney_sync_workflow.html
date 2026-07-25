@@ -96,7 +96,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Developer Docs</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-07-09</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-07-24</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -184,12 +184,12 @@
       <span>src/utils/etfHoldingPreset.ts</span>
       <span>models/algorithm_presets.json</span>
       <span>models/etf_holding_presets.json</span>
-      <span>Updated 2026-07-09</span>
-      <span>Reviewed 2026-07-12</span>
+      <span>Updated 2026-07-24</span>
+      <span>Reviewed 2026-07-24</span>
     </div>
 
     <div class="highlight-box" style="background:#eff6ff;border-left-color:#3b82f6;color:#1e3a8a;">
-      <strong>Reviewed 2026-07-12:</strong> <code>scripts/deepmoney_sync.py</code> compared against this doc. Last meaningful commit was <code>52fc99d</code> (2026-06-29, "ollama integration with deepmoney"), which predates the 2026-07-09 revision of this page. No workflow changes since — no updates needed.
+      <strong>Updated 2026-07-24:</strong> Phase 3c (CS Light-Model pre-filter) flow diagram updated to reflect active <code>predict_light.py</code> corrections: v4 momentum drift, Fix A/C/D, and <code>CALIBRATION_SCALAR = 0.55</code>.
     </div>
 
     <section id="overview">
@@ -674,6 +674,20 @@ if hi_ratio &gt; 0.97 and beta_val &gt; 2.0:
             <code>analystStrongBuy &ge; analystStrongBuyThreshold</code><br>
             <code>survivors = [...rankerSurvivors, ...analystOverrideStocks]</code><br>
             &darr;<br>
+            <strong>Phase 3c — CS Light-Model pre-filter (ranker survivors only)</strong><br>
+            <code>runLightModelFilter()</code> in <code>src/utils/lightModelFilter.ts</code><br>
+            Spawns <code>scripts/predict_light.py</code> once with all ranker survivors batched<br>
+            Loads <code>long_term_cs_v2.pkl</code>, runs inference, emits predicted 6m % change per ticker<br>
+            Tickers with predicted 6m return &lt; threshold (default 0 = any positive) are dropped<br>
+            <strong>Fail-open:</strong> subprocess failure passes all candidates; analyst-override stocks bypass this gate entirely<br>
+            <strong>Active corrections in predict_light.py (as of 2026-07-24):</strong><br>
+            &bull; <strong>v4 momentum drift:</strong> if |ret90d| &gt; 0.15 → <code>predicted_price *= (1.0 + ret90d * 0.75)</code><br>
+            &bull; <strong>Fix A (downtrend trap):</strong> beta &gt; 0.8 and ret30d &lt; -0.05 and ret90d &lt; -0.10 → severity-based upward cap<br>
+            &bull; <strong>Fix C (structural decline):</strong> pct_from_52w &lt; -0.20 and ret90d &lt; -0.15 → ceiling via min()<br>
+            &bull; <strong>Fix D (extreme momentum):</strong> ret90d &gt; 0.30 → scale up to 1.5×<br>
+            &bull; <strong>CALIBRATION_SCALAR = 0.55</strong> applied as final step: <code>pct_6m = round(raw_pct * 0.55, 2)</code><br>
+            Fix B (VIX modifier) is NOT applied — predict_light.py does not run predict_long_term()<br>
+            &darr;<br>
             <strong>Phase 4 — Monte Carlo + GPS-Full on every survivor</strong><br>
             Existing <code>runPredictionInternal()</code> per ticker for all 4 horizons<br>
             Surfacing gate: <code>passesMlGate || (isAnalystOverride &amp;&amp; pred &gt; 0)</code><br>
@@ -822,6 +836,7 @@ if hi_ratio &gt; 0.97 and beta_val &gt; 2.0:
         <table>
           <thead><tr><th>Date</th><th>Change</th><th>Detail</th></tr></thead>
           <tbody>
+            <tr><td>2026-07-24</td><td>predict_light.py v4/v5 corrections documented <span class="new-badge">new</span></td><td>Phase 3c (CS Light-Model pre-filter) flow diagram updated to show all active corrections now applied by <code>scripts/predict_light.py</code>: v4 momentum drift (ret90d scaling), Fix A (downtrend trap cap), Fix C (structural decline ceiling), Fix D (extreme momentum scale-up), and <code>CALIBRATION_SCALAR = 0.55</code> final multiplier. Fix B (VIX modifier) is explicitly noted as not applied — <code>predict_light.py</code> does not call <code>predict_long_term()</code>.</td></tr>
             <tr><td>2026-07-12</td><td>Doc reviewed against source</td><td>Compared this page against <code>scripts/deepmoney_sync.py</code>. Last commit to that script was 2026-06-29 (<code>52fc99d</code>, ollama integration), which is already reflected in v2.7/v2.8. No workflow changes since; no doc updates needed.</td></tr>
             <tr><td>2026-06-20</td><td>ETF holdings single-knob (v2.8) <span class="new-badge">new</span></td><td>New <code>ETF_HOLDING_ALGORITHM</code> (float 1.0–10.0, default 5) resolves via <code>models/etf_holding_presets.json</code> into <code>{etfGpsThreshold, topNEtfs, maxTickers, gpsSurfaceValue, minPredChangePct}</code>. Wired into <code>etfDiscovery.ts</code> (qualification + top-N + per-ETF cap), <code>etfHoldings.ts</code> (post-dedup cap + surfacing thresholds via <code>sharedContext.etfHoldingPreset</code>), the <code>/holdings</code> read-side route, the <code>deepmoney-picks</code> dashboard widget (<code>etf_gps_score</code> filter), and <code>scripts/update_predictions.py</code> via a new Python mirror <code>scripts/etf_holding_preset.py</code>. Retired: <code>ETF_GPS_THRESHOLD</code> in-code constant, <code>ETF_HOLDING_MAX_TICKERS</code>, <code>ETF_HOLDING_GPS_SURFACE_VALUE</code>, <code>ETF_HOLDING_MIN_PRED_CHANGE</code>. <code>ETF_HOLDING_MIN_CONFIDENCE</code>, <code>ETF_HOLDING_MAX_BETA</code>, <code>ETF_HOLDING_STALENESS_HOURS</code> kept as independent knobs.</td></tr>
             <tr><td>2026-06-19</td><td>Single-knob revamp (v2.7)</td><td>Replaced five tuning env vars with a single integer <code>DEEPMONEY_ALGORITHM</code> (1–10) resolved via <code>models/algorithm_presets.json</code> into four fields. The LightGBM ranker is now mandatory: sort by <code>rank_pct</code> desc, keep top <code>rankerKeepPct</code>. Analyst-strongBuy override lane added back (threshold also scaled by level) — pre-filtered stocks with <code>analystStrongBuy ≥ threshold</code> bypass the ranker keep-cut and the mlGate floor, surfaced as <code>discovery_source='analyst_consensus'</code>. Stage 1 also merges holdings of ~20 popular ETFs into the candidate pool and scrapes the Yahoo Finance earnings calendar; new feeds: oilprice.com, Defense News (land+space JSON), DIA RSS, simpler SEC Form 4 atom. Arc Publishing <code>content_elements</code> handler added to the JSON branch. The GPS-Light tier is gone; <code>gps_score_type</code> is always <code>'full'</code>. <code>deepmoney_sync.py</code> now writes the analyzer's <code>discovery_source</code> verbatim instead of hardcoding <code>'v2_engine'</code>. Retired: <code>DEEPMONEY_GPS_VALUE</code>, <code>DEEPMONEY_RECOMMENDATION_GPS_VALUE</code>, <code>DEEPMONEY_ANALYST_THRESHOLD</code>, <code>DEEPMONEY_USE_RANKER_GATE</code>, <code>DEEPMONEY_TIER2_TOPK</code>.</td></tr>

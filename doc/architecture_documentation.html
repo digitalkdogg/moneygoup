@@ -97,7 +97,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Architecture Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-07-12</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-07-24</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -162,7 +162,7 @@
       <span>Next.js 16 App Router</span>
       <span>TypeScript</span>
       <span>Tailwind CSS</span>
-      <span>Updated 2026-07-12</span>
+      <span>Updated 2026-07-24</span>
     </div>
 
     <div class="summary-grid">
@@ -251,6 +251,7 @@
 │       │       ├── data/
 │       │       ├── holdings/
 │       │       └── industry/
+│       ├── earnings-calendar/          GET — next 5 business days (NASDAQ API); GPS enrichment; 6h cache
 │       ├── market/
 │       │   ├── indices/
 │       │   └── trending/
@@ -306,7 +307,7 @@ doc/                               All HTML documentation files</pre>
           <tbody>
             <tr><td><code>/</code></td><td>Dashboard</td><td>Required</td><td>Portfolio, watchlist, recommendations, indices strip</td></tr>
             <tr><td><code>/portfolio</code></td><td>Portfolio page</td><td>Required</td><td>Full portfolio view: history chart, KPIs, gains breakdown, compare chart, holdings sidebar, and Recommendations section. Passes <code>etf_holding</code> scope + <code>portfolioEtfTickers</code> to <code>RecommendationsSection</code> when user holds ETFs.</td></tr>
-            <tr><td><code>/search</code></td><td>Search page</td><td>Required</td><td>Search component (debounced <code>/api/search</code>, keyboard-navigable dropdown) + TrendingStocksGrid + SectorExplorer</td></tr>
+            <tr><td><code>/search</code></td><td>Search page</td><td>Required</td><td>Search component (debounced <code>/api/search</code>, keyboard-navigable dropdown) + SectorExplorer + EarningsCalendar widget + TrendingStocksGrid</td></tr>
             <tr><td><code>/search/[ticker]</code></td><td>Stock detail page</td><td>Required</td><td>Renders Stock component for a single ticker</td></tr>
             <tr><td><code>/search/industry/[sector]</code></td><td>Sector page</td><td>Required</td><td>Renders IndustryStocks for a canonical Yahoo sector (Technology, Financial Services, etc.)</td></tr>
             <tr><td><code>/profile</code></td><td>Profile page</td><td>Required</td><td>Profile component — stats, account type</td></tr>
@@ -460,6 +461,7 @@ doc/                               All HTML documentation files</pre>
           </tbody>
         </table>
         <div class="note" style="margin-top:.75rem;"><code>MODEL_VARIANT</code> is <strong>independent</strong> of <code>CS_MODEL_VERSION</code> — the former selects the post-hoc adjustment code path in <code>predict_weighted_analysis.py</code>; the latter selects which cross-sectional model pickle is loaded (e.g. <code>long_term_cs_v2.pkl</code>). Unrecognized values fall back to <code>v5</code> with a stderr warning.</div>
+        <div class="updated" style="margin-top:.75rem;"><strong>predict_light.py also applies v4/v5 corrections (July 2026):</strong> The fast CS-model pre-filter script (<code>scripts/predict_light.py</code>), used by the DeepMoney analyzer to screen candidates before full prediction, now applies the same v4 momentum drift and v5 Fix A/C/D post-hoc corrections plus the <code>CALIBRATION_SCALAR = 0.55</code> regression-to-mean scalar that <code>predict_weighted_analysis.py</code> applies. This ensures the pre-filter's 6-month pass/fail threshold is evaluated against the same adjusted output the user would see, preventing candidates from being filtered out at a raw-model level that would pass after corrections (or promoted that would fail).</div>
       </div>
 
       <div class="arch-card">
@@ -572,6 +574,13 @@ Each variant uses:
       </div>
 
       <div class="arch-card">
+        <h4>Company Name Normalization <span style="font-size:.75rem;font-weight:400;color:#64748b;">(added July 2026)</span></h4>
+        <p>The <code>normalizeYahooData()</code> function in <code>src/app/api/stock_data/[ticker]/route.ts</code> applies a regex strip to company names before they are stored in the database:</p>
+        <pre>name: (data.longName || secCompanyNames[data.symbol] || '').replace(/[^a-zA-Z0-9\s&amp;.,'-]/g, '').trim()</pre>
+        <p>This removes characters not in the safe set (letters, digits, spaces, ampersand, period, comma, apostrophe, hyphen) before the value is written. Without this, SEC EDGAR names such as <code>"AMPHENOL CORP /DE/"</code> — which include forward slashes — would fail the <code>company_name</code> column's character validation when the user attempted to add the stock to their watchlist.</p>
+      </div>
+
+      <div class="arch-card">
         <h4>Weighted Average Price Calculation</h4>
         <p>When a user buys additional shares of an already-owned stock, the purchase price is recalculated as a weighted average:</p>
         <pre>newAvgPrice = (existingShares × existingAvgPrice + newShares × newPrice)
@@ -641,10 +650,10 @@ Each variant uses:
         <p>Runs on the same host as the Next.js app at <code>OLLAMA_BASE_URL</code> (default <code>http://localhost:11434</code>). Two features route through it:</p>
         <ul>
           <li><strong>DeepMoney NER pass</strong> — extracts tickers from news article text during the nightly sync; uses <code>OLLAMA_MODEL</code> (default <code>llama3.2</code>) with tight timeouts and JSON output mode.</li>
-          <li><strong>AI Take</strong> — <code>GET /api/prediction/[ticker]/ai-take</code> generates the ~120-180 word paragraph on <code>/search/[ticker]</code> via <code>gemma3:4b</code> (<code>OLLAMA_MODEL_AI_TAKE</code>). Cache-first: hits <code>ai_ticker_takes</code> keyed on a SHA-256 of model+data. Fresh calls run with <code>keep_alive: '24h'</code> so the model stays resident between clicks.</li>
+          <li><strong>AI Take</strong> — <code>GET /api/prediction/[ticker]/ai-take</code> generates a ~60-80 word paragraph on <code>/search/[ticker]</code> via <code>gemma3:1b</code> (<code>OLLAMA_MODEL_AI_TAKE</code>, changed from <code>gemma3:4b</code> in July 2026). The response is a streaming plain-text <code>ReadableStream</code> — clients see the first sentence within ~5-10s. Cache-first: hits <code>ai_ticker_takes</code> keyed on a SHA-256 of stable stock metrics (GPS, prediction, analyst upside, signal — headlines excluded so the cache isn't busted on every news cycle). Additionally computes a stock classification (growth label, risk label, quadrant) from <code>classifyStock()</code> and returns it in <code>X-AiTake-Growth-Label</code>, <code>X-AiTake-Risk-Label</code>, and <code>X-AiTake-Quadrant</code> response headers. News fetch now runs in parallel with DB context lookups, reducing cache-miss latency by 2-6s.</li>
         </ul>
         <p>Both features share one client in <code>src/utils/ollamaClient.ts</code> with <code>isOllamaEnabled()</code> as the master gate (<code>OLLAMA_ENABLED=true</code>) and <code>checkOllamaReachable()</code> as a cheap probe. Every consumer must accept <code>null</code> as "Ollama unavailable" and degrade gracefully — the wrapper never throws.</p>
-        <p>Peak RAM footprint on gemma3:4b: ~3.5 GB while resident. On a shared VPS, plan headroom accordingly; see the deployment notes below.</p>
+        <p>Peak RAM footprint on gemma3:1b: ~1 GB while resident (down from ~3.5 GB with the previous gemma3:4b). Generation speed is 3-5x faster on CPU. On a shared VPS this meaningfully reduces contention when multiple users trigger AI Takes simultaneously.</p>
       </div>
     </div>
 
@@ -657,7 +666,7 @@ Each variant uses:
         <p>The stock data route (<code>GET /api/stock_data/[ticker]</code>) maintains a module-level Map:</p>
         <pre>const inflightRequests = new Map&lt;string, Promise&lt;Response&gt;&gt;()</pre>
         <p>If a second request for the same ticker arrives while the first is still awaiting Yahoo Finance, the second request is attached to the existing Promise instead of spawning a duplicate fetch. The entry is deleted from the Map once the Promise resolves.</p>
-        <p>The AI Take route (<code>GET /api/prediction/[ticker]/ai-take</code>) uses the same pattern keyed on <code>(ticker, data_hash)</code>: if two users click Ask AI on the same ticker within seconds of each other, only one Gemma inference actually runs — the second request awaits the first's promise. Important because concurrent gemma3:4b runs on CPU would thrash a shared host.</p>
+        <p>The AI Take route (<code>GET /api/prediction/[ticker]/ai-take</code>) uses the same pattern keyed on <code>(ticker, data_hash)</code>: if two users click Ask AI on the same ticker within seconds of each other, only one Gemma inference actually runs — the second request awaits the first's promise. Important because concurrent gemma3:1b runs on CPU still add meaningful load on a shared host.</p>
       </div>
 
       <div class="arch-card">
@@ -678,6 +687,7 @@ Each variant uses:
             <tr><td>Trending cache</td><td>/api/market/trending</td><td>15-minute in-memory cache</td></tr>
             <tr><td>Analyst ratings cache</td><td>/api/dashboard/analyst-ratings</td><td>Time-based in-memory cache</td></tr>
             <tr><td>World Bank cache</td><td>/api/worldbank</td><td>6-hour in-memory cache</td></tr>
+            <tr><td>Earnings calendar cache</td><td>/api/earnings-calendar</td><td>6-hour module-level in-memory cache; shared across all users</td></tr>
           </tbody>
         </table>
       </div>

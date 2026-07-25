@@ -97,7 +97,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">API Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-07-12</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-07-24</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -162,16 +162,18 @@
     <div class="page-meta">
       <span>GrowMyStocks</span>
       <span>Next.js 14 App Router</span>
-      <span>35+ routes documented</span>
-      <span>Updated 2026-07-12</span>
+      <span>37+ routes documented</span>
+      <span>Updated 2026-07-24</span>
     </div>
 
     <div class="summary-grid">
-      <div class="stat-card"><div class="value">35+</div><div class="label">API Routes</div></div>
+      <div class="stat-card"><div class="value">37+</div><div class="label">API Routes</div></div>
       <div class="stat-card"><div class="value">9</div><div class="label">Route Groups</div></div>
       <div class="stat-card"><div class="value">5</div><div class="label">Rate Limiters</div></div>
       <div class="stat-card"><div class="value">6h</div><div class="label">Max Cache TTL</div></div>
     </div>
+
+    <div class="updated"><strong>July 2026 (late, second wave) changes — July 24:</strong> New <code>GET /api/earnings-calendar</code> route serves the Earnings Calendar widget on <code>/search</code>. Fetches next 5 business days from the NASDAQ earnings API, groups by date, attaches GPS scores from <code>stock_gps_scores</code>, and caches the full result in memory for 6 hours. A stop-list of common non-ticker tokens (CEO, FED, AI, ETF, etc.) is applied to filter noise from NASDAQ payloads. See the <a href="#stock-data-routes">Market Routes</a> section for the full spec.<br><br><code>GET /api/prediction/[ticker]/ai-take</code> gains a <strong>stock classification layer</strong>: <code>classifyStock()</code> now computes a <code>growthLabel</code>, <code>riskLabel</code>, and <code>quadrant</code> from the ticker's GPS/metrics context and returns them via <code>X-AiTake-Growth-Label</code>, <code>X-AiTake-Risk-Label</code>, and <code>X-AiTake-Quadrant</code> response headers. These drive the three classification badges displayed in <code>AiTakePanel.tsx</code>. The default Ollama model was <strong>switched from <code>gemma3:4b</code> to <code>gemma3:1b</code></strong> (~1 GB RAM, 3-5x faster on CPU). News fetch now runs in <strong>parallel</strong> with the DB context lookup and cache query (was sequential previously), shaving 2-6s off cache-miss latency. The <code>?cache_only=1</code> query param enables a fast auto-load path that runs the GPS join and cache lookup in parallel so classification badges are available immediately on page mount.<br><br><strong>Watchlist company name fix:</strong> <code>normalizeYahooData()</code> in <code>/api/stock_data/[ticker]/route.ts</code> now strips non-alphanumeric characters from company names (regex <code>/[^a-zA-Z0-9\s&amp;.,'-]/g</code>) before the value is stored, preventing SEC EDGAR names like <code>"AMPHENOL CORP /DE/"</code> from failing watchlist add validation.</div>
 
     <div class="updated"><strong>July 2026 (late) changes summary:</strong> New <code>GET /api/prediction/[ticker]/ai-take</code> route powers the 🤖 <strong>Ask AI</strong> button on <code>/search/[ticker]</code>. Cache-first: a SHA-256 of <code>(model + gps + prediction + top-5 headlines)</code> is the invalidation key on <code>ai_ticker_takes</code>; hits return &lt;100ms, misses generate a ~120–180-word paragraph via Ollama (<code>gemma3:4b</code> default, ~10-20s warm / 60-90s cold) and persist. Includes in-flight dedup, per-user-per-ticker-per-hour rate limit with cache fallback (throttled users still get the cached copy — never a 429 when a cache exists), and a boot warmup ping via <code>src/instrumentation.ts</code> so the first click of the day doesn't eat the cold-load penalty. <br><br><code>GET /api/dashboard/recommendations</code> gains a tenure-rotation layer (on by default): non-portfolio BUY recs (watchlist / discovery / etf_holding) get filtered by <code>dashboard_tenure</code>, capped at <code>DASHBOARD_TENURE_TARGET_CARDS</code>, and backfilled from the stale pool if fresh count falls below <code>DASHBOARD_TENURE_MIN_CARDS</code>. Portfolio-scope BUYs and all SELL warnings bypass rotation. Response now includes a per-item <code>consecutiveDays</code> field that drives the <strong>NEW</strong> badge on cards ≤3 days old. Set <code>DASHBOARD_TENURE_ROTATION=off</code> to revert to the flat GPS sort. Same rotation added to <code>GET /api/dashboard/deepmoney-picks</code> for the search-page picks widget.</div>
 
@@ -746,10 +748,11 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
           <span class="badge badge-auth">Auth required</span>
           <span class="badge badge-cache">Cache-first (12h TTL default)</span>
           <span class="badge badge-rate">1 fresh gen / user / ticker / hour (default)</span>
-          <span class="badge badge-new">New 2026-07-17</span>
+          <span class="badge badge-new">Updated 2026-07-24</span>
           <span class="route-file">src/app/api/prediction/[ticker]/ai-take/route.ts</span>
         </div>
-        <div class="route-desc">Returns a Gemma-generated ~120-180 word paragraph analysis of the given ticker. Backs the 🤖 <strong>Ask AI</strong> panel on <code>/search/[ticker]</code>. Cache-first: a SHA-256 of <code>(OLLAMA_MODEL_AI_TAKE + gps_score + gps_breakdown + predicted_change_pct + analyst_upside + trading_signal + top 5 news headlines)</code> is the invalidation key on <code>ai_ticker_takes</code>. Fresh generations run through the shared <code>ollamaClient.generate()</code> helper with <code>keep_alive: '24h'</code> so the model stays pinned in Ollama's memory between calls.</div>
+        <div class="route-desc">Returns a Gemma-generated ~60-80 word paragraph analysis of the given ticker, streamed token-by-token via chunked text/plain. Backs the 🤖 <strong>Ask AI</strong> panel on <code>/search/[ticker]</code>. Cache-first: a SHA-256 of <code>(OLLAMA_MODEL_AI_TAKE + gps_score + gps_breakdown + predicted_change_pct + analyst_upside + trading_signal)</code> is the invalidation key on <code>ai_ticker_takes</code> (headlines intentionally excluded — they change too frequently and would bust the 12h cache on nearly every request). Fresh generations stream via <code>ollamaClient.generateStream()</code> with <code>keep_alive: '24h'</code>. The response also carries three classification headers: <code>X-AiTake-Growth-Label</code>, <code>X-AiTake-Risk-Label</code>, and <code>X-AiTake-Quadrant</code>, computed by <code>classifyStock()</code> from the ticker's GPS, predicted change%, analyst upside, revenue growth, P/E, P/B, and trading signal.</div>
+        <div class="updated"><strong>July 24, 2026 changes:</strong> Default model changed from <code>gemma3:4b</code> to <code>gemma3:1b</code> (env <code>OLLAMA_MODEL_AI_TAKE</code>). This reduces RAM from ~3.5 GB to ~1 GB and speeds generation 3-5x. News fetch now starts in parallel with the DB context and cache lookups — on a cache miss, the news is usually already resolved by the time the DB returns. Added <code>?cache_only=1</code> parameter for fast page-mount auto-load (DB context join and cache lookup run in parallel). Added <code>classifyStock()</code> function that computes a growth score (0-100) from GPS, predicted change%, analyst upside, and revenue growth, and a risk score (0-100) from P/E, P/B, predicted magnitude, trading signal, and revenue health. These are returned as response headers, never as JSON in the body, because the body is streaming plain text.</div>
         <div class="sub-heading">Query Params</div>
         <table class="props-table">
           <thead><tr><th>Param</th><th>Type</th><th>Required</th><th>Notes</th></tr></thead>
@@ -769,19 +772,25 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
           <li>Rate-limit check. Over budget with cache → return the cached copy with <code>rateLimited: true</code>; over budget without cache → 429</li>
           <li><code>checkOllamaReachable()</code> — 503 if Ollama down</li>
           <li>In-flight dedup: if another request is generating for this exact <code>(ticker, data_hash)</code>, await its promise instead of firing a duplicate Gemma inference</li>
-          <li><code>ollamaClient.generate()</code> with <code>OLLAMA_MODEL_AI_TAKE</code>, <code>timeoutMs=AI_TAKE_TIMEOUT_MS</code> (default 120s to survive cold-loads), <code>numPredict=350</code>, <code>temperature=0.3</code>, <code>keepAlive='24h'</code>, <code>stop=['\n\n','\n-','\n*','\n1.','\n2.','**','##']</code> (blocks list/markdown output)</li>
-          <li>INSERT into <code>ai_ticker_takes</code> (upsert on unique key). Return with <code>cached: false</code></li>
+          <li>News fetch is fired at request start in parallel with step 4 (DB context) and the cache lookup — it is only awaited if we reach a cache miss and need to generate</li>
+          <li><code>classifyStock(ctx)</code> computed from the DB context; returned via response headers on all branches (cache hit, cache miss, cooldown)</li>
+          <li><code>ollamaClient.generateStream()</code> with <code>OLLAMA_MODEL_AI_TAKE</code> (default <code>gemma3:1b</code>), <code>timeoutMs=AI_TAKE_TIMEOUT_MS</code> (default 120s), <code>numPredict=160</code>, <code>temperature=0.3</code>, <code>keepAlive='24h'</code>, <code>stop=['\n\n','\n-','\n*','\n1.','\n2.','**','##']</code>. The response is a <code>ReadableStream</code> so the client sees the first sentence in ~5-10s</li>
+          <li>Cache write runs inside the stream's <code>start()</code> callback — the full paragraph is accumulated as tokens arrive, then persisted to <code>ai_ticker_takes</code> after the last token</li>
         </ol>
         <div class="sub-heading">Response</div>
-        <pre>{
-  "paragraph":     string,                    // the generated take (~120-180 words)
-  "cached":        boolean,                   // true if served from ai_ticker_takes
-  "generatedAt":   string,                    // ISO datetime
-  "model":         string,                    // resolved OLLAMA_MODEL_AI_TAKE
-  "asOfGps":       number | string | null,    // GPS at fetch time (for UI reference)
-  "rateLimited":   boolean | undefined,       // present + true when serving cache due to throttle
-  "rateLimitNote": string   | undefined       // italic footer copy for the UI
-}</pre>
+        <div class="note">The body is <strong>streaming plain text</strong> (<code>Content-Type: text/plain</code>), not JSON. Metadata travels in response headers only.</div>
+        <pre>// Body: streaming text/plain (~60-80 words, one paragraph)
+
+// Response headers (all X-AiTake-* are always present on 200):
+X-AiTake-Cached:         "true" | "false"
+X-AiTake-Model:          string              // resolved model name
+X-AiTake-Generated-At:   string              // ISO datetime
+X-AiTake-Asof-Gps:       string              // GPS score at fetch time
+X-AiTake-Growth-Label:   "Low Growth" | "Moderate" | "Growth" | "High Growth"
+X-AiTake-Risk-Label:     "Low Risk" | "Moderate Risk" | "High Risk" | "Speculative"
+X-AiTake-Quadrant:       "Quality Growth" | "Speculative" | "Defensive" | "Caution"
+X-AiTake-Rate-Limited:   "true"              // only when serving stale cache due to cooldown
+X-AiTake-Rate-Limit-Note: string             // user-facing note when rate limited</pre>
         <div class="sub-heading">Status codes</div>
         <table class="props-table">
           <thead><tr><th>Status</th><th>Meaning</th></tr></thead>
@@ -1274,6 +1283,42 @@ total_accuracy_pct     = ROUND(100 × AVG(accuracy_score across all horizons), 2
           <span class="route-file">src/app/api/market/trending/route.ts</span>
         </div>
         <div class="route-desc">Fetches trending stocks from Yahoo Finance and computes a <code>trendScore</code> based on volume relative to average volume.</div>
+      </div>
+
+      <div class="route-card">
+        <div class="route-header">
+          <span class="method method-GET">GET</span>
+          <span class="route-path">/api/earnings-calendar</span>
+          <span class="badge badge-auth">No auth required (public)</span>
+          <span class="badge badge-cache">6-hour in-memory cache</span>
+          <span class="badge badge-new">New 2026-07-24</span>
+          <span class="route-file">src/app/api/earnings-calendar/route.ts</span>
+        </div>
+        <div class="route-desc">Returns earnings announcements grouped by day for the next 5 business days. Fetches from the NASDAQ earnings calendar API (<code>api.nasdaq.com/api/calendar/earnings?date=YYYY-MM-DD</code>), one request per day in parallel via <code>Promise.allSettled()</code>. Each entry is enriched with a GPS score looked up from <code>stock_gps_scores</code> for tickers already in the system. The full result is cached in-process for 6 hours.</div>
+        <div class="sub-heading">Filtering &amp; Sorting (done in the frontend component)</div>
+        <div class="route-desc">A stop-list of common non-ticker tokens (A, I, AI, ETF, CEO, FED, SEC, GDP, CPI, etc.) is applied server-side to filter noise from NASDAQ payloads. The <code>EarningsCalendar</code> component sorts entries within each day: GPS-scored tickers first (descending by score), then by timing (PRE before unsupplied, AH last).</div>
+        <div class="sub-heading">Response shape</div>
+        <pre>{
+  "days": [
+    {
+      "date":    "YYYY-MM-DD",
+      "label":   "Mon Jul 28",           // human-readable label in UTC
+      "entries": [
+        {
+          "symbol":    string,
+          "name":      string,            // company display name from NASDAQ
+          "time":      "time-pre-market" | "time-after-hours" | "time-not-supplied" | undefined,
+          "gps_score": number | null     // null if ticker not in our DB
+        }
+      ]
+    }
+  ]
+}</pre>
+        <div class="dep-list">
+          <span class="dep-tag">NASDAQ earnings API (external)</span>
+          <span class="dep-tag">stock_gps_scores (DB, GPS enrichment)</span>
+          <span class="dep-tag">6-hour module-level cache</span>
+        </div>
       </div>
     </div>
 

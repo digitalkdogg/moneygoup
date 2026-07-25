@@ -97,7 +97,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Components Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-07-12</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-07-24</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -161,12 +161,12 @@
       <span>GrowMyStocks</span>
       <span>Next.js 14 App Router</span>
       <span>TypeScript + Tailwind CSS</span>
-      <span>46+ components documented</span>
-      <span>Updated 2026-07-12</span>
+      <span>48+ components documented</span>
+      <span>Updated 2026-07-24</span>
     </div>
 
     <div class="summary-grid">
-      <div class="stat-card"><div class="value">46+</div><div class="label">Components</div></div>
+      <div class="stat-card"><div class="value">48+</div><div class="label">Components</div></div>
       <div class="stat-card"><div class="value">9</div><div class="label">Sections</div></div>
       <div class="stat-card"><div class="value">4</div><div class="label">Card Variants</div></div>
       <div class="stat-card"><div class="value">4</div><div class="label">Modals</div></div>
@@ -896,27 +896,29 @@ interface CardActionHandlers {
         <div class="comp-header">
           <div><div class="comp-name">AiTakePanel</div><div class="comp-file">src/app/components/AiTakePanel.tsx</div></div>
           <span class="badge badge-client">Client</span>
-          <span class="badge badge-new">New 2026-07-18</span>
+          <span class="badge badge-new">Updated 2026-07-24</span>
         </div>
-        <div class="comp-desc">Light-blue card on <code>/search/[ticker]</code> hosting the 🤖 <strong>Ask AI</strong> button. On click, fetches <code>GET /api/prediction/[ticker]/ai-take</code> and renders the returned paragraph. State machine has five kinds: <code>idle</code> (button shown), <code>loading</code> (spinner + "Analyzing…"), <code>ready</code> (paragraph + "Generated HH:MM" footer + optional italic rate-limit note + ↻ Regenerate button), <code>rate-limited</code> (no longer reachable in current server behavior — server falls back to cached), and <code>error</code> (red banner with Retry). A 503 response from the API sets a <code>hidden</code> flag on the component for the rest of the session so the whole panel disappears when Ollama is down or <code>AI_TAKE_ENABLED=off</code>. Mounted from <code>Stock.tsx</code> right after the prediction / signal panels.</div>
+        <div class="comp-desc">Green-tinted card (<code>bg-[#f0fdf4]</code>) on <code>/search/[ticker]</code> hosting the 🤖 <strong>Ask AI</strong> button. On click, fetches <code>GET /api/prediction/[ticker]/ai-take</code> and progressively renders the streaming response via a <code>ReadableStreamDefaultReader</code> — users see the first sentence in ~5-10s instead of waiting for the full paragraph. State machine: <code>idle</code> (button shown), <code>loading</code> (spinner), <code>streaming</code> (partial text + animated cursor), <code>ready</code> (full paragraph + ↻ Regenerate button), <code>error</code> (red banner with Retry). A 503 response sets a <code>hidden</code> flag for the session so the panel disappears when Ollama is down or <code>AI_TAKE_ENABLED=off</code>. On mount, automatically checks for a cached take via <code>?cache_only=1</code> — if one exists, renders it immediately without the user needing to click. Mounted from <code>Stock.tsx</code> right after the prediction / signal panels.</div>
+        <div class="updated"><strong>July 24, 2026:</strong> Added three <strong>classification badges</strong> rendered above the paragraph when the API returns the three <code>X-AiTake-*</code> classification headers. <code>ClassificationBadges</code> shows: (1) a colored filled pill for the quadrant (<code>Quality Growth</code> = emerald, <code>Speculative</code> = orange, <code>Defensive</code> = slate, <code>Caution</code> = red), (2) an outline badge for growth label (<code>Low Growth</code> / <code>Moderate</code> / <code>Growth</code> / <code>High Growth</code>), and (3) an outline badge for risk label (<code>Low Risk</code> / <code>Moderate Risk</code> / <code>High Risk</code> / <code>Speculative</code>). Each badge has a hover tooltip with a plain-English explanation. The response is now consumed as a streaming ReadableStream (model changed from gemma3:4b to gemma3:1b); added auto-load on mount via <code>?cache_only=1</code>.</div>
         <table class="props-table">
           <thead><tr><th>Prop</th><th>Type</th><th>Required</th></tr></thead>
           <tbody>
             <tr><td><code>ticker</code></td><td>string</td><td><span class="required">required</span></td></tr>
           </tbody>
         </table>
-        <div class="sub-heading">Response fields consumed</div>
+        <div class="sub-heading">Headers consumed (from X-AiTake-* response headers)</div>
         <table class="props-table">
-          <thead><tr><th>Field</th><th>Behavior</th></tr></thead>
+          <thead><tr><th>Header</th><th>Values</th><th>UI Behavior</th></tr></thead>
           <tbody>
-            <tr><td><code>paragraph</code></td><td>Rendered as <code>whitespace-pre-line</code> in the card body.</td></tr>
-            <tr><td><code>cached</code></td><td>Not surfaced visually in the current build — the model + "Cached" chips were removed per user request. Footer shows only "Generated HH:MM".</td></tr>
-            <tr><td><code>generatedAt</code></td><td>Formatted to <code>HH:MM</code> in the footer via <code>toLocaleTimeString</code>.</td></tr>
-            <tr><td><code>rateLimited</code> + <code>rateLimitNote</code></td><td>When present, a subtle gray italic line renders under the footer: "Regeneration limited to N per hour — showing the latest cached take."</td></tr>
+            <tr><td><code>X-AiTake-Growth-Label</code></td><td>Low Growth / Moderate / Growth / High Growth</td><td>Outline badge above paragraph; hover shows growth explanation tooltip</td></tr>
+            <tr><td><code>X-AiTake-Risk-Label</code></td><td>Low Risk / Moderate Risk / High Risk / Speculative</td><td>Outline badge above paragraph; hover shows risk explanation tooltip</td></tr>
+            <tr><td><code>X-AiTake-Quadrant</code></td><td>Quality Growth / Speculative / Defensive / Caution</td><td>Primary filled pill; hover shows quadrant explanation tooltip</td></tr>
+            <tr><td><code>X-AiTake-Rate-Limited</code></td><td>true</td><td>Shows italic rate-limit note under paragraph</td></tr>
+            <tr><td><code>X-AiTake-Rate-Limit-Note</code></td><td>string</td><td>Content of the italic note</td></tr>
           </tbody>
         </table>
         <div class="sub-heading">Regenerate</div>
-        <div class="comp-desc">The ↻ Regenerate button hits the same endpoint with <code>?fresh=1</code>. If the user is rate-limited, the server responds 200 with <code>rateLimited: true</code> and returns the cached copy — no error surface, just the italic note.</div>
+        <div class="comp-desc">The ↻ Regenerate button hits the same endpoint with <code>?fresh=1</code>. If the user is within the per-ticker cooldown, the server responds 200 with <code>X-AiTake-Rate-Limited: true</code> and returns the cached copy — no error surface, just the italic note.</div>
         <div class="dep-list">
           <span class="dep-tag">GET /api/prediction/[ticker]/ai-take</span>
         </div>
@@ -1019,6 +1021,28 @@ interface CardActionHandlers {
           <span class="badge badge-util">Presentational</span>
         </div>
         <div class="comp-desc">Up-to-4-column responsive grid of buttons for the 11 canonical Yahoo sectors (sourced from <code>CANONICAL_SECTORS</code>). Each button is colored on the left edge using <code>getSectorColor()</code> so the palette matches <code>/portfolio</code>'s Sector Exposure panel, and navigates to <code>/search/industry/{encodeURIComponent(sector)}</code>. Fires analytics tracking events on click.</div>
+      </div>
+
+      <div class="comp-card">
+        <div class="comp-header">
+          <div><div class="comp-name">EarningsCalendar</div><div class="comp-file">src/app/components/EarningsCalendar.tsx</div></div>
+          <div><span class="badge badge-client">Client</span><span class="badge badge-new">New 2026-07-24</span></div>
+        </div>
+        <div class="comp-desc">Renders a 5-column earnings calendar for the next 5 business days on the <code>/search</code> page. Fetches from <code>GET /api/earnings-calendar</code> on mount. Each day is displayed as a <code>DayCard</code> showing: the date label (with a green "TODAY" pill for the current day), a company count, a pre-market/after-hours progress bar (<code>PreAHBar</code>), and up to 4 ticker previews. Each ticker entry shows a colored avatar (deterministic color from ticker hash), the symbol, company name, GPS score badge (if the ticker is in our system), and a time-of-day tag (PRE in orange / AH in violet). Overflow is handled via a "N more companies" button that opens a <code>DayModal</code> listing all entries for that day.</div>
+        <div class="note"><strong>Sort order</strong> (applied by <code>sortEntries()</code>): GPS-scored tickers first (descending by score), then PRE timing, then unsupplied, then AH. Tickers without a GPS score are grouped by time-of-day only.</div>
+        <div class="note"><strong>DayModal</strong>: Full-screen overlay with scrollable list of all earnings for a day. Closes on Escape key, backdrop click, or the X button. Locks body scroll while open. Each entry links to <code>/search/{symbol}</code>.</div>
+        <div class="note"><strong>Skeleton state</strong>: While loading, 5 animated pulse cards render so the layout does not jump.</div>
+        <table class="props-table">
+          <thead><tr><th>Prop</th><th>Type</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td>—</td><td>—</td><td>No props — self-contained; fetches <code>/api/earnings-calendar</code> on mount and manages its own loading/error state</td></tr>
+          </tbody>
+        </table>
+        <div class="dep-list">
+          <span class="dep-tag">GET /api/earnings-calendar</span>
+          <span class="dep-tag">next/link</span>
+        </div>
+        <div class="updated"><strong>Design:</strong> 6-column md grid where the first 3 days take columns 1-2-3 and the 4th day starts at column 2 (centered). Day cards with no entries show "No reports" in italic. Total companies reporting is displayed in the section header.</div>
       </div>
 
       <div class="comp-card">

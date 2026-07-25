@@ -107,7 +107,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Business Rules</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-07-22</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-07-24</div>
   </div>
   <div class="nav-scroll-controls"><button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">&lsaquo;</button></div>
   <nav class="top-bar-nav">
@@ -155,6 +155,8 @@
     <a href="#external">14. External Data</a>
     <a href="#security">15. Security &amp; PII</a>
     <a href="#ai-take">16. AI Take &amp; Rationale</a>
+    <a href="#earnings-calendar">17. Earnings Calendar</a>
+    <a href="#watchlist-data-quality">18. Watchlist Data Quality</a>
     <div class="section-divider"></div>
     <a href="authentication_flow.html">Auth Flow</a>
     <a href="strategy_system.html">Strategy System</a>
@@ -1400,10 +1402,129 @@
           <span class="src">src/app/components/StockPrediction.tsx (useEffect rationale poll · pollTimerRef)</span>
         </div>
       </div>
+
+      <div class="rule">
+        <div class="rid">BR-16.12</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <span class="tag new">new — 2026-07-24</span>
+          <p><strong>Stock classification via <code>classifyStock()</code>.</strong> On every request (cache hit, miss, or cooldown), the route computes a growth score (0-100) and risk score (0-100) from the ticker's GPS, predicted 1m change%, analyst upside%, revenue growth YoY, trailing P/E, price-to-book, and trading signal. These map to four labels:</p>
+          <ul>
+            <li><strong>growthLabel</strong>: Low Growth / Moderate / Growth / High Growth (thresholds: &lt;30 / 30-49 / 50-69 / ≥70)</li>
+            <li><strong>riskLabel</strong>: Low Risk / Moderate Risk / High Risk / Speculative (thresholds: &lt;35 / 35-54 / 55-74 / ≥75)</li>
+            <li><strong>quadrant</strong>: Quality Growth (highGrowth &amp;&amp; !highRisk) / Speculative (highGrowth &amp;&amp; highRisk) / Defensive (!highGrowth &amp;&amp; !highRisk) / Caution (!highGrowth &amp;&amp; highRisk)</li>
+          </ul>
+          <p>All three are returned as <code>X-AiTake-Growth-Label</code>, <code>X-AiTake-Risk-Label</code>, <code>X-AiTake-Quadrant</code> response headers (never in the JSON/text body, because the body is streaming plain text). The UI renders them as three interactive badges with hover tooltips in <code>ClassificationBadges</code> inside <code>AiTakePanel.tsx</code>.</p>
+          <span class="src">src/app/api/prediction/[ticker]/ai-take/route.ts (classifyStock) · src/app/components/AiTakePanel.tsx (ClassificationBadges)</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-16.13</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <span class="tag new">new — 2026-07-24</span>
+          <p><strong>Model changed from <code>gemma3:4b</code> to <code>gemma3:1b</code>.</strong> The default value of <code>OLLAMA_MODEL_AI_TAKE</code> is now <code>gemma3:1b</code>. This reduces RAM footprint from ~3.5 GB to ~1 GB and speeds generation by 3-5x on CPU (from ~60-90s to ~12-25s cold, ~8-18s warm). The structured prompt and low temperature (0.3) compensate for the smaller model capacity. Because model name is included in the data hash, this change automatically invalidates all existing cached takes — a site-wide regeneration wave occurs over the following days as users trigger the button.</p>
+          <span class="src">src/app/api/prediction/[ticker]/ai-take/route.ts (AI_TAKE_MODEL const) · src/instrumentation.ts (warmup)</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-16.14</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <span class="tag new">new — 2026-07-24</span>
+          <p><strong>News fetch runs in parallel with DB context and cache lookups.</strong> The route fires <code>fetchRecentNewsHeadlines(ticker)</code> immediately at request start, in parallel with <code>fetchTickerContext()</code> and the DB cache lookup. On a cache hit, the news promise is allowed to settle in the background (its rejection is suppressed). On a cache miss, the news result is already available by the time the DB calls return, shaving 2-6s off the wall-clock latency of a generation cycle. The news cache from <code>/api/stock_data/[ticker]/news</code> is checked first; a live RSS fetch is only issued if that cache is cold.</p>
+          <span class="src">src/app/api/prediction/[ticker]/ai-take/route.ts (newsPromise parallel dispatch)</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ────────────────── 17. EARNINGS CALENDAR ────────────────── -->
+    <section id="earnings-calendar">
+      <h2>17. Earnings Calendar</h2>
+      <p class="see-also"><strong>See also:</strong> <a href="api_documentation.html#market-routes">API Docs · Market Routes</a> <span class="sep">·</span> <a href="components_documentation.html#market-search">Components · EarningsCalendar</a></p>
+
+      <div class="rule">
+        <div class="rid">BR-17.1</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <span class="tag new">new — 2026-07-24</span>
+          <p><strong>NASDAQ API as earnings source.</strong> <code>GET /api/earnings-calendar</code> fetches <code>https://api.nasdaq.com/api/calendar/earnings?date=YYYY-MM-DD</code> for each of the next 5 business days in parallel (via <code>Promise.allSettled()</code>). The route uses a browser-like User-Agent header and a 10s per-day request timeout. A day that fails to fetch returns an empty entries array — discovery proceeds with the other days.</p>
+          <span class="src">src/app/api/earnings-calendar/route.ts (fetchNasdaqDay)</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-17.2</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <span class="tag new">new — 2026-07-24</span>
+          <p><strong>6-hour in-memory cache shared across all users.</strong> The full 5-day result is stored in a module-level variable with an expiry timestamp. The cache is a single shared entry (no per-user or per-session segmentation) because earnings data is public and the same for all users. A cache miss triggers all 5 NASDAQ fetches plus the GPS score join; a hit returns in milliseconds. The cache is not persisted across server restarts.</p>
+          <span class="src">src/app/api/earnings-calendar/route.ts (_cache module variable)</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-17.3</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <span class="tag new">new — 2026-07-24</span>
+          <p><strong>GPS enrichment from <code>stock_gps_scores</code>.</strong> After all NASDAQ fetches resolve, a single DB query joins <code>stock_gps_scores</code> against <code>stocks</code> for all distinct symbols across all 5 days. Tickers not yet in our system receive <code>gps_score: null</code>. This allows the EarningsCalendar component to surface our GPS scores inline next to tickers we track, giving context for coverage decisions without requiring a separate lookup per ticker.</p>
+          <span class="src">src/app/api/earnings-calendar/route.ts (fetchGpsScores)</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-17.4</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <span class="tag new">new — 2026-07-24</span>
+          <p><strong>Noise stop-list.</strong> Common non-ticker tokens that appear in NASDAQ earnings payloads are filtered server-side before the response is cached: A, I, THE, AND, OR, IN, AT, BY, FOR, CEO, CFO, AI, ETF, GDP, CPI, SEC, FTC, DOJ, FDA, FED, IMF, ECB, ESG, LLC, LTD, INC, CORP, PLC, NYSE, REIT, DJI, SPX, NDX, VIX, and others. This prevents generic acronyms and common words that NASDAQ occasionally emits as "symbols" from appearing as earnings entries.</p>
+          <span class="src">src/app/api/earnings-calendar/route.ts (TICKER_STOPLIST)</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-17.5</div>
+        <div class="body">
+          <span class="tag ui">UI</span>
+          <span class="tag new">new — 2026-07-24</span>
+          <p><strong>Sort order within each day card.</strong> Entries are sorted by <code>sortEntries()</code>: GPS-scored tickers first (descending by score), then unscored tickers sorted by timing (pre-market before time-not-supplied, then after-hours last). This surfaces tickers we actively track at the top, making the calendar immediately actionable for users who follow those stocks.</p>
+          <span class="src">src/app/components/EarningsCalendar.tsx (sortEntries)</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-17.6</div>
+        <div class="body">
+          <span class="tag ui">UI</span>
+          <span class="tag new">new — 2026-07-24</span>
+          <p><strong>Overflow modal for days with more than 4 entries.</strong> Each <code>DayCard</code> shows at most 4 ticker previews (PREVIEW_COUNT = 4). When a day has more, a "+ N more companies" button opens a <code>DayModal</code> listing all entries with a scrollable list. The modal closes on Escape, backdrop click, or the X button. Body scroll is locked while open. All entries in the modal link directly to <code>/search/{symbol}</code>.</p>
+          <span class="src">src/app/components/EarningsCalendar.tsx (DayCard, DayModal)</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────── 18. WATCHLIST DATA QUALITY ─────────────── -->
+    <section id="watchlist-data-quality">
+      <h2>18. Watchlist Data Quality</h2>
+
+      <div class="rule">
+        <div class="rid">BR-18.1</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <span class="tag new">new — 2026-07-24</span>
+          <p><strong>SEC EDGAR company name sanitization.</strong> <code>normalizeYahooData()</code> in <code>/api/stock_data/[ticker]/route.ts</code> strips characters outside the safe set (letters, digits, spaces, <code>&amp;</code> <code>.</code> <code>,</code> <code>'</code> <code>-</code>) from company names before they are stored:</p>
+          <pre style="margin:.5rem 0 0;font-size:.8rem;background:#1e293b;color:#e2e8f0;padding:.6rem 1rem;border-radius:6px;">(data.longName || secCompanyNames[symbol] || '').replace(/[^a-zA-Z0-9\s&amp;.,'-]/g, '').trim()</pre>
+          <p>Without this step, SEC EDGAR names such as <code>"AMPHENOL CORP /DE/"</code> contain forward slashes that fail the <code>company_name</code> column's validation constraint when the user adds the stock to their watchlist via <code>POST /api/user/watchlist</code>. The fix applies to both Yahoo Finance names and SEC fallback names.</p>
+          <span class="src">src/app/api/stock_data/[ticker]/route.ts (normalizeYahooData, line 164)</span>
+        </div>
+      </div>
     </section>
 
     <footer>
-      GrowMyStocks Business Rules &copy; 2026 · Updated from codebase 2026-07-22
+      GrowMyStocks Business Rules &copy; 2026 · Updated from codebase 2026-07-24
     </footer>
   </main>
 </div>
