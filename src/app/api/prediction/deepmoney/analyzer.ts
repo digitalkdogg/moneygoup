@@ -170,6 +170,16 @@ export async function analyzeStocks(
         return true;
     });
 
+    // Sector-leader pre-filter: same bypass as trending — skip the signal-score
+    // floor so top sector stocks get GPS coverage even when technicals are
+    // bearish. Still require valid enrichment + 100 days history.
+    const sectorLeaderPreFiltered = stocks.filter(stock => {
+        if (!sectorLeaderTickers.has(stock.ticker)) return false;
+        if (stock.error || stock.tradingSignalScore === undefined) return false;
+        if (stock.historyRows !== undefined && stock.historyRows < 100) return false;
+        return true;
+    });
+
     if (initialFilteredStocks.length === 0 && trendingPreFiltered.length === 0) {
         return {
             stocks: [],
@@ -185,8 +195,9 @@ export async function analyzeStocks(
     // dedup by ticker so a trending stock that also cleared signal-score
     // only fetches once.
     const payloadCandidates = new Map<string, EnrichedStock>();
-    for (const s of initialFilteredStocks) payloadCandidates.set(s.ticker, s);
-    for (const s of trendingPreFiltered)   payloadCandidates.set(s.ticker, s);
+    for (const s of initialFilteredStocks)    payloadCandidates.set(s.ticker, s);
+    for (const s of trendingPreFiltered)      payloadCandidates.set(s.ticker, s);
+    for (const s of sectorLeaderPreFiltered)  payloadCandidates.set(s.ticker, s);
     const stocksForPayload = Array.from(payloadCandidates.values());
 
     const payloads = new Map<string, any>();
@@ -295,13 +306,14 @@ export async function analyzeStocks(
     }
 
     // ─── Phase 3d — sector-leader override lane ────────────────────────────
-    // Stocks that are top-25 in any canonical Yahoo sector AND don't already
-    // have a fresh stock_gps_scores row. They bypass both the ranker keep-cut
-    // and the mlGate so /search/industry/[sector] always has GPS coverage.
-    // Caller is responsible for the freshness pre-filter.
+    // Stocks that are top-N in any canonical sector AND don't already have a
+    // fresh stock_gps_scores row. They bypass the ranker keep-cut, the signal-
+    // score floor, and the mlGate so /search/industry/[sector] always has GPS
+    // coverage — even when technicals are bearish. Sourced from
+    // sectorLeaderPreFiltered so the signal-score floor doesn't block them.
     const alreadySurfaced = new Set([...rankerTickers, ...analystOverrideTickers, ...trendingOverrideTickers]);
-    const sectorLeaderOverrideStocks = initialFilteredStocks.filter(s =>
-        !alreadySurfaced.has(s.ticker) && sectorLeaderTickers.has(s.ticker),
+    const sectorLeaderOverrideStocks = sectorLeaderPreFiltered.filter(s =>
+        !alreadySurfaced.has(s.ticker),
     );
     const sectorLeaderOverrideTickers = new Set(sectorLeaderOverrideStocks.map(s => s.ticker));
     if (sectorLeaderOverrideStocks.length > 0) {

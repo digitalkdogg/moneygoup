@@ -319,9 +319,58 @@ def sync_deepmoney():
         )
         prior_dashboard_tickers = {row[0] for row in cursor.fetchall()}
 
+        # Save full rows for hot_stocks tickers that won't be re-processed this
+        # run (GPS-fresh stocks skipped by the 12h gate). The wipe below would
+        # otherwise silently remove their dashboard entries even though nothing
+        # about them changed. We restore these rows immediately after the wipe.
+        processed_ticker_set = {s.get('ticker') for s in data.get('stocks', [])}
+        _restore_cols = (
+            'trading_signal', 'trading_signal_score', 'type', 'parent_etf_ticker',
+            'holding_percent', 'ticker', 'company_name', 'current_price', 'gps_score',
+            'gps_breakdown', 'bearish_signal', 'classification', 'analyst_upside_pct',
+            'revenue_growth_yoy', 'gross_margin_pct', 'rd_spend_pct', 'trailing_pe',
+            'price_to_book', 'metric_value', 'metric_label', 'market_cap_m',
+            'mention_count', 'discovery_source', 'upcoming_earnings', 'prediction_input',
+            'snapshot_date', 'gps_score_type', 'ranker_score', 'hist_vol_30',
+        )
+        cursor.execute(
+            f"SELECT {', '.join(_restore_cols)} FROM recommended_stocks WHERE type = 'hot_stocks'"
+        )
+        _all_hot = cursor.fetchall()
+        _ticker_idx = _restore_cols.index('ticker')
+        fresh_skipped_hot_rows = [
+            row for row in _all_hot
+            if row[_ticker_idx] not in processed_ticker_set
+        ]
+
         # 3. Clear existing recommendation data
         print("Clearing existing recommendation data...")
         cursor.execute("DELETE FROM recommended_stocks")
+
+        # Restore GPS-fresh hot_stocks rows that were not re-evaluated this run.
+        if fresh_skipped_hot_rows:
+            import json as _json
+            _json_cols = {'gps_breakdown', 'prediction_input'}
+            _restore_ph = ', '.join(['%s'] * len(_restore_cols))
+            _restore_q  = (
+                f"INSERT INTO recommended_stocks ({', '.join(_restore_cols)}) "
+                f"VALUES ({_restore_ph})"
+            )
+            _restored_ok = 0
+            for _row in fresh_skipped_hot_rows:
+                _ticker_val = _row[_ticker_idx]
+                try:
+                    # mysql.connector returns JSON columns as Python dicts/lists;
+                    # re-insert requires them serialized back to strings.
+                    _row_fixed = tuple(
+                        _json.dumps(v) if (isinstance(v, (dict, list)) and _restore_cols[i] in _json_cols) else v
+                        for i, v in enumerate(_row)
+                    )
+                    cursor.execute(_restore_q, _row_fixed)
+                    _restored_ok += 1
+                except Exception as _re:
+                    print(f"  [restore-warn] Could not restore {_ticker_val}: {_re}")
+            print(f"  Restored {_restored_ok} GPS-fresh dashboard stock(s) from prior run.")
 
         # 3.1 Persist Macro Context Snapshot (Phase 4)
         if wb_data and wb_data.get('success'):
@@ -1024,7 +1073,7 @@ def _print_run_summary(
         print()
         print("  SECTOR-LEADER OVERRIDE LANE")
         print(f"    Injected (top-25 per sector):    {_fmt_int(sl_injected)}")
-        print(f"    Skipped (GPS fresh <7d):         {_fmt_int(sl_skipped_fresh)}")
+        print(f"    Skipped (GPS fresh <12h):        {_fmt_int(sl_skipped_fresh)}")
         print(f"    Ran MC + GPS this pass:          {_fmt_int(sl_computed)}")
         print(f"    Surfaced in API response:        {_fmt_int(sl_surfaced)}")
 

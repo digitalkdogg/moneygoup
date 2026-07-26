@@ -14,6 +14,7 @@ export interface AnalystGradeResult {
   upsideScore: number;
   momentumScore: number;
   convictionScore: number;
+  coverageScore: number;
 }
 
 const PERIOD_WEIGHTS: Record<string, number> = {
@@ -96,9 +97,19 @@ export function computeAnalystGrade(
     convictionScore = Math.max(0, Math.min(100, 100 - dispersion * 100));
   }
 
+  // Step 6 — CoverageScore: more analysts = more reliable signal (sqrt scale, caps at 30)
+  const row0m = recommendationTrend.find(r => r.period === '0m');
+  const total0m = row0m
+    ? row0m.strongBuy + row0m.buy + row0m.hold + row0m.sell + row0m.strongSell
+    : 0;
+  const coverageScore = Math.min(100, (Math.sqrt(total0m) / Math.sqrt(30)) * 100);
+
   const composite = Math.max(
     0,
-    Math.min(100, 0.50 * recScore + 0.30 * upsideScore + 0.15 * momentumScore + 0.05 * convictionScore),
+    Math.min(
+      100,
+      0.47 * recScore + 0.29 * upsideScore + 0.14 * momentumScore + 0.05 * convictionScore + 0.05 * coverageScore,
+    ),
   );
 
   return {
@@ -108,6 +119,7 @@ export function computeAnalystGrade(
     upsideScore: Math.round(upsideScore * 10) / 10,
     momentumScore: Math.round(momentumScore * 10) / 10,
     convictionScore: Math.round(convictionScore * 10) / 10,
+    coverageScore: Math.round(coverageScore * 10) / 10,
   };
 }
 

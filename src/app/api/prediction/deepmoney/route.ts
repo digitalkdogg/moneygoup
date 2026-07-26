@@ -584,25 +584,66 @@ async function fetchEarningsCalendarTickers(
 }
 
 /**
+ * Pull the top 40 sector leaders per canonical sector from our own stocks
+ * table, ordered by market_cap DESC. Supplements Yahoo screeners with stocks
+ * we track that Yahoo's predefined lists omit (e.g. MPWR, CRDO).
+ * Only returns stocks with a non-null market_cap so NULLs never sort to top.
+ */
+async function fetchDbSectorLeaderTickers(): Promise<Set<string>> {
+    const found = new Set<string>();
+    try {
+        const pool = await getDbConnection();
+        const [rows] = await pool.query(
+            `SELECT symbol FROM (
+                SELECT symbol,
+                       ROW_NUMBER() OVER (PARTITION BY sector ORDER BY market_cap DESC) AS rn
+                FROM stocks
+                WHERE market_cap IS NOT NULL
+                  AND market_cap > 0
+                  AND is_etf = 0
+                  AND sector IN (?)
+             ) ranked
+             WHERE rn <= 40`,
+            [CANONICAL_SECTORS],
+        ) as any;
+        for (const r of rows) {
+            const t = (r.symbol || '').toUpperCase();
+            if (t && !TICKER_STOPLIST.has(t)) found.add(t);
+        }
+    } catch (err) {
+        logger.warn('fetchDbSectorLeaderTickers failed — skipping DB supplement', { error: String(err) });
+    }
+    return found;
+}
+
+/**
  * Pull the top ~25 sector leaders per canonical Yahoo sector via the
- * ms_<sector> predefined screener. Powers GPS coverage on the
- * /search/industry/[sector] page — every leader needs a fresh GPS row in
- * stock_gps_scores so the UI can render the canonical sector tile without
- * computing on-demand. A single-sector failure is non-fatal.
+ * ms_<sector> predefined screener, then union with the top-15 per sector
+ * from our own stocks table so large-caps we track (e.g. MPWR, CRDO) always
+ * enter discovery even when Yahoo's screener omits them.
+ * A single-sector screener failure is non-fatal.
  */
 async function fetchSectorLeaderTickers(): Promise<Set<string>> {
     const found = new Set<string>();
-    const results = await Promise.allSettled(CANONICAL_SECTORS.map(async (sector) => {
-        const quotes = await getSectorStocks(sector, 25);
-        return (quotes as any[]).map((q: any) => q.symbol).filter(Boolean);
-    }));
-    for (const r of results) {
+
+    // Yahoo screeners + DB top-by-market-cap run in parallel
+    const [yahooResults, dbTickers] = await Promise.all([
+        Promise.allSettled(CANONICAL_SECTORS.map(async (sector) => {
+            const quotes = await getSectorStocks(sector, 25);
+            return (quotes as any[]).map((q: any) => q.symbol).filter(Boolean);
+        })),
+        fetchDbSectorLeaderTickers(),
+    ]);
+
+    for (const r of yahooResults) {
         if (r.status !== 'fulfilled') continue;
         for (const sym of r.value) {
             const t = (sym || '').toUpperCase();
             if (t && !TICKER_STOPLIST.has(t)) found.add(t);
         }
     }
+    for (const t of dbTickers) found.add(t);
+
     return found;
 }
 
@@ -616,7 +657,7 @@ async function fetchSectorLeaderTickers(): Promise<Set<string>> {
  */
 async function filterStaleSectorLeaders(
     tickers: Set<string>,
-    freshDays: number = 7,
+    freshDays: number = 0.5,
 ): Promise<Set<string>> {
     if (tickers.size === 0) return new Set();
     try {
@@ -993,9 +1034,9 @@ export async function GET(request: NextRequest) {
         for (const t of earningsCalendarTickers) allTickersSet.add(t);
 
         // Freshness gate: skip MC + GPS for sector leaders that already have a
-        // GPS row newer than 7 days. Steady-state, this drops the override-lane
-        // workload from ~275 to ~20-40 per nightly run.
-        const staleSectorLeaderTickers = await filterStaleSectorLeaders(sectorLeaderTickers, 7);
+        // GPS row newer than 12 hours. Keeps sector leader scores current on
+        // every daily sync without re-scoring names updated in the last half-day.
+        const staleSectorLeaderTickers = await filterStaleSectorLeaders(sectorLeaderTickers, 0.5);
         logger.info(`Sector leaders: ${sectorLeaderTickers.size} injected, ${staleSectorLeaderTickers.size} stale (need MC+GPS), ${sectorLeaderTickers.size - staleSectorLeaderTickers.size} skipped fresh`);
 
         const newsTickerArray = Array.from(allTickersSet).sort();
