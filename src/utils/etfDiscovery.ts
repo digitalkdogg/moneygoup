@@ -74,6 +74,24 @@ const THEME_MACRO_MAPPING: { [key: string]: { tailwind: string[], validation: st
 
 const logger = createLogger('utils/etfDiscovery');
 
+// Process items in batches of `concurrency` with a `delayMs` pause between
+// batches — prevents bursting all requests simultaneously against Yahoo's
+// edge throttle.
+async function batchedMap<T, R>(
+  items: T[],
+  fn: (item: T, index: number) => Promise<R>,
+  { concurrency = 3, delayMs = 1500 }: { concurrency?: number; delayMs?: number } = {}
+): Promise<R[]> {
+  const results: R[] = [];
+  for (let i = 0; i < items.length; i += concurrency) {
+    if (i > 0) await new Promise<void>(r => setTimeout(r, delayMs));
+    const batch = items.slice(i, i + concurrency);
+    const batchResults = await Promise.all(batch.map((item, j) => fn(item, i + j)));
+    results.push(...batchResults);
+  }
+  return results;
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -201,8 +219,9 @@ export async function performETFDiscovery(
 
   const errors: string[] = [];
 
-  // Process all candidates in parallel with individual timeouts and error handling
-  const results = await Promise.all(candidates.map(async (candidate) => {
+  // Process candidates in batches of 3 with a 1.5s pause between batches to
+  // avoid saturating Yahoo's edge throttle with a simultaneous burst.
+  const results = await batchedMap(candidates, async (candidate) => {
     try {
       const summary: any = await Promise.race([
         yahooFinance.quoteSummary(candidate.ticker, {
@@ -347,7 +366,7 @@ export async function performETFDiscovery(
       errors.push(`${candidate.ticker}: ${err instanceof Error ? err.message : String(err)}`);
     }
     return null;
-  }));
+  });
 
   const qualifyingETFs = results.filter((r): r is ETFDiscoveryResult => r !== null);
 
@@ -367,12 +386,14 @@ export async function performETFDiscovery(
     // from the same preset, so they always agree.
     const maxTickers = etfHoldingAlgorithm.maxTickers;
 
-    // Fetch holdings for all qualifying ETFs in parallel
-    const holdingsByETF = await Promise.all(
-      finalResults.map(async etf => ({
+    // Fetch holdings in batches of 2 to avoid rate-limiting on ETF holdings lookups
+    const holdingsByETF = await batchedMap(
+      finalResults,
+      async etf => ({
         etfTicker: etf.ticker,
         holdings: await fetchETFHoldings(etf.ticker, maxTickers),
-      }))
+      }),
+      { concurrency: 2, delayMs: 1000 }
     );
 
     // Aggregate all holdings into one list for global deduplication scoring
