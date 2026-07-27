@@ -1,12 +1,12 @@
 # ---------- Base ----------
-FROM node:22-alpine AS deps
+FROM node:22-slim AS deps
 WORKDIR /app
 
 COPY package*.json ./
 RUN npm install
 
 # ---------- Build ----------
-FROM node:22-alpine AS builder
+FROM node:22-slim AS builder
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
@@ -21,11 +21,17 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3001
 
-# Install Node.js
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates gnupg libgomp1 \
-    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
+# Node.js 22 binaries copied from the node:22-slim build stage (both are
+# glibc/Debian-based, so this is binary-compatible). NodeSource's setup_22.x
+# script now returns HTTP 403 for this base image, and yahoo-finance2
+# requires Node >=22, so installing Debian's own nodejs/npm (v20) is not an
+# option either.
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libgomp1 \
     && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /usr/local/bin/node /usr/local/bin/node
+COPY --from=builder /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 
 COPY requirements.txt ./
 RUN pip3 install --no-cache-dir -r requirements.txt
