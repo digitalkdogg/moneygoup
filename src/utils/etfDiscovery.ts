@@ -92,14 +92,24 @@ async function batchedMap<T, R>(
   return results;
 }
 
-// Retry a Yahoo fetch up to `maxAttempts` times on rate-limit errors,
-// backing off exponentially. Returns null if all attempts fail.
+// Shared cooldown timestamp (ms). When any ETF fetch hits a 429, this is
+// pushed forward by RATE_LIMIT_COOLDOWN_MS so that all subsequent queue
+// items pause before firing — letting Yahoo's edge quota window reset.
+let rateLimitCooldownUntil = 0;
+const RATE_LIMIT_COOLDOWN_MS = 45_000;
+
 async function withYahooRetry<T>(
   fn: () => Promise<T>,
   label: string,
   maxAttempts = 3,
-  baseDelayMs = 5000
+  baseDelayMs = 10_000
 ): Promise<T> {
+  const cooldownWait = rateLimitCooldownUntil - Date.now();
+  if (cooldownWait > 0) {
+    logger.warn(`${label}: rate-limit cooldown active, waiting ${Math.ceil(cooldownWait / 1000)}s`);
+    await new Promise<void>(r => setTimeout(r, cooldownWait));
+  }
+
   let lastErr: unknown;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -109,6 +119,8 @@ async function withYahooRetry<T>(
       const isRateLimit = msg.includes('Too Many Requests') || msg.includes('429') || msg.includes('rate limit');
       if (!isRateLimit || attempt === maxAttempts) throw err;
       lastErr = err;
+      // Extend cooldown so the next queued item also waits for quota reset
+      rateLimitCooldownUntil = Math.max(rateLimitCooldownUntil, Date.now() + RATE_LIMIT_COOLDOWN_MS);
       const delay = baseDelayMs * Math.pow(2, attempt - 1);
       logger.warn(`${label}: rate-limited (attempt ${attempt}/${maxAttempts}), retrying in ${delay}ms`);
       await new Promise<void>(r => setTimeout(r, delay));
