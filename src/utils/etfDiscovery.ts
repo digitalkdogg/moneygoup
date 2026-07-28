@@ -155,6 +155,83 @@ export interface PerformETFDiscoveryOptions {
   /** When provided, holding tickers fetched from qualifying ETFs are added
    *  to this Set so the caller can union them into its enrichment queue. */
   holdingTickersOut?: Set<string>;
+  /** Force a fresh Yahoo fetch even if the DB cache is still warm. */
+  forceRefresh?: boolean;
+}
+
+// How long to reuse the last successful ETF discovery result before going
+// back to Yahoo. 48 hours covers weekends and multi-day rate-limit windows:
+// any run within 2 trading days uses the last successful snapshot, preventing
+// Yahoo quota exhaustion from consecutive deepmoney calls.
+const ETF_CACHE_HOURS = 48;
+
+async function loadCachedETFs(topNEtfs: number): Promise<ETFDiscoveryResult[] | null> {
+  const pool = await getDbConnection();
+  const connection = await pool.getConnection();
+  try {
+    // Check for a recent successful cycle (qualified > 0 within the TTL window)
+    const [rows] = await connection.execute<any[]>(`
+      SELECT cycle_date FROM etf_cycle_summary
+      WHERE etfs_qualified > 0
+        AND created_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)
+      ORDER BY created_at DESC
+      LIMIT 1
+    `, [ETF_CACHE_HOURS]);
+
+    if (!rows.length) return null;
+
+    // mysql2 returns DATE columns as JS Date objects when dateStrings is not
+    // enabled; convert to YYYY-MM-DD string to avoid timezone rounding issues.
+    const rawDate = rows[0].cycle_date;
+    const snapshotDate = typeof rawDate === 'string'
+      ? rawDate.substring(0, 10)
+      : new Date(rawDate).toISOString().substring(0, 10);
+
+    const [etfRows] = await connection.execute<any[]>(`
+      SELECT ticker, etf_name, current_price, etf_gps_score, theme,
+             aum_m, expense_ratio_pct,
+             \`52wk_return_pct\`, \`3mo_return_pct\`, avg_daily_volume,
+             momentum_score, news_signal_score, macro_tailwind_score,
+             theme_validation_bonus, discovery_source, is_leveraged,
+             snapshot_date
+      FROM hot_etfs
+      WHERE snapshot_date = ?
+      ORDER BY etf_gps_score DESC
+      LIMIT ?
+    `, [snapshotDate, topNEtfs]);
+
+    if (!etfRows.length) return null;
+
+    return etfRows.map((r: any): ETFDiscoveryResult => ({
+      ticker:                r.ticker,
+      etf_name:              r.etf_name,
+      current_price:         parseFloat(r.current_price),
+      etf_gps_score:         parseFloat(r.etf_gps_score),
+      theme:                 r.theme,
+      aum_m:                 parseFloat(r.aum_m),
+      expense_ratio_pct:     parseFloat(r.expense_ratio_pct),
+      fiftyTwoWk_return_pct: parseFloat(r['52wk_return_pct']),
+      threeMo_return_pct:    parseFloat(r['3mo_return_pct']),
+      avg_daily_volume:      parseInt(r.avg_daily_volume),
+      momentum_score:        parseFloat(r.momentum_score),
+      news_signal_score:     parseFloat(r.news_signal_score),
+      macro_tailwind_score:  parseFloat(r.macro_tailwind_score),
+      theme_validation_bonus: parseFloat(r.theme_validation_bonus),
+      discovery_source:      r.discovery_source,
+      is_leveraged:          !!r.is_leveraged,
+      snapshot_date:         typeof r.snapshot_date === 'string'
+                               ? r.snapshot_date
+                               : new Date(r.snapshot_date).toISOString().split('T')[0],
+      macro_data_asof:       typeof r.snapshot_date === 'string'
+                               ? r.snapshot_date
+                               : new Date(r.snapshot_date).toISOString().split('T')[0],
+    }));
+  } catch (err) {
+    logger.warn('ETF cache read failed, will fetch fresh', { error: err });
+    return null;
+  } finally {
+    connection.release();
+  }
 }
 
 export async function performETFDiscovery(
@@ -179,6 +256,34 @@ export async function performETFDiscovery(
     trendingSubSectors,
     etfHoldingAlgorithmLevel: etfHoldingAlgorithm.level,
   });
+
+  // --- Staleness cache: reuse last successful run if it's recent enough ---
+  // Skips 27+ Yahoo quoteSummary calls when Yahoo's quota is already
+  // exhausted by the preceding stock-enrichment pipeline.
+  if (!options.forceRefresh) {
+    const cached = await loadCachedETFs(etfHoldingAlgorithm.topNEtfs);
+    if (cached) {
+      logger.info('ETF discovery: returning cached results (last successful run within 48h)', {
+        count: cached.length,
+      });
+      // Still populate holdingTickersOut so the caller's enrichment queue gets
+      // the holdings tickers (using the cached qualifying ETFs, not all 27).
+      if (options.holdingTickersOut && cached.length > 0) {
+        const maxTickers = etfHoldingAlgorithm.maxTickers;
+        await batchedMap(
+          cached,
+          async etf => {
+            const holdings = await fetchETFHoldings(etf.ticker, maxTickers);
+            for (const h of holdings) {
+              if (h.ticker) options.holdingTickersOut!.add(h.ticker.toUpperCase());
+            }
+          },
+          { concurrency: 2, delayMs: 1000 }
+        );
+      }
+      return cached;
+    }
+  }
 
   // Fetch World Bank Macro Context
   const wbData = await fetchWorldBankTrendData();
