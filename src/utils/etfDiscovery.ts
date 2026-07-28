@@ -92,6 +92,31 @@ async function batchedMap<T, R>(
   return results;
 }
 
+// Retry a Yahoo fetch up to `maxAttempts` times on rate-limit errors,
+// backing off exponentially. Returns null if all attempts fail.
+async function withYahooRetry<T>(
+  fn: () => Promise<T>,
+  label: string,
+  maxAttempts = 3,
+  baseDelayMs = 5000
+): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      const msg: string = err?.message ?? String(err);
+      const isRateLimit = msg.includes('Too Many Requests') || msg.includes('429') || msg.includes('rate limit');
+      if (!isRateLimit || attempt === maxAttempts) throw err;
+      lastErr = err;
+      const delay = baseDelayMs * Math.pow(2, attempt - 1);
+      logger.warn(`${label}: rate-limited (attempt ${attempt}/${maxAttempts}), retrying in ${delay}ms`);
+      await new Promise<void>(r => setTimeout(r, delay));
+    }
+  }
+  throw lastErr;
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -324,21 +349,25 @@ export async function performETFDiscovery(
 
   const errors: string[] = [];
 
-  // Process candidates in batches of 3 with a 1.5s pause between batches to
-  // avoid saturating Yahoo's edge throttle with a simultaneous burst.
+  // Serialize candidates (concurrency: 1) with a 3.5s gap to stay well under
+  // Yahoo's edge rate limit, which gets saturated by the preceding stock
+  // enrichment pipeline. The retry wrapper handles transient 429s.
   const results = await batchedMap(candidates, async (candidate) => {
     try {
-      const summary: any = await Promise.race([
-        yahooFinance.quoteSummary(candidate.ticker, {
-          modules: ["price", "summaryDetail", "defaultKeyStatistics", "topHoldings", "fundProfile", "fundPerformance"]
-        }, { validateResult: false }),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000))
-      ]).catch(err => {
-        if (err.name === 'FailedYahooValidationError' && err.result) {
-          return err.result;
-        }
-        throw err;
-      });
+      const summary: any = await withYahooRetry(
+        () => Promise.race([
+          yahooFinance.quoteSummary(candidate.ticker, {
+            modules: ["price", "summaryDetail", "defaultKeyStatistics", "topHoldings", "fundProfile", "fundPerformance"]
+          }, { validateResult: false }),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 15000))
+        ]).catch(err => {
+          if (err.name === 'FailedYahooValidationError' && err.result) {
+            return err.result;
+          }
+          throw err;
+        }),
+        candidate.ticker
+      );
 
       const price = summary.price?.regularMarketPrice;
       if (!price || price >= ETF_PRICE_FILTER_MAX) return null;
@@ -471,7 +500,7 @@ export async function performETFDiscovery(
       errors.push(`${candidate.ticker}: ${err instanceof Error ? err.message : String(err)}`);
     }
     return null;
-  });
+  }, { concurrency: 1, delayMs: 3500 });
 
   const qualifyingETFs = results.filter((r): r is ETFDiscoveryResult => r !== null);
 
