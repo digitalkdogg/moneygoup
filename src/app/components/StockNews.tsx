@@ -14,6 +14,38 @@ interface StockNewsProps {
   titleLevel?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
 }
 
+function SentimentTag({ score }: { score: number }) {
+  let label: string;
+  let bg: string;
+  let color: string;
+  let dot: string;
+
+  if (score >= 0.3) {
+    label = 'Bullish'; bg = '#dcfce7'; color = '#15803d'; dot = '#16a34a';
+  } else if (score > 0.05) {
+    label = 'Positive'; bg = '#f0fdf4'; color = '#166534'; dot = '#4ade80';
+  } else if (score <= -0.3) {
+    label = 'Bearish'; bg = '#fee2e2'; color = '#991b1b'; dot = '#dc2626';
+  } else if (score < -0.05) {
+    label = 'Negative'; bg = '#fef2f2'; color = '#b91c1c'; dot = '#f87171';
+  } else {
+    label = 'Neutral'; bg = '#f3f4f6'; color = '#4b5563'; dot = '#9ca3af';
+  }
+
+  return (
+    <span
+      style={{ backgroundColor: bg, color }}
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap"
+    >
+      <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: dot, display: 'inline-block', flexShrink: 0 }} />
+      {label}
+      <span style={{ opacity: 0.65, fontWeight: 400 }}>
+        {score > 0 ? '+' : ''}{score.toFixed(2)}
+      </span>
+    </span>
+  );
+}
+
 export default function StockNews({ articles, ticker, titleLevel = 'h2' }: StockNewsProps) {
   // Handle different article formats
   let articleList: Article[] = [];
@@ -72,22 +104,7 @@ export default function StockNews({ articles, ticker, titleLevel = 'h2' }: Stock
               </div>
               {article.sentiment_score !== undefined && (
                 <div className="flex-shrink-0 pt-1">
-                  <span
-                    style={article.sentiment_score > 0 ? { backgroundColor: '#a8d78d', color: '#166534' } : {}}
-                    className={`inline-block px-2 py-1 rounded text-xs font-semibold ${
-                      article.sentiment_score > 0
-                        ? ''
-                        : article.sentiment_score < 0
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-gray-300 text-gray-800'
-                    }`}
-                  >
-                    {article.sentiment_score > 0
-                      ? '📈 ' + article.sentiment_score.toFixed(1)
-                      : article.sentiment_score < 0
-                        ? '📉 ' + article.sentiment_score.toFixed(1)
-                        : '➡️ ' + article.sentiment_score.toFixed(1)}
-                  </span>
+                  <SentimentTag score={article.sentiment_score} />
                 </div>
               )}
             </div>
