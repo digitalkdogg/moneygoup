@@ -359,15 +359,6 @@ export async function performETFDiscovery(
     evaluatedTickersCount: evaluatedTickersCount
   });
 
-  // Stock enrichment (enrichTickers) runs before this function and makes 3+
-  // Yahoo calls per ticker. By the time we reach here the per-session quota is
-  // often exhausted. Pause 90s so Yahoo's rate-limit window can reset before
-  // we start the ETF candidate loop (75s confirmed sufficient in testing;
-  // extra 15s margin for deeper depletion from 3-call-per-ticker enrichment).
-  const PRE_ETF_PAUSE_MS = 90_000;
-  logger.info(`ETF discovery: pausing ${PRE_ETF_PAUSE_MS / 1000}s for Yahoo quota reset before candidate fetch`);
-  await new Promise<void>(r => setTimeout(r, PRE_ETF_PAUSE_MS));
-
   const errors: string[] = [];
 
   // Serialize candidates (concurrency: 1) with a 3.5s gap to stay well under

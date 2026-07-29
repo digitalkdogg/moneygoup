@@ -1039,38 +1039,31 @@ export async function GET(request: NextRequest) {
         const staleSectorLeaderTickers = await filterStaleSectorLeaders(sectorLeaderTickers, 0.5);
         logger.info(`Sector leaders: ${sectorLeaderTickers.size} injected, ${staleSectorLeaderTickers.size} stale (need MC+GPS), ${sectorLeaderTickers.size - staleSectorLeaderTickers.size} skipped fresh`);
 
-        const newsTickerArray = Array.from(allTickersSet).sort();
-
-        // --- Metric Enrichment (Pass 1: news tickers) ---
-        // We need sectors from the enriched news stocks so the ETF qualification
-        // can find related ETFs. So enrich the news tickers first, then use
-        // their sectors to drive ETF discovery, then enrich any additional
-        // holdings tickers in a second pass.
-        const newsEnrichedStocks = await enrichTickers(newsTickerArray);
-
-        const seenSectors = new Set<string>();
-        newsEnrichedStocks.forEach(s => { if (s.sector) seenSectors.add(s.sector); });
-
-        // --- ETF Discovery (early): qualify ETFs + collect holdings tickers ---
-        // Step 2.3 of the analyst-consensus plan: holdings flow through the same
-        // enrichTickers + analyzeStocks pipeline as news-discovered tickers,
-        // so the analyst-strongBuy override gate applies to them too. We skip
-        // scoreETFHoldings here; the analyzer's GPS computation supersedes it
-        // for this run. The /holdings endpoint's etf_holding_scores cache will
-        // refresh on its own staleness schedule.
+        // --- ETF Discovery (before enrichment): uses fresh Yahoo quota ---
+        // Runs first so it fires into a clean yahoo-finance2 session before
+        // enrichTickers depletes the quoteSummary rate-limit bucket.
+        // hotStocks and sector bonuses (+8/+5 GPS) are unavailable pre-enrichment
+        // and are skipped; core ETF scoring (return, momentum, volume, expense
+        // ratio, macro tailwind) is unaffected.
         const etfHoldingTickers = new Set<string>();
         const hotEtfs = await performETFDiscovery(
-            newsEnrichedStocks,
-            Array.from(seenSectors),
-            Array.from(allTickersSet),
+            [],                          // hotStocks: not yet available
+            [],                          // trendingSubSectors: not yet available
+            Array.from(allTickersSet),   // trendingTickers: news tickers available now
             { skipHoldingsScoring: true, holdingTickersOut: etfHoldingTickers }
         );
 
-        // --- Metric Enrichment (Pass 2: ETF-holding tickers not in news set) ---
+        // Merge ETF holding tickers into the main set before enrichment so a
+        // single enrichTickers pass covers news tickers + ETF holdings together.
         const newHoldingTickers = Array.from(etfHoldingTickers).filter(t => !allTickersSet.has(t));
-        const holdingEnrichedStocks = newHoldingTickers.length > 0
-            ? await enrichTickers(newHoldingTickers.sort())
-            : [];
+        for (const t of newHoldingTickers) allTickersSet.add(t);
+
+        // --- Metric Enrichment: news tickers + ETF holding tickers in one pass ---
+        const newsTickerArray = Array.from(allTickersSet).sort();
+        const newsEnrichedStocks = await enrichTickers(newsTickerArray);
+
+        // ETF holding tickers are now part of newsEnrichedStocks — no second pass needed.
+        const holdingEnrichedStocks: any[] = [];
 
         // Merge enriched results + grow allTickersSet so meta counters include holdings
         const enrichedStocks = [...newsEnrichedStocks, ...holdingEnrichedStocks];
