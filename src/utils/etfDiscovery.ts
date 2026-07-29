@@ -354,10 +354,18 @@ export async function performETFDiscovery(
   }
 
   const evaluatedTickersCount = evaluatedTickers.size;
-  logger.info('ETF candidates identified', { 
+  logger.info('ETF candidates identified', {
     totalCandidates: candidates.length,
     evaluatedTickersCount: evaluatedTickersCount
   });
+
+  // Stock enrichment (enrichTickers) runs before this function and makes 3+
+  // Yahoo calls per ticker. By the time we reach here the per-session quota is
+  // often exhausted. Pause 75s so Yahoo's rate-limit window can reset before
+  // we start the ETF candidate loop.
+  const PRE_ETF_PAUSE_MS = 75_000;
+  logger.info(`ETF discovery: pausing ${PRE_ETF_PAUSE_MS / 1000}s for Yahoo quota reset before candidate fetch`);
+  await new Promise<void>(r => setTimeout(r, PRE_ETF_PAUSE_MS));
 
   const errors: string[] = [];
 

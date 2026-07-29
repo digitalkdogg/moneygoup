@@ -1,16 +1,31 @@
 """
 test_etf_rate_limit.py
 ----------------------
-Replays the exact Yahoo Finance call pattern that performETFDiscovery uses
-(27 ETFs, concurrency=1, 3.5s inter-request gap, 45s cooldown on 429s) and
-reports per-ticker pass/fail.  Runs in isolation — no deepmoney sync needed.
+Simulates the condition that causes "Too Many Requests" in performETFDiscovery:
+
+  Phase 1 — Quota depletion (simulates enrichTickers running before ETF
+             discovery): fires rapid-fire Yahoo calls for a configurable number
+             of stock tickers so the session quota is in the same state it
+             would be mid-sync.
+
+  Phase 2 — Pre-flight pause (mirrors the 75s pause added to etfDiscovery.ts).
+
+  Phase 3 — ETF candidate loop: fetches all 27 watchlist ETFs with 3.5s gaps
+             and the 45s shared cooldown, then reports pass/fail per ticker.
+
+Running in isolation (no --burst) skips Phase 1 and just tests the ETF calls
+themselves — useful to confirm the ETF logic works, but doesn't reproduce the
+production failure condition.
 
 Usage:
-    python3 scripts/test_etf_rate_limit.py [--delay SECONDS] [--skip-db]
+    python3 scripts/test_etf_rate_limit.py [--burst N] [--delay SECONDS] [--pause SECONDS] [--skip-db]
 
 Options:
-    --delay SECONDS   Override the inter-request delay (default: 3.5)
-    --skip-db         Don't read etf_cycle_summary; just test Yahoo calls
+    --burst N         Fire N rapid stock calls before ETF phase (default: 0;
+                      set to ~50 to simulate a real sync depletion)
+    --delay SECONDS   Inter-ETF-request delay (default: 3.5)
+    --pause SECONDS   Pre-ETF pause after burst (default: 75, mirrors TS code)
+    --skip-db         Don't read etf_cycle_summary
 """
 
 import json
@@ -151,8 +166,12 @@ def load_db_last_cycle():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--burst', type=int, default=0,
+                        help='Number of rapid stock calls to fire before ETF phase (simulates enrichTickers)')
     parser.add_argument('--delay', type=float, default=DEFAULT_DELAY_S,
-                        help=f'Inter-request delay in seconds (default: {DEFAULT_DELAY_S})')
+                        help=f'Inter-ETF-request delay in seconds (default: {DEFAULT_DELAY_S})')
+    parser.add_argument('--pause', type=float, default=75.0,
+                        help='Pre-ETF pause after burst in seconds (default: 75, mirrors TS code)')
     parser.add_argument('--skip-db', action='store_true', help='Skip DB summary lookup')
     args = parser.parse_args()
 
@@ -164,9 +183,11 @@ def main():
     with open(WATCHLIST_PATH) as f:
         watchlist = json.load(f)
     tickers = [e['ticker'] for e in watchlist]
-    print(f"\n  Watchlist: {len(tickers)} tickers")
-    print(f"  Delay:     {args.delay}s between requests")
-    print(f"  Retry:     {MAX_ATTEMPTS} attempts, base backoff {RETRY_BASE_S}s, cooldown {COOLDOWN_S}s")
+    print(f"\n  Watchlist:  {len(tickers)} ETF tickers")
+    print(f"  Burst:      {args.burst} stock calls before ETF phase (0 = isolated test)")
+    print(f"  Pre-pause:  {args.pause}s after burst before ETF phase")
+    print(f"  ETF delay:  {args.delay}s between ETF requests")
+    print(f"  Retry:      {MAX_ATTEMPTS} attempts, base backoff {RETRY_BASE_S}s, cooldown {COOLDOWN_S}s")
 
     # --- DB snapshot before ---
     if not args.skip_db:
@@ -181,7 +202,37 @@ def main():
             if errs:
                 print(f"  {RED}  errors: {errs[:200]}{'...' if len(errs)>200 else ''}{RESET}")
 
-    print(f"\n{BOLD}  Fetching {len(tickers)} ETFs...{RESET}\n")
+    # --- Phase 1: quota depletion burst (simulates enrichTickers) ---
+    if args.burst > 0:
+        # Pull a list of S&P 500-ish tickers to use as the burst set
+        BURST_TICKERS = [
+            'AAPL','MSFT','NVDA','GOOGL','AMZN','META','TSLA','JPM','V','UNH',
+            'XOM','LLY','JNJ','WMT','MA','AVGO','HD','PG','COST','MRK',
+            'ORCL','CVX','BAC','ABBV','CRM','NFLX','AMD','PEP','KO','TMO',
+            'ACN','MCD','ABT','CSCO','DHR','ADBE','NKE','TXN','NEE','PM',
+            'QCOM','UPS','RTX','INTU','AMGN','SPGI','BLK','GS','AXP','CAT',
+        ]
+        burst_set = BURST_TICKERS[:args.burst]
+        print(f"\n{BOLD}  Phase 1 — Quota depletion ({len(burst_set)} rapid stock calls){RESET}")
+        burst_ok = 0
+        for i, sym in enumerate(burst_set):
+            print(f"  [{i+1:2d}/{len(burst_set)}] {sym:<6s} ", end='', flush=True)
+            try:
+                info = yf.Ticker(sym).info
+                price = info.get('regularMarketPrice') or info.get('currentPrice')
+                print(f"{GREEN}ok{RESET} price={price}")
+                burst_ok += 1
+            except Exception as exc:
+                print(f"{RED}err{RESET} {str(exc)[:60]}")
+        print(f"\n  Burst done: {burst_ok}/{len(burst_set)} succeeded")
+
+        print(f"\n{BOLD}  Phase 2 — Pre-ETF pause ({args.pause}s){RESET}")
+        for remaining in range(int(args.pause), 0, -5):
+            print(f"  waiting {remaining}s...", end='\r', flush=True)
+            time.sleep(min(5, remaining))
+        print(f"  Pause complete.           ")
+
+    print(f"\n{BOLD}  Phase {'3' if args.burst > 0 else '1'} — ETF candidate fetch ({len(tickers)} tickers){RESET}\n")
 
     results = []
     cooldown_until = [0.0]  # shared mutable ref; mirrors rateLimitCooldownUntil in TS
