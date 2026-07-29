@@ -84,7 +84,7 @@ export async function POST(
     return NextResponse.json({ message: 'Invalid JSON' }, { status: 400 });
   }
 
-  if (!body.historicalData || !Array.isArray(body.historicalData) || body.historicalData.length < 200) {
+  if (!body.historicalData || !Array.isArray(body.historicalData) || body.historicalData.length < 30) {
     return validationErrorResponse('Insufficient historical data');
   }
 
@@ -307,12 +307,33 @@ export async function POST(
   const tempFile = useWarmService ? null : join(tmpdir(), `tf_prediction_input_${randomUUID()}.json`);
   try {
     if (!useWarmService) writeFileSync(tempFile!, JSON.stringify(body));
-    const result: any = useWarmService
-      ? await runWarmPrediction(validatedTicker, body, validatedOutlook, warmServiceUrl!)
-      : await runSpawnPrediction(validatedTicker, tempFile!, validatedOutlook, useLegacyModel, csModelVersion);
+    let result: any;
+    let usedFallback = false;
+    const forceStatisticalFallback = body.dataQuality?.shortHistory === true;
+    if (forceStatisticalFallback) {
+      logger.info(`${validatedTicker} has short history — routing directly to statistical fallback`);
+    }
+    try {
+      if (forceStatisticalFallback) throw new Error('short_history_forced_fallback');
+      result = useWarmService
+        ? await runWarmPrediction(validatedTicker, body, validatedOutlook, warmServiceUrl!)
+        : await runSpawnPrediction(validatedTicker, tempFile!, validatedOutlook, useLegacyModel, csModelVersion);
+    } catch (mainErr) {
+      if (!forceStatisticalFallback) {
+        logger.warn(`Main model failed for ${validatedTicker} — trying statistical fallback`, {
+          error: String(mainErr),
+        });
+      }
+      // Write body to a temp file if the warm-service path didn't create one
+      const fallbackFile = tempFile ?? join(tmpdir(), `tf_prediction_input_${randomUUID()}.json`);
+      if (!tempFile) writeFileSync(fallbackFile, JSON.stringify(body));
+      result = await runFallbackPrediction(validatedTicker, fallbackFile, validatedOutlook);
+      if (!tempFile) { try { unlinkSync(fallbackFile); } catch {} }
+      usedFallback = true;
+    }
     // Tag the result so callers (and the cache) can tell which model produced
     // it. Useful when comparing legacy vs v3-split in the UI / dev logs.
-    result.model_version = modelTag;
+    result.model_version = usedFallback ? 'fallback' : modelTag;
 
     // Ensure generic keys are populated for the requested outlook
     if (validatedOutlook === '1_month') {
@@ -418,6 +439,35 @@ function runSpawnPrediction(ticker: string, inputFile: string, outlook: string, 
         resolve(parsed);
       } catch {
         reject(new Error('Invalid JSON'));
+      }
+    });
+    python.on('error', err => reject(err));
+  });
+}
+
+function runFallbackPrediction(ticker: string, inputFile: string, outlook: string): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    logger.info(`Predict (fallback/statistical) ${ticker} outlook=${outlook}`);
+    const python = spawn(getPythonExecutable(), [
+      'scripts/predict_fallback.py', ticker,
+      '--input_file', inputFile,
+      '--outlook', outlook,
+    ], { env: { ...process.env } });
+    let stdout = '', stderr = '';
+    python.stdout.on('data', d => { stdout += d; });
+    python.stderr.on('data', d => { stderr += d; });
+    python.on('close', code => {
+      if (code !== 0) {
+        logger.error(`Fallback model crashed for ${ticker}`, {
+          exitCode: code,
+          stderrTail: stderr.slice(-2000),
+        });
+        return reject(new Error(`Fallback exit ${code}: ${stderr}`));
+      }
+      try {
+        resolve(JSON.parse(stdout));
+      } catch {
+        reject(new Error('Fallback: invalid JSON'));
       }
     });
     python.on('error', err => reject(err));

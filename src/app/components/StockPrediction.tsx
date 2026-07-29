@@ -114,6 +114,7 @@ interface PredictionResult {
    *  NULL when Ollama is disabled/down; UI falls back to the rule-based
    *  confidence_reason_{h} strings displayed on the confidence badges. */
   llm_rationale?: string | null
+  model_mode?: 'fallback' | string
 }
 
 interface ConfidenceBreakdown {
@@ -506,6 +507,7 @@ export default function StockPrediction({
   const [error, setError]             = useState<string | null>(null)
   const [showMetrics, setShowMetrics] = useState(false)
   const [bannerDismissed, setBannerDismissed] = useState(false)
+  const [fallbackBannerDismissed, setFallbackBannerDismissed] = useState(false)
   const loading = step === 'fetching' || step === 'predicting'
   const TitleTag = titleLevel;
 
@@ -520,6 +522,7 @@ export default function StockPrediction({
     setPrediction(null)
     setDataQuality(null)
     setBannerDismissed(false)
+    setFallbackBannerDismissed(false)
     pollAttemptsRef.current = 0
     setRationaleLoading(false)
     if (pollTimerRef.current) { clearTimeout(pollTimerRef.current); pollTimerRef.current = null }
@@ -727,7 +730,10 @@ export default function StockPrediction({
       {/* Data quality warnings (shown after Step 1 completes) */}
       {showDqWarnings && (
         <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 space-y-1">
-          {(dq!.historyYears ?? 0) < 4.9 && (
+          {(dq as any).shortHistory && (
+            <p>⚠️ Only {(dq!.historyDays ?? 0)} trading days of history available. {ticker} may be a recent IPO — statistical fallback model will be used.</p>
+          )}
+          {!(dq as any).shortHistory && (dq!.historyYears ?? 0) < 4.9 && (
             <p>⚠️ Only {(dq!.historyYears ?? 0).toFixed(1)} years of history available (5 preferred). Predictions may be less reliable.</p>
           )}
           {!dq!.fundamentalsComplete && (
@@ -780,6 +786,29 @@ export default function StockPrediction({
 
       {prediction && (
         <div className="mt-8">
+          {/* Fallback model banner */}
+          {prediction.model_mode === 'fallback' && !fallbackBannerDismissed && (
+            <div className="flex items-start justify-between mb-4 p-3 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-900">
+              <div className="flex items-start gap-2">
+                <span className="shrink-0 mt-0.5">⚡</span>
+                <div>
+                  <strong>Statistical model used.</strong>{' '}
+                  {(prediction as any).data_quality?.shortHistory
+                    ? `${ticker} has limited trading history (recent IPO). `
+                    : 'The full ML model was unavailable for this ticker. '}
+                  Predictions are based on price trend &amp; momentum analysis. Confidence scores are capped at 65% and long-horizon targets carry higher uncertainty than usual.
+                </div>
+              </div>
+              <button
+                onClick={() => setFallbackBannerDismissed(true)}
+                aria-label="Dismiss"
+                className="ml-3 text-amber-500 hover:text-amber-700 shrink-0 leading-none"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
           {/* High-uncertainty banner */}
           {prediction.high_uncertainty && !bannerDismissed && (
             <div className="flex items-start justify-between mb-4 p-3 bg-yellow-50 border border-yellow-300 rounded-lg text-sm text-yellow-800">

@@ -348,9 +348,9 @@ async function fetchOhlcv(ticker: string) {
   const sorted = [...rows].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   const historyDays = sorted.length;
-  if (historyDays < 365) {
+  if (historyDays < 30) {
     throw new Error(
-      `Insufficient history for ${ticker}: ${historyDays} days available, minimum 365 required (~1.5 years).`
+      `Insufficient history for ${ticker}: ${historyDays} days available, minimum 30 required.`
     );
   }
 
@@ -363,7 +363,11 @@ async function fetchOhlcv(ticker: string) {
     volume: r.volume ?? 0,
   }));
 
-  return { historicalData, historyDays };
+  // Tickers with < 365 days (recent IPOs, etc.) can still run the statistical
+  // fallback model — flag them so the prediction route skips the ML model.
+  const shortHistory = historyDays < 365;
+
+  return { historicalData, historyDays, shortHistory };
 }
 
 async function fetchMacroSeries(sym: string): Promise<{ date: string; close: number }[]> {
@@ -443,7 +447,7 @@ export async function GET(
 
   try {
     // ---- 1. Fetch OHLCV (5 years) ----
-    const { historicalData, historyDays } = await fetchOhlcv(validatedTicker);
+    const { historicalData, historyDays, shortHistory } = await fetchOhlcv(validatedTicker);
     const historyYears = Math.round((historyDays / 252) * 10) / 10;
 
     // ---- 2. Fetch fundamentals + analyst targets (single quoteSummary call) ----
@@ -962,6 +966,7 @@ export async function GET(
     const dataQuality = {
       historyDays,
       historyYears,
+      shortHistory,
       fundamentalsComplete: imputedFields.length === 0,
       analystDataAvailable: analystTargetMean !== null && analystOpinionCount > 0,
       macroDataAvailable:   vixData.length > 0 || tnxData.length > 0,

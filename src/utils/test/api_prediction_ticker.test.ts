@@ -69,7 +69,7 @@ describe('POST /api/prediction/[ticker]', () => {
     mockRequest = new NextRequest('http://localhost/api/prediction/AAPL', {
       method: 'POST',
       body: JSON.stringify({
-        historicalData: Array(100).fill({ close: 150 }), // Less than 365 required
+        historicalData: Array(20).fill({ close: 150 }), // Less than 30 minimum
         stockMetrics: { peRatio: 25 },
       }),
     });
