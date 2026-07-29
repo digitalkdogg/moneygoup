@@ -1,6 +1,8 @@
 // src/app/components/modals/GpsBreakdownModal.tsx
+'use client'
 
 import React from 'react'
+import { createPortal } from 'react-dom'
 import { getGpsLabel, getCardCallLabel } from '@/utils/gps'
 
 interface GpsBreakdownModalProps {
@@ -48,7 +50,7 @@ export const GpsBreakdownModal: React.FC<GpsBreakdownModalProps> = ({
   // Footer tone color: in card variant the green threshold drops from 65 → 55
   // so the tone matches the new Buy band. The amber/red 45 anchor is shared.
   const toneGreenThreshold = isCardVariant ? 55 : 65
-  if (!isOpen) return null
+  if (!isOpen || typeof document === 'undefined') return null
 
   const getBarColor = (pct: number) => {
     if (pct >= 75) return '#017e3b'
@@ -78,7 +80,7 @@ export const GpsBreakdownModal: React.FC<GpsBreakdownModalProps> = ({
 
   const metrics = getMetricsArray()
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm flex items-center justify-center z-[1000] p-6"
       onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose() }}
@@ -195,6 +197,7 @@ export const GpsBreakdownModal: React.FC<GpsBreakdownModalProps> = ({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

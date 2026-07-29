@@ -49,8 +49,16 @@ export const PortfolioCardView: React.FC<PortfolioCardViewProps> = ({ card }) =>
     : null
   const horizonLabel = card.horizonLabel ?? '1M'
 
+  const belowCost =
+    card.price != null &&
+    card.purchasePrice != null &&
+    card.price < card.purchasePrice
+
   return (
-    <>
+    <div
+      className="flex flex-col flex-1"
+      style={belowCost ? { backgroundColor: 'rgba(220, 38, 38, 0.045)' } : undefined}
+    >
       {card.topAccentColor && (
         <div style={{ backgroundColor: card.topAccentColor }} className="h-1 rounded-t-2xl" />
       )}
@@ -144,6 +152,6 @@ export const PortfolioCardView: React.FC<PortfolioCardViewProps> = ({ card }) =>
           </svg>
         )}
       </div>
-    </>
+    </div>
   )
 }
