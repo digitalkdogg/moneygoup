@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3001",
+    "prestart": "echo \"Git commit: $(git rev-parse --short HEAD) - $(git log -1 --pretty=%s)\"",
+    "dev": "venv/bin/python3 scripts/prediction_service.py & next dev -p 3001",
     "build": "next build",
     "start": "next start -p 3001",
     "lint": "next lint",
