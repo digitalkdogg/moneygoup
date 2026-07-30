@@ -12,6 +12,15 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# Capture commit info while .git is available; file is copied to runtime image
+# so prestart can print it without needing git in the container.
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+    && printf "Git commit: %s - %s\n" \
+         "$(git rev-parse --short HEAD 2>/dev/null || echo unknown)" \
+         "$(git log -1 --pretty=%s 2>/dev/null || echo unknown)" \
+       > .git-commit-info \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN npm run build
 
 # ---------- Runtime ----------
@@ -36,6 +45,7 @@ RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
 COPY requirements.txt ./
 RUN pip3 install --no-cache-dir -r requirements.txt
 
+COPY --from=builder /app/.git-commit-info ./.git-commit-info
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/node_modules ./node_modules
