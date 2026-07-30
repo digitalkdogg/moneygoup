@@ -57,9 +57,8 @@ const inFlight  = new Map<string, Promise<string>>();    // (ticker, data_hash) 
 // ── Stock classifier ─────────────────────────────────────────────────────────
 
 interface StockClassification {
-  growthLabel: 'Low Growth' | 'Moderate' | 'Growth' | 'High Growth';
-  riskLabel:   'Low Risk'   | 'Moderate Risk' | 'High Risk' | 'Speculative';
-  quadrant:    'Quality Growth' | 'Speculative' | 'Defensive' | 'Caution';
+  growthStars: number; // 1–5: 1 = almost no growth, 5 = exceptional
+  riskStars:   number; // 1–5: 1 = very safe, 5 = speculative
 }
 
 function classifyStock(ctx: Record<string, unknown>): StockClassification {
@@ -123,27 +122,23 @@ function classifyStock(ctx: Record<string, unknown>): StockClassification {
 
   const riskScore = Math.min(100, Math.round(peComp + ptbComp + magComp + sigComp + revRisk));
 
-  // ── Labels ────────────────────────────────────────────────────────────────
-  // Thresholds shifted up vs v1 — a healthy neutral-signal S&P 500 stock
-  // now lands in Moderate Risk (~38–45) rather than High Risk.
-  const growthLabel: StockClassification['growthLabel'] =
-    growthScore >= 70 ? 'High Growth' :
-    growthScore >= 50 ? 'Growth'      :
-    growthScore >= 30 ? 'Moderate'    : 'Low Growth';
+  // ── Star ratings (1–5) ───────────────────────────────────────────────────
+  // Growth: 1 = almost no upside, 5 = exceptional across all signals.
+  const growthStars =
+    growthScore >= 80 ? 5 :
+    growthScore >= 60 ? 4 :
+    growthScore >= 40 ? 3 :
+    growthScore >= 20 ? 2 : 1;
 
-  const riskLabel: StockClassification['riskLabel'] =
-    riskScore >= 75 ? 'Speculative'   :
-    riskScore >= 55 ? 'High Risk'     :
-    riskScore >= 35 ? 'Moderate Risk' : 'Low Risk';
+  // Risk: 1 = very safe, 5 = speculative. Aligns with prior riskScore bands:
+  //   < 20 → 1★,  20–34 → 2★,  35–54 → 3★,  55–74 → 4★,  ≥ 75 → 5★
+  const riskStars =
+    riskScore >= 75 ? 5 :
+    riskScore >= 55 ? 4 :
+    riskScore >= 35 ? 3 :
+    riskScore >= 20 ? 2 : 1;
 
-  const highGrowth = growthScore >= 50;
-  const highRisk   = riskScore   >= 50;
-  const quadrant: StockClassification['quadrant'] =
-    highGrowth && !highRisk ? 'Quality Growth' :
-    highGrowth &&  highRisk ? 'Speculative'    :
-   !highGrowth && !highRisk ? 'Defensive'      : 'Caution';
-
-  return { growthLabel, riskLabel, quadrant };
+  return { growthStars, riskStars };
 }
 
 /**
@@ -172,9 +167,8 @@ function metadataHeaders(opts: {
     'X-AiTake-Asof-Gps':     opts.asOfGps == null ? '' : String(opts.asOfGps),
   };
   if (opts.classification) {
-    h['X-AiTake-Growth-Label'] = opts.classification.growthLabel;
-    h['X-AiTake-Risk-Label']   = opts.classification.riskLabel;
-    h['X-AiTake-Quadrant']     = opts.classification.quadrant;
+    h['X-AiTake-Growth-Stars'] = String(opts.classification.growthStars);
+    h['X-AiTake-Risk-Stars']   = String(opts.classification.riskStars);
   }
   if (opts.rateLimited)   h['X-AiTake-Rate-Limited']    = 'true';
   if (opts.rateLimitNote) h['X-AiTake-Rate-Limit-Note'] = opts.rateLimitNote;

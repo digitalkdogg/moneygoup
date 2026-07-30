@@ -1,5 +1,5 @@
 import { createLogger } from '@/utils/logger';
-import { getStockDataForPrediction, runPredictionInternal } from '@/utils/stockDataHelper';
+import { getStockDataForPrediction, runPredictionInternal, runFallbackPrediction } from '@/utils/stockDataHelper';
 import { calculateGpsScore } from '@/utils/gps';
 import { fetchRankerSharedMacro, scoreWithRanker, type RankerScoreMap } from '@/utils/rankerInference';
 import { runLightModelFilter } from '@/utils/lightModelFilter';
@@ -152,7 +152,7 @@ export async function analyzeStocks(
         if (stock.error || stock.tradingSignalScore === undefined) {
             return false;
         }
-        if (stock.historyRows !== undefined && stock.historyRows < 100) {
+        if (stock.historyRows !== undefined && stock.historyRows < 30) {
             return false;
         }
         return stock.tradingSignalScore >= signalScoreFloor;
@@ -161,22 +161,23 @@ export async function analyzeStocks(
     // Trending pre-filter: same as above MINUS the signal-score floor. Trending
     // is a coverage feed — we want every Yahoo-trending ticker to get a GPS
     // row so the /search trending card shows a score, even when the technical
-    // signal is bearish. Still require valid enrichment + 100 days history so
-    // MC can actually run.
+    // signal is bearish. Still require valid enrichment + 30 days history so
+    // the prediction API (which falls back to statistical model below 365 days)
+    // can actually run.
     const trendingPreFiltered = stocks.filter(stock => {
         if (!trendingTickers.has(stock.ticker)) return false;
         if (stock.error || stock.tradingSignalScore === undefined) return false;
-        if (stock.historyRows !== undefined && stock.historyRows < 100) return false;
+        if (stock.historyRows !== undefined && stock.historyRows < 30) return false;
         return true;
     });
 
     // Sector-leader pre-filter: same bypass as trending — skip the signal-score
     // floor so top sector stocks get GPS coverage even when technicals are
-    // bearish. Still require valid enrichment + 100 days history.
+    // bearish. Still require valid enrichment + 30 days history.
     const sectorLeaderPreFiltered = stocks.filter(stock => {
         if (!sectorLeaderTickers.has(stock.ticker)) return false;
         if (stock.error || stock.tradingSignalScore === undefined) return false;
-        if (stock.historyRows !== undefined && stock.historyRows < 100) return false;
+        if (stock.historyRows !== undefined && stock.historyRows < 30) return false;
         return true;
     });
 
@@ -378,12 +379,12 @@ export async function analyzeStocks(
                     return;
                 }
 
-                // Python's --outlook='all' returns every horizon in one call.
-                // Previously we spawned Python 4× per stock (one per horizon) and
-                // paid the TF/Keras cold-load cost 4× for a computation the
-                // script always does in full anyway. Collapsing to a single
-                // spawn is the largest perf win in the sync pipeline.
-                const allHorizons = await runPredictionInternal(stock.ticker, payload, 'all', { skipNarrator: true });
+                // Route short-history tickers (30–199 rows) to the statistical
+                // fallback instead of the full TF/Keras model which needs >= 200.
+                const usesFallback = payload.dataQuality?.shortHistory === true;
+                const allHorizons = usesFallback
+                  ? await runFallbackPrediction(stock.ticker, payload, 'all')
+                  : await runPredictionInternal(stock.ticker, payload, 'all', { skipNarrator: true });
                 if (!allHorizons || allHorizons.error) return;
 
                 const predictedChangePct = allHorizons.predicted_change_pct_1m;

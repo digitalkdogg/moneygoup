@@ -24,14 +24,9 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 
-type GrowthLabel = 'Low Growth' | 'Moderate' | 'Growth' | 'High Growth';
-type RiskLabel   = 'Low Risk'   | 'Moderate Risk' | 'High Risk' | 'Speculative';
-type Quadrant    = 'Quality Growth' | 'Speculative' | 'Defensive' | 'Caution';
-
 interface StockClassification {
-  growthLabel: GrowthLabel;
-  riskLabel:   RiskLabel;
-  quadrant:    Quadrant;
+  growthStars: number; // 1–5: 1 = almost no growth, 5 = exceptional
+  riskStars:   number; // 1–5: 1 = very safe, 5 = speculative
 }
 
 interface AiTakeMeta {
@@ -56,63 +51,75 @@ type PanelState =
   | { kind: 'error';     message: string };
 
 function readMetadataFromHeaders(res: Response): AiTakeMeta {
-  const growthLabel = res.headers.get('X-AiTake-Growth-Label') as GrowthLabel | null;
-  const riskLabel   = res.headers.get('X-AiTake-Risk-Label')   as RiskLabel   | null;
-  const quadrant    = res.headers.get('X-AiTake-Quadrant')     as Quadrant    | null;
+  const growthStars = Number(res.headers.get('X-AiTake-Growth-Stars') ?? 0);
+  const riskStars   = Number(res.headers.get('X-AiTake-Risk-Stars')   ?? 0);
   return {
     cached:         res.headers.get('X-AiTake-Cached') === 'true',
     generatedAt:    res.headers.get('X-AiTake-Generated-At') ?? new Date().toISOString(),
     model:          res.headers.get('X-AiTake-Model') ?? '',
     asOfGps:        res.headers.get('X-AiTake-Asof-Gps') || null,
-    classification: growthLabel && riskLabel && quadrant
-      ? { growthLabel, riskLabel, quadrant }
-      : null,
+    classification: growthStars > 0 && riskStars > 0 ? { growthStars, riskStars } : null,
     rateLimited:    res.headers.get('X-AiTake-Rate-Limited') === 'true',
     rateLimitNote:  res.headers.get('X-AiTake-Rate-Limit-Note') ?? undefined,
   };
 }
 
-const GROWTH_STYLES: Record<GrowthLabel, string> = {
-  'Low Growth':  'bg-gray-100  text-gray-600  border-gray-200',
-  'Moderate':    'bg-blue-50   text-blue-700  border-blue-200',
-  'Growth':      'bg-green-50  text-green-700 border-green-200',
-  'High Growth': 'bg-emerald-50 text-emerald-700 border-emerald-300',
+const GROWTH_TIPS: Record<number, string> = {
+  1: 'Almost no growth potential — revenue flat or declining, weak analyst targets, model sees minimal upside.',
+  2: 'Below-average growth — limited upside expected. May suit capital preservation or income-focused investors.',
+  3: 'Modest growth signals — some positive indicators but not enough to stand out.',
+  4: 'Solid growth signals — revenue expanding, analysts bullish, model predicts meaningful price appreciation.',
+  5: 'Exceptional growth potential — strong momentum across all indicators. High-conviction buy signal.',
 };
 
-const RISK_STYLES: Record<RiskLabel, string> = {
-  'Low Risk':      'bg-green-50  text-green-700  border-green-200',
-  'Moderate Risk': 'bg-amber-50  text-amber-700  border-amber-200',
-  'High Risk':     'bg-orange-50 text-orange-700 border-orange-200',
-  'Speculative':   'bg-red-50    text-red-700    border-red-200',
+const GROWTH_LABELS: Record<number, string> = {
+  1: 'Minimal growth',
+  2: 'Below-average growth',
+  3: 'Modest growth',
+  4: 'Solid growth signals',
+  5: 'Exceptional growth',
 };
 
-const QUADRANT_STYLES: Record<Quadrant, string> = {
-  'Quality Growth': 'bg-emerald-600 text-white',
-  'Speculative':    'bg-orange-500  text-white',
-  'Defensive':      'bg-slate-500   text-white',
-  'Caution':        'bg-red-600     text-white',
+const RISK_TIPS: Record<number, string> = {
+  1: 'Very safe — stable fundamentals, reasonable valuation, no major warning signals.',
+  2: 'Low risk — minor concerns but nothing alarming. Suitable for most portfolios.',
+  3: 'Moderate risk — some valuation or signal concerns, but typical for a healthy mid-cap or large-cap.',
+  4: 'High risk — stretched valuation, weakening signal, or earnings uncertainty. Position sizing matters here.',
+  5: 'Speculative — significant risk across multiple fronts. High potential reward, but equally high potential loss.',
 };
 
-const QUADRANT_TIPS: Record<Quadrant, string> = {
-  'Quality Growth': 'Strong growth outlook with manageable risk. Solid fundamentals and positive momentum point to a stock worth serious consideration.',
-  'Speculative':    'High growth potential but elevated risk. Could outperform significantly — or disappoint. Best suited for investors comfortable with volatility.',
-  'Defensive':      'Lower growth expectations but also lower risk. Tends to hold value in downturns. Good fit for capital preservation or a portfolio anchor.',
-  'Caution':        'Weak growth signals combined with elevated risk. The data suggests limited upside with meaningful downside. Warrants extra scrutiny before investing.',
+const RISK_LABELS: Record<number, string> = {
+  1: 'Very safe',
+  2: 'Low risk',
+  3: 'Moderate risk',
+  4: 'High risk',
+  5: 'Speculative',
 };
 
-const GROWTH_TIPS: Record<GrowthLabel, string> = {
-  'Low Growth':  'Revenue growth, analyst targets, and our prediction model all point to limited upside in the near term.',
-  'Moderate':    'Modest growth signals — some positive indicators but not enough to stand out. May suit income-focused or value investors.',
-  'Growth':      'Solid growth signals across revenue trends, analyst targets, and model prediction. Above-average upside potential.',
-  'High Growth': 'Strong growth signals on multiple dimensions. Revenue expanding, analysts bullish, and model predicts meaningful price appreciation.',
-};
+function riskPipColor(stars: number): string {
+  if (stars <= 2) return '#16a34a';
+  if (stars === 3) return '#d97706';
+  return '#dc2626';
+}
 
-const RISK_TIPS: Record<RiskLabel, string> = {
-  'Low Risk':      'Stable fundamentals, reasonable valuation, and no major warning signals. Lower likelihood of a sharp drawdown.',
-  'Moderate Risk': 'Some risk factors present — valuation, signal, or earnings quality — but nothing extreme. Typical of a healthy mid-cap or established large-cap.',
-  'High Risk':     'Multiple elevated risk factors: stretched valuation, weakening signal, or earnings uncertainty. Position sizing and stop-losses matter here.',
-  'Speculative':   'Significant risk on several fronts — negative earnings, bearish signal, or extreme valuation. High potential reward, but equally high potential loss.',
-};
+function PipBar({ filled, filledColor }: { filled: number; filledColor: string }) {
+  return (
+    <span className="flex gap-1">
+      {Array.from({ length: 5 }, (_, i) => (
+        <span
+          key={i}
+          style={{
+            display: 'inline-block',
+            width: '14px',
+            height: '6px',
+            borderRadius: '2px',
+            backgroundColor: i < filled ? filledColor : '#e5e7eb',
+          }}
+        />
+      ))}
+    </span>
+  );
+}
 
 function Tooltip({ text, children }: { text: string; children: React.ReactNode }) {
   return (
@@ -131,24 +138,22 @@ function Tooltip({ text, children }: { text: string; children: React.ReactNode }
 }
 
 function ClassificationBadges({ c }: { c: StockClassification }) {
+  const riskColor = riskPipColor(c.riskStars);
   return (
-    <div className="flex flex-wrap items-center gap-2 mb-3">
-      {/* Quadrant — primary pill */}
-      <Tooltip text={QUADRANT_TIPS[c.quadrant]}>
-        <span className={`text-xs font-bold px-2.5 py-1 rounded-full cursor-default ${QUADRANT_STYLES[c.quadrant]}`}>
-          {c.quadrant}
-        </span>
+    <div className="flex flex-col gap-1.5 mb-3">
+      <Tooltip text={GROWTH_TIPS[c.growthStars] ?? ''}>
+        <div className="flex items-center gap-3 cursor-default">
+          <span className="text-xs font-bold text-gray-500 uppercase tracking-wide w-12">Growth</span>
+          <PipBar filled={c.growthStars} filledColor="#16a34a" />
+          <span className="text-xs text-gray-600">{GROWTH_LABELS[c.growthStars] ?? ''}</span>
+        </div>
       </Tooltip>
-      {/* Growth + Risk — secondary outline badges */}
-      <Tooltip text={GROWTH_TIPS[c.growthLabel]}>
-        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded border cursor-default ${GROWTH_STYLES[c.growthLabel]}`}>
-          {c.growthLabel}
-        </span>
-      </Tooltip>
-      <Tooltip text={RISK_TIPS[c.riskLabel]}>
-        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded border cursor-default ${RISK_STYLES[c.riskLabel]}`}>
-          {c.riskLabel}
-        </span>
+      <Tooltip text={RISK_TIPS[c.riskStars] ?? ''}>
+        <div className="flex items-center gap-3 cursor-default">
+          <span className="text-xs font-bold text-gray-500 uppercase tracking-wide w-12">Risk</span>
+          <PipBar filled={c.riskStars} filledColor={riskColor} />
+          <span className="text-xs font-medium" style={{ color: riskColor }}>{RISK_LABELS[c.riskStars] ?? ''}</span>
+        </div>
       </Tooltip>
     </div>
   );

@@ -56,9 +56,10 @@ export async function getStockDataForPrediction(ticker: string, wbData?: any) {
     volume: (r.volume as number) ?? 0,
   }));
 
-  if (historicalData.length < 200) {
-  throw new Error(`Insufficient data for ${ticker}: ${historicalData.length} rows, need >= 200.`);
+  if (historicalData.length < 30) {
+    throw new Error(`Insufficient data for ${ticker}: ${historicalData.length} rows, need >= 30.`);
   }
+  const shortHistory = historicalData.length < 200;
 
   const price = (summary as any).price || {};
 
@@ -93,7 +94,7 @@ export async function getStockDataForPrediction(ticker: string, wbData?: any) {
       // Add other macro series if needed, but keeping it minimal for speed
     },
     optionsData: optionsRes || { available: false },
-    dataQuality: { historyDays: historicalData.length }
+    dataQuality: { historyDays: historicalData.length, shortHistory }
   };
 }
 
@@ -117,6 +118,31 @@ export function runPredictionInternal(ticker: string, payload: any, outlook: str
         try { unlinkSync(tempFile); } catch {}
         if (code !== 0) return reject(new Error(`Exit ${code}: ${stderr}`));
         try { resolve(JSON.parse(stdout)); } catch { reject(new Error('Invalid JSON output from python')); }
+      });
+    } catch (err) {
+      try { unlinkSync(tempFile); } catch {}
+      reject(err);
+    }
+  });
+}
+
+export function runFallbackPrediction(ticker: string, payload: any, outlook: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const tempFile = join(tmpdir(), `tf_fallback_input_${randomUUID()}.json`);
+    try {
+      writeFileSync(tempFile, JSON.stringify(payload));
+      const python = spawn(getPythonExecutable(), [
+        'scripts/predict_fallback.py', ticker,
+        '--input_file', tempFile,
+        '--outlook', outlook,
+      ], { env: { ...process.env, OLLAMA_ENABLED: 'false' } });
+      let stdout = '', stderr = '';
+      python.stdout.on('data', d => { stdout += d; });
+      python.stderr.on('data', d => { stderr += d; });
+      python.on('close', code => {
+        try { unlinkSync(tempFile); } catch {}
+        if (code !== 0) return reject(new Error(`Fallback exit ${code}: ${stderr}`));
+        try { resolve(JSON.parse(stdout)); } catch { reject(new Error('Fallback: invalid JSON')); }
       });
     } catch (err) {
       try { unlinkSync(tempFile); } catch {}

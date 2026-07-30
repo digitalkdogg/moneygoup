@@ -160,6 +160,44 @@ def get_db_connection():
         password=DB_PASSWORD,
         database=DB_DATABASE,
     )
+
+
+# ---------------------------------------------------------------------------
+# News helper — fetch recent scored articles for a ticker from the news table.
+# Returns a list compatible with the newsArticles format that predict_core's
+# calculate_news_sentiment() expects (same shape as /search/[ticker]/news).
+# Falls back to an empty list if the ticker column or rows don't exist yet.
+# ---------------------------------------------------------------------------
+def fetch_ticker_news(ticker: str) -> list[dict]:
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT title, link, pub_date, sentiment_score
+            FROM   news
+            WHERE  ticker = %s
+              AND  pub_date >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+              AND  sentiment_score IS NOT NULL
+            ORDER  BY pub_date DESC
+            LIMIT  10
+        """, (ticker,))
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        articles = []
+        for row in rows:
+            pub = row['pub_date']
+            articles.append({
+                'title':          row['title'] or '',
+                'publishedAt':    pub.isoformat() if pub else None,
+                'sentiment_score': float(row['sentiment_score']),
+            })
+        return articles
+    except Exception as exc:
+        # Non-fatal — ticker or sentiment_score column may not exist yet on
+        # older deployments. Log quietly and let the prediction run without news.
+        print(f"  [news] fetch skipped for {ticker}: {exc}")
+        return []
  
  
 # ---------------------------------------------------------------------------
@@ -237,7 +275,15 @@ def run_prediction(ticker: str, stock_data: dict) -> dict | None:
     print(f"  [pred] Running prediction model for {ticker}...")
     try:
         url = f"{INTERNAL_API_URL}/api/prediction/{ticker}?outlook=all"
-        response = post_with_auth(url, stock_data)
+
+        # Attach recent news articles so the Python model gets the same
+        # NewsSentiment signal that the on-demand /search/[ticker] path uses.
+        news_articles = fetch_ticker_news(ticker)
+        payload = {**stock_data, 'newsArticles': news_articles} if news_articles else stock_data
+        if news_articles:
+            print(f"  [news] {ticker}: {len(news_articles)} scored articles attached")
+
+        response = post_with_auth(url, payload)
         response.raise_for_status()
         result = response.json()
 

@@ -1001,7 +1001,7 @@ def _print_run_summary(
     print(f"    Popular-ETF holdings merged:     {_fmt_int(meta.get('etfPopularHoldingsCount'))}")
     print(f"    Rejected at enrichment:          {_fmt_int(debug.get('rejectedEnrichment'))}")
     print(f"    Rejected on signal score:        {_fmt_int(debug.get('rejectedSignalScore'))}")
-    print(f"    Rejected on history (<100 days): {_fmt_int(debug.get('rejectedHistory'))}")
+    print(f"    Rejected on history (<30 days):  {_fmt_int(debug.get('rejectedHistory'))}")
     print(f"    Passed to analyzer:              {_fmt_int(debug.get('passedToAnalyzer'))}")
     print(f"    Rejected by ranker:              {_fmt_int(debug.get('rejectedByRanker'))}")
     ranker_survivors = debug.get('rankerSurvivorCount')

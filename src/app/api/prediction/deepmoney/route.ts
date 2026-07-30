@@ -13,6 +13,19 @@ import { calculateTechnicalIndicators } from '@/utils/technicalIndicators';
 import { XMLParser } from 'fast-xml-parser';
 import Sentiment from 'sentiment';
 import { analyzeStocks } from './analyzer';
+
+// Financial sentiment lexicon — mirrors src/app/api/stock_data/[ticker]/news/route.ts
+// exactly so deepmoney-persisted articles are scored on the same scale.
+const FINANCIAL_LEXICON: Record<string, number> = {
+    beat: 3, beats: 3, surge: 3, growth: 2, backlog: 1,
+    demand: 1, bullish: 3, bearish: -3, upgrade: 3, downgrade: -3,
+    'high-growth': 3, acceleration: 2, aligning: 1, drops: -2,
+    tumbles: -3, soars: 3, rally: 3, plunges: -3, lower: -1,
+    higher: 1, outperform: 3, underperform: -3, buy: 2, sell: -2,
+    hold: 0, profit: 2, loss: -2, miss: -3, misses: -3,
+    'beat expectations': 4, 'missed expectations': -4,
+    q1: 0, q2: 0, q3: 0, q4: 0,
+};
 import { checkApprovalGuard } from '@/utils/approvalStatus';
 import { performETFDiscovery } from '@/utils/etfDiscovery';
 import { getUserStrategy, resolveStrategy, DEFAULT_STRATEGY } from '@/utils/strategy';
@@ -24,7 +37,7 @@ import { getDbConnection } from '@/utils/db';
 
 const logger = createLogger('api/prediction/deepmoney');
 const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
-const sentiment = new Sentiment();
+const sentimentAnalyzer = new Sentiment();
 const xmlParser = new XMLParser();
 
 // ---------------------------------------------------------------------------
@@ -404,27 +417,36 @@ async function fetchPrimaryTickers(): Promise<PrimaryDiscoveryResult> {
  * The event_type column is added on-demand (module-level guard) so we don't
  * hammer the schema on every request.
  */
-let _newsEventTypeColumnEnsured = false;
+let _newsEventTypeColumnEnsured  = false;
+let _newsSentimentColumnEnsured  = false;
+let _newsTickerColumnEnsured     = false;
 
 async function persistNewsArticles(
     articles: RssArticle[],
     eventTypes: (string | null)[] | null,
+    ticker?: string,
 ): Promise<void> {
     if (articles.length === 0) return;
     const pool = await getDbConnection();
 
+    // Ensure optional columns exist exactly once per process lifetime.
     if (!_newsEventTypeColumnEnsured) {
-        try {
-            await pool.query("ALTER TABLE news ADD COLUMN event_type VARCHAR(32) NULL");
-        } catch (err: any) {
-            // MySQL errno 1060 = duplicate column — expected on re-runs.
-            if (err?.errno !== 1060) {
-                logger.warn('news.event_type column ensure failed', { error: String(err) });
-                // Bail out — without the column, the INSERT below will fail.
-                return;
-            }
+        try { await pool.query("ALTER TABLE news ADD COLUMN event_type VARCHAR(32) NULL"); } catch (e: any) {
+            if (e?.errno !== 1060) { logger.warn('news.event_type column ensure failed', { error: String(e) }); return; }
         }
         _newsEventTypeColumnEnsured = true;
+    }
+    if (!_newsSentimentColumnEnsured) {
+        try { await pool.query("ALTER TABLE news ADD COLUMN sentiment_score FLOAT NULL"); } catch (e: any) {
+            if (e?.errno !== 1060) logger.warn('news.sentiment_score column ensure failed', { error: String(e) });
+        }
+        _newsSentimentColumnEnsured = true;
+    }
+    if (!_newsTickerColumnEnsured) {
+        try { await pool.query("ALTER TABLE news ADD COLUMN ticker VARCHAR(10) NULL"); } catch (e: any) {
+            if (e?.errno !== 1060) logger.warn('news.ticker column ensure failed', { error: String(e) });
+        }
+        _newsTickerColumnEnsured = true;
     }
 
     // Normalise a raw <pubDate> string ("Tue, 14 Jul 2026 12:00:00 GMT") into
@@ -440,29 +462,36 @@ async function persistNewsArticles(
     for (let i = 0; i < articles.length; i++) {
         const a = articles[i];
         if (!a.link) continue;
-        const eventType = eventTypes ? (eventTypes[i] ?? null) : null;
-        const title  = (a.title || a.text).slice(0, 512);
-        const link   = a.link.slice(0, 1024);
-        const source = a.source ? a.source.slice(0, 255) : null;
+
+        const eventType      = eventTypes ? (eventTypes[i] ?? null) : null;
+        const title          = (a.title || a.text).slice(0, 512);
+        const link           = a.link.slice(0, 1024);
+        const source         = a.source ? a.source.slice(0, 255) : null;
+        const tickerVal      = ticker ?? null;
+
+        // Score article sentiment using the same lexicon as /search/[ticker]/news.
+        const sentimentResult = sentimentAnalyzer.analyze(a.text, { extras: FINANCIAL_LEXICON });
+        const sentimentScore  = sentimentResult.comparative; // normalized, ~[-1, +1]
+
         try {
             await pool.query(
-                `INSERT INTO news (title, link, pub_date, source, event_type)
-                 VALUES (?, ?, ?, ?, ?)
+                `INSERT INTO news (title, link, pub_date, source, event_type, sentiment_score, ticker)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)
                  ON DUPLICATE KEY UPDATE
-                     title      = VALUES(title),
-                     pub_date   = COALESCE(VALUES(pub_date), pub_date),
-                     source     = COALESCE(VALUES(source), source),
-                     event_type = COALESCE(VALUES(event_type), event_type)`,
-                [title, link, toMysqlDate(a.pubDate), source, eventType],
+                     title           = VALUES(title),
+                     pub_date        = COALESCE(VALUES(pub_date), pub_date),
+                     source          = COALESCE(VALUES(source), source),
+                     event_type      = COALESCE(VALUES(event_type), event_type),
+                     sentiment_score = VALUES(sentiment_score),
+                     ticker          = COALESCE(ticker, VALUES(ticker))`,
+                [title, link, toMysqlDate(a.pubDate), source, eventType, sentimentScore, tickerVal],
             );
             written += 1;
         } catch (err) {
-            // Silent per-row failure — mainly guards against oversized strings
-            // or transient DB errors that shouldn't nuke the whole batch.
             logger.warn('news row insert failed', { link, error: String(err) });
         }
     }
-    logger.info('news persisted', { attempted: articles.length, written });
+    logger.info('news persisted', { attempted: articles.length, written, ticker: ticker ?? 'market-wide' });
 }
 
 /**
@@ -476,19 +505,30 @@ async function fetchSecondaryTickers(primaryTickers: Set<string>): Promise<Set<s
     // mention pool before any downstream gate fires; cost is ~2x outbound
     // Yahoo RSS requests during the discovery pass.
     const MAX_SECONDARY = 60;
-    const secondaryUrls = Array.from(primaryTickers).slice(0, MAX_SECONDARY).map(
+    const tickerList    = Array.from(primaryTickers).slice(0, MAX_SECONDARY);
+    const secondaryUrls = tickerList.map(
         (ticker) => `${YAHOO_TICKER_FEED_BASE}${encodeURIComponent(ticker)}`
     );
 
-    const results = await Promise.allSettled(secondaryUrls.map(fetchFeed));
+    const results    = await Promise.allSettled(secondaryUrls.map(fetchFeed));
     const allTickers = new Set<string>(primaryTickers);
 
-    for (const result of results) {
-        if (result.status === 'fulfilled' && result.value) {
-            const text = extractTextFromRSS(result.value);
-            for (const ticker of extractTickers(text)) {
-                allTickers.add(ticker);
-            }
+    for (let i = 0; i < results.length; i++) {
+        const result = results[i];
+        if (result.status !== 'fulfilled' || !result.value) continue;
+
+        const xml        = result.value;
+        const tickerSym  = tickerList[i];
+
+        // Ticker discovery (unchanged behaviour).
+        for (const t of extractTickers(extractTextFromRSS(xml))) allTickers.add(t);
+
+        // Persist per-ticker articles with their ticker association + sentiment score.
+        const articles = extractArticlesFromRSS(xml, tickerSym);
+        if (articles.length > 0) {
+            persistNewsArticles(articles, null, tickerSym).catch(err =>
+                logger.warn(`news persist failed for ${tickerSym}`, { error: String(err) })
+            );
         }
     }
     return allTickers;
@@ -1130,9 +1170,9 @@ export async function GET(request: NextRequest) {
                 debug: {
                     rejectedEnrichment: enrichedStocks.filter(s => s.error).length,
                     rejectedSignalScore: enrichedStocks.filter(s => !s.error && (s.tradingSignalScore === undefined || s.tradingSignalScore < algorithm.signalScoreFloor)).length,
-                    rejectedHistory: enrichedStocks.filter(s => !s.error && s.tradingSignalScore !== undefined && s.tradingSignalScore >= algorithm.signalScoreFloor && s.historyRows < 100).length,
-                    passedToAnalyzer: enrichedStocks.filter(s => !s.error && s.tradingSignalScore !== undefined && s.tradingSignalScore >= algorithm.signalScoreFloor && s.historyRows >= 100).length,
-                    rejectedByRanker: enrichedStocks.filter(s => !s.error && s.tradingSignalScore !== undefined && s.tradingSignalScore >= algorithm.signalScoreFloor && s.historyRows >= 100).length - filteredStocks.length,
+                    rejectedHistory: enrichedStocks.filter(s => !s.error && s.tradingSignalScore !== undefined && s.tradingSignalScore >= algorithm.signalScoreFloor && s.historyRows < 30).length,
+                    passedToAnalyzer: enrichedStocks.filter(s => !s.error && s.tradingSignalScore !== undefined && s.tradingSignalScore >= algorithm.signalScoreFloor && s.historyRows >= 30).length,
+                    rejectedByRanker: enrichedStocks.filter(s => !s.error && s.tradingSignalScore !== undefined && s.tradingSignalScore >= algorithm.signalScoreFloor && s.historyRows >= 30).length - filteredStocks.length,
                     rankerSurvivorCount,
                     rankerFellThrough,
                     lightModelPassed:   lightModelPassedCount,
