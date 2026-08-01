@@ -335,9 +335,7 @@ async function fetchWorldBankData(forceRefresh: boolean = false): Promise<any> {
 
 async function fetchOhlcv(ticker: string) {
   const fiveYearsAgo = new Date(Date.now() - 5 * 365.25 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const now = new Date();
-  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  const today = yesterday.toISOString().slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
 
   const chartResult = await yahooFinance.chart(ticker, { period1: fiveYearsAgo, period2: today, interval: '1d' });
   const rows = chartResult.quotes;
@@ -376,9 +374,7 @@ async function fetchMacroSeries(sym: string): Promise<{ date: string; close: num
 
   try {
     const fiveYearsAgo = new Date(Date.now() - 5 * 365.25 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    const now = new Date();
-    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const today = yesterday.toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
     const chartResult = await yahooFinance.chart(sym, { period1: fiveYearsAgo, period2: today, interval: '1d' });
     const rows = chartResult.quotes;
 
@@ -524,7 +520,7 @@ export async function GET(
     const analystTargetLow    = safeNum(finData.targetLowPrice);
     const analystOpinionCount = safeNum(finData.numberOfAnalystOpinions) ?? 0;
     const recommendationMean  = safeNum(finData.recommendationMean);
-    const currentPrice        = safeNum(price.regularMarketPrice);
+    const currentPrice        = safeNum(liveQuote.regularMarketPrice ?? price.regularMarketPrice);
     const analystUpside       = analystTargetMean && currentPrice && analystTargetMean > 0 ? (analystTargetMean - currentPrice) / currentPrice : 0;
     
     // Fallback for fiftyTwoWeekChange: calculate from historicalData if missing

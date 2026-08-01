@@ -608,17 +608,29 @@ export default function StockPrediction({
   useEffect(() => {
     if (!prefetchedPrediction) return
     if (step !== 'idle') return
+
+    // Reanchor % changes to the live price so the display stays accurate even
+    // when the cached prediction was written hours ago at a different price.
+    const reanchorPct = (predictedPrice: number | null | undefined): number => {
+      if (predictedPrice == null || currentPrice <= 0) return 0
+      return (predictedPrice - currentPrice) / currentPrice * 100
+    }
+    const p1w = prefetchedPrediction.predicted_price_1w ?? null
+    const p1m = prefetchedPrediction.predicted_price_1m ?? null
+    const p6m = prefetchedPrediction.predicted_price_6m ?? null
+    const p1y = prefetchedPrediction.predicted_price_1y ?? null
+
     const inflated: PredictionResult = {
       ticker,
-      regularMarketPrice:      prefetchedPrediction.regularMarketPrice      ?? currentPrice,
-      predicted_price_1w:      prefetchedPrediction.predicted_price_1w      ?? 0,
-      predicted_price_1m:      prefetchedPrediction.predicted_price_1m      ?? 0,
-      predicted_price_6m:      prefetchedPrediction.predicted_price_6m      ?? 0,
-      predicted_price_1y:      prefetchedPrediction.predicted_price_1y      ?? 0,
-      predicted_change_pct_1w: prefetchedPrediction.predicted_change_pct_1w ?? 0,
-      predicted_change_pct_1m: prefetchedPrediction.predicted_change_pct_1m ?? 0,
-      predicted_change_pct_6m: prefetchedPrediction.predicted_change_pct_6m ?? 0,
-      predicted_change_pct_1y: prefetchedPrediction.predicted_change_pct_1y ?? 0,
+      regularMarketPrice:      currentPrice,
+      predicted_price_1w:      p1w ?? 0,
+      predicted_price_1m:      p1m ?? 0,
+      predicted_price_6m:      p6m ?? 0,
+      predicted_price_1y:      p1y ?? 0,
+      predicted_change_pct_1w: p1w != null ? reanchorPct(p1w) : (prefetchedPrediction.predicted_change_pct_1w ?? 0),
+      predicted_change_pct_1m: p1m != null ? reanchorPct(p1m) : (prefetchedPrediction.predicted_change_pct_1m ?? 0),
+      predicted_change_pct_6m: p6m != null ? reanchorPct(p6m) : (prefetchedPrediction.predicted_change_pct_6m ?? 0),
+      predicted_change_pct_1y: p1y != null ? reanchorPct(p1y) : (prefetchedPrediction.predicted_change_pct_1y ?? 0),
       confidence_score_1w:     prefetchedPrediction.confidence_score_1w     ?? 0,
       confidence_score_1m:     prefetchedPrediction.confidence_score_1m     ?? 0,
       confidence_score_6m:     prefetchedPrediction.confidence_score_6m     ?? 0,
