@@ -291,7 +291,6 @@ const AiTakePanel: React.FC<AiTakePanelProps> = ({ ticker }) => {
 
       {hasBody && (
         <>
-          {meta?.classification && <ClassificationBadges c={meta.classification} />}
           <p className="text-gray-800 leading-relaxed whitespace-pre-line">
             {bodyText}
             {isStreaming && (
