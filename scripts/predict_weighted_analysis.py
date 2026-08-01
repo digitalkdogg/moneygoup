@@ -268,9 +268,16 @@ def predict(ticker, input_data):
     feat_df['Regime_x_RS_SPY'] = (feat_df.get('Regime_2', 0) *
                                    feat_df.get('RS_vs_SPY_20d', 0).fillna(0))
 
+    # CS-model regime interaction features — must mirror train_long_term_cs_v2.py
+    feat_df['VIX_x_HYG_LQD']   = feat_df.get('VIX', 0) * feat_df.get('HYG_LQD_Ratio', 0)
+    feat_df['VIX_x_CurveSlope'] = feat_df.get('VIX', 0) * feat_df.get('CurveSlope_10M3M', 0)
+    feat_df['HYG_x_RS_SPY']     = feat_df.get('HYG_LQD_Ratio', 0) * feat_df.get('RS_vs_SPY_20d', 0)
+    feat_df['VIX_x_HistVol60']  = feat_df.get('VIX', 0) * feat_df.get('HistVol_60', 0)
+
     regime_cols = ([f'Regime_{i}' for i in range(4)] +
                    [f'Regime_Prob_{i}' for i in range(4)] +
-                   ['Regime_x_PC_Ratio', 'Regime_x_HYG_LQD', 'Regime_x_RS_SPY'])
+                   ['Regime_x_PC_Ratio', 'Regime_x_HYG_LQD', 'Regime_x_RS_SPY',
+                    'VIX_x_HYG_LQD', 'VIX_x_CurveSlope', 'HYG_x_RS_SPY', 'VIX_x_HistVol60'])
 
     extended_feature_cols = FEATURE_COLUMNS + [col for col in regime_cols if col not in FEATURE_COLUMNS]
     for col in extended_feature_cols:
@@ -741,6 +748,7 @@ def predict(ticker, input_data):
 # function handles the output-level fixes that don't touch predicted_price
 # but do touch predicted_direction_{h} and confidence_score_{h}.
 V4_DEADBAND_PCT     = 0.02   # |Δ| < 2% ⇒ predicted_direction = 'neutral'
+V4_DEADBAND_BY_HORIZON = {'1w': 0.02, '1m': 0.02, '6m': 0.02, '1y': 0.02}
 V4_VIX_BASELINE     = 20.0   # VIX at/below this ⇒ no confidence nerf (v4 only)
 V4_VIX_STRESS_SCALE = 30.0   # (vix - 20) / 30 ⇒ 1.0 stress at VIX=50 (v4 only)
 V4_BETA_BASELINE    = 1.5    # beta at this level ⇒ full stress absorption (v4 only)
@@ -782,8 +790,11 @@ def _apply_variant_adjustments(result: dict, feat_df, current_price: float,
     # ── Direction deadband (v4 + v5) ────────────────────────────────────────
     # In v3, we still populate predicted_direction_{h} but without the deadband
     # (any non-zero predicted move ⇒ up/down; exactly-flat ⇒ neutral).
-    _deadband = V4_DEADBAND_PCT if variant in ('v4', 'v5') else 0.0
     for h in ('1w', '1m', '6m', '1y'):
+        if variant in ('v4', 'v5'):
+            _deadband = V4_DEADBAND_BY_HORIZON.get(h, V4_DEADBAND_PCT)
+        else:
+            _deadband = 0.0
         pp = result.get(f'predicted_price_{h}')
         if not (isinstance(pp, (int, float)) and current_price and current_price > 0):
             result[f'predicted_direction_{h}'] = 'neutral'

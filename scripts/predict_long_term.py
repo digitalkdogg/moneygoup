@@ -241,11 +241,24 @@ def _predict_with_cs_model(
     cv_mae  = float(cv_mape / 100.0 * current_price)
     cv_rmse = cv_mae * 1.253
 
-    cs6m, cs_breakdown = confidence_score(cv_mape, history_years, imputed_fields, analyst_count,
+    # The CS model measures cv_mape in return-space (typically 20-40%), but
+    # confidence_score()'s thresholds were calibrated for price-space MAPE
+    # (where <5% is achievable in a week). Passing the raw value always gives
+    # 0/40 pts on the cv_mape component for every stock.
+    #
+    # Normalize relative to the random-walk baseline (vol × √0.5). A model
+    # matching random maps to ~10% → 30 pts. A model 30% better than random
+    # maps to ~7% → 30 pts. Clearly worse than random maps to 20%+ → 0 pts.
+    _vol_attr = feat_df.attrs.get('realized_vol_60d') if hasattr(feat_df, 'attrs') else None
+    _vol_proxy_pct = float(np.clip((_vol_attr or 0.30) * np.sqrt(0.5) * 100.0, 5.0, 50.0))
+    conf_cv_mape = float(np.clip(cv_mape / _vol_proxy_pct * 10.0, 0.0, 50.0))
+
+    cs6m, cs_breakdown = confidence_score(conf_cv_mape, history_years, imputed_fields, analyst_count,
                                           analyst_sentiment_v2=analyst_sentiment_v2,
                                           return_breakdown=True)
-    cs1y = max(0, cs6m - 15)
+    cs1y = max(0, cs6m - 10)
     cs_breakdown['cv_mape_source'] = cv_mape_source
+    cs_breakdown['conf_cv_mape']   = round(conf_cv_mape, 2)
 
     pct_6m = round((predicted_price_6m - current_price) / (current_price + 1e-9) * 100, 2)
     pct_1y = round((predicted_price_1y - current_price) / (current_price + 1e-9) * 100, 2)

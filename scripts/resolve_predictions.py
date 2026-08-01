@@ -45,14 +45,21 @@ def get_trading_day_price(symbol: str, target_date: str) -> float | None:
         print(f"Error fetching price for {symbol} on {target_date}: {e}")
         return None
 
-# v4 direction deadband — mirrors V4_DEADBAND_PCT in predict_weighted_analysis.py
-# and DIRECTION_DEADBAND_PCT in backtest_predictions.py. Predicted moves
-# smaller than this are treated as 'neutral' calls and excluded from the
-# direction-accuracy metric (NULL) rather than counted wrong.
-DIRECTION_DEADBAND_PCT = 0.02
+# Per-horizon direction deadbands — predicted moves smaller than the threshold
+# are treated as 'neutral' calls and excluded from the direction-accuracy metric
+# (NULL) rather than counted wrong. 1m is raised to 3% because the LSTM 1m
+# head produces noisier small-move predictions than the 1w or CS (6m/1y) heads.
+DIRECTION_DEADBAND_PCT = {
+    '1w': 0.02,
+    '1m': 0.02,
+    '6m': 0.02,
+    '1y': 0.02,
+}
+_DEFAULT_DEADBAND = 0.02
 
 
-def compute_accuracy_metrics(actual_price: float, predicted_price: float, price_at_prediction: float):
+def compute_accuracy_metrics(actual_price: float, predicted_price: float, price_at_prediction: float,
+                              horizon: str = ''):
     """
     Compute proximity accuracy and direction correct.
 
@@ -67,9 +74,10 @@ def compute_accuracy_metrics(actual_price: float, predicted_price: float, price_
         accuracy_pct = max(0, (1 - abs(actual_price - predicted_price) / predicted_price) * 100)
 
     # Deadband: near-flat predicted moves are 'neutral' — excluded from direction metric.
+    deadband = DIRECTION_DEADBAND_PCT.get(horizon, _DEFAULT_DEADBAND)
     if price_at_prediction > 0:
         pred_change_pct = (predicted_price - price_at_prediction) / price_at_prediction
-        if abs(pred_change_pct) < DIRECTION_DEADBAND_PCT:
+        if abs(pred_change_pct) < deadband:
             return round(accuracy_pct, 2), None
 
     # Direction accuracy
@@ -136,7 +144,7 @@ def resolve_horizon(conn, horizon: str, days_offset: int) -> tuple[int, int]:
                 continue
 
             # Compute metrics
-            accuracy_pct, direction_correct = compute_accuracy_metrics(actual_price, float(predicted_price), price_at_prediction)
+            accuracy_pct, direction_correct = compute_accuracy_metrics(actual_price, float(predicted_price), price_at_prediction, horizon=horizon)
 
             # Update record
             update_query = f"""

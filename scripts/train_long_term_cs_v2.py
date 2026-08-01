@@ -50,6 +50,56 @@ from tensorflow.keras.callbacks import EarlyStopping
 from ranker_features import FEATURE_COLUMNS as CS_FEATURE_COLUMNS, FEATURE_SET_VERSION
 from keras_wrapper import KerasModelWrapper, get_tanh_scaled_layer
 
+# Regime/macro interaction features added on top of the 82-column ranker set.
+# All are deterministic functions of columns already present in the training
+# snapshots, so no new ingest is needed.  Mirror the same computation in
+# predict_weighted_analysis.py so training and inference stay in sync.
+REGIME_INTERACTION_COLS = [
+    'VIX_x_HYG_LQD',    # market stress × credit spread
+    'VIX_x_CurveSlope',  # market stress × yield-curve slope (rate regime)
+    'HYG_x_RS_SPY',      # credit spread × relative momentum
+    'VIX_x_HistVol60',   # market stress × realized vol (beta-sensitivity proxy)
+]
+ALL_FEATURE_COLUMNS = CS_FEATURE_COLUMNS + REGIME_INTERACTION_COLS
+
+
+def add_regime_interactions(df: pd.DataFrame) -> pd.DataFrame:
+    """Compute 4 macro interaction columns in-place and return the DataFrame."""
+    df['VIX_x_HYG_LQD']   = df['VIX'] * df['HYG_LQD_Ratio']
+    df['VIX_x_CurveSlope'] = df['VIX'] * df['CurveSlope_10M3M']
+    df['HYG_x_RS_SPY']     = df['HYG_LQD_Ratio'] * df['RS_vs_SPY_20d']
+    df['VIX_x_HistVol60']  = df['VIX'] * df['HistVol_60']
+    df[REGIME_INTERACTION_COLS] = (
+        df[REGIME_INTERACTION_COLS]
+        .replace([np.inf, -np.inf], 0.0)
+        .fillna(0.0)
+    )
+    return df
+
+
+def compute_regime_weights(df: pd.DataFrame, max_weight: float = 4.0) -> np.ndarray:
+    """Return per-sample training weights that upweight rare/stressed regimes.
+
+    High VIX + low HYG/LQD ratio = credit-stress / risk-off regime.  These
+    samples are underrepresented in bull-market training windows so the model
+    rarely learns from them.  Upweighting them (up to max_weight×) forces the
+    loss surface to pay more attention to regime-shift episodes.
+
+    Normal periods stay at weight ≈ 1.0; the mean is renormalized to 1.0 so
+    the total loss magnitude is unchanged.
+    """
+    vix     = df['VIX'].values.astype(np.float32)
+    hyg_lqd = df['HYG_LQD_Ratio'].values.astype(np.float32)
+
+    vix_z   =  (vix     - vix.mean())     / (vix.std()     + 1e-8)
+    hyg_z   = -(hyg_lqd - hyg_lqd.mean()) / (hyg_lqd.std() + 1e-8)  # inverted: low = stressed
+
+    stress  = 0.6 * vix_z + 0.4 * hyg_z   # VIX dominates; HYG adds credit dimension
+    weights = 1.0 + np.clip(stress, 0.0, None)   # never downweight normal regimes
+    weights = np.clip(weights, 1.0, max_weight)
+    weights = weights / weights.mean()            # normalize: mean weight stays 1.0
+    return weights.astype(np.float32)
+
 SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 MODELS_DIR   = Path(PROJECT_ROOT) / 'models'
@@ -220,20 +270,26 @@ def main():
                     help="Output bound for 6m head via tanh × cap. 0.7 = ±70%%.")
     ap.add_argument('--cap-1y', type=float, default=1.0,
                     help="Output bound for 1y head via tanh × cap. 1.0 = ±100%%.")
+    ap.add_argument('--regime-weight-max', type=float, default=4.0,
+                    help="Maximum sample weight for high-stress regime samples. "
+                         "1.0 = no weighting (uniform). Default 4.0.")
     args = ap.parse_args()
 
     print(f"[{datetime.now().isoformat()}] Loading dataset...")
     conn = get_db(); df = load_dataset(conn); conn.close()
+    df = add_regime_interactions(df)
     n_total = len(df); n_tickers = df['ticker'].nunique()
     print(f"  rows: {n_total}  tickers: {n_tickers}  "
           f"date range: {df['snapshot_date'].min()} → {df['snapshot_date'].max()}")
+    print(f"  features: {len(ALL_FEATURE_COLUMNS)} "
+          f"({len(CS_FEATURE_COLUMNS)} base + {len(REGIME_INTERACTION_COLS)} regime interactions)")
 
     train_df, val_df = time_split(df, args.val_frac)
     print(f"  train: {len(train_df)}  val: {len(val_df)} "
           f"(cutoff: {val_df['snapshot_date'].min() if len(val_df) else 'n/a'})")
 
-    X_train = train_df[CS_FEATURE_COLUMNS].values.astype(np.float32)
-    X_val   = val_df[CS_FEATURE_COLUMNS].values.astype(np.float32)
+    X_train = train_df[ALL_FEATURE_COLUMNS].values.astype(np.float32)
+    X_val   = val_df[ALL_FEATURE_COLUMNS].values.astype(np.float32)
     Y_train = train_df[['return_126d', 'return_252d']].values.astype(np.float32)
     Y_val   = val_df[['return_126d', 'return_252d']].values.astype(np.float32)
 
@@ -246,15 +302,26 @@ def main():
           f"hidden={hidden} huber_delta={args.huber_delta} "
           f"λ_consistency={args.lambda_consistency} λ_opposite_sign={args.lambda_opposite_sign} "
           f"ratio_threshold={args.ratio_threshold} cap_6m={args.cap_6m} cap_1y={args.cap_1y}")
-    model = build_model(len(CS_FEATURE_COLUMNS), hidden, args.cap_6m, args.cap_1y, args.seed)
+    model = build_model(len(ALL_FEATURE_COLUMNS), hidden, args.cap_6m, args.cap_1y, args.seed)
     loss_fn = make_joint_loss(args.lambda_consistency, args.huber_delta, args.ratio_threshold,
                               args.lambda_opposite_sign)
     model.compile(optimizer=Adam(learning_rate=1e-3), loss=loss_fn)
 
     es = EarlyStopping(monitor='val_loss', patience=15, restore_best_weights=True, verbose=0)
-    print(f"\n[{datetime.now().isoformat()}] Training (epochs={args.epochs}, batch={args.batch_size})...")
+
+    train_weights = None
+    if args.regime_weight_max > 1.0:
+        train_weights = compute_regime_weights(train_df, max_weight=args.regime_weight_max)
+        stressed = (train_weights > 1.5).sum()
+        print(f"  regime weights: max={train_weights.max():.2f}  "
+              f"stressed (>1.5×) samples={stressed} ({100*stressed/len(train_weights):.1f}%)")
+
+    print(f"\n[{datetime.now().isoformat()}] Training (epochs={args.epochs}, batch={args.batch_size}"
+          f", regime_weight_max={args.regime_weight_max})...")
     hist = model.fit(
-        X_train_s, Y_train, validation_split=0.1,
+        X_train_s, Y_train,
+        sample_weight=train_weights,
+        validation_split=0.1,
         epochs=args.epochs, batch_size=args.batch_size,
         callbacks=[es], verbose=2,
     )
@@ -343,7 +410,7 @@ def main():
     payload = {
         'model': KerasModelWrapper(str(KERAS_PATH)),
         'scaler': scaler,
-        'feature_columns': CS_FEATURE_COLUMNS,
+        'feature_columns': ALL_FEATURE_COLUMNS,
         'feature_set_version': FEATURE_SET_VERSION,
         'target_columns': ['return_126d', 'return_252d'],
         'trained_at': datetime.now().isoformat(),
@@ -357,6 +424,7 @@ def main():
         'ratio_threshold': args.ratio_threshold,
         'cap_6m': args.cap_6m,
         'cap_1y': args.cap_1y,
+        'regime_weight_max': args.regime_weight_max,
         # Per-ticker cv_mape on the 6m head (percentage points). Consumed by
         # predict_long_term._predict_with_cs_model to replace the historical
         # 5% cv_mape heuristic with a real, per-ticker error measurement. When
@@ -371,7 +439,7 @@ def main():
     print(f"[saved] {WRAPPER_PATH}")
 
     manifest = {
-        'feature_columns': CS_FEATURE_COLUMNS,
+        'feature_columns': ALL_FEATURE_COLUMNS,
         'feature_set_version': FEATURE_SET_VERSION,
         'target_columns': ['return_126d', 'return_252d'],
         'framework': 'keras',

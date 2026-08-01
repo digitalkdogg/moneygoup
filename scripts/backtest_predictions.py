@@ -474,14 +474,20 @@ def find_actual_price(full_hist: list, target_date: date):
     return None
 
 
-# v4 direction deadband — mirrors V4_DEADBAND_PCT in predict_weighted_analysis.py.
-# A predicted move smaller than this is treated as a 'neutral' call and
-# excluded from the direction-accuracy metric (direction_correct = None)
-# rather than counted wrong. resolve_predictions.py uses the same constant.
-DIRECTION_DEADBAND_PCT = 0.02
+# Per-horizon direction deadbands — mirrors resolve_predictions.py and
+# predict_weighted_analysis.py. 1m raised to 3% to exclude noisy small-move
+# LSTM calls from the direction metric.
+DIRECTION_DEADBAND_PCT = {
+    '1w': 0.02,
+    '1m': 0.02,
+    '6m': 0.02,
+    '1y': 0.02,
+}
+_DEFAULT_DEADBAND = 0.02
 
 
-def compute_accuracy_metrics(actual_price: float, predicted_price: float, price_at_prediction: float):
+def compute_accuracy_metrics(actual_price: float, predicted_price: float, price_at_prediction: float,
+                              horizon: str = ''):
     """Mirrors resolve_predictions.compute_accuracy_metrics exactly, so
     backtested and naturally-resolved rows are scored identically.
 
@@ -498,9 +504,10 @@ def compute_accuracy_metrics(actual_price: float, predicted_price: float, price_
 
     # Deadband: if the model's predicted move is small enough to be called
     # "neutral", direction_correct is NULL — not counted against the model.
+    deadband = DIRECTION_DEADBAND_PCT.get(horizon, _DEFAULT_DEADBAND)
     if price_at_prediction > 0:
         pred_change_pct = (predicted_price - price_at_prediction) / price_at_prediction
-        if abs(pred_change_pct) < DIRECTION_DEADBAND_PCT:
+        if abs(pred_change_pct) < deadband:
             return round(accuracy_pct, 2), None
 
     predicted_direction = 1 if predicted_price > price_at_prediction else (0 if predicted_price < price_at_prediction else -1)
@@ -633,7 +640,7 @@ def backtest_one(ticker: str, as_of: str, full_hist: list, macro_full: dict, con
         actual_price = find_actual_price(full_hist, target_date)
 
         if actual_price is not None and predicted_price is not None:
-            accuracy_pct, direction_correct = compute_accuracy_metrics(actual_price, predicted_price, price_at_prediction)
+            accuracy_pct, direction_correct = compute_accuracy_metrics(actual_price, predicted_price, price_at_prediction, horizon=h)
             row[f'actual_price_{h}']       = actual_price
             row[f'accuracy_pct_{h}']       = accuracy_pct
             row[f'direction_correct_{h}']  = direction_correct
