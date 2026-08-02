@@ -70,3 +70,24 @@ export function classifyStock(ctx: ClassifyInput): StockClassification {
 
   return { growthStars, riskStars };
 }
+
+/**
+ * Simplified classifier for stock cards where only GPS score and predicted
+ * change are available. Missing valuation fields use neutral sector-average
+ * defaults so they don't artificially inflate the risk score.
+ */
+export function classifyCard(
+  gpsScore: number | null | undefined,
+  predictedChangePct: number | null | undefined,
+): StockClassification | null {
+  if (gpsScore == null) return null;
+  return classifyStock({
+    gps_score:            gpsScore,
+    predicted_change_pct: predictedChangePct ?? 0,
+    analyst_upside_pct:   10,   // neutral
+    revenue_growth_yoy:   6,    // neutral sector-average
+    trailing_pe:          20,   // neutral — avoids the <=0 "no earnings" penalty
+    price_to_book:        3,    // neutral
+    trading_signal:       'neutral',
+  });
+}

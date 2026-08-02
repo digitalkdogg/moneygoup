@@ -14,6 +14,7 @@ import {
 import { GpsTooltip } from '../GpsTooltip'
 import { BrandLogo } from '../BrandLogo'
 import { GpsCallLabel } from '../../GpsCallLabel'
+import { RiskGrowthTags } from '../RiskGrowthTags'
 
 interface PortfolioCardViewProps {
   card: PortfolioCard
@@ -72,7 +73,10 @@ export const PortfolioCardView: React.FC<PortfolioCardViewProps> = ({ card }) =>
           size={40}
         />
         <div className="flex-1 min-w-0">
-          <div className="text-xl font-bold text-gray-900 leading-none">{card.symbol}</div>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <span className="text-xl font-bold text-gray-900 leading-none">{card.symbol}</span>
+            <RiskGrowthTags gpsScore={card.gpsScore} predictedChangePct={predictionChange} size="xs" />
+          </div>
           <div className="text-xs text-gray-500 font-medium mt-1 truncate">
             {card.companyName}
           </div>

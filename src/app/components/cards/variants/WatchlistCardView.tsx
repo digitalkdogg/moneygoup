@@ -11,6 +11,7 @@ import {
   getPredictionColor,
 } from '../formatters'
 import { GpsCallLabel } from '../../GpsCallLabel'
+import { RiskGrowthTags } from '../RiskGrowthTags'
 
 interface WatchlistCardViewProps {
   card: WatchlistCard
@@ -20,7 +21,6 @@ interface WatchlistCardViewProps {
 
 export const WatchlistCardView: React.FC<WatchlistCardViewProps> = ({ card, onClick }) => {
   const predictionChange = calculatePredictionChange(card.price, card.predictedPriceHorizon ?? null)
-  const ma6mPositive = card.ma6m != null && card.ma6m > 0
   const horizonLabel = card.horizonLabel ?? '1M'
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -36,13 +36,14 @@ export const WatchlistCardView: React.FC<WatchlistCardViewProps> = ({ card, onCl
       tabIndex={onClick ? 0 : undefined}
       onClick={onClick}
       onKeyDown={handleKeyDown}
-      className="w-full h-full bg-white border border-gray-200 rounded-[10px] px-[18px] pt-4 pb-3.5 cursor-pointer hover:shadow-[0_4px_16px_rgba(0,0,0,0.09)] hover:border-gray-300 hover:-translate-y-1 transition-all duration-200 flex flex-col gap-2.5 focus-ring"
+      className="w-full h-full bg-white border border-gray-200 rounded-[10px] px-[18px] pt-2.5 pb-2 cursor-pointer hover:shadow-[0_4px_16px_rgba(0,0,0,0.09)] hover:border-gray-300 hover:-translate-y-1 transition-all duration-200 flex flex-col gap-1.5 focus-ring"
     >
       {/* Header: ticker + company | price + change */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <div className="text-[18px] font-bold text-gray-900 tracking-wide leading-tight">
-            {card.symbol}
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <span className="text-[18px] font-bold text-gray-900 tracking-wide leading-tight">{card.symbol}</span>
+            <RiskGrowthTags gpsScore={card.gpsScore} predictedChangePct={predictionChange} size="xs" />
           </div>
           <div className="text-[13px] font-semibold text-gray-500 mt-0.5 truncate">
             {card.companyName}
@@ -66,8 +67,8 @@ export const WatchlistCardView: React.FC<WatchlistCardViewProps> = ({ card, onCl
 
       <div className="h-px bg-gray-100" />
 
-      {/* Stats: GPS | Analyst | MA 6M */}
-      <div className="grid grid-cols-3 gap-1.5">
+      {/* Stats: GPS | Analyst */}
+      <div className="grid grid-cols-2 gap-1.5">
         <div>
           <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-500 mb-1">
             GPS Score
@@ -90,14 +91,6 @@ export const WatchlistCardView: React.FC<WatchlistCardViewProps> = ({ card, onCl
           )}
         </div>
 
-        <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-500 mb-1">
-            MA 6M
-          </div>
-          <div className={`text-[14px] ${ma6mPositive ? 'font-semibold text-gray-900' : 'font-medium text-gray-600'}`}>
-            {card.ma6m != null ? formatPrice(card.ma6m) : '—'}
-          </div>
-        </div>
       </div>
 
       <div className="h-px bg-gray-100 mt-auto" />
