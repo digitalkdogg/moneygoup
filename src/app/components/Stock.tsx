@@ -645,7 +645,7 @@ export default function Stock({
               <span className="text-xs font-bold text-gray-500 uppercase tracking-wide shrink-0">Last Price :</span>
               <span className="text-[12px] font-bold text-gray-800">{formatCurrency(currentPrice)}</span>
               {stockData.prevClose !== undefined && currentPrice !== null && (
-                <span className={`text-sm basis-full ${(currentPrice - stockData.prevClose) < 0 ? 'text-red-600' : 'text-[#005a00]'}`}>
+                <span className={`text-[12px] basis-full ${(currentPrice - stockData.prevClose) < 0 ? 'text-red-600' : 'text-[#005a00]'}`}>
                   {formatNumber(currentPrice - stockData.prevClose)}{' '}
                   ({formatNumber(((currentPrice - stockData.prevClose) / stockData.prevClose) * 100)}%)
                 </span>
