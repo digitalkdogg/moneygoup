@@ -82,16 +82,16 @@ export default function GrowthRiskBadges({ classification }: { classification: S
     <div className="flex flex-col gap-1.5">
       <Tooltip text={GROWTH_TIPS[classification.growthStars] ?? ''}>
         <div className="flex items-center gap-3 cursor-default">
-          <span className="text-xs font-bold text-gray-500 uppercase tracking-wide w-12">Growth</span>
+          <span className="text-[14px] font-bold text-gray-500 uppercase tracking-wide w-16">Growth</span>
           <PipBar filled={classification.growthStars} filledColor="#16a34a" />
-          <span className="text-xs text-gray-600">{GROWTH_LABELS[classification.growthStars] ?? ''}</span>
+          <span className="text-[14px] text-gray-600">{GROWTH_LABELS[classification.growthStars] ?? ''}</span>
         </div>
       </Tooltip>
       <Tooltip text={RISK_TIPS[classification.riskStars] ?? ''}>
         <div className="flex items-center gap-3 cursor-default">
-          <span className="text-xs font-bold text-gray-500 uppercase tracking-wide w-12">Risk</span>
+          <span className="text-[14px] font-bold text-gray-500 uppercase tracking-wide w-16">Risk</span>
           <PipBar filled={classification.riskStars} filledColor={rc} />
-          <span className="text-xs font-medium" style={{ color: rc }}>{RISK_LABELS[classification.riskStars] ?? ''}</span>
+          <span className="text-[14px] font-medium" style={{ color: rc }}>{RISK_LABELS[classification.riskStars] ?? ''}</span>
         </div>
       </Tooltip>
     </div>

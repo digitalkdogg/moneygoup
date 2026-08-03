@@ -642,10 +642,10 @@ export default function Stock({
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-6">
             <div className="px-4 py-2 bg-[#f7f8f6] rounded-lg border border-[#e9ede8] flex flex-wrap items-baseline gap-x-1">
-              <span className="text-xs font-bold text-gray-500 uppercase tracking-wide shrink-0">Last Price :</span>
-              <span className="text-[12px] font-bold text-gray-800">{formatCurrency(currentPrice)}</span>
+              <span className="text-[14px] font-bold text-gray-500 uppercase tracking-wide shrink-0">Last Price :</span>
+              <span className="text-[14px] font-bold text-gray-800">{formatCurrency(currentPrice)}</span>
               {stockData.prevClose !== undefined && currentPrice !== null && (
-                <span className={`text-[12px] basis-full ${(currentPrice - stockData.prevClose) < 0 ? 'text-red-600' : 'text-[#005a00]'}`}>
+                <span className={`text-[14px] basis-full ${(currentPrice - stockData.prevClose) < 0 ? 'text-red-600' : 'text-[#005a00]'}`}>
                   {formatNumber(currentPrice - stockData.prevClose)}{' '}
                   ({formatNumber(((currentPrice - stockData.prevClose) / stockData.prevClose) * 100)}%)
                 </span>
@@ -653,35 +653,35 @@ export default function Stock({
             </div>
 
             <div className="px-4 py-2 bg-[#f7f8f6] rounded-lg border border-[#e9ede8] flex flex-wrap items-baseline gap-x-1">
-              <span className="text-xs font-bold text-gray-500 uppercase tracking-wide shrink-0">Open :</span>
-              <span className="text-[12px] font-bold text-gray-800">{formatCurrency(stockData.open)}</span>
+              <span className="text-[14px] font-bold text-gray-500 uppercase tracking-wide shrink-0">Open :</span>
+              <span className="text-[14px] font-bold text-gray-800">{formatCurrency(stockData.open)}</span>
             </div>
 
             <div className="px-4 py-2 bg-[#f7f8f6] rounded-lg border border-[#e9ede8] flex flex-wrap items-baseline gap-x-1">
-              <span className="text-xs font-bold text-gray-500 uppercase tracking-wide shrink-0">Volume :</span>
-              <span className="text-[12px] font-bold text-gray-800">{formatNumber(stockData.volume, 0)}</span>
+              <span className="text-[14px] font-bold text-gray-500 uppercase tracking-wide shrink-0">Volume :</span>
+              <span className="text-[14px] font-bold text-gray-800">{formatNumber(stockData.volume, 0)}</span>
             </div>
 
             <div className="px-4 py-2 bg-[#f7f8f6] rounded-lg border border-[#e9ede8] flex flex-wrap items-baseline gap-x-1">
-              <span className="text-xs font-bold text-gray-500 uppercase tracking-wide shrink-0">P/E Ratio :</span>
-              <span className={`text-[12px] font-bold ${typeof stockData.peRatio === 'number' && stockData.peRatio < 0 ? 'text-red-600' : 'text-gray-800'}`}>
+              <span className="text-[14px] font-bold text-gray-500 uppercase tracking-wide shrink-0">P/E Ratio :</span>
+              <span className={`text-[14px] font-bold ${typeof stockData.peRatio === 'number' && stockData.peRatio < 0 ? 'text-red-600' : 'text-gray-800'}`}>
                 {formatNumber(stockData.peRatio)}
               </span>
-              <span className="basis-full text-sm invisible" aria-hidden="true">&nbsp;</span>
+              <span className="basis-full text-[14px] invisible" aria-hidden="true">&nbsp;</span>
             </div>
 
             <div className="px-4 py-2 bg-[#f7f8f6] rounded-lg border border-[#e9ede8] flex flex-wrap items-baseline gap-x-1">
-              <span className="text-xs font-bold text-gray-500 uppercase tracking-wide shrink-0">P/B Ratio :</span>
-              <span className={`text-[12px] font-bold ${typeof stockData.pbRatio === 'number' && stockData.pbRatio < 0 ? 'text-red-600' : 'text-gray-800'}`}>
+              <span className="text-[14px] font-bold text-gray-500 uppercase tracking-wide shrink-0">P/B Ratio :</span>
+              <span className={`text-[14px] font-bold ${typeof stockData.pbRatio === 'number' && stockData.pbRatio < 0 ? 'text-red-600' : 'text-gray-800'}`}>
                 {formatNumber(stockData.pbRatio)}
               </span>
-              <span className="basis-full text-sm invisible" aria-hidden="true">&nbsp;</span>
+              <span className="basis-full text-[14px] invisible" aria-hidden="true">&nbsp;</span>
             </div>
 
             <div className="px-4 py-2 bg-[#f7f8f6] rounded-lg border border-[#e9ede8] flex flex-wrap items-baseline gap-x-1">
-              <span className="text-xs font-bold text-gray-500 uppercase tracking-wide shrink-0">Market Cap :</span>
-              <span className="text-[12px] font-bold text-gray-800">{stockData.marketCap ? formatNumber(stockData.marketCap / 1_000_000_000) + 'B' : 'N/A'}</span>
-              <span className="basis-full text-sm invisible" aria-hidden="true">&nbsp;</span>
+              <span className="text-[14px] font-bold text-gray-500 uppercase tracking-wide shrink-0">Market Cap :</span>
+              <span className="text-[14px] font-bold text-gray-800">{stockData.marketCap ? formatNumber(stockData.marketCap / 1_000_000_000) + 'B' : 'N/A'}</span>
+              <span className="basis-full text-[14px] invisible" aria-hidden="true">&nbsp;</span>
             </div>
           </div>
 
