@@ -121,9 +121,9 @@ export const POST = validate(purchaseStockSchema)(
         INSERT INTO user_stocks (user_id, stock_id, shares, purchase_price, is_purchased, initial_purchase_date, last_transaction_date, is_active, average_cost_basis, first_purchase_date)
         VALUES (?, ?, ?, ?, ?, NOW(), NOW(), 1, ?, NOW())
         ON DUPLICATE KEY UPDATE
-          purchase_price = ((purchase_price * shares) + (VALUES(purchase_price) * VALUES(shares))) / (shares + VALUES(shares)),
-          average_cost_basis = ((COALESCE(average_cost_basis, purchase_price) * shares) + (VALUES(purchase_price) * VALUES(shares))) / (shares + VALUES(shares)),
-          shares = shares + VALUES(shares),
+          purchase_price = IF(is_purchased = 0, VALUES(purchase_price), ((purchase_price * shares) + (VALUES(purchase_price) * VALUES(shares))) / (shares + VALUES(shares))),
+          average_cost_basis = IF(is_purchased = 0, VALUES(purchase_price), ((COALESCE(average_cost_basis, purchase_price) * shares) + (VALUES(purchase_price) * VALUES(shares))) / (shares + VALUES(shares))),
+          shares = IF(is_purchased = 0, VALUES(shares), shares + VALUES(shares)),
           is_purchased = VALUES(is_purchased),
           initial_purchase_date = IFNULL(initial_purchase_date, NOW()),
           first_purchase_date = IFNULL(first_purchase_date, NOW()),
