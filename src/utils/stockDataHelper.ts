@@ -47,14 +47,19 @@ export async function getStockDataForPrediction(ticker: string, wbData?: any) {
     Promise.resolve(null)
   ]);
 
-  const historicalData = (chartResult.quotes || []).map((r: any) => ({
-    date: new Date(r.date).toISOString().slice(0, 10),
-    open: (r.open as number) ?? 0,
-    high: (r.high as number) ?? 0,
-    low: (r.low as number) ?? 0,
-    close: (r.adjClose as number) ?? (r.close as number) ?? 0,
-    volume: (r.volume as number) ?? 0,
-  }));
+  const historicalData = (chartResult.quotes || [])
+    .filter((r: any) =>
+      r.open != null && r.high != null && r.low != null &&
+      (r.adjClose != null || r.close != null)
+    )
+    .map((r: any) => ({
+      date: new Date(r.date).toISOString().slice(0, 10),
+      open: r.open as number,
+      high: r.high as number,
+      low: r.low as number,
+      close: (r.adjClose as number) ?? (r.close as number),
+      volume: (r.volume as number) ?? 0,
+    }));
 
   if (historicalData.length < 30) {
     throw new Error(`Insufficient data for ${ticker}: ${historicalData.length} rows, need >= 30.`);
