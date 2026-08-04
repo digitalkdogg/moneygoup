@@ -1609,6 +1609,30 @@ def _sanitize_predictions(result: dict) -> dict:
     knocked down to 25 (a clamped prediction is a low-trust prediction).
     Writes a one-line stderr note so the clamp event is visible in logs.
     """
+    # ── NaN / Inf safety net ─────────────────────────────────────────────
+    # Python's json.dumps (allow_nan=True default) serialises NaN as the
+    # bare token `NaN`, which is not valid JSON. JavaScript's JSON.parse
+    # then throws, causing the Next.js route to fall back to the statistical
+    # model. NaN also fails every Python comparison, so the clamp logic
+    # below would silently let it pass through untouched. Walk the result
+    # dict recursively and replace any NaN/Inf float with None (→ JSON null)
+    # before any horizon logic runs.
+    def _strip_nan(obj):
+        if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
+            return None
+        if isinstance(obj, dict):
+            return {k: _strip_nan(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [_strip_nan(v) for v in obj]
+        return obj
+
+    nan_keys = [k for k, v in result.items()
+                if isinstance(v, float) and (math.isnan(v) or math.isinf(v))]
+    if nan_keys:
+        print(f"[sanitize] {result.get('ticker', '?')}: NaN/Inf in {nan_keys} → replacing with None",
+              file=sys.stderr)
+    result = _strip_nan(result)
+
     # Vol-scaled per-horizon caps (Proposal B). Base caps 15/30/60/100 correspond
     # to roughly 3-sigma moves for a 30%-annualized-vol equity (baseline). For a
     # higher-vol name, widen proportionally so we don't punish legitimate
