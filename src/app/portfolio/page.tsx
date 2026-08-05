@@ -5,6 +5,7 @@ import Link from 'next/link'
 import PortfolioCompareChart, { type OverlaySeries } from '@/app/components/PortfolioCompareChart'
 import RecommendationsSection from '@/app/components/RecommendationsSection'
 import PortfolioMetricsPanel from '@/app/components/PortfolioMetricsPanel'
+import PortfolioTable from '@/app/components/PortfolioTable'
 import type { PortfolioItem } from '@/types/portfolio'
 import type { PortfolioTotals } from '@/types/dashboard'
 
@@ -147,11 +148,6 @@ function HoldingRow({
   onToggle: (ticker: string) => void
   disabled: boolean
 }) {
-  const value = item.shares * (item.regularMarketPrice ?? item.purchase_price)
-  const gain = item.regularMarketPrice && item.purchase_price
-    ? (item.regularMarketPrice - item.purchase_price) / item.purchase_price
-    : null
-
   return (
     <div
       className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${
@@ -166,14 +162,8 @@ function HoldingRow({
         <div className="min-w-0">
           <p className="font-bold text-gray-900 text-base leading-tight">{item.symbol}</p>
           <p className="text-sm text-gray-600 truncate">{item.company_name}</p>
-          <p className="text-base text-gray-500">{item.shares} shares</p>
-          <p className="text-base font-medium text-gray-800">
-            {fmtCurrency(value)}
-            {gain !== null && (
-              <span className={`ml-1 ${gain >= 0 ? 'text-green-700' : 'text-red-600'}`}>
-                ({fmtPct(gain)})
-              </span>
-            )}
+          <p className="text-base text-gray-500">
+            {Number(item.shares).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} shares
           </p>
         </div>
       </div>
@@ -382,6 +372,16 @@ export default function PortfolioPage() {
             loading={portfolioLoading}
             totals={totals}
             totalsLoading={portfolioLoading}
+          />
+        </section>
+
+        {/* ── Holdings Table ────────────────────────────────────────────── */}
+        <section className="section-holdings">
+          <SectionHeading>Holdings</SectionHeading>
+          <PortfolioTable
+            portfolio={portfolio}
+            totals={totals}
+            loading={portfolioLoading}
           />
         </section>
 
