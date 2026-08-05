@@ -1596,7 +1596,7 @@ def _sanitize_predictions(result: dict) -> dict:
       1w  : ±15%
       1m  : ±30%
       6m  : ±60%
-      1y  : ±100%
+      1y  : ±85%  (prevents $0 predictions; 15% floor on current price)
 
     Cross-horizon consistency: if same-sign 6m magnitude overshoots 1y
     magnitude by >1.5× AND |pct_6m| > 15%, the 6m head is treated as an
@@ -1638,7 +1638,7 @@ def _sanitize_predictions(result: dict) -> dict:
     # higher-vol name, widen proportionally so we don't punish legitimate
     # extrapolations. Multiplier is clamped to [1, 2.5] — a 2.5× scaling gives
     # WULF (~90% vol) caps of 37.5/75/150/250, aggressive but honest.
-    base_bounds = [('1w', 15.0), ('1m', 30.0), ('6m', 60.0), ('1y', 100.0)]
+    base_bounds = [('1w', 15.0), ('1m', 30.0), ('6m', 60.0), ('1y', 85.0)]
     vol = result.get('realized_vol_60d')
     if isinstance(vol, (int, float)) and vol > 0:
         vol_mult = max(1.0, min(2.5, vol / 0.30))
@@ -1668,10 +1668,15 @@ def _sanitize_predictions(result: dict) -> dict:
         new_pct = pct
         # Capture the model's pre-clamp confidence in case Proposal A restores it.
         original_conf = result.get(conf_key)
-        # Floor price at 0.01 — negative prices are unphysical
+        # Floor price at 0.01 — negative prices are unphysical.
+        # Also sync pct so price and pct stay consistent (avoids $0 display
+        # when pct stays at -100% while price is floored to 0.01).
         if isinstance(price, (int, float)) and price < 0.01:
             print(f"[sanitize] {ticker} {h}: price {price} → 0.01 (was negative)", file=sys.stderr)
             result[price_key] = 0.01
+            if isinstance(current_price, (int, float)) and current_price > 0:
+                result[pct_key] = round((0.01 - current_price) / current_price * 100, 4)
+                new_pct = result[pct_key]
             price_floored = True
         # Clamp change pct + recompute price so they stay in sync
         if isinstance(pct, (int, float)) and abs(pct) > bound:
@@ -1775,8 +1780,8 @@ def _sanitize_predictions(result: dict) -> dict:
 
     # Re-derive the (vol-scaled) per-horizon caps for the meaningful-magnitude
     # threshold. Cheaper than plumbing them through as state.
-    cap_6m_scaled = 60.0  * vol_mult
-    cap_1y_scaled = 100.0 * vol_mult
+    cap_6m_scaled = 60.0 * vol_mult
+    cap_1y_scaled = 85.0 * vol_mult
     pct_6m_final = result.get('predicted_change_pct_6m')
     pct_1y_final = result.get('predicted_change_pct_1y')
 
@@ -1819,11 +1824,17 @@ def _sanitize_predictions(result: dict) -> dict:
             coherence_reason = f'only_6m_clamped_1y_meaningful({pct_1y_final:.1f}%)'
 
     if coherent_direction:
-        # Keep the model's own confidence for whichever horizon(s) got clamped.
-        if ev_6m is not None and ev_6m['original_conf'] is not None:
-            result['confidence_score_6m'] = ev_6m['original_conf']
-        if ev_1y is not None and ev_1y['original_conf'] is not None:
-            result['confidence_score_1y'] = ev_1y['original_conf']
+        # For upside coherence, restore the model's own confidence — it's
+        # genuinely extrapolating a growth signal. For downside coherence,
+        # extreme bearish ceiling hits are inherently uncertain; keep at 25.
+        if direction == 'up':
+            if ev_6m is not None and ev_6m['original_conf'] is not None:
+                result['confidence_score_6m'] = ev_6m['original_conf']
+            if ev_1y is not None and ev_1y['original_conf'] is not None:
+                result['confidence_score_1y'] = ev_1y['original_conf']
+        else:
+            result['confidence_score_6m'] = 25
+            result['confidence_score_1y'] = 25
         # Ceiling flag only on the horizon(s) that actually clamped.
         if ev_6m is not None and ev_6m['pct_clamped']:
             result['at_model_ceiling_6m'] = True
@@ -1831,9 +1842,9 @@ def _sanitize_predictions(result: dict) -> dict:
             result['at_model_ceiling_1y'] = True
         result['ceiling_direction'] = direction
         print(f"[sanitize] {ticker} coherent {direction}-extrapolation "
-              f"({coherence_reason}); keeping model confidence "
-              f"(cs6m={ev_6m['original_conf'] if ev_6m else 'unchanged'}, "
-              f"cs1y={ev_1y['original_conf'] if ev_1y else 'unchanged'})",
+              f"({coherence_reason}); "
+              f"{'keeping' if direction == 'up' else 'flooring'} confidence to "
+              f"(cs6m={result['confidence_score_6m']}, cs1y={result['confidence_score_1y']})",
               file=sys.stderr)
     else:
         # Outlier or inconsistent — floor confidence to 25 as before.

@@ -531,7 +531,7 @@ export default function StockPrediction({
     setStep('fetching')
     let dataPayload: any
     try {
-      const res = await fetch(`/api/stock_data/${ticker}/data`)
+      const res = await fetch(`/api/stock_data/${ticker}/data${refresh ? '?refresh=true' : ''}`)
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         throw new Error(body.message || `Data fetch failed (${res.status})`)

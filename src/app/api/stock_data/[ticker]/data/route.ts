@@ -27,7 +27,7 @@ const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
 // ---------------------------------------------------------------------------
 const DATA_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 const DATA_CACHE_MAX = 500;
-const dataCache = new Map<string, { data: unknown; fetchedAt: number }>();
+export const dataCache = new Map<string, { data: unknown; fetchedAt: number }>();
 
 function getCached(ticker: string): unknown | null {
   const entry = dataCache.get(ticker);

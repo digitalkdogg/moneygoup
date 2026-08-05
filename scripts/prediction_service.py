@@ -91,6 +91,7 @@ class PredictRequest(BaseModel):
     ticker: str
     input_data: dict
     outlook: str = 'all'
+    force_refresh: bool = False
 
 
 _OUTLOOK_CHOICES = {'1_week', '1_month', '6_month', '1_year', 'all'}
@@ -106,7 +107,7 @@ def predict(req: PredictRequest):
     try:
         hist = req.input_data.get('historicalData', [])
         ckey = get_cache_key(req.ticker, hist)
-        result = load_from_cache(ckey)
+        result = None if req.force_refresh else load_from_cache(ckey)
         if result is None:
             result = _pwa.predict(req.ticker, req.input_data)
             save_to_cache(ckey, result)

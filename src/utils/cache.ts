@@ -93,6 +93,24 @@ class Cache<T> {
   }
 
   /**
+   * Clear all entries whose key equals the ticker or starts with "<ticker>_".
+   * Covers both exact-match caches (stockData, historicalData, etc.) and
+   * compound-key caches (prediction: "WMT_all_v3split_v5").
+   * Returns the number of entries deleted.
+   */
+  clearByTicker(ticker: string): number {
+    const prefix = ticker + '_';
+    let deleted = 0;
+    for (const key of this.store.keys()) {
+      if (key === ticker || key.startsWith(prefix)) {
+        this.store.delete(key);
+        deleted++;
+      }
+    }
+    return deleted;
+  }
+
+  /**
    * Get cache size (number of entries)
    */
   size(): number {

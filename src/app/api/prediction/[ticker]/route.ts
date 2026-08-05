@@ -316,7 +316,7 @@ export async function POST(
     try {
       if (forceStatisticalFallback) throw new Error('short_history_forced_fallback');
       result = useWarmService
-        ? await runWarmPrediction(validatedTicker, body, validatedOutlook, warmServiceUrl!)
+        ? await runWarmPrediction(validatedTicker, body, validatedOutlook, warmServiceUrl!, forceRefresh)
         : await runSpawnPrediction(validatedTicker, tempFile!, validatedOutlook, useLegacyModel, csModelVersion);
     } catch (mainErr) {
       if (!forceStatisticalFallback) {
@@ -376,12 +376,13 @@ async function runWarmPrediction(
   inputData: unknown,
   outlook: string,
   serviceUrl: string,
+  forceRefresh = false,
 ): Promise<unknown> {
-  logger.info(`Predict (warm-service) ${ticker} outlook=${outlook}`);
+  logger.info(`Predict (warm-service) ${ticker} outlook=${outlook} force_refresh=${forceRefresh}`);
   const res = await fetch(`${serviceUrl}/predict`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ticker, input_data: inputData, outlook }),
+    body: JSON.stringify({ ticker, input_data: inputData, outlook, force_refresh: forceRefresh }),
     signal: AbortSignal.timeout(120_000),
   });
   if (!res.ok) {

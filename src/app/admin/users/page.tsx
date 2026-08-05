@@ -127,6 +127,19 @@ export default function AdminUsersPage() {
           </div>
         )}
 
+        {/* Admin nav */}
+        <div className="flex gap-2 mb-6">
+          <span className="px-4 py-2 rounded-lg bg-green-600 text-white font-medium text-sm">
+            User Management
+          </span>
+          <Link
+            href="/admin/cache"
+            className="px-4 py-2 rounded-lg bg-white border border-gray-200 text-gray-700 font-medium text-sm hover:bg-gray-50"
+          >
+            Cache Management
+          </Link>
+        </div>
+
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden section-user-management">
           <div className="flex border-b border-gray-200 bg-gray-50">
             <button
