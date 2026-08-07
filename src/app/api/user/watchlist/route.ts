@@ -87,18 +87,36 @@ export async function GET(request: NextRequest) {
       `, [item.stock_id]);
 
       const closingPrices = dailyPrices.map((price: any) => parseFloat(price.close));
-      const sum = closingPrices.reduce((acc: number, price: number) => acc + price, 0);
-      const ma6_month = closingPrices.length > 0 ? sum / closingPrices.length : null;
+      const dbSum = closingPrices.reduce((acc: number, price: number) => acc + price, 0);
+      let ma6_month: number | null = closingPrices.length > 0 ? dbSum / closingPrices.length : null;
 
       // Fetch live data from Yahoo Finance
       try {
-        const [quoteResult, summary] = await Promise.all([
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+        const [quoteResult, summary, history] = await Promise.all([
           yahooFinanceInstance.quote(item.symbol),
           fetchYahooStockSummary(item.symbol).catch(err => {
             logger.warn(`Could not fetch summary for ${item.symbol}`, { error: err });
             return null;
-          })
+          }),
+          // Only fetch history when stocksdailyprice has no rows for this stock
+          ma6_month == null
+            ? yahooFinanceInstance.historical(item.symbol, {
+                period1: sixMonthsAgo,
+                period2: new Date(),
+                interval: '1d',
+              }).catch(() => [] as any[])
+            : Promise.resolve(null),
         ]);
+
+        if (ma6_month == null && Array.isArray(history) && history.length > 0) {
+          const closes = (history as any[]).map((h: any) => h.close).filter((c: any) => c != null);
+          if (closes.length > 0) {
+            ma6_month = closes.reduce((a: number, b: number) => a + b, 0) / closes.length;
+          }
+        }
 
         const regularMarketPrice = (quoteResult as any)?.regularMarketPrice || item.db_price || 0;
         const prev_close = (quoteResult as any)?.regularMarketPreviousClose || null;

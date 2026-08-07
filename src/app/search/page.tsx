@@ -6,6 +6,8 @@ import MajorIndicesStrip from '../components/MajorIndicesStrip'
 import EarningsCalendar from '../components/EarningsCalendar'
 import DeepMoneyPicksSection from '../components/DeepMoneyPicksSection'
 import TrendingStocksGrid from '../components/TrendingStocksGrid'
+import WatchlistTableSection from '../components/WatchlistTableSection'
+import EtfHoldingsAlert from '../components/EtfHoldingsAlert'
 
 export default function SearchPage() {
   return (
@@ -39,8 +41,19 @@ export default function SearchPage() {
           <DeepMoneyPicksSection />
         </section>
 
-        <section className="section-trending-stocks">
+        <section className="mb-16 section-trending-stocks">
           <TrendingStocksGrid />
+        </section>
+
+        <section className="mb-16 section-watchlist">
+          <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4 pl-3 border-l-2 border-l-[#017e3b]">
+            My Watchlist
+          </h2>
+          <WatchlistTableSection />
+        </section>
+
+        <section className="section-etf-holdings">
+          <EtfHoldingsAlert />
         </section>
       </main>
     </div>
