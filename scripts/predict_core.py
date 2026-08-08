@@ -683,11 +683,29 @@ def _add_macro_features(f, date_strs, macro_data, close_s, hist_vol, stock_metri
     wb = macro_data.get('worldBank', {}) or {}
     indicators = wb.get('indicators', {}) or {}
 
-    # Broadcast scalar annual values to all rows
-    f['WorldBank_GDP'] = safe(indicators.get('gdpGrowth'), 2.0)
-    f['WorldBank_Inflation'] = safe(indicators.get('inflation'), 2.5)
-    f['WorldBank_Consumption'] = safe(indicators.get('consumptionGrowth'), 2.0)
-    f['WorldBank_Real_GDP'] = f['WorldBank_GDP'] - f['WorldBank_Inflation']
+    # Prefer FRED values (nightly, US-specific) over stale annual World Bank data.
+    # FRED keys: CPIAUCSL→inflation YoY%, GDP→QoQ%, FEDFUNDS→level.
+    # Falls back to WorldBank if FRED row is absent.
+    fred = macro_data.get('fred', {}) or {}
+    def fred_val(series_id, field, fallback):
+        row = fred.get(series_id)
+        if row and row.get(field) is not None:
+            return float(row[field])
+        return fallback
+
+    wb_gdp        = safe(indicators.get('gdpGrowth'), 2.0)
+    wb_inflation  = safe(indicators.get('inflation'), 2.5)
+    wb_consumption= safe(indicators.get('consumptionGrowth'), 2.0)
+
+    # GDP QoQ% from FRED is annualised-equivalent; scale to match WB annual units
+    gdp_val        = fred_val('GDP',      'qoq_pct',  wb_gdp)
+    inflation_val  = fred_val('CPIAUCSL', 'yoy_pct',  wb_inflation)
+    consumption_val= wb_consumption  # no direct FRED equivalent; keep WB
+
+    f['WorldBank_GDP']         = gdp_val
+    f['WorldBank_Inflation']   = inflation_val
+    f['WorldBank_Consumption'] = consumption_val
+    f['WorldBank_Real_GDP']    = gdp_val - inflation_val
 
     return f
 
@@ -758,10 +776,16 @@ def build_features(df, stock_metrics, macro_data, news_sentiment, earnings_beat_
         
         wb = macro_data.get('worldBank', {}) or {}
         indicators = wb.get('indicators', {}) or {}
-        f['WorldBank_GDP'] = safe(indicators.get('gdpGrowth'), 2.0)
-        f['WorldBank_Inflation'] = safe(indicators.get('inflation'), 2.5)
+        fred = macro_data.get('fred', {}) or {}
+        def _fv(sid, field, fb):
+            row = fred.get(sid)
+            return float(row[field]) if row and row.get(field) is not None else fb
+        gdp_val       = _fv('GDP',      'qoq_pct', safe(indicators.get('gdpGrowth'), 2.0))
+        inflation_val = _fv('CPIAUCSL', 'yoy_pct', safe(indicators.get('inflation'), 2.5))
+        f['WorldBank_GDP']         = gdp_val
+        f['WorldBank_Inflation']   = inflation_val
         f['WorldBank_Consumption'] = safe(indicators.get('consumptionGrowth'), 2.0)
-        f['WorldBank_Real_GDP'] = f['WorldBank_GDP'] - f['WorldBank_Inflation']
+        f['WorldBank_Real_GDP']    = gdp_val - inflation_val
 
         if feature_metrics:
             f['InsiderNetSellRatio_90d'] = 0.0  # neutral for all historical rows

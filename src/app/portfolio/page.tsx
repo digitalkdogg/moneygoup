@@ -6,6 +6,7 @@ import PortfolioCompareChart, { type OverlaySeries } from '@/app/components/Port
 import RecommendationsSection from '@/app/components/RecommendationsSection'
 import PortfolioMetricsPanel from '@/app/components/PortfolioMetricsPanel'
 import PortfolioTable from '@/app/components/PortfolioTable'
+import FredMacroPanel from '@/app/components/FredMacroPanel'
 import type { PortfolioItem } from '@/types/portfolio'
 import type { PortfolioTotals } from '@/types/dashboard'
 
@@ -485,6 +486,12 @@ export default function PortfolioPage() {
               : ['portfolio', 'watchlist']}
             portfolioEtfTickers={portfolioEtfTickers}
           />
+        </section>
+
+        {/* ── Macro Indicators ──────────────────────────────────────────── */}
+        <section className="section-macro">
+          <SectionHeading>Macro Indicators</SectionHeading>
+          <FredMacroPanel />
         </section>
 
       </div>

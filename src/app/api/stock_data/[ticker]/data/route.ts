@@ -898,6 +898,20 @@ export async function GET(
       };
     }
 
+    // Fetch FRED macro snapshot from DB (populated nightly by deepmoney_sync)
+    let fredData: Record<string, number | null> = {};
+    try {
+      const [fredRows]: any[] = await executeRawQuery(
+        `SELECT series_id, obs_value, yoy_pct, qoq_pct, mom_change FROM fred_macro_indicators`,
+        []
+      );
+      for (const row of fredRows) {
+        fredData[row.series_id] = row;
+      }
+    } catch {
+      // table may not exist yet; non-fatal
+    }
+
     const macroData = {
       vix:         vixData,
       treasury10y: tnxData,
@@ -911,6 +925,7 @@ export async function GET(
       copper:      copperData,
       wheat:       wheatData,
       worldBank:   worldBankData,
+      fred:        fredData,
     };
 
     let historicalEarnings: any[] = [];

@@ -7,6 +7,7 @@ import mysql.connector
 from datetime import datetime
 from dotenv import load_dotenv
 from prediction_recorder import record_prediction
+from fred_macro_sync import SERIES_CONFIG, compute_row, ensure_table, upsert_indicator
 # Reuse the exact size-bucket + search_tsv logic the backfill uses so a stock
 # discovered by DeepMoney is indexed identically to one populated retroactively.
 from backfill_stock_search import size_bucket_for, build_search_tsv
@@ -154,6 +155,30 @@ def fetch_world_bank_data(headers: dict) -> dict | None:
     except Exception as e:
         print(f"  [macro] Warning: Error fetching World Bank data: {e}")
         return None
+
+def sync_fred_data(cursor) -> int:
+    """Fetch FRED series and upsert into fred_macro_indicators. Returns count synced."""
+    fred_api_key = os.getenv('FRED_API_KEY', '')
+    if not fred_api_key:
+        print("  [fred] Skipping — FRED_API_KEY not set")
+        return 0
+
+    ensure_table(cursor)
+    synced = 0
+    for cfg in SERIES_CONFIG:
+        try:
+            row = compute_row(cfg)
+            if row is None:
+                print(f"  [fred] {cfg['name']}: no data")
+                continue
+            upsert_indicator(cursor, row)
+            synced += 1
+            time.sleep(0.1)
+        except Exception as e:
+            print(f"  [fred] Warning: {cfg['name']}: {e}")
+    print(f"  [fred] Synced {synced}/{len(SERIES_CONFIG)} series")
+    return synced
+
 
 def sync_deepmoney():
     print(f"[{datetime.now()}] Starting DeepMoney sync...")
@@ -396,6 +421,11 @@ def sync_deepmoney():
                 macro.get('inflation', {}).get('latest'),
                 macro.get('gdpGrowth', {}).get('latest')
             ))
+
+        # 3.2 Sync FRED macro indicators
+        print("Syncing FRED macro indicators...")
+        sync_fred_data(cursor)
+        conn.commit()
 
         # 3.5 Fetch all approved users (so new users see recommendations on first login)
         print("Fetching approved users...")

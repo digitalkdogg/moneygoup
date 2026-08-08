@@ -12,6 +12,7 @@ import { createLogger } from '@/utils/logger'
 import StockPrediction from './StockPrediction'
 import StockSignalPanel, { GpsData } from './StockSignalPanel'
 import AiTakePanel from './AiTakePanel'
+import MacroScoreBadge from './MacroScoreBadge'
 import BuyMoreModal from './modals/BuyMoreModal'
 import SellModal from './modals/SellModal'
 import RsuVestModal from './modals/RsuVestModal'
@@ -1274,6 +1275,11 @@ export default function Stock({
           </div>
         )}
 
+        {/* Macro Context */}
+        <div className="mb-8 section-macro">
+          <MacroScoreBadge />
+        </div>
+
         {/* Earnings Information */}
         {earningsData && (earningsData.upcomingEarnings || earningsData.historicalEarnings.length > 0) && (
           <div className="bg-white p-6 rounded-2xl shadow-[0_1px_10px_rgba(0,0,0,0.1)] mb-8 section-earnings-information">
@@ -1559,6 +1565,11 @@ export default function Stock({
                   <TechnicalIndicatorsDisplay indicators={indicators} titleLevel="h4" />
                 </div>
               )}
+
+              {/* Macro Context */}
+              <div className="mb-6 section-macro">
+                <MacroScoreBadge />
+              </div>
             </div>
           )
         })}
