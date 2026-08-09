@@ -71,7 +71,7 @@ export default function PurchaseFromWatchlistModal({ stock, onClose, onPurchased
       aria-labelledby="modal-title"
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -88,7 +88,7 @@ export default function PurchaseFromWatchlistModal({ stock, onClose, onPurchased
         </div>
 
         {/* Body */}
-        <div className="px-6 py-5">
+        <div className="px-6 py-5 overflow-y-auto flex-1">
           <form onSubmit={handleSubmit} className="space-y-4" id="purchase-form">
             <div>
               <label htmlFor="purchase-shares" className="block text-sm font-medium text-gray-700 mb-1">

@@ -106,19 +106,16 @@ export default function ModelAccuracyWidget() {
   const resolvedCount = currentHorizon.resolved_count;
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-      <div className="flex items-center justify-between mb-6">
+    <div className="bg-white border border-gray-200 rounded-lg p-4 md:p-6 shadow-sm">
+      <div className="flex items-center justify-between mb-3 md:mb-6">
         <h3 className="text-lg font-semibold text-gray-800">Model Accuracy</h3>
         <span className="text-xs text-gray-500">
           {data.last_resolved_at && `Updated ${new Date(data.last_resolved_at).toLocaleDateString()}`}
         </span>
       </div>
 
-      {/* Horizon Selector — native <select> on mobile, button group on md+.
-          Both pathways advertise their active selection to assistive tech
-          (aria-pressed on the buttons, native semantics on the select) and
-          carry a visible label for screen readers. */}
-      <div className="mb-6 md:hidden">
+      {/* Horizon Selector */}
+      <div className="mb-3 md:mb-6 md:hidden">
         <label
           htmlFor="model-accuracy-horizon"
           className="block text-xs font-medium text-gray-700 mb-1"
@@ -165,53 +162,53 @@ export default function ModelAccuracyWidget() {
       </div>
 
       {/* Three-Column Metrics Row — stacks on mobile, 3-up on md+ */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-4 mb-3 md:mb-6">
         {/* Overall Total Accuracy */}
         {typeof data.total_accuracy_pct === 'number' && data.total_accuracy_pct !== null && (
-          <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-6 border border-green-200">
-            <div className="text-center">
-              <p className="text-gray-600 text-sm mb-3">Overall Model Accuracy</p>
-              <p className="text-4xl font-bold text-green-600 mb-2">
-                {data.total_accuracy_pct.toFixed(1)}%
-              </p>
-              <p className="text-xs text-gray-600">
-                All predictions & timeframes
-              </p>
+          <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg px-4 py-3 md:p-6 border border-green-200">
+            <div className="flex items-center justify-between md:block md:text-center">
+              <p className="text-gray-600 text-sm md:mb-3">Overall Model Accuracy</p>
+              <div>
+                <p className="text-4xl font-bold text-green-600 md:mb-2">
+                  {data.total_accuracy_pct.toFixed(1)}%
+                </p>
+                <p className="text-xs text-gray-600 hidden md:block">All predictions & timeframes</p>
+              </div>
             </div>
           </div>
         )}
 
         {/* Proximity Accuracy */}
-        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-200">
-          <div className="text-center">
-            <p className="text-gray-600 text-sm mb-3">Proximity Accuracy</p>
-            <p className="text-4xl font-bold text-blue-600 mb-2">
-              {typeof proximityAccuracy === 'number' && proximityAccuracy !== null ? `${proximityAccuracy.toFixed(1)}%` : '—'}
-            </p>
-            <p className="text-xs text-gray-600">
-              {HORIZON_LABELS[selectedHorizon]} ({resolvedCount} predictions)
-            </p>
+        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg px-4 py-3 md:p-6 border border-blue-200">
+          <div className="flex items-center justify-between md:block md:text-center">
+            <p className="text-gray-600 text-sm md:mb-3">Proximity Accuracy</p>
+            <div>
+              <p className="text-4xl font-bold text-blue-600 md:mb-2">
+                {typeof proximityAccuracy === 'number' && proximityAccuracy !== null ? `${proximityAccuracy.toFixed(1)}%` : '—'}
+              </p>
+              <p className="text-xs text-gray-600 hidden md:block">{HORIZON_LABELS[selectedHorizon]} ({resolvedCount} predictions)</p>
+            </div>
           </div>
         </div>
 
         {/* High Accuracy Count */}
         {typeof currentHorizon?.high_accuracy_count === 'number' && (
-          <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-lg p-6 border border-amber-200">
-            <div className="text-center">
-              <p className="text-gray-600 text-sm mb-3">High Accuracy (≥95%)</p>
-              <p className="text-4xl font-bold text-amber-600 mb-2">
-                {currentHorizon.high_accuracy_count}/{resolvedCount}
-              </p>
-              <p className="text-xs text-gray-600">
-                {HORIZON_LABELS[selectedHorizon]} predictions
-              </p>
+          <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-lg px-4 py-3 md:p-6 border border-amber-200">
+            <div className="flex items-center justify-between md:block md:text-center">
+              <p className="text-gray-600 text-sm md:mb-3">High Accuracy (≥95%)</p>
+              <div>
+                <p className="text-4xl font-bold text-amber-600 md:mb-2">
+                  {currentHorizon.high_accuracy_count}/{resolvedCount}
+                </p>
+                <p className="text-xs text-gray-600 hidden md:block">{HORIZON_LABELS[selectedHorizon]} predictions</p>
+              </div>
             </div>
           </div>
         )}
       </div>
 
       {/* Data Freshness */}
-      <div className="mt-4 pt-4 border-t border-gray-200">
+      <div className="mt-2 pt-2 md:mt-4 md:pt-4 border-t border-gray-200">
         <p className="text-xs text-gray-500">
           This model accuracy is computed daily from live market data and represents the historical
           performance of the prediction engine across all users.

@@ -94,7 +94,7 @@ export default function SellModal({ stock, onClose }: SellModalProps) {
       aria-labelledby="modal-title"
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -111,7 +111,7 @@ export default function SellModal({ stock, onClose }: SellModalProps) {
         </div>
 
         {/* Body */}
-        <div className="px-6 py-5 space-y-4">
+        <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
           {/* Stock summary */}
           <div className="bg-gray-50 rounded-xl p-4 space-y-2" aria-label="Stock Information">
             <div className="flex justify-between text-sm">

@@ -97,7 +97,7 @@ export const GpsBreakdownModal: React.FC<GpsBreakdownModalProps> = ({
       onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose() }}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full overflow-hidden"
+        className="bg-white rounded-2xl shadow-2xl w-full max-h-[90vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         style={{ maxWidth: '480px' }}
       >
@@ -121,7 +121,7 @@ export const GpsBreakdownModal: React.FC<GpsBreakdownModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-6">
+        <div className="p-6 overflow-y-auto flex-1">
           {!breakdown ? (
             <div className="py-8 text-center">
               <p className="text-slate-500 font-medium">No algorithmic breakdown available.</p>
