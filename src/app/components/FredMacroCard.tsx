@@ -180,10 +180,15 @@ export default function FredMacroCard() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="w-full bg-white rounded-2xl border border-gray-100 px-4 py-3 hover:border-gray-200 hover:shadow-sm transition-all flex items-center justify-between gap-3 text-left"
+        className="w-full bg-white rounded-2xl border border-gray-100 px-4 py-2.5 hover:border-gray-200 hover:shadow-sm transition-all flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-3 text-left"
       >
-        <span className="text-sm font-bold text-gray-600 uppercase tracking-widest shrink-0">Macro Climate</span>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between sm:contents">
+          <span className="text-sm font-bold text-gray-600 uppercase tracking-widest shrink-0">Macro Climate</span>
+          <svg className="w-3.5 h-3.5 text-gray-300 shrink-0 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+        <div className="flex items-center gap-3 sm:gap-3">
           <span className="flex items-center gap-1 text-sm text-green-600 font-medium">
             <span className="inline-block w-2 h-2 rounded-full bg-green-500" />{green} positive
           </span>
@@ -193,7 +198,7 @@ export default function FredMacroCard() {
           <span className="flex items-center gap-1 text-sm text-red-600 font-medium">
             <span className="inline-block w-2 h-2 rounded-full bg-red-400" />{red} negative
           </span>
-          <svg className="w-3.5 h-3.5 text-gray-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-3.5 h-3.5 text-gray-300 shrink-0 hidden sm:block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>
         </div>
