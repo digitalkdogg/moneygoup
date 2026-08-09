@@ -47,7 +47,7 @@ function IndexCard({ index }: { index: IndexData }) {
       role="region"
       aria-label={`${index.label}: $${priceStr}, ${percentStr}`}
     >
-      <div className="text-sm font-medium text-gray-500 mb-1">
+      <div className="text-sm font-medium text-gray-600 mb-1">
         {index.label}
       </div>
       <div className="text-lg font-bold text-gray-900 mb-2">

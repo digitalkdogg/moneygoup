@@ -12,6 +12,7 @@ import {
 } from '../formatters'
 import { GpsCallLabel } from '../../GpsCallLabel'
 import { RiskGrowthTags } from '../RiskGrowthTags'
+import { GpsTooltip } from '../GpsTooltip'
 
 interface WatchlistCardViewProps {
   card: WatchlistCard
@@ -73,9 +74,14 @@ export const WatchlistCardView: React.FC<WatchlistCardViewProps> = ({ card, onCl
           <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-500 mb-1">
             GPS Score
           </div>
-          <div className={`text-[14px] font-semibold ${card.gpsScore != null ? 'text-gray-900' : 'text-gray-400 font-medium'}`}>
-            {card.gpsScore != null ? card.gpsScore.toFixed(1) : '—'}
-          </div>
+          {card.gpsScore != null ? (
+            <div className="flex items-center gap-1">
+              <span className="text-[14px] font-semibold text-gray-900">{card.gpsScore.toFixed(1)}</span>
+              <GpsTooltip score={card.gpsScore} breakdown={card.gpsBreakdown ?? null} symbol={card.symbol} horizon={card.gpsHorizon} variant="card" />
+            </div>
+          ) : (
+            <div className="text-[14px] font-medium text-gray-400">—</div>
+          )}
         </div>
 
         <div>

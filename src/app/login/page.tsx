@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { APPROVAL_ERROR_CODES } from '@/types/auth';
+import ModelAccuracyStats from '@/app/components/ModelAccuracyStats';
 
 const FEATURES = [
   {
@@ -195,6 +196,8 @@ function LoginForm() {
         <p className="text-gray-500 text-sm max-w-xl mx-auto">
           Our model scores every stock across six financial signals — analyst upside, revenue growth, earnings growth, price momentum, ML alpha, and AI confidence — to give you a single actionable rating.
         </p>
+
+        <ModelAccuracyStats variant="cards" />
       </div>
 
       {/* Feature strip */}

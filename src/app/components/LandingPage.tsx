@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import s from '../landing.module.css';
+import ModelAccuracyStats from './ModelAccuracyStats';
 
 const CODE_SNIPPET = `{
   "success": true,
@@ -269,6 +270,9 @@ export default function LandingPage() {
             </div>
           </div>
         </section>
+
+        {/* ── MODEL ACCURACY ── */}
+        <ModelAccuracyStats variant="section" />
 
         {/* ── AI PREDICTION ENGINE ── */}
         <section className={s.prediction} id="prediction">

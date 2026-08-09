@@ -22,7 +22,7 @@ function buildCsp(nonce: string): string {
 }
 
 // Public paths that don't require a session but still get a nonce-based CSP
-const PUBLIC_PATHS = ['/', '/login', '/register', '/forgot-password', '/reset-password', '/api/unsubscribe', '/contact', '/api/contact', '/legal/privacy', '/legal/terms', '/legal/disclaimer', '/opengraph-image', '/login/opengraph-image', '/register/opengraph-image', '/sitemap.xml', '/robots.txt'];
+const PUBLIC_PATHS = ['/', '/login', '/register', '/forgot-password', '/reset-password', '/api/unsubscribe', '/contact', '/api/contact', '/legal/privacy', '/legal/terms', '/legal/disclaimer', '/opengraph-image', '/login/opengraph-image', '/register/opengraph-image', '/sitemap.xml', '/robots.txt', '/api/analytics/model-accuracy'];
 
 export default withAuth(
   function middleware(req: NextRequest) {

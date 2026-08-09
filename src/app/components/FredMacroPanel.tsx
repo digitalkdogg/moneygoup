@@ -89,7 +89,7 @@ function IndicatorRow({ ind }: { ind: MacroIndicator }) {
   const changeStr = formatChange(ind)
   const changeColor =
     signal === 'green' ? 'text-green-600' :
-    signal === 'red'   ? 'text-red-500'   : 'text-gray-500'
+    signal === 'red'   ? 'text-red-600'   : 'text-gray-600'
 
   return (
     <div className="flex items-center justify-between py-2.5 border-b border-gray-100 last:border-0 gap-2">
@@ -97,7 +97,7 @@ function IndicatorRow({ ind }: { ind: MacroIndicator }) {
         <SignalDot signal={signal} />
         <div className="min-w-0">
           <span className="text-sm font-medium text-gray-800 truncate block">{ind.name}</span>
-          <span className="text-xs text-gray-400">{formatDate(ind.obsDate)}</span>
+          <span className="text-xs text-gray-600">{formatDate(ind.obsDate)}</span>
         </div>
       </div>
       <div className="text-right shrink-0">
@@ -142,10 +142,10 @@ export default function FredMacroPanel() {
   if (empty) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-5">
-        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">
+        <h3 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-3">
           Macro Indicators
         </h3>
-        <p className="text-sm text-gray-400 text-center py-6">
+        <p className="text-sm text-gray-600 text-center py-6">
           No data yet. Run <code className="bg-gray-100 px-1 rounded text-xs">python3 scripts/fred_macro_sync.py</code> to populate.
         </p>
       </div>
@@ -160,11 +160,11 @@ export default function FredMacroPanel() {
   return (
     <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
       <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest">
+        <h3 className="text-xs font-bold text-gray-600 uppercase tracking-widest">
           Macro Indicators
         </h3>
         {syncedAt && (
-          <span className="text-[11px] text-gray-400">
+          <span className="text-[11px] text-gray-600">
             Updated {new Date(syncedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
           </span>
         )}
@@ -173,7 +173,7 @@ export default function FredMacroPanel() {
       <div className="divide-y divide-gray-100">
         {sortedKeys.map(cat => (
           <div key={cat} className="px-5 py-3">
-            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+            <div className="text-[10px] font-bold text-gray-600 uppercase tracking-widest mb-1">
               {CATEGORY_LABELS[cat] ?? cat}
             </div>
             {grouped[cat].map(ind => (

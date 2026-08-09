@@ -7,7 +7,8 @@ import Link from 'next/link'; // Import Link
 import PortfolioSection from './PortfolioSection'; // Updated to use StockCardSection internally
 import WatchlistSection from './WatchlistSection'; // Updated to use StockCardSection internally
 import PortfolioSummary from './PortfolioSummary';
-import MajorIndicesStrip from './MajorIndicesStrip';
+import MajorIndicesStrip from './MajorIndicesStrip'
+import FredMacroCard from './FredMacroCard';
 import RecommendationsSection from './RecommendationsSection';
 import ModelAccuracyWidget from './ModelAccuracyWidget';
 
@@ -198,6 +199,9 @@ export default function Dashboard() {
           {/* Market Overview Row */}
           <div className="mb-10 section-market-overview">
             <MajorIndicesStrip />
+            <div className="mt-4">
+              <FredMacroCard />
+            </div>
           </div>
 
           {/* Portfolio Section — hidden until loaded and only shown when user has stocks */}

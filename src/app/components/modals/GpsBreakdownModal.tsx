@@ -1,7 +1,7 @@
 // src/app/components/modals/GpsBreakdownModal.tsx
 'use client'
 
-import React from 'react'
+import React, { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { getGpsLabel, getCardCallLabel } from '@/utils/gps'
 
@@ -41,6 +41,17 @@ export const GpsBreakdownModal: React.FC<GpsBreakdownModalProps> = ({
   horizon = '1_month',
   variant = 'default',
 }) => {
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handler);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', handler);
+      document.body.style.overflow = '';
+    };
+  }, [isOpen, onClose]);
+
   const mlpLabel = `ML Prediction (${HORIZON_LABEL[horizon] ?? '1m'})`
   const isCardVariant = variant === 'card'
   // Card variant uses getCardCallLabel (Hold 45-55 / Buy 55-75) so the
@@ -82,36 +93,31 @@ export const GpsBreakdownModal: React.FC<GpsBreakdownModalProps> = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm flex items-center justify-center z-[1000] p-6"
+      className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/40"
       onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose() }}
     >
       <div
-        className="bg-white rounded-lg shadow-xl w-full max-width-480px overflow-hidden border border-slate-200"
+        className="bg-white rounded-2xl shadow-2xl w-full overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         style={{ maxWidth: '480px' }}
       >
         {/* Header */}
-        <div className="bg-[#017e3b] text-white p-5">
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="text-xs font-semibold letter-spacing-widest text-[#86efac] uppercase mb-1">
-                {symbol}
-                {company && ` · ${company}`}
-              </div>
-              <h3 className="text-lg font-bold tracking-tight" style={{ color: '#fff' }}>Global Performance Metric</h3>
-              <p className="text-xs text-[#bbf7d0] mt-0.5">GPS v3.0 — 8 components, 100 points</p>
-            </div>
-            <button
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose() }}
-              className="flex-shrink-0 ml-4 p-1 bg-white/15 hover:bg-white/25 transition-colors rounded text-white"
-              aria-label="Close modal"
-              style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div>
+            <h3 className="text-base font-bold text-gray-900">Global Performance Metric</h3>
+            <p className="text-xs text-gray-600 mt-0.5">
+              {symbol}{company && ` · ${company}`} · GPS v3.0 — 8 components, 100 points
+            </p>
           </div>
+          <button
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose() }}
+            className="text-gray-500 hover:text-gray-700 transition-colors p-1"
+            aria-label="Close modal"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
         {/* Content */}
