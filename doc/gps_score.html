@@ -271,7 +271,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">GPS Score</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-07-24</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-09</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -713,7 +713,10 @@ bearish_signal = predicted_change_pct &lt; 0</code></pre>
       <p>GPS score and breakdown are joined from <code>stock_gps_scores</code> in the watchlist and portfolio queries via a <code>LEFT JOIN</code> (with <code>recommended_stocks</code> as a fallback). The <code>/api/user/watchlist</code> and <code>/api/user/portfolio</code> routes both call <code>adjustGpsForHorizon</code> with the per-horizon model outputs selected from <code>user_stock_predictions</code>, so the rendered score reflects the user's <code>investment_timeframe</code>. The result is displayed in <code>WatchlistCardView</code> and <code>PortfolioCardView</code> via the <code>GpsTooltip</code> component. The portfolio card also shows a red "AI model predicts downside" badge when <code>predictionChange &lt; 0</code>.</p>
 
       <h3>GPS Breakdown Modal</h3>
-      <p><code>GpsBreakdownModal</code> (at <code>src/app/components/modals/GpsBreakdownModal.tsx</code>) displays all eight component scores in a clean list format (e.g., "ML Prediction (1m): 14.0 / 20"). The header uses an inline style (<code>color: '#fff'</code>) on the ticker <code>h3</code> to override a global CSS rule from <code>globals.css</code> that otherwise sets <code>h3</code> to a dark foreground. The summary footer colour is determined by score: green (&ge;65), amber (45–64), or red (&lt;45). The modal also decodes the numeric <code>analystConsensus</code> points back to a label string (e.g., 7 = "Buy") and displays it inline.</p>
+      <p><code>GpsBreakdownModal</code> (at <code>src/app/components/modals/GpsBreakdownModal.tsx</code>) displays all eight component scores in a clean list format with progress bars showing each component's fill percentage. The modal uses a <strong>white header</strong> (<code>bg-white</code>, dark text) — it does not use a green header. The header shows the ticker, company name, and the subtitle "GPS v3.0 — 8 components, 100 points". The summary footer colour is determined by score: green (&ge;65 in default variant; &ge;55 in card variant), amber (45–64/55), or red (&lt;45). The modal has a standardised accessibility layout: <code>max-h-[90vh] flex flex-col</code> on the outer container with <code>overflow-y-auto flex-1</code> on the body so it never overflows the viewport on small screens. The <code>GpsBreakdownModal</code> accepts a <code>variant</code> prop (<code>'default' | 'card'</code>) which adjusts the Rating badge thresholds and footer tone color to match the calling card context.</p>
+
+      <h3>GpsTooltip — "View score" button on cards</h3>
+      <p><code>GpsTooltip</code> (at <code>src/app/components/cards/GpsTooltip.tsx</code>) renders as a small "View score" text button next to the GPS score on <code>WatchlistCardView</code>. Clicking it opens <code>GpsBreakdownModal</code> with <code>variant="card"</code> so the Rating badge matches the card's own label. Existing callers that pass the modal directly (IndustryStocks, RecommendationsSection, DeepmoneyCardView, stock detail page) are unaffected and use the default variant.</p>
 
       <h3>Dashboard recommendations (horizon-adjusted)</h3>
       <p>The recommendations engine (<code>GET /api/dashboard/recommendations</code>) selects the cached GPS via <code>COALESCE(sgs.gps_score, rs.gps_score)</code> and the baseline breakdown via <code>COALESCE(sgs.gps_breakdown, rs.gps_breakdown)</code>. It then calls <code>adjustGpsForHorizon(baselineBreakdown, storedChangePct, storedConfidence)</code> for every row before applying the macro adjustment (up to ±3 pts based on World Bank unemployment signal and global health score). The GPS score is included in each recommendation object so clients can display it alongside the BUY/SELL signal.</p>

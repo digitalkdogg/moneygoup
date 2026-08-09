@@ -97,7 +97,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Components Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-07-24</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-09</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -161,12 +161,12 @@
       <span>GrowMyStocks</span>
       <span>Next.js 14 App Router</span>
       <span>TypeScript + Tailwind CSS</span>
-      <span>48+ components documented</span>
-      <span>Updated 2026-07-24</span>
+      <span>55+ components documented</span>
+      <span>Updated 2026-08-09</span>
     </div>
 
     <div class="summary-grid">
-      <div class="stat-card"><div class="value">48+</div><div class="label">Components</div></div>
+      <div class="stat-card"><div class="value">55+</div><div class="label">Components</div></div>
       <div class="stat-card"><div class="value">9</div><div class="label">Sections</div></div>
       <div class="stat-card"><div class="value">4</div><div class="label">Card Variants</div></div>
       <div class="stat-card"><div class="value">4</div><div class="label">Modals</div></div>
@@ -246,9 +246,10 @@
           <div><div class="comp-name">Dashboard</div><div class="comp-file">src/app/components/Dashboard.tsx</div></div>
           <span class="badge badge-client">Client</span>
         </div>
-        <div class="comp-desc">Top-level orchestrator for the home page (<code>/</code>). Fetches the user's portfolio via <code>GET /api/user/portfolio</code> on mount and stores both the portfolio array and the <code>horizonLabel</code> returned by that endpoint in a <code>portfolioHorizonLabel</code> state value (default <code>'1M'</code>). Determines market open/close status (NYSE hours, weekdays only). Composes: <code>MajorIndicesStrip</code>, <code>PortfolioSummary</code>, <code>PortfolioSection</code>, <code>RecommendationsSection</code>, <code>ModelAccuracyWidget</code>, and <code>WatchlistSection</code>. The <code>ModelAccuracyWidget</code> sits between <code>RecommendationsSection</code> and <code>WatchlistSection</code> inside the "Discovery &amp; Watchlist" block. Passes <code>portfolioHorizonLabel</code> down to <code>PortfolioSection</code> as the <code>horizonLabel</code> prop, plus refresh callbacks. On the home page, <code>RecommendationsSection</code> is called with default scopes (the endpoint already filters to portfolio/watchlist on this page) — the <code>etf_holding</code> scope is only active on the <code>/portfolio</code> page.</div>
+        <div class="comp-desc">Top-level orchestrator for the home page (<code>/</code>). Fetches the user's portfolio via <code>GET /api/user/portfolio</code> on mount and stores both the portfolio array and the <code>horizonLabel</code> returned by that endpoint in a <code>portfolioHorizonLabel</code> state value (default <code>'1M'</code>). Determines market open/close status (NYSE hours, weekdays only). Composes: <code>MajorIndicesStrip</code>, <code>FredMacroCard</code>, <code>PortfolioSummary</code>, <code>PortfolioSection</code>, <code>RecommendationsSection</code>, <code>ModelAccuracyWidget</code>, and <code>WatchlistSection</code>. <code>FredMacroCard</code> renders as a compact macro climate bar just below the indices strip. The <code>ModelAccuracyWidget</code> sits between <code>RecommendationsSection</code> and <code>WatchlistSection</code>. Passes <code>portfolioHorizonLabel</code> down to <code>PortfolioSection</code> as the <code>horizonLabel</code> prop, plus refresh callbacks.</div>
         <div class="dep-list">
           <span class="dep-tag">MajorIndicesStrip</span>
+          <span class="dep-tag">FredMacroCard</span>
           <span class="dep-tag">PortfolioSummary</span>
           <span class="dep-tag">PortfolioSection</span>
           <span class="dep-tag">RecommendationsSection</span>
@@ -699,7 +700,7 @@ interface CardActionHandlers {
           <div><div class="comp-name">WatchlistCardView</div><div class="comp-file">src/app/components/cards/variants/WatchlistCardView.tsx</div></div>
           <span class="badge badge-client">Client</span>
         </div>
-        <div class="comp-desc">Renders a watchlist stock card. Owns its own outer container (a compact 10px-radius white tile with <code>w-full h-full</code>) instead of using <code>BaseCardShell</code>. Header shows ticker, company name, current price, and dollar/percent change. A 3-column metrics grid displays GPS score, an analyst consensus badge (with optional analyst count below), and the 6-month moving average (MA 6M). The footer renders <strong>"{horizonLabel} Pred {predictedPriceHorizon} +X.X%"</strong> on a single line followed by a right-pointing chevron — the label is now horizon-aware (defaults to <code>'1M'</code> when <code>horizonLabel</code> is absent).</div>
+        <div class="comp-desc">Renders a watchlist stock card. Owns its own outer container (a compact 10px-radius white tile with <code>w-full h-full</code>) instead of using <code>BaseCardShell</code>. Header shows ticker, <code>RiskGrowthTags</code> badges, company name, current price, and dollar/percent change. A 2-column stats grid shows GPS score (with a <strong>"View score" link via <code>GpsTooltip</code></strong> to open <code>GpsBreakdownModal</code> in card variant) in the left cell, and a <code>GpsCallLabel</code> rating badge with optional analyst feedback below in the right cell. The footer renders <strong>"{horizonLabel} Pred {predictedPriceHorizon} +X.X%"</strong> on a single line followed by a right-pointing chevron — the label is horizon-aware (defaults to <code>'1M'</code> when <code>horizonLabel</code> is absent). The <code>ma6m</code> field is part of the <code>WatchlistCard</code> type but is no longer displayed in a separate column on this view.</div>
         <table class="props-table">
           <thead><tr><th>Prop</th><th>Type</th><th>Required</th></tr></thead>
           <tbody>
@@ -708,8 +709,8 @@ interface CardActionHandlers {
             <tr><td><code>onClick</code></td><td>() =&gt; void</td><td><span class="optional">optional</span></td></tr>
           </tbody>
         </table>
-        <div class="dep-list"><span class="dep-tag">formatters</span></div>
-        <div class="updated"><strong>June 2026:</strong> Footer rewritten. Reads <code>{horizonLabel} Pred</code> instead of the hardcoded "1M Pred" and renders the label + price on a single line (instead of stacked). Uses the renamed <code>predictedPriceHorizon</code> card field.</div>
+        <div class="dep-list"><span class="dep-tag">GpsTooltip</span><span class="dep-tag">GpsCallLabel</span><span class="dep-tag">RiskGrowthTags</span><span class="dep-tag">formatters</span></div>
+        <div class="updated"><strong>August 2026:</strong> GPS score cell now includes a <code>GpsTooltip</code> "View score" text button that opens <code>GpsBreakdownModal</code> with <code>variant="card"</code> — matching the card-variant label thresholds. Rating column shows <code>GpsCallLabel</code> (variant B). Footer uses the renamed <code>predictedPriceHorizon</code> card field and horizon-aware label.</div>
       </div>
 
       <div class="comp-card">
@@ -750,7 +751,7 @@ interface CardActionHandlers {
           <div><div class="comp-name">GpsBreakdownModal</div><div class="comp-file">src/app/components/modals/GpsBreakdownModal.tsx</div></div>
           <span class="badge badge-client">Client</span><span class="badge badge-modal">Modal</span>
         </div>
-        <div class="comp-desc">Full-screen overlay (GPS v3.0) that details how a stock's GPS score was calculated. Displays all <strong>8 component scores</strong> in a list format — ML Prediction (with horizon-aware label, e.g. "ML Prediction (1w)" / "(1m)" / "(6m)" / "(1y)"), AI Confidence, Revenue Growth, Earnings Growth, Technical Signal, Analyst Upside, Analyst Consensus, and 52-Week Momentum — each shown as "X.X / MAX". The Analyst Consensus row also shows the decoded label (e.g., "Strong Buy") derived from the numeric points value. Summary footer is color-coded by score band: green (&ge;65), amber (45–64), red (&lt;45). Backdrop click or the close button dismisses the modal. The ticker heading uses an inline <code>color: '#fff'</code> style to override a global CSS rule.</div>
+        <div class="comp-desc">Full-screen overlay (GPS v3.0) that details how a stock's GPS score was calculated. Uses a <strong>white header</strong> (<code>bg-white</code>, dark text) — there is no green header on this modal. The header line reads "Global Performance Metric" and the subline shows the ticker, optional company name, and "GPS v3.0 — 8 components, 100 points". Displays all <strong>8 component scores</strong> as a table with progress bars — ML Prediction (with horizon-aware label via <code>HORIZON_LABEL</code> map: "(1w)"/"(1m)"/"(6m)"/"(1y)"), AI Confidence, Revenue Growth, Earnings Growth, Technical Signal, Analyst Upside, Analyst Consensus, and 52-Week Momentum — each showing score / max with a colored bar. Summary footer is color-coded by score band: in default variant, green (&ge;65), amber (45–64), red (&lt;45); in card variant, green (&ge;55). Backdrop click or Escape key dismisses the modal. Rendered via <code>createPortal</code> into <code>document.body</code>. Modal has standardised accessibility layout: <code>max-h-[90vh] flex flex-col</code> on the outer white container with <code>overflow-y-auto flex-1</code> on the content body to prevent viewport overflow.</div>
         <table class="props-table">
           <thead><tr><th>Prop</th><th>Type</th><th>Required</th></tr></thead>
           <tbody>
@@ -761,10 +762,11 @@ interface CardActionHandlers {
             <tr><td><code>score</code></td><td>number | null</td><td><span class="required">required</span></td></tr>
             <tr><td><code>breakdown</code></td><td>GpsBreakdown | null</td><td><span class="required">required</span></td></tr>
             <tr><td><code>horizon</code></td><td>'1_week' | '1_month' | '6_month' | '1_year'</td><td><span class="optional">optional</span> — defaults to <code>'1_month'</code></td></tr>
+            <tr><td><code>variant</code></td><td>'default' | 'card'</td><td><span class="optional">optional</span> — defaults to <code>'default'</code></td></tr>
           </tbody>
         </table>
-        <div class="note">GPS v3.0 — 8 components, 100 points: mlpUpside (20), mlpConfidence (5), revenueGrowth (12), earningsGrowth (12), technicalSignal (20), analystUpside (12), analystConsensus (9), priceChange52w (10). When breakdown is null, the modal shows only the numeric score.</div>
-        <div class="updated"><strong>June 2026:</strong> Added optional <code>horizon</code> prop. An internal <code>HORIZON_LABEL</code> map translates each horizon key to a short suffix ("1w" / "1m" / "6m" / "1y") that is rendered into the ML Prediction row label. Defaults to <code>'1_month'</code> for backward compatibility with callers that don't pass the prop.</div>
+        <div class="note">GPS v3.0 — 8 components, 100 points: mlpUpside (20), mlpConfidence (5), revenueGrowth (12), earningsGrowth (12), technicalSignal (20), analystUpside (12), analystConsensus (9), priceChange52w (10). When breakdown is null, the modal shows only the numeric score. The <code>variant="card"</code> prop adjusts the Rating badge label (uses <code>getCardCallLabel</code> instead of <code>getGpsLabel</code>) and the green tone threshold (55 instead of 65) to match calling card's own badge.</div>
+        <div class="updated"><strong>August 2026:</strong> White header standardised (no green header). Added <code>variant</code> prop. Accessibility layout enforced: <code>max-h-[90vh] flex flex-col</code> outer + <code>overflow-y-auto flex-1</code> body. <code>GpsTooltip</code> on <code>WatchlistCardView</code> now opens this modal with <code>variant="card"</code>.</div>
       </div>
 
       <div class="comp-card">

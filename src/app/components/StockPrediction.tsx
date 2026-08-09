@@ -511,21 +511,12 @@ export default function StockPrediction({
   const loading = step === 'fetching' || step === 'predicting'
   const TitleTag = titleLevel;
 
-  // Async rationale backfill state (Plan 2).
-  const [rationaleLoading,    setRationaleLoading]    = useState(false)
-  const [rationaleRefreshing, setRationaleRefreshing] = useState(false)
-  const pollTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const pollAttemptsRef = useRef(0)
-
   const generate = async (refresh = false) => {
     setError(null)
     setPrediction(null)
     setDataQuality(null)
     setBannerDismissed(false)
     setFallbackBannerDismissed(false)
-    pollAttemptsRef.current = 0
-    setRationaleLoading(false)
-    if (pollTimerRef.current) { clearTimeout(pollTimerRef.current); pollTimerRef.current = null }
 
     // ---- Step 1: fetch enriched data payload ----
     setStep('fetching')
@@ -661,64 +652,6 @@ export default function StockPrediction({
     setStep('done')
   }, [prefetchedPrediction]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Poll for llm_rationale backfill after async narration (Plan 2).
-  // Shows "Generating rationale..." immediately, then polls latest-prediction
-  // (fast DB read) every 20s up to 3 times (~60s window).  Each poll schedules
-  // the next one from within its own callback so the effect only needs to fire
-  // once — avoids the re-run dependency problem when llm_rationale stays null.
-  useEffect(() => {
-    if (!prediction) return
-    if (prediction.llm_rationale) { setRationaleLoading(false); return }
-    if (pollAttemptsRef.current >= 3) { setRationaleLoading(false); return }
-
-    setRationaleLoading(true)
-
-    const poll = async () => {
-      pollAttemptsRef.current++
-      try {
-        const res = await fetch(`/api/stock_data/${ticker}/latest-prediction`)
-        if (res.ok) {
-          const data = await res.json()
-          const rationale: string | null = data?.prediction?.llm_rationale ?? null
-          if (rationale) {
-            setPrediction(prev => prev ? { ...prev, llm_rationale: rationale } : prev)
-            setRationaleLoading(false)
-            pollAttemptsRef.current = 0
-            return
-          }
-        }
-      } catch { /* narration is optional */ }
-
-      // Schedule next attempt or give up
-      if (pollAttemptsRef.current < 3) {
-        pollTimerRef.current = setTimeout(poll, 20_000)
-      } else {
-        setRationaleLoading(false)
-      }
-    }
-
-    pollTimerRef.current = setTimeout(poll, 20_000)
-
-    return () => {
-      if (pollTimerRef.current) { clearTimeout(pollTimerRef.current); pollTimerRef.current = null }
-    }
-  }, [prediction?.llm_rationale, ticker]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const refreshRationale = async () => {
-    if (rationaleRefreshing) return;
-    setRationaleRefreshing(true);
-    try {
-      const res = await fetch(`/api/prediction/${encodeURIComponent(ticker)}/rationale`, { method: 'POST' });
-      if (res.ok) {
-        const data = await res.json();
-        if (data?.rationale) {
-          setPrediction(prev => prev ? { ...prev, llm_rationale: data.rationale } : prev);
-        }
-      }
-    } catch { /* narration is optional */ } finally {
-      setRationaleRefreshing(false);
-    }
-  };
 
   const btnLabel =
     step === 'fetching'   ? 'Fetching 5-year data...' :
@@ -940,47 +873,6 @@ export default function StockPrediction({
             </div>
           </div>
 
-          {/* ---- "Why this range" LLM narrative ---- */}
-          {prediction.llm_rationale ? (
-            <div className="mt-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-r-lg">
-              <div className="flex items-center justify-between mb-1">
-                <div className="text-[11px] font-semibold text-blue-700 uppercase tracking-wide">
-                  Why this range
-                </div>
-                <button
-                  onClick={refreshRationale}
-                  disabled={rationaleRefreshing}
-                  className="sm rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white transition-colors focus-ring"
-                  style={{ padding: '0.375rem', fontSize: '1rem', lineHeight: 1, width: '2rem', height: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                  title="Regenerate rationale"
-                >
-                  {rationaleRefreshing
-                    ? <span className="inline-block w-3 h-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                    : '↻'}
-                </button>
-              </div>
-              {rationaleRefreshing ? (
-                <p className="text-sm text-blue-400 italic flex items-center gap-2">
-                  <span className="inline-block w-2 h-2 rounded-full bg-blue-300 animate-pulse" />
-                  Regenerating rationale...
-                </p>
-              ) : (
-                <p className="text-sm text-gray-800 leading-relaxed">
-                  {prediction.llm_rationale}
-                </p>
-              )}
-            </div>
-          ) : rationaleLoading ? (
-            <div className="mt-6 p-4 bg-blue-50 border-l-4 border-blue-300 rounded-r-lg">
-              <div className="text-[11px] font-semibold text-blue-400 uppercase tracking-wide mb-1">
-                Why this range
-              </div>
-              <p className="text-sm text-blue-400 italic flex items-center gap-2">
-                <span className="inline-block w-2 h-2 rounded-full bg-blue-300 animate-pulse" />
-                Generating rationale...
-              </p>
-            </div>
-          ) : null}
 
           {/* ---- 18-month SVG trajectory chart ---- */}
           {prediction.monthly_trajectory?.length > 0 && (

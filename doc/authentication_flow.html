@@ -7,7 +7,7 @@
     <meta name="description" content="Complete reference for MoneyGoUp authentication flows: registration, login, password reset, and security controls.">
     <meta name="author" content="Technical Documentation Team">
     <meta name="created" content="2026-05-17">
-    <meta name="updated" content="2026-07-24">
+    <meta name="updated" content="2026-08-09">
     <style>
         :root {
             --primary: #15803d;
@@ -216,7 +216,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Authentication Flow</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-07-24</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-09</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -706,6 +706,7 @@ Page shows success banner → redirects to /login after 3 seconds</div>
             <li><code>/api/unsubscribe</code> — public by design (RFC 8058), protected via HMAC-signed token</li>
             <li><code>/opengraph-image</code>, <code>/login/opengraph-image</code>, <code>/register/opengraph-image</code></li>
             <li><code>/sitemap.xml</code>, <code>/robots.txt</code></li>
+            <li><code>/api/analytics/model-accuracy</code> — model accuracy stats; publicly accessible to power the marketing landing page's "Proven Track Record" section and the <code>ModelAccuracyStats</code> component without requiring a login</li>
         </ul>
         <p>Additionally, the matcher itself excludes <code>/api/auth/**</code> (NextAuth internals and the custom auth routes), <code>/_next/static/**</code>, <code>/_next/image/**</code>, and the logo/favicon assets, so the middleware function does not even run for those paths.</p>
 
@@ -905,9 +906,9 @@ Page shows success banner → redirects to /login after 3 seconds</div>
 
     <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border); color: #94a3b8; font-size: 0.85rem;">
         <strong>MoneyGoUp — Authentication Flow Documentation</strong><br>
-        Created: May 17, 2026 &nbsp;|&nbsp; Last Updated: July 24, 2026<br>
+        Created: May 17, 2026 &nbsp;|&nbsp; Last Updated: August 9, 2026<br>
         Author: Technical Documentation Team<br>
-        Version: 1.2 — corrects middleware module path to <code>src/proxy.ts</code>; expands the public-paths list to match <code>PUBLIC_PATHS</code>; documents the ≥32-byte <code>DEEPMONEY_INTERNAL_SECRET</code> requirement; adds numeric caps to the rate-limit table; minor accuracy edits throughout<br>
+        Version: 1.3 — adds <code>/api/analytics/model-accuracy</code> to PUBLIC_PATHS list<br>
         Copyright &copy; 2026 MoneyGoUp. All rights reserved.
     </footer>
 </main>

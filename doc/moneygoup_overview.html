@@ -213,7 +213,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">App Overview</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-07-24</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-09</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -508,6 +508,7 @@
             <ul>
                 <li><code>scripts/update_predictions.py</code> — Refreshes cached MLP predictions overnight (and on demand) so the dashboard does not have to spawn Python for every render.</li>
                 <li><code>scripts/deepmoney_sync.py</code> — Runs the DeepMoney discovery pipeline: macro context fetch, recursive news discovery, ML validation gate, then commits to <code>recommended_stocks</code> and <code>hot_etfs</code>. Full breakdown in <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>.</li>
+                <li><code>scripts/fred_macro_sync.py</code> — Fetches 9 FRED macroeconomic data series from the Federal Reserve API and upserts them into the <code>fred_macro_indicators</code> table. Requires <code>FRED_API_KEY</code>. Supports <code>--dry-run</code> flag. Run nightly to keep the dashboard's "Macro Climate" panel and the stock detail page's <code>MacroScoreBadge</code> current.</li>
             </ul>
         </section>
 
@@ -732,6 +733,17 @@ DB_HOST=mysql-primary.internal</pre>
                 <div class="field"><span class="field-label">Tuning</span>
                     <pre class="example">CONTACT_RECIPIENT_EMAIL=support@growmystocks.com</pre>
                 </div>
+            </div>
+
+            <div class="env-category" id="env-vars-external-apis">External Data APIs</div>
+
+            <div class="env-var-card">
+                <span class="name">FRED_API_KEY</span>
+                <span class="default required">required for FRED sync</span>
+                <div class="field"><span class="field-label">Overview</span>API key for the Federal Reserve Economic Data (FRED) service at <code>api.stlouisfed.org</code>. Required by <code>scripts/fred_macro_sync.py</code> to fetch 9 macroeconomic series (PAYEMS, UNRATE, CIVPART, CPIAUCSL, CPILFESL, FEDFUNDS, GDP, T10Y2Y, UMCSENT). Free to obtain from <a href="https://fred.stlouisfed.org/docs/api/api_key.html">fred.stlouisfed.org</a>.</div>
+                <div class="field"><span class="field-label">Where used</span><code>scripts/fred_macro_sync.py</code> — passed as a query parameter to the FRED API. Not used in the Next.js app itself; data is read from <code>fred_macro_indicators</code> DB table via <code>GET /api/macro/fred</code>.</div>
+                <div class="field"><span class="field-label">Visible on</span>Dashboard "Macro Climate" bar (<code>FredMacroCard</code>) and the macro indicator dots on every stock detail page (<code>MacroScoreBadge</code>). If the sync script hasn't run yet, these UI elements will show a loading or empty state.</div>
+                <div class="field"><span class="field-label">Tuning</span><pre class="example">FRED_API_KEY=your_fred_api_key_here</pre></div>
             </div>
 
             <div class="env-category" id="env-vars-deepmoney">DeepMoney sync pipeline + ETF holdings</div>

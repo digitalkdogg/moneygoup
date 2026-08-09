@@ -97,7 +97,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Architecture Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-07-24</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-09</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -142,6 +142,7 @@
     <a href="#data-flow">Data Flow</a>
     <a href="#prediction-pipeline">Prediction Pipeline</a>
     <a href="#card-system">Card System</a>
+    <a href="#model-accuracy">Model Accuracy</a>
     <a href="#database">Database Patterns</a>
     <a href="#external-services">External Services</a>
     <a href="#key-utilities">Key Utilities</a>
@@ -162,7 +163,7 @@
       <span>Next.js 16 App Router</span>
       <span>TypeScript</span>
       <span>Tailwind CSS</span>
-      <span>Updated 2026-07-24</span>
+      <span>Updated 2026-08-09</span>
     </div>
 
     <div class="summary-grid">
@@ -191,7 +192,8 @@
             <tr><td>ML Prediction</td><td>Python subprocess</td><td><code>scripts/predict_weighted_analysis.py</code> spawned via Node child_process. Post-hoc adjustment stack version selected by <code>MODEL_VARIANT</code> env var (<code>v3</code>/<code>v4</code>/<code>v5</code>, default <code>v5</code>) — independent of <code>CS_MODEL_VERSION</code> which selects the cross-sectional model pickle.</td></tr>
             <tr><td>Charts</td><td>Recharts</td><td>Used for stock price history and portfolio value charts</td></tr>
             <tr><td>Email</td><td>Resend</td><td>Registration, approval, password reset, contact form</td></tr>
-            <tr><td>Macro Data</td><td>World Bank API</td><td>GDP, inflation, unemployment; 6-hour cache</td></tr>
+            <tr><td>Macro Data (World Bank)</td><td>World Bank API</td><td>GDP, inflation, unemployment, globalHealthScore; 6-hour cache; used by recommendations engine</td></tr>
+            <tr><td>Macro Data (FRED)</td><td>FRED API (Federal Reserve)</td><td>9 series (nonfarm payrolls, CPI, Fed Funds, GDP, yield curve, consumer sentiment); synced nightly via <code>scripts/fred_macro_sync.py</code>; stored in <code>fred_macro_indicators</code> table; displayed by <code>FredMacroCard</code> on dashboard and <code>MacroScoreBadge</code> on stock detail page</td></tr>
             <tr><td>Validation</td><td>Zod</td><td>All API route inputs validated with Zod schemas</td></tr>
             <tr><td>Rate Limiting</td><td>Custom (src/utils/rateLimiter.ts)</td><td>6 distinct limiters (including <code>unsubscribeLimiter</code> added May 2026); role-based lookup quotas via LimitService. IP extraction via <code>rateLimitMiddleware.ts</code> respects <code>TRUSTED_PROXIES</code> env var to prevent IP spoofing bypass.</td></tr>
           </tbody>
@@ -287,7 +289,10 @@ scripts/
 │                                   Uses ETF_HOLDING_ALGORITHM preset (via
 │                                   scripts/etf_holding_preset.py) +
 │                                   ETF_HOLDING_MIN_CONFIDENCE env var
-└── predict_weighted_analysis.py   Python ML prediction model
+├── predict_weighted_analysis.py   Python ML prediction model (spawned by /api/prediction/[ticker])
+├── predict_core.py                Core prediction logic shared by other scripts
+└── fred_macro_sync.py             Fetches 9 FRED series and upserts to fred_macro_indicators
+                                    Requires FRED_API_KEY env var; run nightly; --dry-run flag available
 
 public/
 ├── growmystock_logo.svg
@@ -305,13 +310,15 @@ doc/                               All HTML documentation files</pre>
         <table class="props-table">
           <thead><tr><th>Route</th><th>Component / Page</th><th>Auth</th><th>Notes</th></tr></thead>
           <tbody>
-            <tr><td><code>/</code></td><td>Dashboard</td><td>Required</td><td>Portfolio, watchlist, recommendations, indices strip</td></tr>
+            <tr><td><code>/</code></td><td>LandingPage (marketing)</td><td>Public</td><td>Public marketing landing page. Shows <code>ModelAccuracyStats variant="section"</code> ("Proven Track Record"). Redirects logged-in users to <code>/dashboard</code>.</td></tr>
+            <tr><td><code>/dashboard</code></td><td>Dashboard</td><td>Required</td><td>Portfolio, watchlist, recommendations, indices strip, <code>FredMacroCard</code>, <code>ModelAccuracyWidget</code></td></tr>
             <tr><td><code>/portfolio</code></td><td>Portfolio page</td><td>Required</td><td>Full portfolio view: history chart, KPIs, gains breakdown, compare chart, holdings sidebar, and Recommendations section. Passes <code>etf_holding</code> scope + <code>portfolioEtfTickers</code> to <code>RecommendationsSection</code> when user holds ETFs.</td></tr>
             <tr><td><code>/search</code></td><td>Search page</td><td>Required</td><td>Search component (debounced <code>/api/search</code>, keyboard-navigable dropdown) + SectorExplorer + EarningsCalendar widget + TrendingStocksGrid</td></tr>
             <tr><td><code>/search/[ticker]</code></td><td>Stock detail page</td><td>Required</td><td>Renders Stock component for a single ticker</td></tr>
             <tr><td><code>/search/industry/[sector]</code></td><td>Sector page</td><td>Required</td><td>Renders IndustryStocks for a canonical Yahoo sector (Technology, Financial Services, etc.)</td></tr>
             <tr><td><code>/profile</code></td><td>Profile page</td><td>Required</td><td>Profile component — stats, account type</td></tr>
-            <tr><td><code>/admin/users</code></td><td>Admin Users page</td><td>Required + admin role</td><td>User management table with approve/reject/role controls</td></tr>
+            <tr><td><code>/admin/users</code></td><td>Admin Users page</td><td>Required + admin role</td><td>User management table with approve/reject/role controls. Navigation shows two pages: "User Management" and "Cache Management".</td></tr>
+            <tr><td><code>/admin/cache</code></td><td>Admin Cache page</td><td>Required + admin role</td><td>Cache inspection and invalidation for in-memory caches</td></tr>
             <tr><td><code>/login</code></td><td>Login page</td><td>Public</td><td>NextAuth sign-in form</td></tr>
             <tr><td><code>/register</code></td><td>Registration page</td><td>Public</td><td>Submits to POST /api/auth/register</td></tr>
             <tr><td><code>/forgot-password</code></td><td>Forgot password page</td><td>Public</td><td>Submits to POST /api/auth/forgot-password</td></tr>
@@ -479,20 +486,22 @@ doc/                               All HTML documentation files</pre>
       </div>
 
       <div class="arch-card">
-        <h4>GPS Score (Global Performance Score)</h4>
-        <p>A composite 0–100 score computed by the Python model. Combines 6 sub-scores:</p>
+        <h4>GPS Score v3.0 (Global Performance Score)</h4>
+        <p>A composite 0–100 score. GPS v3.0 combines 8 components across a 100-point scale:</p>
         <table class="props-table" style="margin-top:.75rem;">
-          <thead><tr><th>Sub-score</th><th>Source</th></tr></thead>
+          <thead><tr><th>Component</th><th>Max Points</th><th>Source</th></tr></thead>
           <tbody>
-            <tr><td>Analyst Upside</td><td>Analyst 12-month target price vs. current price</td></tr>
-            <tr><td>Revenue Growth</td><td>YoY revenue growth from earnings data</td></tr>
-            <tr><td>Earnings Growth</td><td>YoY EPS growth</td></tr>
-            <tr><td>52-Week Price Change</td><td>Current price vs. 52-week low/high midpoint</td></tr>
-            <tr><td>MLP Alpha</td><td>Multi-layer perceptron model alpha signal</td></tr>
-            <tr><td>AI Confidence</td><td>Model prediction confidence level</td></tr>
+            <tr><td>ML Prediction (mlpUpside)</td><td>20</td><td>MLP model predicted upside; horizon-dependent via <code>adjustGpsForHorizon()</code></td></tr>
+            <tr><td>AI Confidence (mlpConfidence)</td><td>5</td><td>Model confidence score; horizon-patched alongside mlpUpside</td></tr>
+            <tr><td>Revenue Growth</td><td>12</td><td>YoY revenue growth from earnings data</td></tr>
+            <tr><td>Earnings Growth</td><td>12</td><td>YoY EPS growth</td></tr>
+            <tr><td>Technical Signal</td><td>20</td><td>Composite of RSI, SMA, momentum, volume signals</td></tr>
+            <tr><td>Analyst Upside</td><td>12</td><td>Analyst 12-month price target vs. current price</td></tr>
+            <tr><td>Analyst Consensus</td><td>9</td><td>Weighted analyst buy/hold/sell consensus</td></tr>
+            <tr><td>52-Week Momentum (priceChange52w)</td><td>10</td><td>Price performance over the trailing 52 weeks</td></tr>
           </tbody>
         </table>
-        <p style="margin-top:.75rem;">GPS scores are stored in <code>user_stock_predictions.gps_score</code> (user-specific) and also in the <code>recommended_stocks</code> table (system-wide). The <code>GET /api/stock_data/{ticker}/gps</code> endpoint checks user predictions first, then falls back to system scores.</p>
+        <p style="margin-top:.75rem;">GPS scores are stored in <code>user_stock_predictions.gps_score</code> (user-specific, horizon-patched) and in <code>stock_gps_scores</code> (system-wide 1-month baseline). The <code>GET /api/stock_data/{ticker}/gps</code> endpoint checks user predictions first, then falls back to system scores. The <code>GpsBreakdownModal</code> displays all 8 components with bar charts. Labels: Strong Buy ≥80, Buy ≥65, Hold ≥45, Sell ≥30, Strong Sell &lt;30.</p>
       </div>
     </div>
 
@@ -517,7 +526,7 @@ type StockCardModel =
         <pre>StockCard (React.memo)
   └─ BaseCardShell (hover, keyboard a11y)
        ├─ PortfolioCardView    (card.variant === 'portfolio')
-       ├─ WatchlistCardView    (card.variant === 'watchlist')
+       ├─ WatchlistCardView    (card.variant === 'watchlist') — includes GpsTooltip "View score" button
        ├─ DeepmoneyCardView    (card.variant === 'deepmoney')
        └─ SearchTrendingCardView (card.variant === 'search-trending')
 
@@ -525,8 +534,38 @@ Each variant uses:
   ├─ CardHeader (symbol, price, change — portfolio or watchlist layout)
   ├─ CardMetricRow (label/value pairs)
   ├─ CardActions → ActionButton (primary/secondary/danger/neutral × sm/md)
-  ├─ GpsTooltip → GpsBreakdownModal
+  ├─ GpsTooltip → GpsBreakdownModal (WatchlistCardView and PortfolioCardView)
   └─ formatters.ts (pure formatting functions)</pre>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ -->
+    <div class="section">
+      <div class="section-title" id="model-accuracy">Model Accuracy Display</div>
+
+      <div class="arch-card">
+        <h4>ModelAccuracyStats (three display variants)</h4>
+        <p>Fetches from <code>GET /api/analytics/model-accuracy</code> (public path — no login required). Renders differently depending on the <code>variant</code> prop:</p>
+        <table class="props-table" style="margin-top:.75rem;">
+          <thead><tr><th>Variant</th><th>Where used</th><th>Layout</th></tr></thead>
+          <tbody>
+            <tr><td><code>'section'</code></td><td>LandingPage.tsx (public home page)</td><td>Full section with "Proven Track Record" heading, large metric cards, and description copy</td></tr>
+            <tr><td><code>'cards'</code></td><td>Login page</td><td>Compact card grid layout, no heading</td></tr>
+            <tr><td><code>'strip'</code></td><td>Default / other contexts</td><td>Compact horizontal bar</td></tr>
+          </tbody>
+        </table>
+        <p style="margin-top:.75rem;">Shows: 1-week accuracy, 1-month accuracy, and total resolved predictions count. The data is publicly accessible without login, which allows the landing page to display live model performance stats to unauthenticated visitors.</p>
+      </div>
+
+      <div class="arch-card">
+        <h4>ModelAccuracyWidget (dashboard, interactive)</h4>
+        <p>Full interactive widget used on the authenticated dashboard. Fetches with <code>?skip_cache=true</code> to always show fresh data. Features:</p>
+        <ul>
+          <li>Horizon selector tabs: 1 Week / 1 Month / 6 Months / 1 Year (dropdown on mobile, button group on desktop)</li>
+          <li>Three KPI tiles: Overall Model Accuracy (green, all horizons), Proximity Accuracy (blue, selected horizon), High Accuracy ≥95% count (amber)</li>
+          <li>Falls back to an info panel when fewer than 30 resolved predictions exist (<code>status: 'insufficient_data'</code>)</li>
+          <li>Data freshness note at bottom: "computed daily from live market data"</li>
+        </ul>
       </div>
     </div>
 
@@ -566,6 +605,7 @@ Each variant uses:
             <tr><td><code>recommended_stocks</code></td><td>System-wide AI-curated hot stocks snapshot with GPS scores</td></tr>
             <tr><td><code>hot_etfs</code></td><td>System-wide AI-curated hot ETFs snapshot</td></tr>
             <tr><td><code>etf_stock_recommendations</code></td><td>Per-user ETF holding recommendations written by <code>update_predictions.py</code>. Each row links a user, a parent ETF ticker, and a holding ticker with GPS/prediction metadata.</td></tr>
+            <tr><td><code>fred_macro_indicators</code></td><td>FRED macro data series (9 series, 6 categories). Upserted nightly by <code>fred_macro_sync.py</code>. Served by <code>GET /api/macro/fred</code>.</td></tr>
             <tr><td><code>prediction_records</code></td><td>Analytics + prefetch ledger of multi-horizon model predictions. Used by ModelAccuracyWidget and /search/[ticker] latest-prediction. Extended 2026-07-11 with 11 new columns (<code>accuracy_metrics</code>, <code>data_quality</code>, <code>model_status</code>, <code>at_model_ceiling_6m</code>, <code>at_model_ceiling_1y</code>, <code>ceiling_direction</code>, <code>confidence_breakdown</code>, and <code>confidence_reason_1w/1m/6m/1y</code>). Migration file for the July 11 extension is not present in <code>scripts/migrations/</code> — the columns may have been applied directly against the DB or via a script since removed. Verify against live schema before restoring.</td></tr>
             <tr><td><code>prediction_details</code></td><td><strong>New (2026-07-10):</strong> 1:1 sibling of <code>prediction_records</code> via <code>prediction_record_id</code> FK (<code>ON DELETE CASCADE</code>). Stores the per-prediction feature snapshot (VIX, beta, RSI, momentum, sector medians, and other regime inputs) so segmented accuracy analysis can be done after resolution without re-fetching source data. Migration file not present in <code>scripts/migrations/</code>; live schema is the source of truth.</td></tr>
             <tr><td><code>ranking_training_snapshots</code></td><td>Historical snapshots of features and forward returns for training the cross-sectional ranker model.</td></tr>
@@ -617,6 +657,19 @@ Each variant uses:
             <li>Used by recommendations engine to dampen BUY thresholds when macro is bearish</li>
           </ul>
         </div>
+      </div>
+
+      <div class="arch-card">
+        <h4>FRED API (Federal Reserve Economic Data)</h4>
+        <p>Provides macroeconomic series data used to display the "Macro Climate" panel on the dashboard and the <code>MacroScoreBadge</code> on each stock detail page.</p>
+        <ul>
+          <li>9 series: PAYEMS, UNRATE, CIVPART, CPIAUCSL, CPILFESL, FEDFUNDS, GDP, T10Y2Y, UMCSENT</li>
+          <li>6 categories: labor, inflation, monetary, growth, credit, sentiment</li>
+          <li>Synced nightly via <code>scripts/fred_macro_sync.py</code></li>
+          <li>Requires <code>FRED_API_KEY</code> environment variable</li>
+          <li>Data stored in <code>fred_macro_indicators</code> table; served by <code>GET /api/macro/fred</code></li>
+          <li>UI: <code>FredMacroCard</code> on dashboard, <code>MacroScoreBadge</code> on <code>/search/[ticker]</code></li>
+        </ul>
       </div>
 
       <div class="two-col">

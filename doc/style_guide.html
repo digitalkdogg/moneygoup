@@ -103,7 +103,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Style Guide</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-07-24</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-09</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">&lsaquo;</button>
@@ -149,6 +149,7 @@
     <a href="#card-variants">Card Variants</a>
     <a href="#badges">Badges &amp; Indicators</a>
     <a href="#utilities">Utility Patterns</a>
+    <a href="#modals">Modal Standards</a>
     <a href="#accessibility">Accessibility (AA)</a>
     <div class="section-divider"></div>
     <a href="authentication_flow.html">Auth Flow</a>
@@ -693,6 +694,44 @@ getPredictionColor(value)  // null|0=text-black, &gt;0=text-green-600, &lt;0=tex
                     <li><strong>Purpose:</strong> gives CSS, DevTools, and JS a stable, greppable handle on every landmark without polluting semantic markup. The prefix means <code>grep -r "section-"</code> enumerates every major region in the app.</li>
                     <li><strong>Do not</strong> use <code>section-*</code> classes as styling hooks by default; treat them as identifiers. If a rule genuinely needs to target one region, that's fine, but the primary use case is discoverability and instrumentation.</li>
                 </ul>
+            </div>
+        </section>
+
+        <section id="modals">
+            <h2>Modal Standards</h2>
+            <div class="component-section" style="border-left:6px solid #017e3b;">
+                <p>All modals in the application follow a standard accessibility layout enforced across every modal component (<code>GpsBreakdownModal</code>, <code>BuyMoreModal</code>, <code>SellModal</code>, etc.).</p>
+
+                <h3 style="background:none;padding:0;color:#0f172a;font-size:1rem;margin-top:1.25rem;">Outer container</h3>
+                <pre style="background:#0f172a;color:#e2e8f0;padding:1rem;border-radius:8px;font-size:.82rem;line-height:1.6;margin:.5rem 0;">bg-white rounded-2xl shadow-2xl w-full max-h-[90vh] flex flex-col overflow-hidden</pre>
+                <ul>
+                    <li><code>max-h-[90vh]</code> — caps the modal at 90% of the viewport height. Prevents the modal from overflowing off-screen on small displays.</li>
+                    <li><code>flex flex-col</code> — establishes the vertical flex context so the header stays pinned and only the content area scrolls.</li>
+                    <li><code>overflow-hidden</code> — clips the outer shell; scrolling happens on the inner body element only.</li>
+                </ul>
+
+                <h3 style="background:none;padding:0;color:#0f172a;font-size:1rem;margin-top:1.25rem;">Scrollable body</h3>
+                <pre style="background:#0f172a;color:#e2e8f0;padding:1rem;border-radius:8px;font-size:.82rem;line-height:1.6;margin:.5rem 0;">p-6 overflow-y-auto flex-1</pre>
+                <ul>
+                    <li><code>overflow-y-auto</code> — enables scroll only on the content body, not the full modal. The header remains stationary.</li>
+                    <li><code>flex-1</code> — allows the body to expand and fill the remaining vertical space after the header.</li>
+                </ul>
+
+                <h3 style="background:none;padding:0;color:#0f172a;font-size:1rem;margin-top:1.25rem;">Header (GpsBreakdownModal)</h3>
+                <p>The <code>GpsBreakdownModal</code> header uses a <strong>white background</strong> (<code>bg-white</code> inherits from the outer shell) with dark text (<code>text-gray-900</code>). There is no green-colored header on this modal. The header content is: an H3 "Global Performance Metric" heading, a subtitle with symbol / company / version, and a close button. This pattern should be followed for all full-detail modals.</p>
+
+                <h3 style="background:none;padding:0;color:#0f172a;font-size:1rem;margin-top:1.25rem;">Portal rendering</h3>
+                <p>Modals that need to escape z-index stacking contexts (cards, sticky headers) are rendered via <code>createPortal(content, document.body)</code>. This ensures the modal always sits above all other page content. Currently applies to: <code>GpsBreakdownModal</code>.</p>
+
+                <h3 style="background:none;padding:0;color:#0f172a;font-size:1rem;margin-top:1.25rem;">Keyboard &amp; backdrop</h3>
+                <ul>
+                    <li>Pressing <kbd>Escape</kbd> closes the modal (<code>document.addEventListener('keydown', handler)</code>).</li>
+                    <li>Clicking the backdrop (the <code>bg-black/40</code> overlay) closes the modal.</li>
+                    <li>While open, <code>document.body.style.overflow = 'hidden'</code> prevents background page scroll. Cleaned up in the effect's return function.</li>
+                </ul>
+
+                <h3 style="background:none;padding:0;color:#0f172a;font-size:1rem;margin-top:1.25rem;">Max width</h3>
+                <p>Most detail modals are constrained to <code>maxWidth: '480px'</code> via inline style. The outer container is <code>w-full</code> so the modal is responsive below 480px.</p>
             </div>
         </section>
 
