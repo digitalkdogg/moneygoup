@@ -632,9 +632,16 @@ export default function Stock({
                 {stockData.longBusinessSummary.length > TRUNCATE_LENGTH && (
                   <button
                     onClick={() => setShowFullSummary(!showFullSummary)}
-                    className="hover:text-green-800 ml-1 focus:outline-none text-[#005a00]"
+                    className="hover:text-green-800 ml-1 focus:outline-none text-[#005a00] inline-flex items-center gap-0.5 transition-all duration-200 hover:gap-1"
                   >
                     {showFullSummary ? 'Read Less' : 'Read More'}
+                    <span
+                      className="inline-block transition-transform duration-200"
+                      style={{ transform: showFullSummary ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                      aria-hidden="true"
+                    >
+                      ↓
+                    </span>
                   </button>
                 )}
               </div>
