@@ -97,7 +97,7 @@ export default function ModelAccuracyStats({ variant = 'strip' }: ModelAccuracyS
   if (variant === 'cards') {
     return (
       <div className="w-full max-w-4xl mx-auto mt-6">
-        <div className={`grid gap-4 ${stats.length === 3 ? 'grid-cols-3' : 'grid-cols-2 sm:grid-cols-4'}`}>
+        <div className={`grid gap-4 ${stats.length === 3 ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-2 sm:grid-cols-4'}`}>
           {stats.map((s) => (
             <div key={s.label} className="bg-white rounded-xl p-4 shadow-sm flex flex-col items-start gap-2">
               <div className="px-2.5 py-1 bg-green-50 rounded-lg">

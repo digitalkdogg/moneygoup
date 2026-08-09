@@ -455,4 +455,6 @@
   .navLinksOpen { display: flex !important; }
   .hamburger { display: flex; }
   .buckets, .infraCards, .archRow { grid-template-columns: 1fr; }
+  .heroStats { justify-content: center; }
+  .stat { text-align: center; }
 }
