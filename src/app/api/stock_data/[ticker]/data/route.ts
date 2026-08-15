@@ -522,6 +522,9 @@ export async function GET(
     const recommendationMean  = safeNum(finData.recommendationMean);
     const currentPrice        = safeNum(liveQuote.regularMarketPrice ?? price.regularMarketPrice);
     const analystUpside       = analystTargetMean && currentPrice && analystTargetMean > 0 ? (analystTargetMean - currentPrice) / currentPrice : 0;
+    const analystTargetDispersionRatio = (analystTargetHigh != null && analystTargetLow != null && analystTargetMean != null && analystTargetMean > 0)
+      ? (analystTargetHigh - analystTargetLow) / analystTargetMean
+      : 0;
     
     // Fallback for fiftyTwoWeekChange: calculate from historicalData if missing
     let fiftyTwoWeekChange = safeNum(keyStats.fiftyTwoWeekChange);
@@ -712,6 +715,7 @@ export async function GET(
       recommendationMean,
       recommendationKey:  (finData.recommendationKey as string | null) ?? null,
       analystUpside,
+      AnalystTarget_DispersionRatio: analystTargetDispersionRatio,
       fiftyTwoWeekChange,
       nextEarningsDate,
       lastEarningsDate,

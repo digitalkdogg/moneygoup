@@ -23,7 +23,7 @@ import numpy as np
 import pandas as pd
 
 
-FEATURE_SET_VERSION = "green_v2"
+FEATURE_SET_VERSION = "green_v3"
 MIN_HISTORY_ROWS = 260
 
 # GREEN feature column order — must match training-time ordering exactly,
@@ -36,7 +36,7 @@ FEATURE_COLUMNS: List[str] = [
     "STOCH_K", "STOCH_D",
     "ATR_14",
     "SMA_20", "EMA_50", "SMA_200", "EMA_200",
-    "HiRatio_52w", "LoRatio_52w",
+    "HiRatio_52w", "LoRatio_52w", "FiftyTwoWeek_PosRatio",
     "ROC_6m", "ROC_12m",
     "GoldenCross",
     "HistVol_30",
@@ -231,6 +231,8 @@ def compute_features(
     lo252 = close_s.rolling(252, min_periods=1).min()
     f["HiRatio_52w"] = float(close[-1] / (hi252.iloc[-1] + 1e-9))
     f["LoRatio_52w"] = float(close[-1] / (lo252.iloc[-1] + 1e-9))
+    _52w_range = hi252.iloc[-1] - lo252.iloc[-1]
+    f["FiftyTwoWeek_PosRatio"] = float((close[-1] - lo252.iloc[-1]) / (_52w_range + 1e-9)) if _52w_range > 1e-9 else 0.5
 
     f["ROC_6m"] = float(close_s.pct_change(126).iloc[-1])
     f["ROC_12m"] = float(close_s.pct_change(252).iloc[-1])

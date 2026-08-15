@@ -19,6 +19,8 @@ Activation:
 Usage:
     python3 scripts/train_short_term_cs.py
     python3 scripts/train_short_term_cs.py --version v2 --min-rows 30000
+    python3 scripts/train_short_term_cs.py --no-cv --model-type lgbm
+    python3 scripts/train_short_term_cs.py --no-freshness-check
 """
 from __future__ import annotations
 
@@ -26,6 +28,8 @@ import argparse
 import json
 import os
 import sys
+sys.path.insert(0, os.path.dirname(__file__))
+import cv_utils
 from datetime import datetime
 from pathlib import Path
 
@@ -38,6 +42,12 @@ from sklearn.preprocessing import StandardScaler
 
 import mysql.connector
 import joblib
+
+try:
+    import lightgbm as lgb
+    HAS_LGBM = True
+except ImportError:
+    HAS_LGBM = False
 
 SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
@@ -169,6 +179,19 @@ def build_model(seed: int = 42) -> MLPRegressor:
     )
 
 
+def build_lgbm_model(seed: int = 42):
+    if not HAS_LGBM:
+        raise ImportError('lightgbm is not installed. Run: pip install lightgbm')
+    import lightgbm as lgb
+    params = dict(
+        objective='regression', metric='mae',
+        learning_rate=0.05, num_leaves=63,
+        feature_fraction=0.85, bagging_fraction=0.85, bagging_freq=5,
+        min_data_in_leaf=50, verbose=-1, seed=seed,
+    )
+    return params
+
+
 def main():
     parser = argparse.ArgumentParser(description='Train cross-sectional short-term model')
     parser.add_argument('--version', default='v1', help='Model version tag for the output filename')
@@ -176,6 +199,14 @@ def main():
     parser.add_argument('--min-rows', type=int, default=5000,
                         help='Abort if training set is smaller than this (sanity check)')
     parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--cv', action=argparse.BooleanOptionalAction, default=True,
+                        help='Use purged walk-forward CV (default: enabled)')
+    parser.add_argument('--model-type', choices=['mlp', 'lgbm', 'blend'], default='mlp',
+                        help='Model family to train')
+    parser.add_argument('--half-life', type=int, default=180,
+                        help='Recency decay half-life in days for sample weights')
+    parser.add_argument('--no-freshness-check', action='store_true',
+                        help='Skip the data freshness guard (for testing with old data)')
     args = parser.parse_args()
 
     wrapper_path  = MODELS_DIR / f'short_term_cs_{args.version}.pkl'
@@ -190,53 +221,215 @@ def main():
         print(f'ERROR: only {len(df)} rows — need {args.min_rows}. Aborting.', file=sys.stderr)
         sys.exit(1)
 
-    X = df[ST_FEATURE_COLUMNS].values.astype(np.float32)
-    Y = df[['return_5d', 'return_21d']].values.astype(np.float32)
+    # Freshness guard
+    if not args.no_freshness_check:
+        try:
+            cv_utils.freshness_guard(df['snapshot_date'].max())
+        except ValueError as e:
+            print(f'[freshness_guard] WARNING: {e}', file=sys.stderr)
+            print('[freshness_guard] Proceeding anyway (pass --no-freshness-check to suppress this warning).', file=sys.stderr)
 
-    # Replace any remaining NaN/inf that slipped through.
-    X = np.nan_to_num(X, nan=0.0, posinf=0.0, neginf=0.0)
-    Y = np.nan_to_num(Y, nan=0.0, posinf=0.0, neginf=0.0)
+    if args.cv:
+        print(f'[train_short_term_cs] Running purged walk-forward CV (n_folds=5, embargo=21d)...')
+        folds = cv_utils.purged_walk_forward_cv(df, n_folds=5, embargo_days=21)
 
-    # Train/validation split (80/20 chronological).
-    split = int(len(X) * 0.8)
-    X_train, X_val = X[:split], X[split:]
-    Y_train, Y_val = Y[:split], Y[split:]
+        cv_dir_5d, cv_dir_21d, cv_mae_5d, cv_mae_21d = [], [], [], []
 
-    print(f'  Train: {len(X_train):,}  Val: {len(X_val):,}')
+        for fold_i, (train_idx, val_idx) in enumerate(folds):
+            train_df = df.loc[train_idx]
+            val_df = df.loc[val_idx]
 
-    scaler = StandardScaler()
-    X_train_s = scaler.fit_transform(X_train)
-    X_val_s   = scaler.transform(X_val)
+            X_tr = train_df[ST_FEATURE_COLUMNS].values.astype(np.float32)
+            Y_tr = train_df[['return_5d', 'return_21d']].values.astype(np.float32)
+            X_va = val_df[ST_FEATURE_COLUMNS].values.astype(np.float32)
+            Y_va = val_df[['return_5d', 'return_21d']].values.astype(np.float32)
 
-    print('[train_short_term_cs] Training MLPRegressor(96, 48, 24)...')
-    model = build_model(seed=args.seed)
-    model.fit(X_train_s, Y_train)
+            X_tr = np.nan_to_num(X_tr, nan=0.0, posinf=0.0, neginf=0.0)
+            X_va = np.nan_to_num(X_va, nan=0.0, posinf=0.0, neginf=0.0)
+            Y_tr = np.nan_to_num(Y_tr, nan=0.0)
+            Y_va = np.nan_to_num(Y_va, nan=0.0)
 
-    # ── Evaluation ────────────────────────────────────────────────────────────
-    Y_pred = model.predict(X_val_s)
-    mae_5d  = float(mean_absolute_error(Y_val[:, 0], Y_pred[:, 0]))
-    mae_21d = float(mean_absolute_error(Y_val[:, 1], Y_pred[:, 1]))
-    r2_5d   = float(r2_score(Y_val[:, 0], Y_pred[:, 0]))
-    r2_21d  = float(r2_score(Y_val[:, 1], Y_pred[:, 1]))
+            weights = cv_utils.compute_sample_weights(train_df, half_life_days=args.half_life)
 
-    # Direction accuracy (fraction of samples where sign matches).
-    dir_5d  = float(np.mean(np.sign(Y_pred[:, 0]) == np.sign(Y_val[:, 0])))
-    dir_21d = float(np.mean(np.sign(Y_pred[:, 1]) == np.sign(Y_val[:, 1])))
+            scaler = StandardScaler()
+            X_tr_s = scaler.fit_transform(X_tr)
+            X_va_s = scaler.transform(X_va)
 
-    metrics = {
-        'mae_return_5d': mae_5d,
-        'mae_return_21d': mae_21d,
-        'r2_return_5d': r2_5d,
-        'r2_return_21d': r2_21d,
-        'direction_accuracy_5d': dir_5d,
-        'direction_accuracy_21d': dir_21d,
-        'n_train': len(X_train),
-        'n_val': len(X_val),
-    }
+            if args.model_type == 'lgbm':
+                import lightgbm as lgb
+                params = build_lgbm_model(seed=args.seed)
+                dt5 = lgb.Dataset(X_tr_s, label=Y_tr[:, 0])
+                dt21 = lgb.Dataset(X_tr_s, label=Y_tr[:, 1])
+                m5 = lgb.train(params, dt5, num_boost_round=300,
+                               callbacks=[lgb.log_evaluation(period=0)])
+                m21 = lgb.train(params, dt21, num_boost_round=300,
+                                callbacks=[lgb.log_evaluation(period=0)])
+                pred5 = m5.predict(X_va_s)
+                pred21 = m21.predict(X_va_s)
+                Y_pred = np.column_stack([pred5, pred21])
+            elif args.model_type == 'blend':
+                import lightgbm as lgb
+                params = build_lgbm_model(seed=args.seed)
+                dt5 = lgb.Dataset(X_tr_s, label=Y_tr[:, 0])
+                dt21 = lgb.Dataset(X_tr_s, label=Y_tr[:, 1])
+                m5 = lgb.train(params, dt5, num_boost_round=300,
+                               callbacks=[lgb.log_evaluation(period=0)])
+                m21 = lgb.train(params, dt21, num_boost_round=300,
+                                callbacks=[lgb.log_evaluation(period=0)])
+                mlp_model = build_model(seed=args.seed)
+                mlp_model.fit(X_tr_s, Y_tr, sample_weight=weights)
+                mlp_pred = mlp_model.predict(X_va_s)
+                lgbm_pred = np.column_stack([m5.predict(X_va_s), m21.predict(X_va_s)])
+                Y_pred = 0.5 * mlp_pred + 0.5 * lgbm_pred
+            else:
+                model = build_model(seed=args.seed)
+                model.fit(X_tr_s, Y_tr, sample_weight=weights)
+                Y_pred = model.predict(X_va_s)
 
-    print(f'  MAE 5d={mae_5d:.4f}  21d={mae_21d:.4f}')
-    print(f'  R²  5d={r2_5d:.3f}   21d={r2_21d:.3f}')
-    print(f'  Dir 5d={dir_5d:.1%}  21d={dir_21d:.1%}')
+            cv_mae_5d.append(float(mean_absolute_error(Y_va[:, 0], Y_pred[:, 0])))
+            cv_mae_21d.append(float(mean_absolute_error(Y_va[:, 1], Y_pred[:, 1])))
+            cv_dir_5d.append(float(np.mean(np.sign(Y_pred[:, 0]) == np.sign(Y_va[:, 0]))))
+            cv_dir_21d.append(float(np.mean(np.sign(Y_pred[:, 1]) == np.sign(Y_va[:, 1]))))
+
+            print(f'  Fold {fold_i+1}: dir5d={cv_dir_5d[-1]:.1%} dir21d={cv_dir_21d[-1]:.1%} mae5d={cv_mae_5d[-1]:.4f} mae21d={cv_mae_21d[-1]:.4f}')
+
+        print(f'\n[CV summary] dir_5d={np.mean(cv_dir_5d):.1%}±{np.std(cv_dir_5d):.1%}  dir_21d={np.mean(cv_dir_21d):.1%}±{np.std(cv_dir_21d):.1%}')
+        print(f'             mae_5d={np.mean(cv_mae_5d):.4f}±{np.std(cv_mae_5d):.4f}  mae_21d={np.mean(cv_mae_21d):.4f}±{np.std(cv_mae_21d):.4f}')
+
+        # Train final model on ALL data
+        print('\n[train_short_term_cs] Training final model on full dataset...')
+        X = df[ST_FEATURE_COLUMNS].values.astype(np.float32)
+        Y = df[['return_5d', 'return_21d']].values.astype(np.float32)
+        X = np.nan_to_num(X, nan=0.0, posinf=0.0, neginf=0.0)
+        Y = np.nan_to_num(Y, nan=0.0)
+        weights_all = cv_utils.compute_sample_weights(df, half_life_days=args.half_life)
+        scaler = StandardScaler()
+        X_s = scaler.fit_transform(X)
+
+        if args.model_type == 'lgbm':
+            import lightgbm as lgb
+            params = build_lgbm_model(seed=args.seed)
+            dt5 = lgb.Dataset(X_s, label=Y[:, 0])
+            dt21 = lgb.Dataset(X_s, label=Y[:, 1])
+            model_5d = lgb.train(params, dt5, num_boost_round=300,
+                                 callbacks=[lgb.log_evaluation(period=0)])
+            model_21d = lgb.train(params, dt21, num_boost_round=300,
+                                  callbacks=[lgb.log_evaluation(period=0)])
+            model = None
+        elif args.model_type == 'blend':
+            import lightgbm as lgb
+            params = build_lgbm_model(seed=args.seed)
+            dt5 = lgb.Dataset(X_s, label=Y[:, 0])
+            dt21 = lgb.Dataset(X_s, label=Y[:, 1])
+            model_5d = lgb.train(params, dt5, num_boost_round=300,
+                                 callbacks=[lgb.log_evaluation(period=0)])
+            model_21d = lgb.train(params, dt21, num_boost_round=300,
+                                  callbacks=[lgb.log_evaluation(period=0)])
+            model = build_model(seed=args.seed)
+            model.fit(X_s, Y, sample_weight=weights_all)
+        else:
+            model = build_model(seed=args.seed)
+            model.fit(X_s, Y, sample_weight=weights_all)
+            model_5d = None
+            model_21d = None
+
+        # Use CV metrics for the stored metrics dict
+        metrics = {
+            'mae_return_5d': float(np.mean(cv_mae_5d)),
+            'mae_return_5d_std': float(np.std(cv_mae_5d)),
+            'mae_return_21d': float(np.mean(cv_mae_21d)),
+            'mae_return_21d_std': float(np.std(cv_mae_21d)),
+            'direction_accuracy_5d': float(np.mean(cv_dir_5d)),
+            'direction_accuracy_5d_std': float(np.std(cv_dir_5d)),
+            'direction_accuracy_21d': float(np.mean(cv_dir_21d)),
+            'direction_accuracy_21d_std': float(np.std(cv_dir_21d)),
+            'n_train': len(X),
+            'cv_folds': len(folds),
+            'half_life_days': args.half_life,
+        }
+
+    else:
+        # --no-cv: 80/20 chronological split
+        X = df[ST_FEATURE_COLUMNS].values.astype(np.float32)
+        Y = df[['return_5d', 'return_21d']].values.astype(np.float32)
+
+        # Replace any remaining NaN/inf that slipped through.
+        X = np.nan_to_num(X, nan=0.0, posinf=0.0, neginf=0.0)
+        Y = np.nan_to_num(Y, nan=0.0, posinf=0.0, neginf=0.0)
+
+        # Train/validation split (80/20 chronological).
+        split = int(len(X) * 0.8)
+        X_train, X_val = X[:split], X[split:]
+        Y_train, Y_val = Y[:split], Y[split:]
+        train_df_split = df.iloc[:split]
+
+        print(f'  Train: {len(X_train):,}  Val: {len(X_val):,}')
+
+        scaler = StandardScaler()
+        X_train_s = scaler.fit_transform(X_train)
+        X_val_s   = scaler.transform(X_val)
+
+        weights = cv_utils.compute_sample_weights(train_df_split, half_life_days=args.half_life)
+
+        if args.model_type == 'lgbm':
+            import lightgbm as lgb
+            params = build_lgbm_model(seed=args.seed)
+            dt5 = lgb.Dataset(X_train_s, label=Y_train[:, 0])
+            dt21 = lgb.Dataset(X_train_s, label=Y_train[:, 1])
+            model_5d = lgb.train(params, dt5, num_boost_round=300,
+                                 callbacks=[lgb.log_evaluation(period=0)])
+            model_21d = lgb.train(params, dt21, num_boost_round=300,
+                                  callbacks=[lgb.log_evaluation(period=0)])
+            model = None
+            Y_pred = np.column_stack([model_5d.predict(X_val_s), model_21d.predict(X_val_s)])
+        elif args.model_type == 'blend':
+            import lightgbm as lgb
+            params = build_lgbm_model(seed=args.seed)
+            dt5 = lgb.Dataset(X_train_s, label=Y_train[:, 0])
+            dt21 = lgb.Dataset(X_train_s, label=Y_train[:, 1])
+            model_5d = lgb.train(params, dt5, num_boost_round=300,
+                                 callbacks=[lgb.log_evaluation(period=0)])
+            model_21d = lgb.train(params, dt21, num_boost_round=300,
+                                  callbacks=[lgb.log_evaluation(period=0)])
+            mlp = build_model(seed=args.seed)
+            mlp.fit(X_train_s, Y_train, sample_weight=weights)
+            model = mlp
+            lgbm_pred = np.column_stack([model_5d.predict(X_val_s), model_21d.predict(X_val_s)])
+            mlp_pred = mlp.predict(X_val_s)
+            Y_pred = 0.5 * mlp_pred + 0.5 * lgbm_pred
+        else:
+            print('[train_short_term_cs] Training MLPRegressor(96, 48, 24)...')
+            model = build_model(seed=args.seed)
+            model.fit(X_train_s, Y_train, sample_weight=weights)
+            Y_pred = model.predict(X_val_s)
+            model_5d = None
+            model_21d = None
+
+        # ── Evaluation ────────────────────────────────────────────────────────────
+        mae_5d  = float(mean_absolute_error(Y_val[:, 0], Y_pred[:, 0]))
+        mae_21d = float(mean_absolute_error(Y_val[:, 1], Y_pred[:, 1]))
+        r2_5d   = float(r2_score(Y_val[:, 0], Y_pred[:, 0]))
+        r2_21d  = float(r2_score(Y_val[:, 1], Y_pred[:, 1]))
+
+        # Direction accuracy (fraction of samples where sign matches).
+        dir_5d  = float(np.mean(np.sign(Y_pred[:, 0]) == np.sign(Y_val[:, 0])))
+        dir_21d = float(np.mean(np.sign(Y_pred[:, 1]) == np.sign(Y_val[:, 1])))
+
+        metrics = {
+            'mae_return_5d': mae_5d,
+            'mae_return_21d': mae_21d,
+            'r2_return_5d': r2_5d,
+            'r2_return_21d': r2_21d,
+            'direction_accuracy_5d': dir_5d,
+            'direction_accuracy_21d': dir_21d,
+            'n_train': len(X_train),
+            'n_val': len(X_val),
+            'half_life_days': args.half_life,
+        }
+
+        print(f'  MAE 5d={mae_5d:.4f}  21d={mae_21d:.4f}')
+        print(f'  R²  5d={r2_5d:.3f}   21d={r2_21d:.3f}')
+        print(f'  Dir 5d={dir_5d:.1%}  21d={dir_21d:.1%}')
 
     payload = {
         'model':           model,
@@ -246,7 +439,14 @@ def main():
         'feature_set':     args.feature_set,
         'trained_at':      datetime.utcnow().isoformat(),
         'metrics':         metrics,
+        'model_type':      args.model_type,
+        'half_life_days':  args.half_life,
     }
+
+    # Include lgbm sub-models in payload when applicable
+    if args.model_type in ('lgbm', 'blend'):
+        payload['model_5d'] = model_5d
+        payload['model_21d'] = model_21d
 
     joblib.dump(payload, str(wrapper_path))
     print(f'[train_short_term_cs] Saved → {wrapper_path}')

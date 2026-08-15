@@ -287,7 +287,11 @@ DETAIL_COLUMNS = [
 
 def fetch_history(ticker: str, start: date, end: date) -> list:
     """Full daily OHLCV history (adjusted), ascending, as a list of dicts."""
-    df = yf.Ticker(ticker).history(start=start.isoformat(), end=end.isoformat(), auto_adjust=True)
+    try:
+        df = yf.Ticker(ticker).history(start=start.isoformat(), end=end.isoformat(), auto_adjust=True)
+    except Exception as e:
+        print(f'  [fetch_history] yfinance error for {ticker}: {e}', flush=True)
+        return []
     if df.empty:
         return []
     df = df.reset_index()

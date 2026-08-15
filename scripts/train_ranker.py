@@ -30,6 +30,11 @@ USAGE:
       [--val-frac 0.2]
       [--top-k 20]
       [--seed 42]
+      [--cv]
+      [--shap]
+      [--sweep]
+      [--feature-prune N]
+      [--no-freshness-check]
 """
 from __future__ import annotations
 
@@ -37,6 +42,8 @@ import argparse
 import json
 import os
 import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import cv_utils
 from datetime import date
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -54,6 +61,12 @@ except ImportError:
         file=sys.stderr,
     )
     sys.exit(1)
+
+try:
+    import shap
+    HAS_SHAP = True
+except ImportError:
+    HAS_SHAP = False
 
 from scipy.stats import spearmanr
 import mysql.connector
@@ -201,7 +214,8 @@ def clean_features(df: pd.DataFrame, cols: List[str]) -> pd.DataFrame:
 
 
 def train_regression(
-    train_df: pd.DataFrame, val_df: pd.DataFrame, cols: List[str], seed: int
+    train_df: pd.DataFrame, val_df: pd.DataFrame, cols: List[str], seed: int,
+    params_override: Optional[dict] = None,
 ) -> lgb.Booster:
     x_tr = clean_features(train_df, cols)
     y_tr = train_df["forward_return_rank_pct"].values
@@ -223,6 +237,8 @@ def train_regression(
         verbose=-1,
         seed=seed,
     )
+    if params_override:
+        params.update(params_override)
 
     booster = lgb.train(
         params,
@@ -317,11 +333,45 @@ def main() -> int:
              "(default '20,100'). 100 is the gating-decision target.",
     )
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--cv", action="store_true",
+                    help="Run purged walk-forward CV and report mean±std metrics")
+    ap.add_argument("--shap", action="store_true",
+                    help="Compute SHAP importance on val set and save to models/ranker_shap_importance.json")
+    ap.add_argument("--sweep", action="store_true",
+                    help="Hyperparameter sweep over num_leaves/min_data_in_leaf/learning_rate")
+    ap.add_argument("--feature-prune", type=int, default=None,
+                    help="Keep only top N features by importance before final retrain")
+    ap.add_argument("--no-freshness-check", action="store_true",
+                    help="Skip data freshness guard")
     args = ap.parse_args()
 
     print(f"[load] feature_set_version={args.feature_set_version} horizon={args.horizon}", file=sys.stderr)
     df = load_dataset(args.feature_set_version, args.horizon)
     print(f"[load] {len(df):,} rows, {df['ticker'].nunique()} tickers, {df['snapshot_date'].nunique()} dates", file=sys.stderr)
+
+    # Freshness guard
+    if not args.no_freshness_check:
+        try:
+            cv_utils.freshness_guard(df['snapshot_date'].max())
+        except ValueError as e:
+            print(f'[freshness_guard] WARNING: {e}', file=sys.stderr)
+            print('[freshness_guard] Proceeding anyway (pass --no-freshness-check to suppress this warning).', file=sys.stderr)
+
+    # ── Purged walk-forward CV (optional) ────────────────────────────────────
+    if args.cv:
+        print('\n[CV] Running purged walk-forward CV (n_folds=5, embargo=21d)...', file=sys.stderr)
+        folds = cv_utils.purged_walk_forward_cv(df, n_folds=5, embargo_days=21)
+        cv_spearmans = []
+        for fold_i, (train_idx, val_idx) in enumerate(folds):
+            fold_train = df.loc[train_idx].reset_index(drop=True)
+            fold_val = df.loc[val_idx].reset_index(drop=True)
+            fold_cols = feature_columns(df)
+            fold_reg = train_regression(fold_train, fold_val, fold_cols, args.seed)
+            fold_scores = fold_reg.predict(clean_features(fold_val, fold_cols))
+            fold_sp = per_date_spearman(fold_scores, fold_val)
+            cv_spearmans.append(fold_sp)
+            print(f'  Fold {fold_i+1}: spearman={fold_sp:.4f}', file=sys.stderr)
+        print(f'[CV summary] spearman={np.mean(cv_spearmans):.4f}±{np.std(cv_spearmans):.4f}', file=sys.stderr)
 
     train_df, val_df, train_dates, val_dates = time_split(df, args.val_frac)
     print(
@@ -332,6 +382,19 @@ def main() -> int:
 
     cols = feature_columns(df)
     print(f"[features] {len(cols)} columns", file=sys.stderr)
+
+    # ── Feature pruning ───────────────────────────────────────────────────────
+    if args.feature_prune is not None:
+        print(f'\n[feature-prune] Training preliminary regression to rank features...', file=sys.stderr)
+        prelim_reg = train_regression(train_df, val_df, cols, args.seed)
+        importances = prelim_reg.feature_importance(importance_type='gain')
+        feat_imp = sorted(zip(cols, importances), key=lambda x: x[1], reverse=True)
+        top_cols = [f for f, _ in feat_imp[:args.feature_prune]]
+        dropped = [f for f, _ in feat_imp[args.feature_prune:]]
+        print(f'[feature-prune] Keeping top {len(top_cols)} features, dropping {len(dropped)}:', file=sys.stderr)
+        for f in dropped:
+            print(f'  DROP: {f}', file=sys.stderr)
+        cols = top_cols
 
     # Train both objectives
     print("\n[train] regression on forward_return_rank_pct ...", file=sys.stderr)
@@ -364,6 +427,59 @@ def main() -> int:
     for b in baselines:
         results.append(eval_row(f"baseline:{b}", base_scores_val[b]))
 
+    # Post-hoc momentum blend: 50% model score + 50% rank(momentum_12m)
+    if 'ROC_12m' in val_df.columns:
+        mom_scores = val_df['ROC_12m'].fillna(0).rank(pct=True).values
+        blend_model_scores = (
+            pd.Series(rank_scores_val).rank(pct=True).values * 0.5 +
+            mom_scores * 0.5
+        )
+        results.append(eval_row('blend:model+momentum', blend_model_scores))
+
+    # ── SHAP importance ───────────────────────────────────────────────────────
+    if args.shap:
+        if HAS_SHAP:
+            import shap
+            explainer = shap.TreeExplainer(reg)
+            x_va = clean_features(val_df, cols)
+            shap_values = explainer.shap_values(x_va)
+            mean_abs_shap = np.abs(shap_values).mean(axis=0)
+            shap_importance = sorted(zip(cols, mean_abs_shap), key=lambda x: x[1], reverse=True)
+            print('\n[SHAP] Top 20 features by mean |SHAP|:')
+            for feat, imp in shap_importance[:20]:
+                print(f'  {feat:<40} {imp:.6f}')
+            shap_json = {'features': [{'name': f, 'importance': float(i)} for f, i in shap_importance]}
+            (MODELS_DIR / 'ranker_shap_importance.json').write_text(json.dumps(shap_json, indent=2))
+            print(f'[SHAP] Saved → {MODELS_DIR}/ranker_shap_importance.json')
+        else:
+            print('[SHAP] shap not installed. Run: pip install shap', file=sys.stderr)
+
+    # ── Hyperparameter sweep ──────────────────────────────────────────────────
+    if args.sweep:
+        print('\n[sweep] Hyperparameter search over num_leaves × min_data_in_leaf × learning_rate...')
+        best_spearman = -np.inf
+        best_params = None
+        for nl in [31, 63, 127]:
+            for mdil in [20, 50, 100]:
+                for lr in [0.03, 0.05, 0.1]:
+                    sweep_params = dict(objective='regression', metric='rmse',
+                        learning_rate=lr, num_leaves=nl, feature_fraction=0.85,
+                        bagging_fraction=0.85, bagging_freq=5, min_data_in_leaf=mdil,
+                        verbose=-1, seed=args.seed)
+                    x_tr = clean_features(train_df, cols)
+                    x_va = clean_features(val_df, cols)
+                    dt = lgb.Dataset(x_tr, label=train_df['forward_return_rank_pct'].values)
+                    dv = lgb.Dataset(x_va, label=val_df['forward_return_rank_pct'].values, reference=dt)
+                    b = lgb.train(sweep_params, dt, num_boost_round=400,
+                        valid_sets=[dv], callbacks=[lgb.early_stopping(30), lgb.log_evaluation(period=0)])
+                    sc = per_date_spearman(b.predict(x_va), val_df)
+                    print(f'  nl={nl} mdil={mdil} lr={lr} → spearman={sc:.4f}')
+                    if sc > best_spearman:
+                        best_spearman = sc
+                        best_params = sweep_params
+        print(f'[sweep] Best params: {best_params} (spearman={best_spearman:.4f})')
+        print('[sweep] Re-run training with these params manually for the final model.')
+
     # Print summary
     col_w = 28
     metric_cols = ["spearman"] + [m for k in eval_ks for m in (f"ndcg@{k}", f"prec@{k}")]
@@ -382,6 +498,17 @@ def main() -> int:
             line += f"{row[f'precision@{k}']:>12.4f}"
         print(line)
     print("=" * width)
+
+    # ── Promotion gate ────────────────────────────────────────────────────────
+    mom_spearman = next((r['spearman'] for r in results if 'momentum' in r['model'] and 'blend' not in r['model']), None)
+    model_spearman = next((r['spearman'] for r in results if r['model'] == 'LightGBM lambdarank'), None)
+    if mom_spearman is not None and model_spearman is not None:
+        margin = model_spearman - mom_spearman
+        if margin < 0.02:
+            print(f'\n⚠️  PROMOTION WARNING: LightGBM lambdarank Spearman ({model_spearman:.4f}) does not beat momentum_12m ({mom_spearman:.4f}) by required margin of 0.02 (actual margin: {margin:+.4f})')
+            print('   Consider running --sweep or --feature-prune before deploying.')
+        else:
+            print(f'\n✅ Promotion gate passed: model beats momentum by {margin:+.4f}')
 
     # Save artifacts
     reg_path = MODELS_DIR / "ranker_v1_regression.txt"
