@@ -27,3 +27,10 @@ package-lock.json
 models/long_term_cs_v2.keras
 models/long_term_cs_v2.pkl
 models/long_term_cs_v2_manifest.json
+.claude/agent-memory/codebase-doc-generator/MEMORY.md
+.claude/agent-memory/codebase-doc-generator/project_doc_update_aug2026.md
+package-lock.json
+tsconfig.tsbuildinfo
+.claude/scheduled_tasks.lock
+models/short_term_cs_v1.pkl
+models/short_term_cs_v2.pkl
