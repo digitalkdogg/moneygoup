@@ -598,6 +598,18 @@ def predict(ticker, input_data):
     predicted_price_1w = short_out['predicted_price_1w']
     predicted_price_1m = short_out['predicted_price_1m']
 
+    # Pre-clamp short-horizon prices before the trajectory loop. _sanitize_predictions
+    # (called after the result dict is assembled) would fix the scalar fields, but the
+    # trajectory array is built here and never re-sanitized, so a billion-dollar CS
+    # extrapolation would survive into monthly_trajectory[1].lower/upper_bound. Mirror
+    # the same vol-scaled bounds used in _sanitize_predictions so the clamp is consistent.
+    if current_price > 0:
+        _vol_mult  = max(1.0, min(2.5, realized_vol_60d / 0.30))
+        predicted_price_1w = max(current_price * (1 - 0.15 * _vol_mult),
+                                 min(current_price * (1 + 0.15 * _vol_mult), predicted_price_1w))
+        predicted_price_1m = max(current_price * (1 - 0.30 * _vol_mult),
+                                 min(current_price * (1 + 0.30 * _vol_mult), predicted_price_1m))
+
     # ── 18m trajectory (uses both horizon outputs) ───────────────────────────
     WAYPOINTS = [T5] + list(range(21, 379, 21))  # t+5, t+21, t+42, ... t+378
     last_date_str = str(df['Date'].iloc[-1]) if 'Date' in df.columns else datetime.today().strftime('%Y-%m-%d')
