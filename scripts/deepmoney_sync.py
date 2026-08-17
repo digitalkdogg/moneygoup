@@ -465,6 +465,27 @@ def sync_deepmoney():
             print(f"  {counters['earnings_cal_added']} new stocks-table rows inserted; "
                   f"{counters['earnings_cal_seen'] - counters['earnings_cal_added']} already present.")
 
+        # EDGAR 8-K backfill — same pattern as earnings calendar
+        edgar_entries = meta.get('edgarBackfillEntries') or []
+        counters["edgar_backfill_seen"] = len(edgar_entries)
+        edgar_added = 0
+        for entry in edgar_entries:
+            sym  = (entry.get('symbol') or '').strip().upper()
+            name = (entry.get('name') or sym).strip()
+            if not sym:
+                continue
+            cursor.execute("SELECT id FROM stocks WHERE symbol = %s LIMIT 1", (sym,))
+            if not cursor.fetchone():
+                try:
+                    cursor.execute(
+                        "INSERT IGNORE INTO stocks (symbol, company_name) VALUES (%s, %s)",
+                        (sym, name[:255]),
+                    )
+                    edgar_added += 1
+                except Exception:
+                    pass
+        counters["edgar_backfill_added"] = edgar_added
+
         # 4. Process Stocks from (stocks array)
         stocks = data.get('stocks', [])
         counters["stocks_in_api_resp"] = len(stocks)
@@ -569,6 +590,12 @@ def sync_deepmoney():
             # is logged for diagnostic purposes but does not change routing.
             is_sector_leader = s.get('discovery_source') == 'sector_leader'
             is_trending_48h  = s.get('discovery_source') == 'trending_48h'
+            is_unusual_options    = s.get('discovery_source') == 'unusual_options'
+            is_insider_cluster    = s.get('discovery_source') == 'insider_cluster'
+            is_revision_momentum  = s.get('discovery_source') == 'revision_momentum'
+            is_short_squeeze      = s.get('discovery_source') == 'short_squeeze_setup'
+            is_volume_breakout    = s.get('discovery_source') == 'volume_breakout'
+            is_sec_8k             = s.get('discovery_source') == 'sec_8k_event'
 
             # 4.2 Confidence-vs-beta gate driven by the algorithm preset.
             # High-beta stocks (beta > 2.5) face the stricter volGateFloor;
@@ -597,26 +624,42 @@ def sync_deepmoney():
             effective_floor = max(0, confidence_floor - grade_discount)
             effective_label = f"{floor_label}(grade-adj-{grade_discount})" if grade_discount else floor_label
 
-            vol_gate_failed = conf_score < effective_floor and not is_sector_leader
+            # Coverage feeds that bypass vol-gate entirely: sector_leader always bypasses.
+            # New signal lanes that should fall through on vol-gate failure (like trending):
+            # unusual_options and sec_8k_event — we want GPS coverage even on bearish signals.
+            # Short-squeeze gets a 15-point discount (squeeze setups are inherently high-vol).
+            squeeze_discount = 15 if is_short_squeeze else 0
+            effective_floor_final = max(0, effective_floor - squeeze_discount)
+
+            vol_gate_failed = conf_score < effective_floor_final and not is_sector_leader
             if grade_discount and not vol_gate_failed and conf_score < confidence_floor:
                 # Stock would have been rejected without the grade discount — log it.
                 analyst_grade = s.get('analystGrade', '?')
                 print(f"  [vol-gate] PASS {ticker} via grade discount ({analyst_grade}/{analyst_composite:.0f}): "
                       f"CS {conf_score} >= adj-floor {effective_floor} (base {confidence_floor}, -({grade_discount}))")
             if vol_gate_failed:
-                print(f"  [vol-gate] SKIP {ticker} ({effective_label}): CS {conf_score} < floor {effective_floor} (beta {beta_val:.2f})")
+                print(f"  [vol-gate] SKIP {ticker} ({effective_label}): CS {conf_score} < floor {effective_floor_final} (beta {beta_val:.2f})")
                 counters["vol_gate_rejected"] += 1
-                if not is_trending_48h:
-                    # Non-trending vol-gate failure → drop entirely (no GPS, no recommended_stocks).
+                if not (is_trending_48h or is_unusual_options or is_sec_8k):
                     continue
-                # Trending vol-gate failure falls through to the fast path below.
+                # Trending / unusual_options / sec_8k vol-gate failure falls through to fast path.
 
-            if is_sector_leader or is_trending_48h:
+            if is_sector_leader or is_trending_48h or is_unusual_options or is_insider_cluster \
+                    or is_revision_momentum or is_short_squeeze or is_volume_breakout or is_sec_8k:
                 # Fast-path: refresh stocks + stock_gps_scores only, skip
                 # recommended_stocks insert + dashboard gate. Both coverage
                 # feeds take this path regardless of vol-gate outcome —
                 # bearish trending stocks must not pollute recommended_stocks.
-                label = "sector-leader" if is_sector_leader else "trending-48h"
+                label = (
+                    "sector-leader"     if is_sector_leader    else
+                    "unusual-options"   if is_unusual_options  else
+                    "insider-cluster"   if is_insider_cluster  else
+                    "revision-momentum" if is_revision_momentum else
+                    "short-squeeze"     if is_short_squeeze    else
+                    "volume-breakout"   if is_volume_breakout  else
+                    "sec-8k"            if is_sec_8k           else
+                    "trending-48h"
+                )
                 stock_id = upsert_stock_with_search_fields(
                     cursor,
                     ticker,
@@ -1061,6 +1104,64 @@ def _print_run_summary(
         print("  TRENDING-48H OVERRIDE LANE")
         print(f"    Trending tickers merged:         {_fmt_int(trending_merged)}")
         print(f"    Surfaced via override lane:      {_fmt_int(trending_surfaced)}")
+
+    # ── Unusual-options override lane ─────────────────────────────────────────
+    uo_injected = debug.get('unusualOptionsInjected')
+    uo_surfaced = debug.get('unusualOptionsSurfaced')
+    if uo_injected is not None:
+        print()
+        print("  UNUSUAL-OPTIONS OVERRIDE LANE")
+        print(f"    Tickers flagged (call-volume/OI):  {_fmt_int(uo_injected)}")
+        print(f"    Surfaced via override lane:        {_fmt_int(uo_surfaced)}")
+
+    # ── Insider-cluster override lane ─────────────────────────────────────────
+    ic_injected = debug.get('insiderClusterInjected')
+    ic_surfaced = debug.get('insiderClusterSurfaced')
+    if ic_injected is not None:
+        print()
+        print("  INSIDER-CLUSTER OVERRIDE LANE")
+        print(f"    Tickers flagged (cluster buy):     {_fmt_int(ic_injected)}")
+        print(f"    Surfaced via override lane:        {_fmt_int(ic_surfaced)}")
+
+    # ── Revision-momentum override lane ───────────────────────────────────────
+    rm_injected = debug.get('revisionMomentumInjected')
+    rm_surfaced = debug.get('revisionMomentumSurfaced')
+    if rm_injected is not None:
+        print()
+        print("  REVISION-MOMENTUM OVERRIDE LANE")
+        print(f"    Tickers flagged (net >=+3 in 10d): {_fmt_int(rm_injected)}")
+        print(f"    Surfaced via override lane:        {_fmt_int(rm_surfaced)}")
+
+    # ── Short-squeeze override lane ───────────────────────────────────────────
+    ss_injected = debug.get('shortSqueezeInjected')
+    ss_surfaced = debug.get('shortSqueezeSurfaced')
+    if ss_injected is not None:
+        print()
+        print("  SHORT-SQUEEZE OVERRIDE LANE")
+        print(f"    Tickers flagged (setup criteria):  {_fmt_int(ss_injected)}")
+        print(f"    Surfaced via override lane:        {_fmt_int(ss_surfaced)}")
+
+    # ── Volume-breakout override lane ─────────────────────────────────────────
+    vb_injected = debug.get('volumeBreakoutInjected')
+    vb_surfaced = debug.get('volumeBreakoutSurfaced')
+    if vb_injected is not None:
+        print()
+        print("  VOLUME-BREAKOUT OVERRIDE LANE")
+        print(f"    Tickers flagged (2.5xvol+20dHi):  {_fmt_int(vb_injected)}")
+        print(f"    Surfaced via override lane:        {_fmt_int(vb_surfaced)}")
+
+    # ── SEC 8-K event override lane ───────────────────────────────────────────
+    edgar_lane_injected = debug.get('edgarLaneInjected')
+    edgar_lane_surfaced = debug.get('edgarLaneSurfaced')
+    edgar_backfill_seen = counters.get('edgar_backfill_seen') or 0
+    edgar_backfill_added = counters.get('edgar_backfill_added') or 0
+    if edgar_lane_injected is not None or edgar_backfill_seen:
+        print()
+        print("  SEC 8-K EVENT LANE")
+        print(f"    High-signal filings injected:     {_fmt_int(edgar_lane_injected)}")
+        print(f"    Surfaced via override lane:        {_fmt_int(edgar_lane_surfaced)}")
+        if edgar_backfill_seen:
+            print(f"    8-K tickers backfilled to stocks:  {_fmt_int(edgar_backfill_added)}/{_fmt_int(edgar_backfill_seen)}")
 
     # ── Ollama NER pass (feature-flagged; absent when OLLAMA_ENABLED=false) ──
     ollama_pass = (meta or {}).get('ollamaPass')

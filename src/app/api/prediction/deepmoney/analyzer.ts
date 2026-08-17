@@ -63,7 +63,9 @@ export interface EnrichedStock {
      *  the signal-score pre-filter, the ranker keep-cut, the mlGate, AND the
      *  predicted-change-positive requirement. Coverage feed — every trending
      *  ticker with valid enrichment + ≥100 days history gets a GPS row. */
-    discovery_source?: 'v2_engine' | 'analyst_consensus' | 'sector_leader' | 'trending_48h';
+    discovery_source?: 'v2_engine' | 'analyst_consensus' | 'sector_leader' | 'trending_48h'
+        | 'unusual_options' | 'short_squeeze_setup' | 'insider_cluster'
+        | 'revision_momentum' | 'volume_breakout' | 'sec_8k_event';
 
     /** gps_score_type is always 'full' now — every survivor of the ranker
      *  hard filter runs through Monte Carlo + GPS-Full. ranker_score is the
@@ -98,6 +100,13 @@ export interface AnalyzeOptions {
      *  positive-prediction requirement. Surfaces unconditionally (like
      *  sector_leader) provided enrichment is valid and ≥100 days history. */
     trendingTickers?: Set<string>;
+    unusualOptionsTickers?:   Set<string>;
+    unusualOptionsFlowData?:  Map<string, { volOIRatio: number; cpVolRatio: number; totalCallVol: number }>;
+    insiderClusterTickers?:   Set<string>;
+    revisionMomentumTickers?: Set<string>;
+    shortSqueezeTickers?:     Set<string>;
+    volumeBreakoutTickers?:   Set<string>;
+    edgarLaneTickers?:        Set<string>;
 }
 
 // 2 concurrent TF/Keras subprocesses keeps peak RAM under 4 GB on the VPS
@@ -144,6 +153,13 @@ export async function analyzeStocks(
     const signalScoreFloor          = options.signalScoreFloor          ?? 0;
     const sectorLeaderTickers       = options.sectorLeaderTickers       ?? new Set<string>();
     const trendingTickers           = options.trendingTickers           ?? new Set<string>();
+    const unusualOptionsTickers   = options.unusualOptionsTickers   ?? new Set<string>();
+    const unusualOptionsFlowData  = options.unusualOptionsFlowData  ?? new Map<string, any>();
+    const insiderClusterTickers   = options.insiderClusterTickers   ?? new Set<string>();
+    const revisionMomentumTickers = options.revisionMomentumTickers ?? new Set<string>();
+    const shortSqueezeTickers     = options.shortSqueezeTickers     ?? new Set<string>();
+    const volumeBreakoutTickers   = options.volumeBreakoutTickers   ?? new Set<string>();
+    const edgarLaneTickers        = options.edgarLaneTickers        ?? new Set<string>();
 
     // Pre-filter: skip enrichment failures, technical signals below the
     // preset-driven floor, or tickers with too little OHLCV history for
@@ -181,6 +197,24 @@ export async function analyzeStocks(
         return true;
     });
 
+    // ── Phase 3e–3j pre-filters for new override lanes ─────────────────────
+    // Same pattern as trending/sector-leader: bypass signal-score floor,
+    // require valid enrichment + 30 days history.
+    function newLanePreFilter(stocks: EnrichedStock[], set: Set<string>): EnrichedStock[] {
+        return stocks.filter(s => {
+            if (!set.has(s.ticker)) return false;
+            if (s.error || s.tradingSignalScore === undefined) return false;
+            if (s.historyRows !== undefined && s.historyRows < 30) return false;
+            return true;
+        });
+    }
+    const unusualOptionsPreFiltered   = newLanePreFilter(stocks, unusualOptionsTickers);
+    const insiderClusterPreFiltered   = newLanePreFilter(stocks, insiderClusterTickers);
+    const revisionMomentumPreFiltered = newLanePreFilter(stocks, revisionMomentumTickers);
+    const shortSqueezePreFiltered     = newLanePreFilter(stocks, shortSqueezeTickers);
+    const volumeBreakoutPreFiltered   = newLanePreFilter(stocks, volumeBreakoutTickers);
+    const edgarLanePreFiltered        = newLanePreFilter(stocks, edgarLaneTickers);
+
     if (initialFilteredStocks.length === 0 && trendingPreFiltered.length === 0) {
         return {
             stocks: [],
@@ -199,6 +233,12 @@ export async function analyzeStocks(
     for (const s of initialFilteredStocks)    payloadCandidates.set(s.ticker, s);
     for (const s of trendingPreFiltered)      payloadCandidates.set(s.ticker, s);
     for (const s of sectorLeaderPreFiltered)  payloadCandidates.set(s.ticker, s);
+    for (const s of unusualOptionsPreFiltered)   payloadCandidates.set(s.ticker, s);
+    for (const s of insiderClusterPreFiltered)   payloadCandidates.set(s.ticker, s);
+    for (const s of revisionMomentumPreFiltered) payloadCandidates.set(s.ticker, s);
+    for (const s of shortSqueezePreFiltered)     payloadCandidates.set(s.ticker, s);
+    for (const s of volumeBreakoutPreFiltered)   payloadCandidates.set(s.ticker, s);
+    for (const s of edgarLanePreFiltered)        payloadCandidates.set(s.ticker, s);
     const stocksForPayload = Array.from(payloadCandidates.values());
 
     const payloads = new Map<string, any>();
@@ -321,6 +361,54 @@ export async function analyzeStocks(
         logger.info(`Sector-leader override added ${sectorLeaderOverrideStocks.length} stocks (out of ${sectorLeaderTickers.size} stale leaders)`);
     }
 
+    // ─── Phase 3e — unusual-options override lane ──────────────────────────
+    const alreadySurfaced2 = new Set([...alreadySurfaced, ...sectorLeaderOverrideTickers]);
+    const unusualOptionsOverrideStocks = unusualOptionsPreFiltered.filter(s => !alreadySurfaced2.has(s.ticker));
+    const unusualOptionsOverrideTickers = new Set(unusualOptionsOverrideStocks.map(s => s.ticker));
+    if (unusualOptionsOverrideStocks.length > 0) {
+        logger.info(`Unusual-options override added ${unusualOptionsOverrideStocks.length} stocks`);
+    }
+
+    // ─── Phase 3f — insider-cluster override lane ──────────────────────────
+    const alreadySurfaced3 = new Set([...alreadySurfaced2, ...unusualOptionsOverrideTickers]);
+    const insiderClusterOverrideStocks = insiderClusterPreFiltered.filter(s => !alreadySurfaced3.has(s.ticker));
+    const insiderClusterOverrideTickers = new Set(insiderClusterOverrideStocks.map(s => s.ticker));
+    if (insiderClusterOverrideStocks.length > 0) {
+        logger.info(`Insider-cluster override added ${insiderClusterOverrideStocks.length} stocks`);
+    }
+
+    // ─── Phase 3g — revision-momentum override lane ────────────────────────
+    const alreadySurfaced4 = new Set([...alreadySurfaced3, ...insiderClusterOverrideTickers]);
+    const revisionMomentumOverrideStocks = revisionMomentumPreFiltered.filter(s => !alreadySurfaced4.has(s.ticker));
+    const revisionMomentumOverrideTickers = new Set(revisionMomentumOverrideStocks.map(s => s.ticker));
+    if (revisionMomentumOverrideStocks.length > 0) {
+        logger.info(`Revision-momentum override added ${revisionMomentumOverrideStocks.length} stocks`);
+    }
+
+    // ─── Phase 3h — short-squeeze override lane ────────────────────────────
+    const alreadySurfaced5 = new Set([...alreadySurfaced4, ...revisionMomentumOverrideTickers]);
+    const shortSqueezeOverrideStocks = shortSqueezePreFiltered.filter(s => !alreadySurfaced5.has(s.ticker));
+    const shortSqueezeOverrideTickers = new Set(shortSqueezeOverrideStocks.map(s => s.ticker));
+    if (shortSqueezeOverrideStocks.length > 0) {
+        logger.info(`Short-squeeze override added ${shortSqueezeOverrideStocks.length} stocks`);
+    }
+
+    // ─── Phase 3i — volume-breakout override lane ──────────────────────────
+    const alreadySurfaced6 = new Set([...alreadySurfaced5, ...shortSqueezeOverrideTickers]);
+    const volumeBreakoutOverrideStocks = volumeBreakoutPreFiltered.filter(s => !alreadySurfaced6.has(s.ticker));
+    const volumeBreakoutOverrideTickers = new Set(volumeBreakoutOverrideStocks.map(s => s.ticker));
+    if (volumeBreakoutOverrideStocks.length > 0) {
+        logger.info(`Volume-breakout override added ${volumeBreakoutOverrideStocks.length} stocks`);
+    }
+
+    // ─── Phase 3j — SEC 8-K event override lane ────────────────────────────
+    const alreadySurfaced7 = new Set([...alreadySurfaced6, ...volumeBreakoutOverrideTickers]);
+    const edgarLaneOverrideStocks = edgarLanePreFiltered.filter(s => !alreadySurfaced7.has(s.ticker));
+    const edgarLaneOverrideTickers = new Set(edgarLaneOverrideStocks.map(s => s.ticker));
+    if (edgarLaneOverrideStocks.length > 0) {
+        logger.info(`SEC-8K override added ${edgarLaneOverrideStocks.length} stocks`);
+    }
+
     // ─── Phase 3.5 — Light Model Filter (CS model pre-filter) ─────────────
     // Gated behind DEEPMONEY_LIGHT_FILTER_ENABLED — defaults to ON.
     // Set DEEPMONEY_LIGHT_FILTER_ENABLED=false to bypass (only takes 'false'
@@ -360,7 +448,18 @@ export async function analyzeStocks(
         );
     }
 
-    const survivors = [...lightModelSurvivors, ...analystOverrideStocks, ...trendingOverrideStocks, ...sectorLeaderOverrideStocks];
+    const survivors = [
+        ...lightModelSurvivors,
+        ...analystOverrideStocks,
+        ...trendingOverrideStocks,
+        ...sectorLeaderOverrideStocks,
+        ...unusualOptionsOverrideStocks,
+        ...insiderClusterOverrideStocks,
+        ...revisionMomentumOverrideStocks,
+        ...shortSqueezeOverrideStocks,
+        ...volumeBreakoutOverrideStocks,
+        ...edgarLaneOverrideStocks,
+    ];
 
     // ─── Phase 4 — Monte Carlo + GPS-Full on ranker survivors only ─────────
     const filteredStocks: EnrichedStock[] = [];
@@ -409,6 +508,12 @@ export async function analyzeStocks(
                 const isAnalystOverride      = analystOverrideTickers.has(stock.ticker);
                 const isTrendingOverride     = trendingOverrideTickers.has(stock.ticker);
                 const isSectorLeaderOverride = sectorLeaderOverrideTickers.has(stock.ticker);
+                const isUnusualOptionsOverride   = unusualOptionsOverrideTickers.has(stock.ticker);
+                const isInsiderClusterOverride   = insiderClusterOverrideTickers.has(stock.ticker);
+                const isRevisionMomentumOverride = revisionMomentumOverrideTickers.has(stock.ticker);
+                const isShortSqueezeOverride     = shortSqueezeOverrideTickers.has(stock.ticker);
+                const isVolumeBreakoutOverride   = volumeBreakoutOverrideTickers.has(stock.ticker);
+                const isEdgarLaneOverride        = edgarLaneOverrideTickers.has(stock.ticker);
                 const passesMlGate           = predictedChangePct >= mlGate && predictedChangePct > 0;
                 const passesAnalystGate      = isAnalystOverride && predictedChangePct > 0;
                 // Trending and sector-leader overrides unconditionally surface
@@ -418,7 +523,18 @@ export async function analyzeStocks(
                 // score; the dashboard gate downstream filters by predicted_change.
                 const passesTrendingGate     = isTrendingOverride;
                 const passesSectorLeaderGate = isSectorLeaderOverride;
-                if (!(passesMlGate || passesAnalystGate || passesTrendingGate || passesSectorLeaderGate)) {
+                // All 6 new lanes: unconditional surface like trending/sector-leader.
+                // They are coverage/signal feeds — bearish predictions persist for
+                // observability but the dashboard gate downstream filters by GPS.
+                const passesUnusualOptionsGate   = isUnusualOptionsOverride;
+                const passesInsiderClusterGate   = isInsiderClusterOverride;
+                const passesRevisionMomentumGate = isRevisionMomentumOverride;
+                const passesShortSqueezeGate     = isShortSqueezeOverride;
+                const passesVolumeBreakoutGate   = isVolumeBreakoutOverride;
+                const passesEdgarLaneGate        = isEdgarLaneOverride;
+                if (!(passesMlGate || passesAnalystGate || passesTrendingGate || passesSectorLeaderGate
+                    || passesUnusualOptionsGate || passesInsiderClusterGate || passesRevisionMomentumGate
+                    || passesShortSqueezeGate || passesVolumeBreakoutGate || passesEdgarLaneGate)) {
                     return;
                 }
 
@@ -469,7 +585,7 @@ export async function analyzeStocks(
                     predicted_change_pct: allHorizons.predicted_change_pct_1m,
                     confidence_score:     allHorizons.confidence_score_1m,
                 };
-                // Priority: v2_engine > analyst_consensus > trending_48h > sector_leader.
+                // Priority: v2_engine > analyst_consensus > trending_48h > sector_leader > new lanes.
                 // A stock that *also* happens to pass the ml gate is recorded as
                 // v2_engine — the override lane only labels stocks that surfaced
                 // *because of* the override, not despite it.
@@ -479,8 +595,20 @@ export async function analyzeStocks(
                     stock.discovery_source = 'analyst_consensus';
                 } else if (passesTrendingGate) {
                     stock.discovery_source = 'trending_48h';
-                } else {
+                } else if (passesSectorLeaderGate) {
                     stock.discovery_source = 'sector_leader';
+                } else if (passesUnusualOptionsGate) {
+                    stock.discovery_source = 'unusual_options';
+                } else if (passesInsiderClusterGate) {
+                    stock.discovery_source = 'insider_cluster';
+                } else if (passesRevisionMomentumGate) {
+                    stock.discovery_source = 'revision_momentum';
+                } else if (passesShortSqueezeGate) {
+                    stock.discovery_source = 'short_squeeze_setup';
+                } else if (passesVolumeBreakoutGate) {
+                    stock.discovery_source = 'volume_breakout';
+                } else {
+                    stock.discovery_source = 'sec_8k_event';
                 }
                 filteredStocks.push(stock);
             } catch (err) {
@@ -510,6 +638,7 @@ export async function analyzeStocks(
 
     // Suppress unused-param warnings for variables retained for future use.
     void outlook;
+    void unusualOptionsFlowData;
 
     return {
         stocks: filteredStocks,

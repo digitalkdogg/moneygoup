@@ -95,21 +95,35 @@ def db_conn() -> mysql.connector.MySQLConnection:
 
 
 # ─── Data loading ───────────────────────────────────────────────────────────
-def load_dataset(feature_set_version: str, horizon: int) -> pd.DataFrame:
+def load_dataset(feature_set_version: str, horizon: int, start_date: Optional[str] = None) -> pd.DataFrame:
     """Pull all snapshots and unpack features_json into a flat DataFrame."""
     conn = db_conn()
     cur = conn.cursor(dictionary=True)
-    cur.execute(
-        """
-        SELECT snapshot_date, ticker, forward_return, forward_return_rank_pct, features_json
-        FROM ranking_training_snapshots
-        WHERE feature_set_version = %s AND horizon_days = %s
-          AND forward_return IS NOT NULL
-          AND forward_return_rank_pct IS NOT NULL
-        ORDER BY snapshot_date, ticker
-        """,
-        (feature_set_version, horizon),
-    )
+    if start_date:
+        cur.execute(
+            """
+            SELECT snapshot_date, ticker, forward_return, forward_return_rank_pct, features_json
+            FROM ranking_training_snapshots
+            WHERE feature_set_version = %s AND horizon_days = %s
+              AND forward_return IS NOT NULL
+              AND forward_return_rank_pct IS NOT NULL
+              AND snapshot_date >= %s
+            ORDER BY snapshot_date, ticker
+            """,
+            (feature_set_version, horizon, start_date),
+        )
+    else:
+        cur.execute(
+            """
+            SELECT snapshot_date, ticker, forward_return, forward_return_rank_pct, features_json
+            FROM ranking_training_snapshots
+            WHERE feature_set_version = %s AND horizon_days = %s
+              AND forward_return IS NOT NULL
+              AND forward_return_rank_pct IS NOT NULL
+            ORDER BY snapshot_date, ticker
+            """,
+            (feature_set_version, horizon),
+        )
     rows = cur.fetchall()
     cur.close()
     conn.close()
@@ -207,8 +221,11 @@ def feature_columns(df: pd.DataFrame) -> List[str]:
 
 
 def clean_features(df: pd.DataFrame, cols: List[str]) -> pd.DataFrame:
-    """Replace inf with NaN; LightGBM handles NaN natively."""
+    """Coerce to float, replace inf with NaN; LightGBM handles NaN natively."""
     x = df[cols].copy()
+    for col in x.columns:
+        if x[col].dtype == object:
+            x[col] = pd.to_numeric(x[col], errors='coerce')
     x = x.replace([np.inf, -np.inf], np.nan)
     return x
 
@@ -343,10 +360,14 @@ def main() -> int:
                     help="Keep only top N features by importance before final retrain")
     ap.add_argument("--no-freshness-check", action="store_true",
                     help="Skip data freshness guard")
+    ap.add_argument("--start-date", default=None,
+                    help="Only use snapshots on or after this date (YYYY-MM-DD). "
+                         "Useful when the full snapshot table is too large to fit in RAM.")
     args = ap.parse_args()
 
-    print(f"[load] feature_set_version={args.feature_set_version} horizon={args.horizon}", file=sys.stderr)
-    df = load_dataset(args.feature_set_version, args.horizon)
+    print(f"[load] feature_set_version={args.feature_set_version} horizon={args.horizon}"
+          + (f" start_date={args.start_date}" if args.start_date else ""), file=sys.stderr)
+    df = load_dataset(args.feature_set_version, args.horizon, start_date=args.start_date)
     print(f"[load] {len(df):,} rows, {df['ticker'].nunique()} tickers, {df['snapshot_date'].nunique()} dates", file=sys.stderr)
 
     # Freshness guard

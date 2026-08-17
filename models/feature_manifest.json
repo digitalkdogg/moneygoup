@@ -1,5 +1,5 @@
 {
-  "feature_set_version": "green_v2",
+  "feature_set_version": "green_v3",
   "horizon": 20,
   "feature_columns": [
     "Low",
@@ -81,20 +81,21 @@
     "FCF_Yield_vs_Sector",
     "RS_vs_SectorETF_20d",
     "WorldBank_Inflation",
+    "FiftyTwoWeek_PosRatio",
     "PE_LogRatio_vs_Sector",
     "PS_LogRatio_vs_Sector",
     "WorldBank_Consumption"
   ],
-  "trained_at": "2026-07-16",
-  "train_rows": 60486,
-  "val_rows": 15285,
+  "trained_at": "2026-08-16",
+  "train_rows": 134060,
+  "val_rows": 32818,
   "train_date_range": [
-    "2023-01-06",
-    "2024-08-09"
+    "2025-10-03",
+    "2026-05-15"
   ],
   "val_date_range": [
-    "2024-08-16",
-    "2024-12-31"
+    "2026-05-22",
+    "2026-07-07"
   ],
   "eval_ks": [
     20,
@@ -102,53 +103,60 @@
   ],
   "metrics": {
     "LightGBM regression": {
-      "spearman": -0.00354378566821655,
-      "ndcg@20": 0.49669104020728705,
-      "precision@20": 0.05238095238095238,
-      "ndcg@100": 0.5284092587175968,
-      "precision@100": 0.1842857142857143
+      "spearman": 0.18271054503497464,
+      "ndcg@20": 0.45765991716610094,
+      "precision@20": 0.0,
+      "ndcg@100": 0.4494627440172955,
+      "precision@100": 0.0175
     },
     "LightGBM lambdarank": {
-      "spearman": 0.03784596210832754,
-      "ndcg@20": 0.5466036533162791,
-      "precision@20": 0.059523809523809534,
-      "ndcg@100": 0.559580840392311,
-      "precision@100": 0.22952380952380955
+      "spearman": -0.004720093285852739,
+      "ndcg@20": 0.43171095671725096,
+      "precision@20": 0.0,
+      "ndcg@100": 0.4062166155301049,
+      "precision@100": 0.02625
     },
     "baseline:random": {
-      "spearman": -0.011497581440570446,
-      "ndcg@20": 0.4918504180262277,
-      "precision@20": 0.035714285714285726,
-      "ndcg@100": 0.51632779163979,
-      "precision@100": 0.12761904761904763
+      "spearman": -0.0033664418924994203,
+      "ndcg@20": 0.4840576860021758,
+      "precision@20": 0.00625,
+      "ndcg@100": 0.5078306425983418,
+      "precision@100": 0.01625
     },
     "baseline:momentum_12m": {
-      "spearman": 0.07026081159971219,
-      "ndcg@20": 0.49440979587638256,
-      "precision@20": 0.07619047619047621,
-      "ndcg@100": 0.5570707540874531,
-      "precision@100": 0.24238095238095242
+      "spearman": -0.004120313797152584,
+      "ndcg@20": 0.32967792396693996,
+      "precision@20": 0.0125,
+      "ndcg@100": 0.38672565060517816,
+      "precision@100": 0.0425
     },
     "baseline:low_volatility": {
-      "spearman": -0.02863216777258854,
-      "ndcg@20": 0.48950295899458124,
+      "spearman": 0.2359360549500476,
+      "ndcg@20": 0.4784623928016083,
       "precision@20": 0.0,
-      "ndcg@100": 0.5122172795920774,
-      "precision@100": 0.01904761904761905
+      "ndcg@100": 0.5054954778049932,
+      "precision@100": 0.0
     },
     "baseline:rs_vs_spy": {
-      "spearman": 0.02768935844868204,
-      "ndcg@20": 0.5121413795474972,
-      "precision@20": 0.12857142857142856,
-      "ndcg@100": 0.548914058587947,
-      "precision@100": 0.25285714285714284
+      "spearman": -0.012746872574473121,
+      "ndcg@20": 0.3011920403516628,
+      "precision@20": 0.03125,
+      "ndcg@100": 0.3200044466597727,
+      "precision@100": 0.0525
     },
     "baseline:blend": {
-      "spearman": 0.043262358217256415,
-      "ndcg@20": 0.514125245361638,
+      "spearman": 0.0964264451400375,
+      "ndcg@20": 0.44747823627661687,
       "precision@20": 0.0,
-      "ndcg@100": 0.5490036305106385,
-      "precision@100": 0.07619047619047621
+      "ndcg@100": 0.49563686999504675,
+      "precision@100": 0.00375
+    },
+    "blend:model+momentum": {
+      "spearman": -0.0066532646657344666,
+      "ndcg@20": 0.28355754826661994,
+      "precision@20": 0.0,
+      "ndcg@100": 0.3698610510805556,
+      "precision@100": 0.03125
     }
   }
 }

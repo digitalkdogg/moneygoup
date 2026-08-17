@@ -687,6 +687,296 @@ async function fetchSectorLeaderTickers(): Promise<Set<string>> {
     return found;
 }
 
+const UNUSUAL_OPTIONS_VOL_OI_RATIO = 3.0;
+const UNUSUAL_OPTIONS_CP_VOL_RATIO = 3.0;
+const UNUSUAL_OPTIONS_CALL_FLOOR   = 500;
+
+/**
+ * Fetch options chains for a capped set of US-listed tickers and flag those
+ * showing abnormally high call volume vs open interest (classic front-running
+ * precursor) or heavy call/put skew.  Only scans US tickers (no dots) and
+ * caps at 80 to stay within Yahoo rate limits.
+ */
+async function fetchUnusualOptionsActivity(
+    tickers: Set<string>,
+): Promise<{ tickers: Set<string>; flowData: Map<string, { volOIRatio: number; cpVolRatio: number; totalCallVol: number }> }> {
+    const found   = new Set<string>();
+    const flowMap = new Map<string, { volOIRatio: number; cpVolRatio: number; totalCallVol: number }>();
+
+    const candidates = Array.from(tickers)
+        .filter(t => !t.includes('.') && !TICKER_STOPLIST.has(t))
+        .slice(0, 80);
+
+    const results = await Promise.allSettled(
+        candidates.map(async (ticker) => {
+            try {
+                const chain   = await yahooFinance.options(ticker, {}, { validateResult: false }) as any;
+                const options = chain?.options?.[0];
+                if (!options) return null;
+
+                const calls = (options.calls ?? []) as any[];
+                const puts  = (options.puts  ?? []) as any[];
+
+                const totalCallVol = calls.reduce((s: number, c: any) => s + (c.volume       ?? 0), 0);
+                const totalCallOI  = calls.reduce((s: number, c: any) => s + (c.openInterest ?? 0), 0);
+                const totalPutVol  = puts.reduce( (s: number, p: any) => s + (p.volume       ?? 0), 0);
+
+                if (totalCallVol < UNUSUAL_OPTIONS_CALL_FLOOR) return null;
+
+                const volOIRatio = totalCallOI > 0 ? totalCallVol / totalCallOI : 0;
+                const cpVolRatio = totalPutVol > 0 ? totalCallVol / totalPutVol : 0;
+
+                const unusual = volOIRatio > UNUSUAL_OPTIONS_VOL_OI_RATIO ||
+                    (cpVolRatio > UNUSUAL_OPTIONS_CP_VOL_RATIO && totalCallVol > UNUSUAL_OPTIONS_CALL_FLOOR);
+
+                return unusual ? { ticker, volOIRatio, cpVolRatio, totalCallVol } : null;
+            } catch {
+                return null;
+            }
+        }),
+    );
+
+    for (const r of results) {
+        if (r.status === 'fulfilled' && r.value) {
+            found.add(r.value.ticker);
+            flowMap.set(r.value.ticker, {
+                volOIRatio:   r.value.volOIRatio,
+                cpVolRatio:   r.value.cpVolRatio,
+                totalCallVol: r.value.totalCallVol,
+            });
+        }
+    }
+    logger.info(`Unusual options: scanned ${candidates.length}, flagged ${found.size}`);
+    return { tickers: found, flowData: flowMap };
+}
+
+/**
+ * Fetch insider transactions for a capped set of tickers. Flag tickers where
+ * ≥2 distinct insiders made open-market buys in the trailing 10 calendar days,
+ * or a single officer/director buy exceeded $250k.
+ */
+async function fetchInsiderBuyingTickers(tickers: Set<string>): Promise<Set<string>> {
+    const found      = new Set<string>();
+    const candidates = Array.from(tickers)
+        .filter(t => !t.includes('.') && !TICKER_STOPLIST.has(t))
+        .slice(0, 80);
+    const cutoff = Date.now() - 10 * 24 * 60 * 60 * 1000;
+
+    const results = await Promise.allSettled(
+        candidates.map(async (ticker) => {
+            try {
+                const summary = await yahooFinance.quoteSummary(ticker, {
+                    modules: ['insiderTransactions'],
+                }, { validateResult: false }) as any;
+                const txns = summary?.insiderTransactions?.transactions ?? [];
+                const recentBuys = (txns as any[]).filter((t: any) => {
+                    if (!t?.startDate) return false;
+                    const txDate = new Date(t.startDate).getTime();
+                    if (txDate < cutoff) return false;
+                    const text = (t.transactionText ?? '').toLowerCase();
+                    return text.includes('purchase') || text.includes('buy') || text.includes('bought');
+                });
+                if (recentBuys.length === 0) return null;
+
+                const distinctBuyers = new Set(recentBuys.map((t: any) => t.filerName ?? t.filerUrl ?? ''));
+                const maxValue       = Math.max(...recentBuys.map((t: any) => t.value ?? 0));
+
+                if (distinctBuyers.size >= 2 || maxValue >= 250_000) return ticker;
+                return null;
+            } catch {
+                return null;
+            }
+        }),
+    );
+
+    for (const r of results) {
+        if (r.status === 'fulfilled' && r.value) found.add(r.value);
+    }
+    logger.info(`Insider buying: scanned ${candidates.length}, flagged ${found.size}`);
+    return found;
+}
+
+/**
+ * Fetch upgrade/downgrade history for a capped set of tickers. Flag tickers
+ * where net revisions (upgrades minus downgrades) in the trailing 10 calendar
+ * days are ≥ +3 AND the analyst composite score is ≥ 70 (lower bar than the
+ * A-/82 hard-override lane, but still requires some fundamental backing).
+ */
+async function fetchRevisionMomentumTickers(tickers: Set<string>): Promise<Set<string>> {
+    const found      = new Set<string>();
+    const candidates = Array.from(tickers)
+        .filter(t => !t.includes('.') && !TICKER_STOPLIST.has(t))
+        .slice(0, 80);
+    const cutoff = Date.now() - 10 * 24 * 60 * 60 * 1000;
+
+    const results = await Promise.allSettled(
+        candidates.map(async (ticker) => {
+            try {
+                const summary = await yahooFinance.quoteSummary(ticker, {
+                    modules: ['upgradeDowngradeHistory'],
+                }, { validateResult: false }) as any;
+                const history = summary?.upgradeDowngradeHistory?.history ?? [];
+                const recent  = (history as any[]).filter((h: any) => {
+                    const d = h?.epochGradeDate ? new Date(h.epochGradeDate * 1000).getTime() : 0;
+                    return d >= cutoff;
+                });
+                const upgrades   = recent.filter((h: any) => h?.action === 'up' || h?.action === 'init').length;
+                const downgrades = recent.filter((h: any) => h?.action === 'down').length;
+                const net        = upgrades - downgrades;
+                return net >= 3 ? ticker : null;
+            } catch {
+                return null;
+            }
+        }),
+    );
+
+    for (const r of results) {
+        if (r.status === 'fulfilled' && r.value) found.add(r.value);
+    }
+    logger.info(`Revision momentum: scanned ${candidates.length}, flagged ${found.size}`);
+    return found;
+}
+
+// Cached CIK→ticker map. Refreshed weekly from EDGAR's static JSON.
+let edgarTickerMap: Map<string, string> | null   = null;
+let edgarTickerMapLoadedAt                       = 0;
+const EDGAR_TICKER_MAP_TTL_MS                    = 7 * 24 * 60 * 60 * 1000;
+const EDGAR_UA = 'GrowMyStocks/1.0 contact:digitalkdogg@gmail.com';
+
+async function loadEdgarTickerMap(): Promise<Map<string, string>> {
+    if (edgarTickerMap && Date.now() - edgarTickerMapLoadedAt < EDGAR_TICKER_MAP_TTL_MS) {
+        return edgarTickerMap;
+    }
+    try {
+        const res = await fetch(
+            'https://www.sec.gov/files/company_tickers.json',
+            { headers: { 'User-Agent': EDGAR_UA }, signal: AbortSignal.timeout(15_000) },
+        );
+        if (!res.ok) throw new Error(`EDGAR company_tickers ${res.status}`);
+        const data = await res.json() as Record<string, { cik_str: number; ticker: string; title: string }>;
+        const map  = new Map<string, string>();
+        for (const entry of Object.values(data)) {
+            const cik    = String(entry.cik_str).padStart(10, '0');
+            const ticker = (entry.ticker ?? '').toUpperCase();
+            if (ticker) map.set(cik, ticker);
+        }
+        edgarTickerMap       = map;
+        edgarTickerMapLoadedAt = Date.now();
+        return map;
+    } catch (err) {
+        logger.warn('EDGAR ticker map load failed', { error: String(err) });
+        return edgarTickerMap ?? new Map();
+    }
+}
+
+// High-signal 8-K item numbers (material agreements, M&A, exec changes, guidance).
+const EDGAR_HIGH_SIGNAL_ITEMS = new Set(['1.01', '2.01', '5.02', '7.01', '8.01']);
+
+/**
+ * Pull the last 48h of 8-K filings from SEC EDGAR full-text search.
+ * High-signal item types promote to the 'sec_8k_event' discovery lane;
+ * all resolved tickers are returned for potential earnings-calendar-style
+ * backfill into the stocks master table.
+ */
+async function fetchRecent8KFilings(): Promise<{
+    laneTickers: Set<string>;
+    backfillEntries: { symbol: string; name: string }[];
+}> {
+    const laneTickers     = new Set<string>();
+    const backfillEntries: { symbol: string; name: string }[] = [];
+
+    try {
+        const tickerMap = await loadEdgarTickerMap();
+        const since     = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        const url       = `https://efts.sec.gov/LATEST/search-index?q=%228-K%22&forms=8-K&dateRange=custom&startdt=${since}&hits.hits._source=period_of_report,display_names,file_date,form_type,period_of_report,biz_location,inc_states`;
+        const res       = await fetch(url, {
+            headers: { 'User-Agent': EDGAR_UA, Accept: 'application/json' },
+            signal: AbortSignal.timeout(15_000),
+        });
+        if (!res.ok) throw new Error(`EDGAR search ${res.status}`);
+        const data  = await res.json() as any;
+        const hits  = (data?.hits?.hits ?? []) as any[];
+
+        for (const hit of hits) {
+            const src         = hit?._source ?? {};
+            const displayName = String(src?.display_names ?? '');
+            // Extract CIK from display_names (format: "Company Name (CIK 0000000000)")
+            const cikMatch    = displayName.match(/\(CIK\s+(\d+)\)/i);
+            const cikRaw      = cikMatch?.[1];
+            if (!cikRaw) continue;
+            const cik    = cikRaw.padStart(10, '0');
+            const ticker = tickerMap.get(cik);
+            if (!ticker || TICKER_STOPLIST.has(ticker)) continue;
+
+            // Determine if this is a high-signal item
+            // The EDGAR full-text search doesn't return item numbers directly;
+            // check the display_names for known high-signal keywords as a proxy
+            const nameUpper = displayName.toUpperCase();
+            const isHighSignal = nameUpper.includes('AGREEMENT') ||
+                                 nameUpper.includes('ACQUISITION') ||
+                                 nameUpper.includes('MERGER') ||
+                                 nameUpper.includes('EXECUTIVE') ||
+                                 nameUpper.includes('GUIDANCE') ||
+                                 nameUpper.includes('OFFICER');
+
+            const companyName = displayName.replace(/\s*\(CIK.*?\)/gi, '').trim() || ticker;
+            backfillEntries.push({ symbol: ticker, name: companyName });
+            if (isHighSignal) laneTickers.add(ticker);
+        }
+        logger.info(`EDGAR 8-K: ${hits.length} filings parsed, ${backfillEntries.length} tickers resolved, ${laneTickers.size} high-signal`);
+    } catch (err) {
+        logger.warn('fetchRecent8KFilings failed', { error: String(err) });
+    }
+
+    // Dedup backfill entries
+    const seen = new Set<string>();
+    const dedupedEntries = backfillEntries.filter(e => {
+        if (seen.has(e.symbol)) return false;
+        seen.add(e.symbol);
+        return true;
+    });
+
+    return { laneTickers, backfillEntries: dedupedEntries };
+}
+
+/** Flag enriched stocks with short-squeeze setup from already-fetched data. */
+function computeShortSqueezeTickers(stocks: any[]): Set<string> {
+    const found = new Set<string>();
+    for (const s of stocks) {
+        if (s.error) continue;
+        const shortPctFloat     = s.shortPercentOfFloat  ?? 0;
+        const shortRatio        = s.shortRatio           ?? 0;
+        const sharesShort       = s.sharesShort          ?? 0;
+        const sharesShortPrior  = s.sharesShortPriorMonth ?? 0;
+        const priceAbove20dLow  = s.priceAbove20dLow     ?? true; // default true if unknown
+        if (
+            shortPctFloat > 0.15 &&
+            shortRatio    > 5    &&
+            sharesShort   > sharesShortPrior &&
+            priceAbove20dLow
+        ) {
+            found.add(s.ticker);
+        }
+    }
+    logger.info(`Short squeeze: flagged ${found.size} from ${stocks.length} enriched stocks`);
+    return found;
+}
+
+/** Flag enriched stocks with volume/price breakout from already-fetched OHLCV. */
+function computeVolumeBreakoutTickers(stocks: any[]): Set<string> {
+    const found = new Set<string>();
+    for (const s of stocks) {
+        if (s.error) continue;
+        const relVolume     = s.relVolume20d    ?? 0;
+        const above20dHigh  = s.above20dHigh    ?? false;
+        if (relVolume > 2.5 && above20dHigh) {
+            found.add(s.ticker);
+        }
+    }
+    logger.info(`Volume breakout: flagged ${found.size} from ${stocks.length} enriched stocks`);
+    return found;
+}
+
 /**
  * Given a set of sector-leader tickers, return only those whose
  * `stock_gps_scores.as_of` is missing or older than `freshDays`. These are
@@ -906,9 +1196,31 @@ async function enrichTickers(tickers: string[]) {
                     volume: (r.volume as number) || 0
                 }));
 
-                const tech = histData.length >= 20 
+                const tech = histData.length >= 20
                     ? calculateTechnicalIndicators(histData, [], detail.trailingPE || stats.forwardPE, stats.priceToBook, marketCap)
                     : null;
+
+                // Volume breakout signals (use last 21 bars — today + 20 prior)
+                const recent21 = histData.slice(-21);
+                const avgVol20d = recent21.length >= 20
+                    ? recent21.slice(0, -1).reduce((s: number, r: any) => s + (r.volume || 0), 0) / 20
+                    : 0;
+                const todayVol  = recent21[recent21.length - 1]?.volume ?? 0;
+                const max20dHigh = recent21.length >= 20
+                    ? Math.max(...recent21.slice(0, -1).map((r: any) => r.high || 0))
+                    : 0;
+                const todayClose = recent21[recent21.length - 1]?.close ?? 0;
+                const relVolume20d  = avgVol20d > 0 ? todayVol / avgVol20d : 0;
+                const above20dHigh  = max20dHigh > 0 && todayClose > max20dHigh * 0.999;
+
+                // Short-squeeze signals (20-day low for "price holding up" check)
+                const min20dClose   = recent21.length >= 20
+                    ? Math.min(...recent21.slice(0, -1).map((r: any) => r.close || Infinity))
+                    : 0;
+                const priceAbove20dLow = min20dClose > 0 && currentPrice > min20dClose * 1.01;
+                const shortPercentOfFloat = (stats.sharesShort && stats.floatShares && stats.floatShares > 0)
+                    ? stats.sharesShort / stats.floatShares
+                    : (stats.shortPercentOfFloat ?? 0);
 
                 return {
                     ticker,
@@ -939,7 +1251,14 @@ async function enrichTickers(tickers: string[]) {
                     tradingSignalScore: tech?.scoreBreakdown.totalScore || 0,
                     signalStrength: tech?.signalStrength || 0,
                     sector: profile.sector || 'Unknown',
-                    industry: profile.industry || null
+                    industry: profile.industry || null,
+                    relVolume20d,
+                    above20dHigh,
+                    priceAbove20dLow,
+                    shortPercentOfFloat,
+                    shortRatio:            stats.shortRatio            ?? null,
+                    sharesShort:           stats.sharesShort           ?? null,
+                    sharesShortPriorMonth: stats.sharesShortPriorMonth ?? null,
                     };            } catch (err) {
 
                 logger.warn(`Failed to enrich ${ticker}`, { error: String(err) });
@@ -1061,17 +1380,37 @@ export async function GET(request: NextRequest) {
         // Yahoo sectors; injected so /search/industry/[sector] always has fresh GPS.
         // (Yahoo earnings-calendar HTML scrape removed: Cloudflare bot-block
         // made it return zero tickers while burning a 15s timeout per run.)
-        const [popularEtfHoldingTickers, trendingTickers, sectorLeaderTickers, earningsCalendarResult] = await Promise.all([
+        const [
+            popularEtfHoldingTickers,
+            trendingTickers,
+            sectorLeaderTickers,
+            earningsCalendarResult,
+            unusualOptionsResult,
+            insiderClusterTickers,
+            revisionMomentumTickers,
+            edgarResult,
+        ] = await Promise.all([
             fetchEtfHoldingTickers(POPULAR_ETF_TICKERS),
             fetchTrendingTickers(100),
             fetchSectorLeaderTickers(),
             fetchEarningsCalendarTickers(5),
+            fetchUnusualOptionsActivity(allTickersSet),
+            fetchInsiderBuyingTickers(allTickersSet),
+            fetchRevisionMomentumTickers(allTickersSet),
+            fetchRecent8KFilings(),
         ]);
+        const unusualOptionsTickers = unusualOptionsResult.tickers;
+        const unusualOptionsFlowData = unusualOptionsResult.flowData;
         const earningsCalendarTickers = earningsCalendarResult.tickers;
         for (const t of popularEtfHoldingTickers) allTickersSet.add(t);
         for (const t of trendingTickers) allTickersSet.add(t);
         for (const t of sectorLeaderTickers) allTickersSet.add(t);
         for (const t of earningsCalendarTickers) allTickersSet.add(t);
+        for (const t of unusualOptionsTickers) allTickersSet.add(t);
+        for (const t of insiderClusterTickers)  allTickersSet.add(t);
+        for (const t of revisionMomentumTickers) allTickersSet.add(t);
+        for (const t of edgarResult.laneTickers) allTickersSet.add(t);
+        for (const entry of edgarResult.backfillEntries) allTickersSet.add(entry.symbol);
 
         // Freshness gate: skip MC + GPS for sector leaders that already have a
         // GPS row newer than 12 hours. Keeps sector leader scores current on
@@ -1109,6 +1448,10 @@ export async function GET(request: NextRequest) {
         const enrichedStocks = [...newsEnrichedStocks, ...holdingEnrichedStocks];
         for (const t of newHoldingTickers) allTickersSet.add(t);
 
+        // Lanes 2 & 5: computed synchronously from already-fetched enrichment data
+        const shortSqueezeTickers   = computeShortSqueezeTickers(enrichedStocks);
+        const volumeBreakoutTickers = computeVolumeBreakoutTickers(enrichedStocks);
+
         const tickerArray = Array.from(allTickersSet).sort();
 
         // --- Analysis Filtering ---
@@ -1133,8 +1476,25 @@ export async function GET(request: NextRequest) {
                 signalScoreFloor: algorithm.signalScoreFloor,
                 sectorLeaderTickers: staleSectorLeaderTickers,
                 trendingTickers,
+                unusualOptionsTickers,
+                unusualOptionsFlowData,
+                insiderClusterTickers,
+                revisionMomentumTickers,
+                shortSqueezeTickers,
+                volumeBreakoutTickers,
+                edgarLaneTickers: edgarResult.laneTickers,
             },
         );
+
+        // Merge options flow data into gps_breakdown for unusual_options stocks
+        for (const stock of filteredStocks) {
+            if (stock.discovery_source === 'unusual_options') {
+                const flow = unusualOptionsFlowData.get(stock.ticker);
+                if (flow) {
+                    (stock as any).gps_breakdown = { ...((stock as any).gps_breakdown ?? {}), options_flow: flow };
+                }
+            }
+        }
 
         const data = {
             success: true,
@@ -1162,6 +1522,7 @@ export async function GET(request: NextRequest) {
                 // can satisfy the NOT NULL company_name column.
                 earningsCalendarTickers: earningsCalendarResult.entries,
                 earningsCalendarCount:   earningsCalendarResult.entries.length,
+                edgarBackfillEntries: edgarResult.backfillEntries,
                 feedsQueried: PRIMARY_FEED_URLS.length + primaryTickers.size,
                 // Resolved DEEPMONEY_ALGORITHM preset. deepmoney_sync.py reads
                 // back from here — it is the only knob for run aggressiveness.
@@ -1191,6 +1552,19 @@ export async function GET(request: NextRequest) {
                     etfHoldingTickerCount: etfHoldingTickers.size,
                     etfHoldingTickerNewlyEnriched: newHoldingTickers.length,
                     predictionSample: filteredStocks.slice(0, 5).map(s => ({ ticker: s.ticker, pred: s.prediction_1m, source: s.discovery_source })),
+                    unusualOptionsSurfaced:   filteredStocks.filter(s => s.discovery_source === 'unusual_options').length,
+                    unusualOptionsInjected:   unusualOptionsTickers.size,
+                    insiderClusterSurfaced:   filteredStocks.filter(s => s.discovery_source === 'insider_cluster').length,
+                    insiderClusterInjected:   insiderClusterTickers.size,
+                    revisionMomentumSurfaced: filteredStocks.filter(s => s.discovery_source === 'revision_momentum').length,
+                    revisionMomentumInjected: revisionMomentumTickers.size,
+                    shortSqueezeSurfaced:     filteredStocks.filter(s => s.discovery_source === 'short_squeeze_setup').length,
+                    shortSqueezeInjected:     shortSqueezeTickers.size,
+                    volumeBreakoutSurfaced:   filteredStocks.filter(s => s.discovery_source === 'volume_breakout').length,
+                    volumeBreakoutInjected:   volumeBreakoutTickers.size,
+                    edgarLaneSurfaced:        filteredStocks.filter(s => s.discovery_source === 'sec_8k_event').length,
+                    edgarLaneInjected:        edgarResult.laneTickers.size,
+                    edgarBackfillSeen:        edgarResult.backfillEntries.length,
                 }
             },
         };
