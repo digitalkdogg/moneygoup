@@ -162,6 +162,15 @@ def _predict_with_cs_model(
     spread_12m = max(spread_12m, current_price * 0.08)
     spread_18m = spread_12m * 1.5
 
+    # Item 4: Signal confidence from MC ensemble agreement (CoV).
+    # CoV=0 → perfect agreement → signal_confidence=100.
+    # CoV=0.25 → 25% spread relative to mean → signal_confidence=0.
+    # Blended with a MAPE-based component (set after cv_mape is computed below).
+    mc_cv_6m = float(np.std(mc_6m_prices)  / (abs(float(np.mean(mc_6m_prices)))  + 1e-9))
+    mc_cv_1y = float(np.std(mc_12m_prices) / (abs(float(np.mean(mc_12m_prices))) + 1e-9))
+    _signal_from_mc_6m = max(0.0, 100.0 * (1.0 - mc_cv_6m / 0.25))
+    _signal_from_mc_1y = max(0.0, 100.0 * (1.0 - mc_cv_1y / 0.25))
+
     p18m_est = predicted_price_1y + (predicted_price_1y - predicted_price_6m)
 
     # ── cv_mae / cv_mape: per-ticker backtest of the CS model ────────────────
@@ -260,6 +269,11 @@ def _predict_with_cs_model(
     cs_breakdown['cv_mape_source'] = cv_mape_source
     cs_breakdown['conf_cv_mape']   = round(conf_cv_mape, 2)
 
+    # Blend MC-agreement signal with MAPE-derived signal for final signal_confidence.
+    _mape_signal = max(0.0, 100.0 - float(conf_cv_mape) * 2.0)
+    signal_confidence_6m = int(round(0.6 * _signal_from_mc_6m + 0.4 * _mape_signal))
+    signal_confidence_1y = int(round(0.6 * _signal_from_mc_1y + 0.4 * _mape_signal))
+
     pct_6m = round((predicted_price_6m - current_price) / (current_price + 1e-9) * 100, 2)
     pct_1y = round((predicted_price_1y - current_price) / (current_price + 1e-9) * 100, 2)
 
@@ -273,6 +287,8 @@ def _predict_with_cs_model(
         'confidence_score_6m': cs6m,
         'confidence_score_1y': cs1y,
         'confidence_breakdown': cs_breakdown,
+        'signal_confidence_6m': signal_confidence_6m,
+        'signal_confidence_1y': signal_confidence_1y,
         'spread_6m': spread_6m,
         'spread_12m': spread_12m,
         'spread_18m': spread_18m,
@@ -414,6 +430,12 @@ def predict_long_term(
     spread_12m = max(spread_12m, current_price * 0.08)
     spread_18m = spread_12m * 1.5
 
+    # Item 4: signal confidence from MC CoV (same formula as CS path).
+    _mc_cv_6m = float(np.std(mc_6m)  / (abs(float(np.mean(mc_6m)))  + 1e-9))
+    _mc_cv_1y = float(np.std(mc_12m) / (abs(float(np.mean(mc_12m))) + 1e-9))
+    _signal_from_mc_6m_pt = max(0.0, 100.0 * (1.0 - _mc_cv_6m / 0.25))
+    _signal_from_mc_1y_pt = max(0.0, 100.0 * (1.0 - _mc_cv_1y / 0.25))
+
     # 18m extrapolation beyond 12m anchor (used by orchestrator's trajectory)
     p18m_est = predicted_price_1y + (predicted_price_1y - predicted_price_6m)
 
@@ -423,6 +445,10 @@ def predict_long_term(
                                           return_breakdown=True)
     cs_breakdown['cv_mape_source'] = 'per_ticker_holdout'
     cs1y = max(0, cs6m - 15)
+
+    _mape_signal_pt = max(0.0, 100.0 - float(cv_mape) * 2.0)
+    signal_confidence_6m = int(round(0.6 * _signal_from_mc_6m_pt + 0.4 * _mape_signal_pt))
+    signal_confidence_1y = int(round(0.6 * _signal_from_mc_1y_pt + 0.4 * _mape_signal_pt))
 
     # ── Pct changes ──────────────────────────────────────────────────────────
     pct_6m  = round((predicted_price_6m - current_price) / (current_price + 1e-9) * 100, 2)
@@ -438,6 +464,8 @@ def predict_long_term(
         'confidence_score_6m': cs6m,
         'confidence_score_1y': cs1y,
         'confidence_breakdown': cs_breakdown,
+        'signal_confidence_6m': signal_confidence_6m,
+        'signal_confidence_1y': signal_confidence_1y,
         # Internals exposed for orchestrator + short-term consumers
         'spread_6m': spread_6m,
         'spread_12m': spread_12m,

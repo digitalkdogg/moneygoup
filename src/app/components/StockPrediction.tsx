@@ -109,6 +109,17 @@ interface PredictionResult {
   confidence_reason_1m?: string
   confidence_reason_6m?: string
   confidence_reason_1y?: string
+  // Decomposed confidence axes (Item 1 of confidence redesign).
+  // signal_confidence: MC ensemble agreement + CV MAPE — model-internal certainty.
+  // precedent_confidence: % of historical windows that matched this magnitude/direction.
+  signal_confidence_1w?: number | null
+  signal_confidence_1m?: number | null
+  signal_confidence_6m?: number | null
+  signal_confidence_1y?: number | null
+  precedent_confidence_1w?: number | null
+  precedent_confidence_1m?: number | null
+  precedent_confidence_6m?: number | null
+  precedent_confidence_1y?: number | null
   /** Optional LLM-written 2-3 sentence narrative. Rendered as a
    *  "Why this range" callout above the trajectory chart when present.
    *  NULL when Ollama is disabled/down; UI falls back to the rule-based
@@ -280,6 +291,23 @@ function ConfidenceBadge({ score, breakdown, overrideReason }: { score: number; 
     </span>
   )
 }
+
+// ---------------------------------------------------------------------------
+// Dual confidence badge: Signal axis + Precedent axis
+// ---------------------------------------------------------------------------
+function confidenceLabel(score: number) {
+  if (score >= 66) return 'High'
+  if (score >= 41) return 'Medium'
+  return 'Low'
+}
+function confidenceBadgeClass(score: number, variant: 'blue' | 'green') {
+  if (score >= 66) return variant === 'blue'
+    ? 'bg-blue-50 text-blue-600 border-blue-500'
+    : 'bg-[#f0fdf4] text-[#005a00] border-[#005a00]'
+  if (score >= 41) return 'bg-gray-50 text-amber-700 border-gray-300'
+  return 'bg-red-50 text-red-700 border-red-300'
+}
+
 
 // ---------------------------------------------------------------------------
 // SVG Trajectory Chart

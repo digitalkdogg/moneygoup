@@ -76,6 +76,7 @@ from predict_core import (
     # Sequences / confidence / sanitize / analysis
     make_sequences, confidence_score, metric_analysis,
     _sanitize_predictions,
+    compute_precedent_confidence,
 )
 
 from predict_long_term import predict_long_term
@@ -193,6 +194,18 @@ def predict(ticker, input_data):
         except Exception as e:
             raise ValueError(f"Could not convert {col} to numeric: {e}")
 
+    # Forward-fill zero/negative Close prices — yfinance occasionally inserts
+    # 0.0 on corporate-action dates (spinoffs, splits, re-listings). A single
+    # zero makes ret30d/ret90d/HiRatio_52w compute as -100%, which triggers
+    # Fix A/C incorrectly and produces wildly wrong predictions.
+    _bad_close = (df['Close'] <= 0) | df['Close'].isna()
+    if _bad_close.any():
+        print(f"[warn] {ticker}: {_bad_close.sum()} zero/NaN close price(s) — forward-filling",
+              file=sys.stderr)
+        df['Close'] = df['Close'].replace(to_replace=0, value=np.nan)
+        df['Close'] = df['Close'].where(df['Close'] > 0)
+        df['Close'] = df['Close'].ffill().bfill()
+
     # Current price anchor for all % change calculations
     current_price = float(stock_metrics.get('regularMarketPrice') or df['Close'].iloc[-1])
 
@@ -205,8 +218,13 @@ def predict(ticker, input_data):
     # 30%-vol name would consider extreme. Falls back to 0.30 when there's
     # not enough history to compute.
     if len(close_arr) >= 62:
-        _log_ret = np.log(close_arr[-61:] / close_arr[-62:-1])
-        realized_vol_60d = float(_log_ret.std() * np.sqrt(252))
+        _prices_62 = close_arr[-62:]
+        if np.all(_prices_62 > 0):
+            _log_ret = np.log(_prices_62[1:] / _prices_62[:-1])
+            _vol_candidate = float(np.std(_log_ret) * np.sqrt(252))
+            realized_vol_60d = _vol_candidate if (0 < _vol_candidate < 10.0) else 0.30
+        else:
+            realized_vol_60d = 0.30
     else:
         realized_vol_60d = 0.30
 
@@ -492,6 +510,7 @@ def predict(ticker, input_data):
     predicted_price_1y = long_out['predicted_price_1y']
     predicted_price_6m_base = long_out['predicted_price_6m_base']
     cs6m = long_out['confidence_score_6m']
+    sig6m = long_out.get('signal_confidence_6m', cs6m)
     spread_6m  = long_out['spread_6m']
     spread_12m = long_out['spread_12m']
     spread_18m = long_out['spread_18m']
@@ -593,6 +612,7 @@ def predict(ticker, input_data):
         predicted_price_6m_base=predicted_price_6m_base,
         confidence_score_6m=cs6m,
         stock_metrics=stock_metrics,
+        signal_confidence_6m=sig6m,
     )
 
     predicted_price_1w = short_out['predicted_price_1w']
@@ -730,6 +750,11 @@ def predict(ticker, input_data):
         # derive from this single breakdown with horizon-specific modifiers
         # (1w = cs1m+3, 1m = cs6m±10 based on earnings proximity, 1y = cs6m-15).
         "confidence_breakdown": long_out.get('confidence_breakdown'),
+        # Signal confidence (MC ensemble agreement + CV MAPE — model-internal certainty)
+        "signal_confidence_1w": short_out.get('signal_confidence_1w'),
+        "signal_confidence_1m": short_out.get('signal_confidence_1m'),
+        "signal_confidence_6m": long_out.get('signal_confidence_6m'),
+        "signal_confidence_1y": long_out.get('signal_confidence_1y'),
         # Data quality pass-through
         "data_quality":    data_quality,
         # Options data availability
@@ -746,6 +771,24 @@ def predict(ticker, input_data):
     }
     result = _apply_variant_adjustments(result, feat_df, current_price, stock_metrics,
                                          inline_telemetry=v_telemetry if _MODEL_VARIANT in ('v4', 'v5') else None)
+
+    # ── Precedent confidence (Item 1) ─────────────────────────────────────────
+    # Computed after _apply_variant_adjustments so we use the final (adjusted)
+    # predicted_change_pct values. Uses historical closes already in feat_df.
+    _closes = feat_df['Close'].values if 'Close' in feat_df.columns else np.array([current_price])
+    _prec_1w = compute_precedent_confidence(_closes, result.get('predicted_change_pct_1w', 0.0), 5)
+    _prec_1m = compute_precedent_confidence(_closes, result.get('predicted_change_pct_1m', 0.0), 21)
+    _prec_6m = compute_precedent_confidence(_closes, result.get('predicted_change_pct_6m', 0.0), 126)
+    _prec_1y = compute_precedent_confidence(_closes, result.get('predicted_change_pct_1y', 0.0), 252)
+    result['precedent_confidence_1w'] = _prec_1w
+    result['precedent_confidence_1m'] = _prec_1m
+    result['precedent_confidence_6m'] = _prec_6m
+    result['precedent_confidence_1y'] = _prec_1y
+
+    # Blended confidence (0.7 signal + 0.3 precedent) — single value for sort/filter.
+    _sc_1m = result.get('signal_confidence_1m') or result.get('confidence_score_1m', 65)
+    result['blended_confidence_1m'] = int(round(0.7 * _sc_1m + 0.3 * _prec_1m))
+
     # Note: LLM rationale is generated in the CLI main block (not here) so it
     # runs on every prediction — even cache hits — and can be regenerated
     # without invalidating the entire prediction cache. See __main__ below.

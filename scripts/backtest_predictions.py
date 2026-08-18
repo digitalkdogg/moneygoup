@@ -543,10 +543,15 @@ def upsert_backtest_row(conn, row: dict, overwrite: bool):
         columns = [
             'price_at_prediction',
             'predicted_price_1w', 'predicted_price_1m', 'predicted_price_6m', 'predicted_price_1y',
+            'predicted_change_pct_1w', 'predicted_change_pct_1m', 'predicted_change_pct_6m', 'predicted_change_pct_1y',
             'actual_price_1w', 'actual_price_1m', 'actual_price_6m', 'actual_price_1y',
             'accuracy_pct_1w', 'accuracy_pct_1m', 'accuracy_pct_6m', 'accuracy_pct_1y',
             'direction_correct_1w', 'direction_correct_1m', 'direction_correct_6m', 'direction_correct_1y',
             'resolved_1w', 'resolved_1m', 'resolved_6m', 'resolved_1y',
+            'confidence_score_1w', 'confidence_score_1m', 'confidence_score_6m', 'confidence_score_1y',
+            'signal_confidence_1w', 'signal_confidence_1m', 'signal_confidence_6m', 'signal_confidence_1y',
+            'precedent_confidence_1w', 'precedent_confidence_1m', 'precedent_confidence_6m', 'precedent_confidence_1y',
+            'blended_confidence_1m',
         ]
         values = [row[c] for c in columns]
 
@@ -636,6 +641,14 @@ def backtest_one(ticker: str, as_of: str, full_hist: list, macro_full: dict, con
     row = {'symbol': ticker, 'predicted_at': as_of, 'price_at_prediction': price_at_prediction}
     summary_bits = [f"{ticker} {as_of} price={price_at_prediction:.2f}"]
 
+    # Confidence fields — written once, outside the horizons loop.
+    for h in ('1w', '1m', '6m', '1y'):
+        row[f'predicted_change_pct_{h}'] = result.get(f'predicted_change_pct_{h}')
+        row[f'confidence_score_{h}']     = result.get(f'confidence_score_{h}')
+        row[f'signal_confidence_{h}']    = result.get(f'signal_confidence_{h}')
+        row[f'precedent_confidence_{h}'] = result.get(f'precedent_confidence_{h}')
+    row['blended_confidence_1m'] = result.get('blended_confidence_1m')
+
     for h, days_offset in HORIZONS:
         predicted_price = result.get(f'predicted_price_{h}')
         row[f'predicted_price_{h}'] = predicted_price
@@ -718,6 +731,75 @@ def print_summary(results: list):
             print(f"  {h}: {len(resolved)}/{len(results)} resolved | avg accuracy {avg_acc:.1f}% | direction correct {avg_dir:.1f}%{neutral_tag}")
         else:
             print(f"  {h}: {len(resolved)}/{len(results)} resolved | avg accuracy {avg_acc:.1f}% | all neutral")
+
+
+def print_per_ticker_summary(results: list):
+    """Print a per-ticker, per-horizon table covering accuracy, directional
+    accuracy, average predicted %change, and average confidence score."""
+    if not results:
+        return
+
+    tickers = list(dict.fromkeys(r['symbol'] for r in results))  # preserve order
+    horizons = [h for h, _ in HORIZONS]
+
+    # Column widths
+    col_ticker  = 7
+    col_horizon = 4
+    col_res     = 8   # "resolved"
+    col_acc     = 9   # "price acc"
+    col_dir     = 8   # "dir acc"
+    col_chg     = 10  # "avg %chg"
+    col_conf    = 7   # "avg conf"
+
+    sep = (f"{'─'*col_ticker}  {'─'*col_horizon}  {'─'*col_res}  "
+           f"{'─'*col_acc}  {'─'*col_dir}  {'─'*col_chg}  {'─'*col_conf}")
+    hdr = (f"{'Ticker':<{col_ticker}}  {'Hrz':<{col_horizon}}  "
+           f"{'Resolved':>{col_res}}  {'Price Acc':>{col_acc}}  "
+           f"{'Dir Acc':>{col_dir}}  {'Avg %Chg':>{col_chg}}  "
+           f"{'Avg Conf':>{col_conf}}")
+
+    print("\n=== Per-ticker summary (all horizons) ===")
+    print(hdr)
+    print(sep)
+
+    for ticker in tickers:
+        ticker_rows = [r for r in results if r['symbol'] == ticker]
+        total = len(ticker_rows)
+        first = True
+        for h in horizons:
+            resolved = [r for r in ticker_rows if r.get(f'resolved_{h}')]
+            n_res = len(resolved)
+
+            acc_str  = '--'
+            dir_str  = '--'
+            if resolved:
+                avg_acc = sum(r[f'accuracy_pct_{h}'] for r in resolved) / n_res
+                acc_str = f"{avg_acc:.1f}%"
+                dir_rows = [r for r in resolved if r.get(f'direction_correct_{h}') is not None]
+                neutral  = n_res - len(dir_rows)
+                if dir_rows:
+                    avg_dir = sum(r[f'direction_correct_{h}'] for r in dir_rows) / len(dir_rows) * 100
+                    dir_str = f"{avg_dir:.0f}%"
+                    if neutral:
+                        dir_str += f" ({neutral}n)"
+                else:
+                    dir_str = 'all neut'
+
+            # Predicted %change — use all rows (not just resolved) for full coverage
+            chg_vals = [r.get(f'predicted_change_pct_{h}') for r in ticker_rows if r.get(f'predicted_change_pct_{h}') is not None]
+            chg_str  = f"{sum(chg_vals)/len(chg_vals):+.1f}%" if chg_vals else '--'
+
+            conf_vals = [r.get(f'confidence_score_{h}') for r in ticker_rows if r.get(f'confidence_score_{h}') is not None]
+            conf_str  = f"{sum(conf_vals)/len(conf_vals):.0f}" if conf_vals else '--'
+
+            res_str = f"{n_res}/{total}"
+            ticker_label = ticker if first else ''
+            first = False
+            print(f"{ticker_label:<{col_ticker}}  {h:<{col_horizon}}  "
+                  f"{res_str:>{col_res}}  {acc_str:>{col_acc}}  "
+                  f"{dir_str:>{col_dir}}  {chg_str:>{col_chg}}  "
+                  f"{conf_str:>{col_conf}}")
+        print(sep)
 
 
 def main():
@@ -818,6 +900,7 @@ def main():
             conn.close()
 
     print_summary(all_results)
+    print_per_ticker_summary(all_results)
 
     # Item 3 — LLM narrative appended to the run output when Ollama is enabled
     # and we have real data to describe (skip dry runs, --as-of-date one-shots,

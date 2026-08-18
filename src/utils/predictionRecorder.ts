@@ -19,6 +19,15 @@ export interface PredictionInput {
   confidenceScore1m?: number;
   confidenceScore6m?: number;
   confidenceScore1y?: number;
+  signalConfidence1w?: number | null;
+  signalConfidence1m?: number | null;
+  signalConfidence6m?: number | null;
+  signalConfidence1y?: number | null;
+  precedentConfidence1w?: number | null;
+  precedentConfidence1m?: number | null;
+  precedentConfidence6m?: number | null;
+  precedentConfidence1y?: number | null;
+  blendedConfidence1m?: number | null;
   gpsScore?: number;
   gpsBreakdown?: unknown;
   accuracyMetrics?: unknown;
@@ -50,13 +59,16 @@ export async function recordPrediction(input: PredictionInput): Promise<boolean>
           predicted_price_1w, predicted_price_1m, predicted_price_6m, predicted_price_1y,
           predicted_change_pct_1w, predicted_change_pct_1m, predicted_change_pct_6m, predicted_change_pct_1y,
           confidence_score_1w, confidence_score_1m, confidence_score_6m, confidence_score_1y,
+          signal_confidence_1w, signal_confidence_1m, signal_confidence_6m, signal_confidence_1y,
+          precedent_confidence_1w, precedent_confidence_1m, precedent_confidence_6m, precedent_confidence_1y,
+          blended_confidence_1m,
           gps_score, gps_breakdown,
           accuracy_metrics, data_quality, model_status,
           at_model_ceiling_6m, at_model_ceiling_1y, ceiling_direction,
           confidence_breakdown,
           confidence_reason_1w, confidence_reason_1m, confidence_reason_6m, confidence_reason_1y,
           llm_rationale
-        ) VALUES (?, NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
       const gpsBreakdownJson =
@@ -84,6 +96,15 @@ export async function recordPrediction(input: PredictionInput): Promise<boolean>
         input.confidenceScore1m ?? null,
         input.confidenceScore6m ?? null,
         input.confidenceScore1y ?? null,
+        input.signalConfidence1w ?? null,
+        input.signalConfidence1m ?? null,
+        input.signalConfidence6m ?? null,
+        input.signalConfidence1y ?? null,
+        input.precedentConfidence1w ?? null,
+        input.precedentConfidence1m ?? null,
+        input.precedentConfidence6m ?? null,
+        input.precedentConfidence1y ?? null,
+        input.blendedConfidence1m ?? null,
         input.gpsScore ?? null,
         gpsBreakdownJson,
         accuracyMetricsJson,

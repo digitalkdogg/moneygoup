@@ -170,6 +170,7 @@ def _predict_with_st_cs_model(
             pass
     cs1m = max(0, confidence_score_6m - 10) if days_to_earnings <= 14 else min(100, confidence_score_6m + 10)
     cs1w = min(100, cs1m + 3)
+    # signal_confidence resolved in outer predict_short_term after this returns.
 
     return {
         'predicted_price_1w': predicted_price_1w,
@@ -207,6 +208,7 @@ def predict_short_term(
     confidence_score_6m: int,
     stock_metrics: dict,
     seed: int = SEED,
+    signal_confidence_6m: int = 65,
 ) -> dict:
     """
     Train + predict the 1w / 1m horizon using SHORT_TERM_FEATURES.
@@ -237,7 +239,7 @@ def predict_short_term(
     # Short-circuits before the per-ticker .fit() call if the pretrained
     # artifact was successfully loaded at module import.
     if _ST_CS_MODEL is not None:
-        return _predict_with_st_cs_model(
+        cs_result = _predict_with_st_cs_model(
             feat_df=feat_df,
             current_price=current_price,
             mult_1w=mult_1w,
@@ -246,6 +248,22 @@ def predict_short_term(
             confidence_score_6m=confidence_score_6m,
             stock_metrics=stock_metrics,
         )
+        # signal_confidence was intentionally deferred to here (see comment in
+        # _predict_with_st_cs_model) — apply the same earnings-window logic.
+        _days_to_earn = 999
+        _next_earn_str = stock_metrics.get('nextEarningsDate')
+        if _next_earn_str:
+            try:
+                _days_to_earn = (
+                    datetime.fromisoformat(str(_next_earn_str)).date()
+                    - datetime.today().date()
+                ).days
+            except Exception:
+                pass
+        _sig_1m = max(0, signal_confidence_6m - 10) if _days_to_earn <= 14 else min(100, signal_confidence_6m + 10)
+        cs_result['signal_confidence_1m'] = _sig_1m
+        cs_result['signal_confidence_1w'] = min(100, _sig_1m + 3)
+        return cs_result
 
     # ── Per-ticker training path (default) ───────────────────────────────────
     short_features = extend_with_regime_cols(SHORT_TERM_FEATURES)
@@ -314,6 +332,10 @@ def predict_short_term(
 
     cs1w = min(100, cs1m + 3)
 
+    # Signal confidence mirrors the same earnings-window logic as blended confidence.
+    sig_1m = max(0, signal_confidence_6m - 10) if days_to_earnings <= 14 else min(100, signal_confidence_6m + 10)
+    sig_1w = min(100, sig_1m + 3)
+
     return {
         'predicted_price_1w': predicted_price_1w,
         'predicted_change_pct_1w': pct_1w,
@@ -321,4 +343,6 @@ def predict_short_term(
         'predicted_price_1m': predicted_price_1m,
         'predicted_change_pct_1m': pct_1m,
         'confidence_score_1m': cs1m,
+        'signal_confidence_1w': sig_1w,
+        'signal_confidence_1m': sig_1m,
     }
