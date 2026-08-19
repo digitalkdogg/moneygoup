@@ -980,6 +980,62 @@ def check_signal_confidence_path():
 
 
 # ==============================================================================
+# ANALYST GRADE — Python port of src/utils/analystGrade.ts:computeAnalystGrade
+# ==============================================================================
+def _compute_analyst_grade(rec_history, target_mean, target_low, target_high, current_price):
+    """Returns composite 0-100 score matching the frontend's computeAnalystGrade()."""
+    if not rec_history:
+        return None
+    PERIOD_WEIGHTS = {'0m': 0.40, '-1m': 0.25, '-2m': 0.20, '-3m': 0.15}
+
+    def _wrs(row):
+        total = sum(float(row.get(k) or 0) for k in ('strongBuy','buy','hold','sell','strongSell'))
+        if total <= 0:
+            return None
+        return (5*float(row.get('strongBuy') or 0) + 4*float(row.get('buy') or 0) +
+                3*float(row.get('hold') or 0)      + 2*float(row.get('sell') or 0) +
+                1*float(row.get('strongSell') or 0)) / total
+
+    wrs_map = {r['period']: _wrs(r) for r in rec_history if _wrs(r) is not None}
+    if '0m' not in wrs_map:
+        return None
+
+    blended, total_w = 0.0, 0.0
+    for p, w in PERIOD_WEIGHTS.items():
+        if p in wrs_map:
+            blended += w * wrs_map[p]
+            total_w += w
+    if total_w <= 0:
+        return None
+    blended /= total_w
+
+    rec_score      = ((blended - 1) / 4) * 100
+    wrs0           = wrs_map['0m']
+    wrs_oldest     = wrs_map.get('-3m') or wrs_map.get('-2m') or wrs_map.get('-1m') or wrs0
+    momentum_score = max(0.0, min(100.0, 50 + (wrs0 - wrs_oldest) * 50))
+
+    upside_score = 50.0
+    if target_mean and current_price and current_price > 0:
+        upside_pct   = ((target_mean - current_price) / current_price) * 100
+        upside_score = max(0.0, min(100.0, (upside_pct + 20) / 60 * 100))
+
+    conviction_score = 50.0
+    if target_low and target_high and target_mean and target_mean > 0:
+        dispersion       = (target_high - target_low) / target_mean
+        conviction_score = max(0.0, min(100.0, 100 - dispersion * 100))
+
+    row0m    = next((r for r in rec_history if r.get('period') == '0m'), None)
+    total0m  = sum(float(row0m.get(k) or 0) for k in ('strongBuy','buy','hold','sell','strongSell')) if row0m else 0
+    coverage_score = min(100.0, (math.sqrt(total0m) / math.sqrt(30)) * 100)
+
+    composite = max(0.0, min(100.0,
+        0.47 * rec_score + 0.29 * upside_score +
+        0.14 * momentum_score + 0.05 * conviction_score + 0.05 * coverage_score
+    ))
+    return round(composite * 10) / 10
+
+
+# ==============================================================================
 # LIVE TICKER DIAGNOSTIC
 # ==============================================================================
 SECTOR_MEDIANS = {
@@ -1035,7 +1091,10 @@ def diagnose_ticker(ticker: str):
 
     try:
         import predict_weighted_analysis as pwa
-        from predict_core import FEATURE_COLUMNS, build_features
+        from predict_core import (
+            FEATURE_COLUMNS, build_features,
+            calculate_news_sentiment, calculate_earnings_beat_streak,
+        )
     except Exception as e:
         print(_red(f'  Failed to import prediction modules: {e}'))
         return
@@ -1085,9 +1144,10 @@ def diagnose_ticker(ticker: str):
     else:
         PASS(S, 'History >= 365 days', f'{len(hist)} trading days')
 
-    # ── 4. Ticker info ───────────────────────────────────────────────────────
+    # ── 4. Ticker info + recommendations history ─────────────────────────────
+    yf_ticker = yf.Ticker(ticker)
     try:
-        info = yf.Ticker(ticker).info or {}
+        info = yf_ticker.info or {}
     except Exception as e:
         info = {}
         WARN(S, 'yfinance info fetch', str(e))
@@ -1095,6 +1155,38 @@ def diagnose_ticker(ticker: str):
     sector = info.get('sector', '_default')
     current_price = info.get('regularMarketPrice') or closes[-1]
     PASS(S, 'Current price', f'${current_price:.2f}  sector={sector}')
+
+    # Fetch per-period recommendation counts — mirrors data/route.ts logic.
+    # Format: [{'period':'0m','strongBuy':N,'buy':N,'hold':N,'sell':N,'strongSell':N}, ...]
+    rec_history = []
+    try:
+        rs_df = yf_ticker.recommendations_summary
+        if rs_df is not None and not rs_df.empty:
+            for _, row in rs_df.iterrows():
+                rec_history.append({
+                    'period':     str(row.get('period', '')),
+                    'strongBuy':  int(row.get('strongBuy',  0) or 0),
+                    'buy':        int(row.get('buy',        0) or 0),
+                    'hold':       int(row.get('hold',       0) or 0),
+                    'sell':       int(row.get('sell',       0) or 0),
+                    'strongSell': int(row.get('strongSell', 0) or 0),
+                })
+    except Exception:
+        pass  # graceful — falls back to v1 analyst path
+
+    target_mean = info.get('targetMeanPrice') or None
+    target_low  = info.get('targetLowPrice')  or None
+    target_high = info.get('targetHighPrice') or None
+
+    analyst_grade_score = _compute_analyst_grade(
+        rec_history, target_mean, target_low, target_high, current_price
+    )
+    if rec_history:
+        grade_str = f'{analyst_grade_score:.1f}' if analyst_grade_score is not None else 'N/A'
+        PASS(S, 'Recommendations history fetched',
+             f'{len(rec_history)} periods  analystGradeScore={grade_str}')
+    else:
+        WARN(S, 'Recommendations history fetched', 'No data — will use v1 analyst path')
 
     # ── 5. Build stock_metrics (live Yahoo fields) ───────────────────────────
     medians = SECTOR_MEDIANS.get(sector, SECTOR_MEDIANS['_default'])
@@ -1112,7 +1204,9 @@ def diagnose_ticker(ticker: str):
         'earningsGrowth':            info.get('earningsGrowth') or 0.0,
         'beta':                      info.get('beta') or 1.0,
         'dividendYield':             info.get('dividendYield') or 0.0,
-        'analystTargetMean':         info.get('targetMeanPrice') or 0.0,
+        'analystTargetMean':         target_mean or 0.0,
+        'analystTargetLow':          target_low  or 0.0,
+        'analystTargetHigh':         target_high or 0.0,
         'analystOpinionCount':       info.get('numberOfAnalystOpinions') or 0,
         'recommendationMean':        info.get('recommendationMean') or 3.0,
         'recommendationKey':         info.get('recommendationKey'),
@@ -1142,6 +1236,42 @@ def diagnose_ticker(ticker: str):
     else:
         PASS(S, 'Fundamental fields from Yahoo',
              f'{fundamentals_present}/5 key fields populated')
+
+    # ── 6a. Fetch news articles (for NewsSentiment feature) ─────────────────
+    news_articles = []
+    try:
+        raw_news = yf_ticker.get_news() or []
+        for item in raw_news[:20]:
+            c = item.get('content', {})
+            title = c.get('title') or ''
+            desc  = c.get('summary') or c.get('description') or ''
+            pub   = c.get('pubDate') or c.get('displayTime') or ''
+            if title or desc:
+                news_articles.append({'title': title, 'description': desc, 'publishedAt': pub})
+    except Exception:
+        pass
+    PASS(S, 'News articles fetched', f'{len(news_articles)} articles') if news_articles else \
+    WARN(S, 'News articles fetched', 'None returned — NewsSentiment=0')
+
+    # ── 6b. Fetch historical earnings (for EarningsBeatStreak feature) ──────
+    historical_earnings = []
+    try:
+        eh = yf_ticker.earnings_history
+        if eh is not None and not eh.empty:
+            eh = eh.sort_index(ascending=False)
+            for q_date, row in eh.iterrows():
+                actual   = row.get('epsActual')
+                estimate = row.get('epsEstimate')
+                if actual is not None and estimate is not None:
+                    historical_earnings.append({
+                        'date':        str(q_date)[:10],
+                        'epsActual':   float(actual),
+                        'epsEstimate': float(estimate),
+                    })
+    except Exception:
+        pass
+    PASS(S, 'Historical earnings fetched', f'{len(historical_earnings)} quarters') if historical_earnings else \
+    WARN(S, 'Historical earnings fetched', 'None — EarningsBeatStreak=0')
 
     # ── 6. Fetch macro time series ───────────────────────────────────────────
     print(f'  Fetching macro series...', end='', flush=True)
@@ -1187,10 +1317,12 @@ def diagnose_ticker(ticker: str):
         'sectorEtf':   {'ticker': sector_etf_sym, 'data': macro_raw.get('sectorEtf', [])},
         'worldBank':   None,
     }
+    news_sentiment_val    = calculate_news_sentiment(news_articles)
+    earnings_beat_val     = calculate_earnings_beat_streak(historical_earnings)
     try:
         feat_df = build_features(
             df_live, stock_metrics, macro_for_features,
-            0.0, 0, current_price, ticker=ticker,
+            news_sentiment_val, earnings_beat_val, current_price, ticker=ticker,
         )
         PASS(S, 'Feature pipeline runs on real data', f'{len(feat_df)} rows computed')
     except Exception as e:
@@ -1264,19 +1396,22 @@ def diagnose_ticker(ticker: str):
         'worldBank':   None,
     }
     input_data = {
-        'historicalData':     hist,
-        'stockMetrics':       stock_metrics,
-        'macroData':          macro_for_predict,
-        'optionsData':        {},
-        'featureMetrics':     {},
-        'newsArticles':       [],
-        'historicalEarnings': [],
-        'dataQuality':        {
+        'historicalData':        hist,
+        'stockMetrics':          stock_metrics,
+        'macroData':             macro_for_predict,
+        'optionsData':           {},
+        'featureMetrics':        {},
+        'newsArticles':          news_articles,
+        'historicalEarnings':    historical_earnings,
+        'dataQuality':           {
             'imputedFields': [],
             'historyYears':  round(len(hist) / 252, 1),
         },
-        'technicalScore':    0.0,
-        'recommendationKey': info.get('recommendationKey'),
+        'technicalScore':        0.0,
+        'recommendationKey':     info.get('recommendationKey'),
+        # Live analyst path — mirrors what Stock.tsx sends to the prediction route
+        'recommendationsHistory': rec_history,
+        **({'analystGradeScore': analyst_grade_score} if analyst_grade_score is not None else {}),
     }
 
     try:

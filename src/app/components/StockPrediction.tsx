@@ -616,7 +616,10 @@ export default function StockPrediction({
   // Expose generate to StockSignalPanel via ref; keep ref current on every render
   const generateRef = useRef(generate)
   generateRef.current = generate
-  if (triggerRef) triggerRef.current = () => generateRef.current()
+  // Pass refresh=true when a prediction is already visible so the Regenerate
+  // button bypasses both the in-memory predictionCache and the warm-service
+  // file cache. First-time generate (nothing shown yet) can use the cache.
+  if (triggerRef) triggerRef.current = () => generateRef.current(!!(prediction || prefetchedPrediction))
 
   useEffect(() => {
     onLoadingChange?.(loading)

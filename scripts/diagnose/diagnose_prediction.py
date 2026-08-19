@@ -132,6 +132,7 @@ def fetch_ohlcv(ticker: str, yf) -> list[dict]:
     hist = t.history(period='5y', auto_adjust=True)
     if hist.empty:
         raise ValueError(f'No OHLCV data returned for {ticker}')
+    hist['Close'] = hist['Close'].replace(0, float('nan')).ffill()
     rows = []
     for idx, row in hist.iterrows():
         date_str = idx.strftime('%Y-%m-%d') if hasattr(idx, 'strftime') else str(idx)[:10]

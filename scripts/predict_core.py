@@ -1709,7 +1709,7 @@ def _sanitize_predictions(result: dict) -> dict:
     # minimum prediction envelope.
     vol = result.get('realized_vol_60d')
     sigma_annual = vol if isinstance(vol, (int, float)) and vol > 0 else 0.30
-    Z_CAP = 2.5
+    Z_CAP = 3.0
     _horizon_days  = {'1w': 5,    '1m': 21,   '6m': 126,  '1y': 252}
     _abs_floors    = {'1w': 7.0,  '1m': 12.0, '6m': 30.0, '1y': 40.0}
     horizons = [
