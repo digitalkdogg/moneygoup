@@ -75,19 +75,40 @@ function getDiskCacheStats() {
     for (const f of files) {
       try { totalBytes += statSync(join(DISK_CACHE_DIR, f)).size; } catch {}
     }
-    // Build per-ticker entries sorted by mtime descending (most recently cached first).
+
+    // Per-ticker PKL entries (feature caches), sorted by mtime descending.
     const tickerEntries = pklFiles.map(f => {
       const ticker = f.replace('_features_df.pkl', '');
-      let mtime = 0;
-      let size = 0;
+      let mtime = 0; let size = 0;
       try { const s = statSync(join(DISK_CACHE_DIR, f)); mtime = s.mtimeMs; size = s.size; } catch {}
       return { ticker, mtime, size };
     }).sort((a, b) => b.mtime - a.mtime);
 
+    // Per-ticker JSON entries — read each file to extract the ticker field, then
+    // group so the UI can show and clear predictions by ticker name.
+    const { readFileSync } = require('fs') as typeof import('fs');
+    const jsonByTicker: Record<string, { files: string[]; totalSize: number; latestMtime: number }> = {};
+    for (const f of jsonFiles) {
+      try {
+        const filePath = join(DISK_CACHE_DIR, f);
+        const raw = readFileSync(filePath, 'utf8');
+        const parsed = JSON.parse(raw);
+        const ticker: string = parsed.ticker ?? '__unknown__';
+        const { size, mtimeMs } = statSync(filePath);
+        if (!jsonByTicker[ticker]) jsonByTicker[ticker] = { files: [], totalSize: 0, latestMtime: 0 };
+        jsonByTicker[ticker].files.push(f);
+        jsonByTicker[ticker].totalSize += size;
+        if (mtimeMs > jsonByTicker[ticker].latestMtime) jsonByTicker[ticker].latestMtime = mtimeMs;
+      } catch {}
+    }
+    const jsonTickerEntries = Object.entries(jsonByTicker)
+      .map(([ticker, g]) => ({ ticker, fileCount: g.files.length, totalSize: g.totalSize, latestMtime: g.latestMtime }))
+      .sort((a, b) => b.latestMtime - a.latestMtime);
+
     const tickers = tickerEntries.map(e => e.ticker);
-    return { jsonCount: jsonFiles.length, pklCount: pklFiles.length, totalBytes, tickers, tickerEntries };
+    return { jsonCount: jsonFiles.length, pklCount: pklFiles.length, totalBytes, tickers, tickerEntries, jsonTickerEntries };
   } catch {
-    return { jsonCount: 0, pklCount: 0, totalBytes: 0, tickers: [], tickerEntries: [] };
+    return { jsonCount: 0, pklCount: 0, totalBytes: 0, tickers: [], tickerEntries: [], jsonTickerEntries: [] };
   }
 }
 
@@ -103,6 +124,27 @@ function clearDiskCacheFiles(ext: 'json' | 'pkl' | 'all', ticker?: string) {
       if (shouldDelete) {
         try { unlinkSync(join(DISK_CACHE_DIR, f)); deleted++; } catch {}
       }
+    }
+    return deleted;
+  } catch {
+    return 0;
+  }
+}
+
+function clearDiskJsonByTicker(ticker: string): number {
+  const { readFileSync } = require('fs') as typeof import('fs');
+  try {
+    const files = readdirSync(DISK_CACHE_DIR);
+    let deleted = 0;
+    for (const f of files.filter(f => f.endsWith('.json'))) {
+      try {
+        const filePath = join(DISK_CACHE_DIR, f);
+        const parsed = JSON.parse(readFileSync(filePath, 'utf8'));
+        if (parsed.ticker === ticker) {
+          unlinkSync(filePath);
+          deleted++;
+        }
+      } catch {}
     }
     return deleted;
   } catch {
@@ -198,6 +240,13 @@ export async function DELETE(request: NextRequest) {
     const deleted = clearDiskCacheFiles('pkl', ticker ?? undefined);
     logger.info('Admin cleared disk feature caches', { userId: auth.userId, ticker, deleted });
     return NextResponse.json({ cleared: 'disk_features', ticker, deleted });
+  }
+
+  if (target === 'disk_predictions_ticker') {
+    if (!ticker) return NextResponse.json({ message: 'ticker param required' }, { status: 400 });
+    const deleted = clearDiskJsonByTicker(ticker);
+    logger.info('Admin cleared disk prediction JSONs for ticker', { userId: auth.userId, ticker, deleted });
+    return NextResponse.json({ cleared: 'disk_predictions_ticker', ticker, deleted });
   }
 
   if (target === 'disk_all') {

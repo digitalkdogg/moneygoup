@@ -630,8 +630,17 @@ export async function GET(
     const institutionCount  = mhBreakdown.institutionsCount      ?? null;
 
     // ── liveQuote: pre/post market + fresh 52w position ──
+    const marketState         = (liveQuote.marketState as string | null) ?? null;
+    const preMarketPrice      = liveQuote.preMarketPrice          ?? null;
     const preMarketChangePct  = liveQuote.preMarketChangePercent  ?? null;
+    const postMarketPrice     = liveQuote.postMarketPrice         ?? null;
     const postMarketChangePct = liveQuote.postMarketChangePercent ?? null;
+    // When the market is in an extended-hours session, use the extended price
+    // as the anchor for predictions so the model sees the current tradeable price.
+    const extendedPrice =
+      marketState === 'PRE'  && preMarketPrice  ? preMarketPrice  :
+      marketState === 'POST' && postMarketPrice ? postMarketPrice :
+      null;
     const fw52Low  = liveQuote.fiftyTwoWeekLow  ?? null;
     const fw52High = liveQuote.fiftyTwoWeekHigh ?? null;
     const fiftyTwoWeekPosRatio = (fw52Low !== null && fw52High !== null && (fw52High - fw52Low) > 0 && currentPrice !== null)
@@ -665,7 +674,7 @@ export async function GET(
     }
 
     const stockMetrics = {
-      regularMarketPrice: currentPrice,
+      regularMarketPrice: extendedPrice ?? currentPrice,
       peRatio,
       pbRatio,
       marketCap:          safeNum(price.marketCap  ?? detail.marketCap),
@@ -1039,6 +1048,11 @@ export async function GET(
       technicalScore,
       recommendationKey: stockMetrics.recommendationKey,
       recommendationsHistory,
+      extendedHours: extendedPrice != null ? {
+        marketState,
+        price:     extendedPrice,
+        changePct: marketState === 'PRE' ? preMarketChangePct : postMarketChangePct,
+      } : null,
     };
 
     setCache(validatedTicker, payload);

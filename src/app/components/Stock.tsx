@@ -46,6 +46,15 @@ interface StockData {
   longBusinessSummary?: string
   analystUpside?: number
   revenueGrowth?: number
+  marketState?: string | null
+  preMarketPrice?: number | null
+  preMarketChange?: number | null
+  preMarketChangePercent?: number | null
+  preMarketTime?: string | null
+  postMarketPrice?: number | null
+  postMarketChange?: number | null
+  postMarketChangePercent?: number | null
+  postMarketTime?: string | null
 }
 
 interface HistoricalData {
@@ -553,8 +562,16 @@ export default function Stock({
     
     const indicators = data.indicators
 
-    // currentPrice should prefer last, then close, then 0
-    const currentPrice = stockData?.last || stockData?.close || 0
+    // Extended-hours price takes precedence during pre/post market sessions
+    const isPreMarket  = stockData?.marketState === 'PRE'  && !!stockData?.preMarketPrice
+    const isPostMarket = stockData?.marketState === 'POST' && !!stockData?.postMarketPrice
+    const extendedPrice      = isPreMarket  ? stockData!.preMarketPrice!
+                             : isPostMarket ? stockData!.postMarketPrice!
+                             : null
+    const extendedChangePct  = isPreMarket  ? stockData!.preMarketChangePercent
+                             : isPostMarket ? stockData!.postMarketChangePercent
+                             : null
+    const currentPrice = extendedPrice ?? stockData?.last ?? stockData?.close ?? 0
 
     // Deterministic growth/risk classification — pure math, no AI call.
     // Shown in Company Overview so it's visible on page load.
@@ -645,6 +662,19 @@ export default function Stock({
                   </button>
                 )}
               </div>
+            </div>
+          )}
+
+          {(isPreMarket || isPostMarket) && extendedPrice != null && (
+            <div className={`inline-flex items-center gap-2 mb-3 px-3 py-1.5 rounded-full text-[13px] font-semibold ${isPreMarket ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-orange-50 text-orange-700 border border-orange-200'}`}>
+              <span className={`w-2 h-2 rounded-full ${isPreMarket ? 'bg-blue-400' : 'bg-orange-400'}`} />
+              {isPreMarket ? 'Pre-Market' : 'After-Hours'}
+              <span>{formatCurrency(extendedPrice)}</span>
+              {extendedChangePct != null && (
+                <span className={extendedChangePct < 0 ? 'text-red-600' : 'text-green-700'}>
+                  {extendedChangePct > 0 ? '+' : ''}{formatNumber(extendedChangePct * 100)}%
+                </span>
+              )}
             </div>
           )}
 

@@ -171,6 +171,15 @@ const normalizeYahooData = (data: any, currentSources: string[], secCompanyNames
     prevClose: data.regularMarketPreviousClose,
     timestamp: data.regularMarketTime ? new Date(data.regularMarketTime * 1000).toISOString() : new Date().toISOString(),
     exchange: data.fullExchangeName,
+    marketState: data.marketState ?? null,
+    preMarketPrice: data.preMarketPrice ?? null,
+    preMarketChange: data.preMarketChange ?? null,
+    preMarketChangePercent: data.preMarketChangePercent ?? null,
+    preMarketTime: data.preMarketTime ? new Date(data.preMarketTime * 1000).toISOString() : null,
+    postMarketPrice: data.postMarketPrice ?? null,
+    postMarketChange: data.postMarketChange ?? null,
+    postMarketChangePercent: data.postMarketChangePercent ?? null,
+    postMarketTime: data.postMarketTime ? new Date(data.postMarketTime * 1000).toISOString() : null,
     // Yahoo's quoteSummary omits trailingPE / priceToBook when the underlying
     // ratio is "undefined" in the finance sense — trailingEps or bookValue is
     // negative. Fall back to computing the ratio from the raw components so
