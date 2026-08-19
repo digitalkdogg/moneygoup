@@ -26,14 +26,17 @@ import numpy as np
 import pandas as pd
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
-SCRIPT_DIR = Path(__file__).resolve().parent
-MODELS_DIR = SCRIPT_DIR.parent / 'models'
-sys.path.insert(0, str(SCRIPT_DIR))
+SCRIPT_DIR  = Path(__file__).resolve().parent          # scripts/diagnose/
+SCRIPTS_DIR = SCRIPT_DIR.parent                        # scripts/
+PROJECT_DIR = SCRIPTS_DIR.parent                       # project root
+MODELS_DIR  = PROJECT_DIR / 'models'
+sys.path.insert(0, str(SCRIPTS_DIR))                   # prediction modules live in scripts/
+sys.path.insert(0, str(SCRIPT_DIR))                    # sibling diagnose helpers
 
 # Load .env.local so CS_MODEL_VERSION / ST_CS_MODEL_VERSION / USE_LEGACY match
 # the API exactly. Must happen before any prediction module is imported (they
 # read these env vars at module import time, not at call time).
-_env_local = SCRIPT_DIR.parent / '.env.local'
+_env_local = PROJECT_DIR / '.env.local'
 if _env_local.exists():
     with open(_env_local) as _f:
         for _line in _f:
