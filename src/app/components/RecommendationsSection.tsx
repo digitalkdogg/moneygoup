@@ -18,6 +18,9 @@ const RecommendationsSection: React.FC<RecommendationsSectionProps> = ({ scopes,
   const [error, setError] = useState<string | null>(null);
 
   const getBadgeText = (rec: DashboardRecommendation) => {
+    if (rec.scope === 'off_market_mover') {
+      return rec.offMarketLabel === 'After-Hours' ? 'AFTER-HRS' : 'PRE-MKT';
+    }
     if (rec.action === 'BUY') {
       return rec.scope === 'portfolio' ? 'BUY MORE' : 'BUY';
     }
@@ -29,6 +32,13 @@ const RecommendationsSection: React.FC<RecommendationsSectionProps> = ({ scopes,
       return (
         <span className="px-1 rounded-sm uppercase text-[8px] font-bold bg-teal-100 text-teal-700 border border-teal-200">
           etf holding
+        </span>
+      );
+    }
+    if (rec.scope === 'off_market_mover') {
+      return (
+        <span className="px-1 rounded-sm uppercase text-[8px] font-bold bg-orange-100 text-orange-700 border border-orange-200">
+          ⚡ mover
         </span>
       );
     }
@@ -139,20 +149,33 @@ const RecommendationsSection: React.FC<RecommendationsSectionProps> = ({ scopes,
                     </span>
                   }
                   badge={getBadgeText(rec)}
-                  primaryText={`Current ${formatCurrency(rec.currentPrice)}`}
+                  primaryText={rec.currentPrice ? `Current ${formatCurrency(rec.currentPrice)}` : 'Extended hours'}
                   secondaryText={
-                    <div className="flex items-center gap-1">
-                      <span>GPS Score: {rec.gpsScore !== null && typeof rec.gpsScore === 'number' ? rec.gpsScore.toFixed(1) : 'N/A'}</span>
-                      {rec.gpsScore !== null && (
-                        <GpsTooltip score={rec.gpsScore} breakdown={rec.gpsBreakdown} symbol={rec.symbol} horizon={rec.gpsHorizon} />
-                      )}
-                    </div>
+                    rec.scope === 'off_market_mover' ? (
+                      <span>
+                        {(rec.offMarketChangePct ?? 0) >= 0 ? '+' : ''}
+                        {(rec.offMarketChangePct ?? 0).toFixed(2)}% {rec.offMarketLabel}
+                      </span>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <span>GPS Score: {rec.gpsScore !== null && typeof rec.gpsScore === 'number' ? rec.gpsScore.toFixed(1) : 'N/A'}</span>
+                        {rec.gpsScore !== null && (
+                          <GpsTooltip score={rec.gpsScore} breakdown={rec.gpsBreakdown} symbol={rec.symbol} horizon={rec.gpsHorizon} />
+                        )}
+                      </div>
+                    )
                   }
-                  tone={rec.action === 'BUY' ? 'positive' : 'negative'}
+                  tone={
+                    rec.scope === 'off_market_mover'
+                      ? ((rec.offMarketChangePct ?? 0) >= 0 ? 'positive' : 'negative')
+                      : (rec.action === 'BUY' ? 'positive' : 'negative')
+                  }
                   subLabel={
                     <span className="flex items-center gap-1">
                       {rec.scope === 'etf_holding' ? (
                         <span>In {rec.etfTicker}</span>
+                      ) : rec.scope === 'off_market_mover' ? (
+                        <span>Today</span>
                       ) : (
                         <span>Updated: {new Date(rec.lastRequestedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                       )}

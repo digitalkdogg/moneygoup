@@ -56,6 +56,10 @@ PRICE_CEILING_USD = 100_000
 # Vol-gate discounts are applied when a stock has a grade at or above this.
 ANALYST_GRADE_MIN_COMPOSITE = 82
 
+# Minimum absolute pre/post market move (in %) for a stock to surface as an
+# "Off Market Mover" on the dashboard. Adjust here if the section feels noisy.
+OFF_MARKET_MIN_CHANGE_PCT = 3.0
+
 
 def upsert_stock_with_search_fields(cursor, ticker, company_name, price,
                                     market_cap, sector, industry):
@@ -155,6 +159,193 @@ def fetch_world_bank_data(headers: dict) -> dict | None:
     except Exception as e:
         print(f"  [macro] Warning: Error fetching World Bank data: {e}")
         return None
+
+def _yahoo_session_with_crumb() -> tuple:
+    """Return (requests.Session, crumb_str) authenticated for Yahoo Finance v7.
+
+    Yahoo Finance requires a valid browser cookie + crumb since mid-2024.
+    Flow: visit finance.yahoo.com to get cookies, then hit the crumb endpoint.
+    Returns (None, None) if the handshake fails.
+    """
+    _BROWSER_HEADERS = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/125.0.0.0 Safari/537.36"
+        ),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+    }
+    try:
+        session = requests.Session()
+        session.headers.update(_BROWSER_HEADERS)
+        # Step 1: visit Yahoo Finance to receive session cookies
+        session.get("https://finance.yahoo.com", timeout=15)
+        # Step 2: fetch the crumb that must accompany every v7 API call
+        crumb_resp = session.get(
+            "https://query1.finance.yahoo.com/v1/test/getcrumb", timeout=10
+        )
+        crumb = crumb_resp.text.strip()
+        if not crumb or crumb.startswith("<"):
+            # HTML response means consent wall or block — crumb unusable
+            return None, None
+        return session, crumb
+    except Exception as e:
+        print(f"  [off-market] Yahoo session/crumb handshake failed: {e}")
+        return None, None
+
+
+def fetch_extended_hours_quotes(tickers: list) -> list:
+    """Batch-fetch pre/post market quotes from Yahoo Finance v7 quotes API.
+
+    Returns a list of quote dicts with marketState, preMarketPrice,
+    preMarketChangePercent, postMarketPrice, postMarketChangePercent, etc.
+    Falls back gracefully on network errors.
+    """
+    session, crumb = _yahoo_session_with_crumb()
+    if session is None:
+        print("  [off-market] Could not authenticate with Yahoo Finance — skipping off-market movers.")
+        return []
+
+    results = []
+    batch_size = 100
+    for i in range(0, len(tickers), batch_size):
+        batch = tickers[i : i + batch_size]
+        symbols = ",".join(batch)
+        url = (
+            "https://query1.finance.yahoo.com/v7/finance/quote"
+            f"?symbols={symbols}"
+            "&fields=marketState,preMarketPrice,preMarketChangePercent,"
+            "postMarketPrice,postMarketChangePercent,regularMarketPrice,"
+            f"shortName,longName&crumb={crumb}"
+        )
+        try:
+            resp = session.get(url, timeout=30)
+            resp.raise_for_status()
+            batch_results = resp.json().get("quoteResponse", {}).get("result", [])
+            results.extend(batch_results)
+        except Exception as e:
+            print(f"  [off-market] Yahoo Finance batch fetch failed (batch {i // batch_size + 1}): {e}")
+    return results
+
+
+def sync_off_market_movers(cursor, tickers: list, today: str, counters: dict) -> None:
+    """Check all sync-run tickers for pre/post market moves and write qualifying
+    rows to recommended_stocks with type='off_market_mover'.
+
+    Threshold: OFF_MARKET_MIN_CHANGE_PCT (absolute, in %).
+    Yahoo Finance returns preMarketChangePercent in decimal (0.025 = 2.5%),
+    so we multiply by 100 before comparing.
+    """
+    print("Checking for off-market movers...")
+
+    quotes = fetch_extended_hours_quotes(tickers)
+
+    if quotes:
+        sample_states = list({q.get("marketState", "?") for q in quotes[:20]})
+        print(f"  [off-market] {len(quotes)} quotes received; market states in sample: {sample_states}")
+
+    movers = []
+    for q in quotes:
+        market_state = q.get("marketState", "")
+        if market_state == "PRE":
+            raw_pct  = q.get("preMarketChangePercent")
+            ext_price = q.get("preMarketPrice")
+            label     = "Pre-Market"
+            source    = "pre_market"
+        elif market_state in ("POST", "POSTPOST", "PREPRE"):
+            # POSTPOST = post-market session fully closed but Yahoo still holds
+            # postMarketPrice/postMarketChangePercent from the evening session.
+            # PREPRE   = overnight (midnight–4 AM ET); same post-market data is
+            # still present and reflects the prior day's after-hours move.
+            # Both are treated the same as POST for mover detection.
+            raw_pct   = q.get("postMarketChangePercent")
+            ext_price = q.get("postMarketPrice")
+            label     = "After-Hours"
+            source    = "after_hours"
+        else:
+            continue
+
+        if raw_pct is None or ext_price is None:
+            continue
+
+        # Yahoo v7 returns preMarketChangePercent / postMarketChangePercent
+        # already in percent (e.g. 2.5 = 2.5%), NOT as a decimal fraction.
+        change_pct = raw_pct
+        if abs(change_pct) < OFF_MARKET_MIN_CHANGE_PCT:
+            continue
+
+        # Normalise extended-state variants → canonical PRE/POST for storage;
+        # the front-end reads discovery_source, not market_state.
+        stored_state = "POST" if market_state in ("POSTPOST", "PREPRE") else market_state
+
+        movers.append({
+            "ticker":       (q.get("symbol") or "").upper(),
+            "company_name": q.get("longName") or q.get("shortName") or q.get("symbol", ""),
+            "current_price": ext_price,
+            "market_state":  stored_state,
+            "change_pct":    change_pct,
+            "source":        source,
+            "label":         label,
+        })
+
+    # Sort by absolute move descending so the biggest movers come first.
+    movers.sort(key=lambda x: abs(x["change_pct"]), reverse=True)
+
+    # Replace any previous off_market_mover rows for today's snapshot.
+    cursor.execute(
+        "DELETE FROM recommended_stocks WHERE type = 'off_market_mover' AND snapshot_date = %s",
+        (today,),
+    )
+
+    if not movers:
+        print(f"  No off-market movers found (threshold: {OFF_MARKET_MIN_CHANGE_PCT}%)")
+        counters["off_market_movers"] = 0
+        return
+
+    off_market_insert = """
+    INSERT INTO recommended_stocks
+    (
+        type, ticker, company_name, current_price, gps_score, gps_breakdown, classification,
+        analyst_upside_pct, revenue_growth_yoy, gross_margin_pct, rd_spend_pct,
+        market_cap_m, mention_count, discovery_source, trading_signal,
+        trading_signal_score, upcoming_earnings, prediction_input,
+        trailing_pe, price_to_book, metric_value, metric_label, snapshot_date
+    )
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """
+
+    for m in movers:
+        cursor.execute(off_market_insert, (
+            "off_market_mover",          # type
+            m["ticker"],                 # ticker
+            m["company_name"],           # company_name
+            m["current_price"],          # current_price (extended hours)
+            None,                        # gps_score
+            None,                        # gps_breakdown
+            "Off Market Mover",          # classification
+            None,                        # analyst_upside_pct
+            None,                        # revenue_growth_yoy
+            None,                        # gross_margin_pct
+            None,                        # rd_spend_pct
+            None,                        # market_cap_m
+            None,                        # mention_count
+            m["source"],                 # discovery_source  ('pre_market'|'after_hours')
+            m["market_state"],           # trading_signal    ('PRE'|'POST')
+            None,                        # trading_signal_score
+            None,                        # upcoming_earnings
+            None,                        # prediction_input
+            None,                        # trailing_pe
+            None,                        # price_to_book
+            round(m["change_pct"], 4),   # metric_value  (change %)
+            m["label"],                  # metric_label  ('Pre-Market'|'After-Hours')
+            today,                       # snapshot_date
+        ))
+        print(f"  > Off-market mover: {m['ticker']} ({m['label']}: {m['change_pct']:+.2f}%)")
+
+    counters["off_market_movers"] = len(movers)
+    print(f"  Off-market movers written: {len(movers)}")
+
 
 def sync_fred_data(cursor) -> int:
     """Fetch FRED series and upsert into fred_macro_indicators. Returns count synced."""
@@ -489,6 +680,8 @@ def sync_deepmoney():
         # 4. Process Stocks from (stocks array)
         stocks = data.get('stocks', [])
         counters["stocks_in_api_resp"] = len(stocks)
+        # Full ticker universe for the off-market mover check later.
+        all_processed_tickers = [s.get("ticker", "") for s in stocks if s.get("ticker")]
         qualifying_stock_ids: set = set()
         print(f"Processing {len(stocks)} hot stocks...")
         
@@ -638,7 +831,13 @@ def sync_deepmoney():
                 print(f"  [vol-gate] PASS {ticker} via grade discount ({analyst_grade}/{analyst_composite:.0f}): "
                       f"CS {conf_score} >= adj-floor {effective_floor} (base {confidence_floor}, -({grade_discount}))")
             if vol_gate_failed:
-                print(f"  [vol-gate] SKIP {ticker} ({effective_label}): CS {conf_score} < floor {effective_floor_final} (beta {beta_val:.2f})")
+                cs_1w = pred_input.get('confidence_score_1w')
+                cs_6m = pred_input.get('confidence_score_6m')
+                cs_1y = pred_input.get('confidence_score_1y')
+                reason_1m = pred_input.get('confidence_reason_1m') or ''
+                reason_suffix = f"  reason={reason_1m[:80]!r}" if reason_1m else ''
+                print(f"  [vol-gate] SKIP {ticker} ({effective_label}): CS {conf_score} < floor {effective_floor_final} (beta {beta_val:.2f})"
+                      f"  [all-horizons: 1w={cs_1w} 1m={conf_score} 6m={cs_6m} 1y={cs_1y}]{reason_suffix}")
                 counters["vol_gate_rejected"] += 1
                 if not (is_trending_48h or is_unusual_options or is_sec_8k):
                     continue
@@ -904,6 +1103,10 @@ def sync_deepmoney():
 
         counters["etf_holdings_written"] = holdings_written
         print(f"  ETF holdings persisted: {holdings_written}")
+
+        # Off-market movers: check the full processed universe for pre/post
+        # market moves above OFF_MARKET_MIN_CHANGE_PCT and write to DB.
+        sync_off_market_movers(cursor, all_processed_tickers, today, counters)
 
         # Dashboard tenure bookkeeping. Reconciles the just-written hot_stocks
         # set against the prior-sync snapshot captured before DELETE, then
@@ -1242,6 +1445,7 @@ def _print_run_summary(
     print("  ETF HOLDINGS & CLEANUP")
     print(f"    Hot ETFs surfaced:               {_fmt_int(counters.get('hot_etfs'))}")
     print(f"    ETF holdings written:            {_fmt_int(counters.get('etf_holdings_written'))}")
+    print(f"    Off-market movers written:       {_fmt_int(counters.get('off_market_movers'))}")
     print(f"    Stale discovery rows cleaned:    {_fmt_int(counters.get('stale_cleaned'))}")
 
     # ── Users + timing ──────────────────────────────────────────────────────

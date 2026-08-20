@@ -210,10 +210,10 @@ async function loadCachedETFs(topNEtfs: number): Promise<ETFDiscoveryResult[] | 
     const [rows] = await connection.execute<any[]>(`
       SELECT cycle_date FROM etf_cycle_summary
       WHERE etfs_qualified > 0
-        AND created_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)
+        AND created_at >= DATE_SUB(NOW(), INTERVAL ${ETF_CACHE_HOURS} HOUR)
       ORDER BY created_at DESC
       LIMIT 1
-    `, [ETF_CACHE_HOURS]);
+    `);
 
     if (!rows.length) return null;
 
@@ -224,6 +224,8 @@ async function loadCachedETFs(topNEtfs: number): Promise<ETFDiscoveryResult[] | 
       ? rawDate.substring(0, 10)
       : new Date(rawDate).toISOString().substring(0, 10);
 
+    // LIMIT cannot be a prepared-statement parameter on this MySQL server;
+    // topNEtfs is always Math.round()'d from a preset so inlining is safe.
     const [etfRows] = await connection.execute<any[]>(`
       SELECT ticker, etf_name, current_price, etf_gps_score, theme,
              aum_m, expense_ratio_pct,
@@ -234,8 +236,8 @@ async function loadCachedETFs(topNEtfs: number): Promise<ETFDiscoveryResult[] | 
       FROM hot_etfs
       WHERE snapshot_date = ?
       ORDER BY etf_gps_score DESC
-      LIMIT ?
-    `, [snapshotDate, topNEtfs]);
+      LIMIT ${topNEtfs}
+    `, [snapshotDate]);
 
     if (!etfRows.length) return null;
 

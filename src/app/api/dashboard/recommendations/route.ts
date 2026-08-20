@@ -42,11 +42,13 @@ function getEnvThreshold(key: string, fallback: number): number {
 // after eviction fall out. Portfolio recs and all SELL warnings are always
 // kept. If the fresh BUY pool drops below TENURE_MIN_CARDS the section is
 // backfilled from the stale pool by GPS so it's never empty.
-const TENURE_ROTATION_ENABLED = process.env.DASHBOARD_TENURE_ROTATION !== 'off';
-const TENURE_MAX_DAYS      = parseInt(process.env.DASHBOARD_TENURE_MAX_DAYS      || '7',  10);
-const TENURE_COOLDOWN_DAYS = parseInt(process.env.DASHBOARD_TENURE_COOLDOWN_DAYS || '5',  10);
-const TENURE_TARGET_CARDS  = parseInt(process.env.DASHBOARD_TENURE_TARGET_CARDS  || '12', 10);
-const TENURE_MIN_CARDS     = parseInt(process.env.DASHBOARD_TENURE_MIN_CARDS     || '8',  10);
+const TENURE_MAX_DAYS       = parseInt(process.env.DASHBOARD_TENURE_MAX_DAYS      || '7', 10);
+const TENURE_COOLDOWN_DAYS  = parseInt(process.env.DASHBOARD_TENURE_COOLDOWN_DAYS || '5', 10);
+const MAX_TOTAL_CARDS       = 20;
+const MOVER_SOFT_CAP        = parseInt(process.env.DASHBOARD_MOVER_CAP        || '4', 10);
+const ETF_SOFT_CAP          = parseInt(process.env.DASHBOARD_ETF_CAP          || '4', 10);
+const DISCOVERY_SOFT_CAP    = parseInt(process.env.DASHBOARD_DISCOVERY_CAP    || '8', 10);
+const DISCOVERY_MIN_CARDS   = parseInt(process.env.DASHBOARD_TENURE_MIN_CARDS || '4', 10);
 
 interface TenureRow { consecutive_days: number; evicted_at: Date | null }
 
@@ -376,68 +378,142 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Sort by GPS score descending — strongest signals first
-    recommendations.sort((a, b) => (b.gpsScore ?? 0) - (a.gpsScore ?? 0));
+    // 7. Fetch off-market movers — 2-day rolling window, dedup by ticker.
+    //    Movers self-age via the DB window so they bypass dashboard_tenure entirely.
+    const existingSymbolsForMovers = new Set(recommendations.map(r => r.symbol));
+    try {
+      const [moverRows] = await executeRawQuery(
+        `SELECT ticker, company_name, current_price, metric_value, metric_label,
+                discovery_source, snapshot_date
+         FROM recommended_stocks
+         WHERE type = 'off_market_mover'
+           AND snapshot_date >= CURDATE() - INTERVAL 1 DAY
+           AND metric_value > 0
+         ORDER BY metric_value DESC`,
+        []
+      );
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const seenMovers = new Set<string>();
+      for (const m of moverRows as any[]) {
+        const sym = (m.ticker as string).toUpperCase();
+        if (existingSymbolsForMovers.has(sym) || seenMovers.has(sym)) continue;
+        seenMovers.add(sym);
+        const changePct = Number(m.metric_value);
+        const price = m.current_price != null ? Number(m.current_price) : 0;
+        // consecutiveDays drives the "New" badge (≤3 shown). Movers are always
+        // recent by definition: 1 if from today's sync, 2 if from yesterday's.
+        const snapDate = m.snapshot_date instanceof Date
+          ? m.snapshot_date.toISOString().slice(0, 10)
+          : String(m.snapshot_date).slice(0, 10);
+        const consecutiveDays = snapDate === todayStr ? 1 : 2;
+        recommendations.push({
+          stockId:            0,
+          symbol:             sym,
+          action:             'BUY',
+          currentPrice:       price,
+          predictedPrice1m:   price,
+          deltaPct:           changePct,
+          gpsScore:           null,
+          gpsBreakdown:       null,
+          lastRequestedAt:    new Date().toISOString(),
+          scope:              'off_market_mover',
+          offMarketChangePct: changePct,
+          offMarketLabel:     m.metric_label as string,
+          consecutiveDays,
+        });
+      }
+    } catch (err) {
+      logger.warn('Failed to fetch off-market movers for recommendations', { error: err });
+    }
 
-    // Attach tenure to every rec (drives the "NEW" badge in the UI). We fetch
-    // the whole set in a single query keyed on the symbols we're about to
-    // return — cheap regardless of whether rotation is enabled.
+    // ── Sorting helpers ──────────────────────────────────────────────────────
+    // Priority: SELL (urgent) → portfolio → watchlist → movers → etf → discovery
+    const scopePriority = (r: DashboardRecommendation): number => {
+      if (r.action === 'SELL')            return 0;
+      if (r.scope === 'portfolio')        return 1;
+      if (r.scope === 'watchlist')        return 2;
+      if (r.scope === 'off_market_mover') return 3;
+      if (r.scope === 'etf_holding')      return 4;
+      return 5; // discovery
+    };
+    const recSort = (a: DashboardRecommendation, b: DashboardRecommendation): number => {
+      const pd = scopePriority(a) - scopePriority(b);
+      if (pd !== 0) return pd;
+      if (a.scope === 'off_market_mover') return Math.abs(b.offMarketChangePct ?? 0) - Math.abs(a.offMarketChangePct ?? 0);
+      return (b.gpsScore ?? 0) - (a.gpsScore ?? 0);
+    };
+
+    // Attach tenure ("NEW" badge). Single query over all symbols.
     const tenureMap = await fetchTenureMap(recommendations.map(r => r.symbol));
     const now = new Date();
     const cooldownCutoff = new Date(now.getTime() - TENURE_COOLDOWN_DAYS * 86_400_000);
     for (const rec of recommendations) {
+      if (rec.scope === 'off_market_mover') continue; // already set from snapshot_date
       const t = tenureMap.get(rec.symbol.toUpperCase());
       rec.consecutiveDays = t ? t.consecutive_days : null;
     }
 
-    // Rotation: keep all SELL and all portfolio-scope recs unconditionally.
-    // For the remaining BUY recs (watchlist / discovery / etf_holding),
-    // fresh pool = tenure ≤ MAX_DAYS AND not in cooldown. Cap at
-    // TENURE_TARGET_CARDS. Backfill from the stale pool if below MIN_CARDS.
-    let finalRecs = recommendations;
-    if (TENURE_ROTATION_ENABLED) {
-      const isFresh = (rec: DashboardRecommendation): boolean => {
-        const t = tenureMap.get(rec.symbol.toUpperCase());
-        if (!t) return true;                                          // no row = fresh
-        if (t.consecutive_days > TENURE_MAX_DAYS) return false;
-        if (t.evicted_at && t.evicted_at > cooldownCutoff) return false;
-        return true;
-      };
+    const isFresh = (rec: DashboardRecommendation): boolean => {
+      const t = tenureMap.get(rec.symbol.toUpperCase());
+      if (!t) return true;
+      if (t.consecutive_days > TENURE_MAX_DAYS) return false;
+      if (t.evicted_at && t.evicted_at > cooldownCutoff) return false;
+      return true;
+    };
 
-      const alwaysKeep: DashboardRecommendation[] = [];
-      const rotatable: DashboardRecommendation[] = [];
-      for (const rec of recommendations) {
-        if (rec.action === 'SELL' || rec.scope === 'portfolio') {
-          alwaysKeep.push(rec);
-        } else {
-          rotatable.push(rec);
-        }
+    // ── One-pool mixing ──────────────────────────────────────────────────────
+    //
+    // Pinned: portfolio/watchlist/SELL — always shown, no cap.
+    //   These are the user's own decisions; we never hide them.
+    const pinned = recommendations
+      .filter(r => r.action === 'SELL' || r.scope === 'portfolio' || r.scope === 'watchlist')
+      .sort(recSort);
+
+    // Movers: self-age via the 2-day DB window; soft cap at MOVER_SOFT_CAP.
+    const movers = recommendations
+      .filter(r => r.scope === 'off_market_mover')
+      .sort((a, b) => Math.abs(b.offMarketChangePct ?? 0) - Math.abs(a.offMarketChangePct ?? 0))
+      .slice(0, MOVER_SOFT_CAP);
+
+    // ETF holdings: prefer fresh (≤ TENURE_MAX_DAYS); backfill from stale to floor of 2.
+    const freshEtf = recommendations.filter(r => r.scope === 'etf_holding' && isFresh(r)).sort(recSort);
+    const staleEtf = recommendations.filter(r => r.scope === 'etf_holding' && !isFresh(r)).sort(recSort);
+    const etfFloor = 2;
+    const etfPool  = freshEtf.length >= etfFloor
+      ? freshEtf.slice(0, ETF_SOFT_CAP)
+      : [...freshEtf, ...staleEtf.slice(0, etfFloor - freshEtf.length)].slice(0, ETF_SOFT_CAP);
+
+    // Discovery: fills the remaining budget; tenure-filtered; backfill if below floor.
+    const freshDisc  = recommendations.filter(r => r.scope === 'discovery' && isFresh(r)).sort(recSort);
+    const staleDisc  = recommendations.filter(r => r.scope === 'discovery' && !isFresh(r)).sort(recSort);
+    const discBudget = Math.max(0, MAX_TOTAL_CARDS - pinned.length - movers.length - etfPool.length);
+    const discCap    = Math.min(DISCOVERY_SOFT_CAP, discBudget);
+    const discNeedBackfill = freshDisc.length < DISCOVERY_MIN_CARDS;
+    const discPool = discNeedBackfill
+      ? [...freshDisc, ...staleDisc.slice(0, DISCOVERY_MIN_CARDS - freshDisc.length)].slice(0, discCap)
+      : freshDisc.slice(0, discCap);
+
+    // Merge: deduplicate by symbol, sort by priority, hard cap at 20.
+    const seen = new Set<string>();
+    const merged: DashboardRecommendation[] = [];
+    for (const rec of [...pinned, ...movers, ...etfPool, ...discPool]) {
+      if (!seen.has(rec.symbol)) {
+        seen.add(rec.symbol);
+        merged.push(rec);
       }
-
-      const fresh = rotatable.filter(isFresh);
-      let capped  = fresh.slice(0, TENURE_TARGET_CARDS);
-
-      if (capped.length < TENURE_MIN_CARDS) {
-        const chosen = new Set(capped.map(r => r.symbol));
-        const backfill = rotatable
-          .filter(r => !chosen.has(r.symbol))
-          .slice(0, TENURE_MIN_CARDS - capped.length);
-        capped = [...capped, ...backfill];
-      }
-
-      finalRecs = [...alwaysKeep, ...capped];
-      // Re-sort by GPS so the merged list stays readable
-      finalRecs.sort((a, b) => (b.gpsScore ?? 0) - (a.gpsScore ?? 0));
-      logger.info('Dashboard tenure rotation applied', {
-        totalInput:    recommendations.length,
-        alwaysKeep:    alwaysKeep.length,
-        rotatable:     rotatable.length,
-        freshCount:    fresh.length,
-        finalCount:    finalRecs.length,
-        cap:           TENURE_TARGET_CARDS,
-        min:           TENURE_MIN_CARDS,
-      });
     }
+    merged.sort(recSort);
+    const finalRecs = merged.slice(0, MAX_TOTAL_CARDS);
+
+    logger.info('Dashboard recommendations pool built', {
+      pinned:        pinned.length,
+      movers:        movers.length,
+      etf:           etfPool.length,
+      freshDisc:     freshDisc.length,
+      discovery:     discPool.length,
+      merged:        merged.length,
+      final:         finalRecs.length,
+    });
 
     const response: DashboardRecommendationsResponse = {
       recommendations: finalRecs,

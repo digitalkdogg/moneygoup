@@ -63,6 +63,18 @@ export const DeepmoneyCardView: React.FC<DeepmoneyCardViewProps> = ({ card }) =>
                 New
               </span>
             )}
+            {card.offMarketMover && (
+              <span
+                className={`inline-flex items-center gap-0.5 text-[9px] font-bold tracking-[0.05em] uppercase px-1.5 py-0.5 rounded leading-none ${
+                  card.offMarketMover.marketState === 'PRE'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'bg-orange-100 text-orange-700'
+                }`}
+                title={`${card.offMarketMover.marketState === 'PRE' ? 'Pre-Market' : 'After-Hours'}: ${card.offMarketMover.changePct > 0 ? '+' : ''}${card.offMarketMover.changePct.toFixed(2)}%`}
+              >
+                {card.offMarketMover.marketState === 'PRE' ? 'Pre-Mkt' : 'After-Hrs'}
+              </span>
+            )}
           </div>
           <div className="text-[13px] font-semibold text-gray-500 mt-0.5 truncate">
             {card.companyName}

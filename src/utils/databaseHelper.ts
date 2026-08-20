@@ -204,8 +204,9 @@ export async function select(
     }
 
     if (limit !== undefined) {
-      query += ` LIMIT ?`;
-      values.push(limit);
+      // LIMIT cannot be a prepared-statement parameter on this MySQL server;
+      // limit is always a caller-controlled integer so inlining is safe.
+      query += ` LIMIT ${Math.floor(limit)}`;
     }
 
     const [rows] = await conn.execute<mysql.RowDataPacket[]>(query, values);

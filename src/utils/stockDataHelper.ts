@@ -31,6 +31,24 @@ async function yahooChartWithRetry(ticker: string, params: any): Promise<any> {
   return { quotes: [] };
 }
 
+async function yahooSummaryWithRetry(ticker: string, modules: any[]): Promise<any> {
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return await yahooFinance.quoteSummary(ticker, { modules } as any);
+    } catch (err: any) {
+      const msg = String(err?.message ?? err);
+      if (msg.includes('Too Many Requests') && attempt < MAX_RETRIES) {
+        logger.warn(`Yahoo summary rate-limited on ${ticker}, waiting ${RATE_LIMIT_BACKOFF_MS / 1000}s (attempt ${attempt}/${MAX_RETRIES})`);
+        await new Promise(r => setTimeout(r, RATE_LIMIT_BACKOFF_MS));
+        continue;
+      }
+      logger.warn(`Yahoo summary failed for ${ticker} (attempt ${attempt}): ${msg.slice(0, 120)}`);
+      return {};
+    }
+  }
+  return {};
+}
+
 export async function getStockDataForPrediction(ticker: string, wbData?: any) {
   const fiveYearsAgo = new Date(Date.now() - 5 * 365.25 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const now = new Date();
@@ -38,14 +56,21 @@ export async function getStockDataForPrediction(ticker: string, wbData?: any) {
   const today = yesterday.toISOString().slice(0, 10);
 
   // Parallel fetch of all components needed for the prediction payload
-  const [chartResult, summary, optionsRes] = await Promise.all([
+  const SUMMARY_MODULES = ['price', 'summaryDetail', 'financialData', 'defaultKeyStatistics', 'assetProfile', 'calendarEvents'];
+  const [chartResult, summary] = await Promise.all([
     yahooChartWithRetry(ticker, { period1: fiveYearsAgo, period2: today, interval: '1d' }),
-    yahooFinance.quoteSummary(ticker, {
-      modules: ['price', 'summaryDetail', 'financialData', 'defaultKeyStatistics', 'assetProfile', 'calendarEvents']
-    }).catch(() => ({})),
-    // Instead of internal fetch, we could just return null for options if not critical for sync
-    Promise.resolve(null)
+    yahooSummaryWithRetry(ticker, SUMMARY_MODULES),
   ]);
+  const optionsRes = null;
+
+  // Warn when summary came back empty — most likely a rate-limit during a bulk
+  // pass. An empty summary means stockMetrics will be all-null, which causes
+  // the prediction script to impute every fundamental feature and collapse the
+  // confidence score (CS) from ~80 to ~25 for otherwise healthy stocks.
+  const summaryEmpty = !summary || Object.keys(summary).length === 0;
+  if (summaryEmpty) {
+    logger.warn(`quoteSummary returned empty for ${ticker} — stockMetrics will be null; CS will be degraded`);
+  }
 
   const historicalData = (chartResult.quotes || [])
     .filter((r: any) =>

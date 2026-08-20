@@ -37,6 +37,8 @@ export interface DeepmoneyCard extends CardBase {
   /** Days this ticker has consecutively appeared on the dashboard. Sourced
    *  from dashboard_tenure. Drives the "NEW" badge on cards ≤ 3 days old. */
   consecutiveDays?: number | null
+  /** Set when this card surfaces as an off-market mover (pre or after-hours). */
+  offMarketMover?: { marketState: 'PRE' | 'POST'; changePct: number } | null
 }
 
 export interface PortfolioCard extends CardBase {

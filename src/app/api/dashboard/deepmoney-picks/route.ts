@@ -105,7 +105,31 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 3. Fetch surfaced ETF holdings
+    // 3. Fetch off-market movers — rolling 2-day window so yesterday's movers
+    //    stay visible until they age off naturally. Deduplicate by ticker,
+    //    keeping the row with the largest absolute move across the window.
+    let offMarketMovers: any[] = [];
+    if (stockDate) {
+      const [moverRows] = await executeRawQuery(
+        `SELECT ticker, company_name, current_price, metric_value, metric_label,
+                discovery_source, snapshot_date
+         FROM recommended_stocks
+         WHERE type = 'off_market_mover'
+           AND snapshot_date >= CURDATE() - INTERVAL 1 DAY
+           AND metric_value > 0
+         ORDER BY metric_value DESC`,
+        []
+      );
+      const seen = new Set<string>();
+      for (const row of moverRows as any[]) {
+        if (!seen.has(row.ticker)) {
+          seen.add(row.ticker);
+          offMarketMovers.push(row);
+        }
+      }
+    }
+
+    // 4. Fetch surfaced ETF holdings
     let etfHoldings: any[] = [];
     if (stockDate) {
       const [rows] = await executeRawQuery(
@@ -128,7 +152,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // 4. Fetch ETFs. The minimum etf_gps_score for a hot_etfs row to render
+    // 5. Fetch ETFs. The minimum etf_gps_score for a hot_etfs row to render
     // in this widget comes from the same preset that gated qualification at
     // sync time (ETF_HOLDING_ALGORITHM), so the read-side filter agrees with
     // whatever level produced the persisted rows.
@@ -214,6 +238,7 @@ export async function GET(request: NextRequest) {
       hot_stocks: adjustedHotStocks,
       hot_etfs: enrichedHotEtfs,
       etf_holdings: adjustedEtfHoldings,
+      off_market_movers: offMarketMovers,
       timeframe,
       timeframe_label: timeframeLabel,
     });

@@ -18,9 +18,8 @@ interface RecommendedStock {
   classification: string;
   trading_signal?: string;
   metric_value?: number;
-  changeAmount?: number | null; // Add changeAmount
-  changePercent?: number | null; // Add changePercent
-  /** Days this ticker has been on the dashboard; from dashboard_tenure. */
+  changeAmount?: number | null;
+  changePercent?: number | null;
   consecutive_days?: number | null;
 }
 
@@ -48,12 +47,26 @@ interface RecommendedETFHolding {
   metric_label?: string;
 }
 
+interface RecommendedOffMarketMover {
+  ticker: string;
+  company_name: string;
+  current_price: number | null;
+  metric_value: number;       // change %
+  metric_label: string;       // 'Pre-Market' | 'After-Hours'
+  discovery_source: string;   // 'pre_market' | 'after_hours'
+}
+
 interface DeepMoneyData {
   hot_stocks: RecommendedStock[];
   hot_etfs: RecommendedETF[];
   etf_holdings: RecommendedETFHolding[];
+  off_market_movers: RecommendedOffMarketMover[];
   timeframe_label?: string | null;
 }
+
+// Cap for the discovery + ETF holdings sections (movers are shown separately above).
+const TOTAL_CAP    = 16;
+const HOLDINGS_MAX = 4;
 
 export default function DeepMoneyPicksSection() {
   const router = useRouter();
@@ -68,14 +81,12 @@ export default function DeepMoneyPicksSection() {
       const res = await fetch('/api/dashboard/deepmoney-picks');
       if (!res.ok) throw new Error('Failed to fetch DeepMoney picks');
       const json = await res.json();
-      
-      const sortedHotStocks = (json.hot_stocks || []).sort((a: RecommendedStock, b: RecommendedStock) => (b.gps_score || 0) - (a.gps_score || 0));
-      const sortedHotEtfs = (json.hot_etfs || []).sort((a: RecommendedETF, b: RecommendedETF) => (b.etf_gps_score || 0) - (a.etf_gps_score || 0));
 
       setData({
-        hot_stocks: sortedHotStocks,
-        hot_etfs: sortedHotEtfs,
+        hot_stocks: (json.hot_stocks || []).sort((a: RecommendedStock, b: RecommendedStock) => (b.gps_score || 0) - (a.gps_score || 0)),
+        hot_etfs: (json.hot_etfs || []).sort((a: RecommendedETF, b: RecommendedETF) => (b.etf_gps_score || 0) - (a.etf_gps_score || 0)),
         etf_holdings: (json.etf_holdings || []).sort((a: RecommendedETFHolding, b: RecommendedETFHolding) => (b.gps_score || 0) - (a.gps_score || 0)),
+        off_market_movers: (json.off_market_movers || []).filter((m: RecommendedOffMarketMover) => Number(m.metric_value) > 0).sort((a: RecommendedOffMarketMover, b: RecommendedOffMarketMover) => Number(b.metric_value) - Number(a.metric_value)),
         timeframe_label: json.timeframe_label ?? null,
       });
     } catch (err) {
@@ -88,6 +99,20 @@ export default function DeepMoneyPicksSection() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const timeframeLabel = data?.timeframe_label ?? null;
+
+  // Movers are uncapped on the search page — show all positive ones from the API.
+  // Discovery + ETF share TOTAL_CAP independently so movers don't eat their slots.
+  const displayedMovers   = data?.off_market_movers ?? [];
+  const holdingsCount     = Math.min(data?.etf_holdings?.length ?? 0, HOLDINGS_MAX);
+  const discoveryCount    = Math.max(0, TOTAL_CAP - holdingsCount);
+
+  const displayedHoldings = (data?.etf_holdings ?? []).slice(0, holdingsCount);
+  const displayedStocks   = (data?.hot_stocks ?? []).slice(0, discoveryCount);
+
+  // Suppress tickers already shown as movers from other sections.
+  const moverTickers = new Set(displayedMovers.map(m => m.ticker));
+  const filteredStocks   = displayedStocks.filter(s => !moverTickers.has(s.ticker));
+  const filteredHoldings = displayedHoldings.filter(h => !moverTickers.has(h.ticker));
 
   const mapStockToDeepmoneyCard = (stock: RecommendedStock): DeepmoneyCard => ({
     variant: 'deepmoney',
@@ -133,6 +158,26 @@ export default function DeepMoneyPicksSection() {
     timeframeLabel,
   });
 
+  const mapMoverToDeepmoneyCard = (m: RecommendedOffMarketMover): DeepmoneyCard => {
+    const changePct = Number(m.metric_value);
+    return {
+      variant: 'deepmoney',
+      symbol: m.ticker,
+      companyName: m.company_name,
+      price: m.current_price,
+      changePercent: changePct,
+      changeAmount: null,
+      prediction: changePct > 0 ? 'Bullish' : 'Bearish',
+      gpsScore: null,
+      gpsBreakdown: null,
+      timeframeLabel,
+      offMarketMover: {
+        marketState: m.discovery_source === 'pre_market' ? 'PRE' : 'POST',
+        changePct,
+      },
+    };
+  };
+
   if (loading && !data) {
     return (
       <div className="flex justify-center p-12">
@@ -154,13 +199,30 @@ export default function DeepMoneyPicksSection() {
         </button>
       </div>
 
+      {displayedMovers.length > 0 && (
+        <StockCardSection<RecommendedOffMarketMover>
+          title="Off Market Movers"
+          icon="⚡"
+          data={displayedMovers}
+          renderCard={(mover) => (
+            <StockCard
+              card={mapMoverToDeepmoneyCard(mover)}
+              actions={{ onCardClick: (symbol) => router.push(`/search/${symbol}`) }}
+            />
+          )}
+          loading={loading}
+          error={null}
+          emptyMessage=""
+        />
+      )}
+
       <StockCardSection<RecommendedStock>
         title="Top Growth Candidates"
         icon="🔥"
-        data={data?.hot_stocks || []}
+        data={filteredStocks}
         renderCard={(stock) => (
-          <StockCard 
-            card={mapStockToDeepmoneyCard(stock)} 
+          <StockCard
+            card={mapStockToDeepmoneyCard(stock)}
             actions={{ onCardClick: (symbol) => router.push(`/search/${symbol}`) }}
           />
         )}
@@ -184,11 +246,11 @@ export default function DeepMoneyPicksSection() {
         emptyMessage="No hot ETFs matching your criteria found today."
       />
 
-      {(data?.etf_holdings?.length ?? 0) > 0 && (
+      {filteredHoldings.length > 0 && (
         <StockCardSection<RecommendedETFHolding>
           title="Surfaced ETF Holdings"
           icon="📡"
-          data={data?.etf_holdings || []}
+          data={filteredHoldings}
           renderCard={(holding) => (
             <StockCard
               card={mapETFHoldingToDeepmoneyCard(holding)}

@@ -47,8 +47,10 @@ export interface DashboardRecommendation {
   /** Which prediction horizon the GPS reflects (i.e. which delta drove mlpUpside). */
   gpsHorizon?: '1_week' | '1_month' | '6_month' | '1_year';
   lastRequestedAt: string;
-  scope: 'portfolio' | 'watchlist' | 'discovery' | 'etf_holding';
+  scope: 'portfolio' | 'watchlist' | 'discovery' | 'etf_holding' | 'off_market_mover';
   etfTicker?: string;         // set when scope === 'etf_holding'
+  offMarketChangePct?: number; // set when scope === 'off_market_mover'
+  offMarketLabel?: string;     // 'Pre-Market' | 'After-Hours'
   /** Days this ticker has been on the dashboard; from dashboard_tenure.
    *  Drives the "NEW" badge (≤3 days) and — for discovery / etf_holding —
    *  eligibility for the fresh pool when tenure rotation is on. */
