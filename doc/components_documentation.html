@@ -97,7 +97,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Components Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-09</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-20</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -161,12 +161,12 @@
       <span>GrowMyStocks</span>
       <span>Next.js 14 App Router</span>
       <span>TypeScript + Tailwind CSS</span>
-      <span>55+ components documented</span>
-      <span>Updated 2026-08-09</span>
+      <span>56+ components documented</span>
+      <span>Updated 2026-08-20</span>
     </div>
 
     <div class="summary-grid">
-      <div class="stat-card"><div class="value">55+</div><div class="label">Components</div></div>
+      <div class="stat-card"><div class="value">56+</div><div class="label">Components</div></div>
       <div class="stat-card"><div class="value">9</div><div class="label">Sections</div></div>
       <div class="stat-card"><div class="value">4</div><div class="label">Card Variants</div></div>
       <div class="stat-card"><div class="value">4</div><div class="label">Modals</div></div>
@@ -386,16 +386,17 @@
           <div><div class="comp-name">RecommendationsSection</div><div class="comp-file">src/app/components/RecommendationsSection.tsx</div></div>
           <span class="badge badge-client">Client</span>
         </div>
-        <div class="comp-desc">Fetches from <code>GET /api/dashboard/recommendations</code> and renders a grid of <code>MiniDataCard</code> components with BUY/SELL badges. Reads <code>data.horizonLabel</code> from the response and renders it in the header pill as <strong>"Based on {horizonLabel} prediction"</strong> (falls back to <code>'1M'</code> when missing). Accepts an optional <code>scopes</code> prop to filter which recommendation buckets are shown. When the <code>etf_holding</code> scope is included, an optional <code>portfolioEtfTickers</code> prop can be provided to client-side filter ETF holding cards so only holdings whose parent ETF is in the user's portfolio are shown (preventing watchlist ETF holding cards from appearing). Cards with <code>scope === 'etf_holding'</code> render a teal badge and display "In {etfTicker}" in the sub-label.</div>
+        <div class="comp-desc">Fetches from <code>GET /api/dashboard/recommendations</code> and renders a grid of <code>MiniDataCard</code> components with BUY/SELL/PRE-MKT/AFTER-HRS badges. Reads <code>data.horizonLabel</code> from the response and renders it in the header pill as <strong>"Based on {horizonLabel} prediction"</strong> (falls back to <code>'1M'</code> when missing). Accepts an optional <code>scopes</code> prop to filter which recommendation buckets are shown. When the <code>etf_holding</code> scope is included, an optional <code>portfolioEtfTickers</code> prop can be provided to client-side filter ETF holding cards so only holdings whose parent ETF is in the user's portfolio are shown. Cards with <code>scope === 'etf_holding'</code> render a teal "etf holding" badge and display "In {etfTicker}" in the sub-label. Cards with <code>scope === 'off_market_mover'</code> render an orange "⚡ mover" badge and show the extended-hours change % as the secondary text; their action badge reads "PRE-MKT" or "AFTER-HRS" depending on <code>offMarketLabel</code>.</div>
         <table class="props-table">
           <thead><tr><th>Prop</th><th>Type</th><th>Required</th></tr></thead>
           <tbody>
-            <tr><td><code>scopes</code></td><td>Array&lt;'portfolio' | 'watchlist' | 'discovery' | 'etf_holding'&gt;</td><td><span class="optional">optional</span></td></tr>
+            <tr><td><code>scopes</code></td><td>Array&lt;'portfolio' | 'watchlist' | 'discovery' | 'etf_holding' | 'off_market_mover'&gt;</td><td><span class="optional">optional</span></td></tr>
             <tr><td><code>portfolioEtfTickers</code></td><td>string[]</td><td><span class="optional">optional</span></td></tr>
           </tbody>
         </table>
+        <div class="updated"><strong>August 2026:</strong> Off-market movers (<code>scope === 'off_market_mover'</code>) are now rendered in the grid alongside GPS-scored cards. The action badge shows "PRE-MKT" or "AFTER-HRS" (not "BUY"/"SELL"). The secondary text shows the extended-hours change % and label. The <code>tone</code> prop is set to <code>'positive'</code> or <code>'negative'</code> based on <code>offMarketChangePct</code>. Movers with <code>consecutiveDays &le; 3</code> also show the green "New" pill (same as GPS-scored cards). The <code>scopes</code> prop type was widened to include <code>'off_market_mover'</code>.</div>
         <div class="updated"><strong>June 2026:</strong> Header pill no longer hardcodes "Based on 1-month prediction" — it now reads <code>data.horizonLabel</code> from the recommendations endpoint (e.g. "Based on 6M prediction"). The <code>portfolioEtfTickers</code> prop was added earlier: on the <code>/portfolio</code> page, <code>PortfolioPage</code> derives this list from items where <code>is_etf === true</code> and passes it alongside <code>scopes={['portfolio', 'watchlist', 'etf_holding']}</code>.</div>
-        <div class="updated"><strong>July 2026 (late):</strong> Each rendered card now honors the tenure metadata on the API response. When <code>rec.consecutiveDays &lt;= 3</code>, an inline green <strong>NEW</strong> pill renders next to the ticker (title tooltip: "On dashboard N day(s)"). The pill is placed inline with the ticker inside the <code>label</code> prop, which required widening <code>MiniDataCardProps.label</code> from <code>string</code> to <code>string | React.ReactNode</code>. Server-side rotation (see <code>/api/dashboard/recommendations</code>) is what determines which cards are surfaced — the component just renders whatever comes back. A new "Discover more →" link renders under the grid, centered under a hairline divider, pointing to <code>/search</code>.</div>
+        <div class="updated"><strong>July 2026 (late):</strong> Each rendered card now honors the tenure metadata on the API response. When <code>rec.consecutiveDays &lt;= 3</code>, an inline green <strong>NEW</strong> pill renders next to the ticker (title tooltip: "On dashboard N day(s)"). The pill is placed inline with the ticker inside the <code>label</code> prop, which required widening <code>MiniDataCardProps.label</code> from <code>string</code> to <code>string | React.ReactNode</code>. A new "Discover more →" link renders under the grid, centered under a hairline divider, pointing to <code>/search</code>.</div>
         <div class="dep-list"><span class="dep-tag">MiniDataCard</span><span class="dep-tag">GpsTooltip</span><span class="dep-tag">GET /api/dashboard/recommendations</span></div>
       </div>
 
@@ -404,8 +405,9 @@
           <div><div class="comp-name">DeepMoneyPicksSection</div><div class="comp-file">src/app/components/DeepMoneyPicksSection.tsx</div></div>
           <span class="badge badge-client">Client</span>
         </div>
-        <div class="comp-desc">Fetches the latest AI-curated picks from <code>GET /api/dashboard/deepmoney-picks</code>. Renders two separate grids: hot stocks and hot ETFs, each using the <code>deepmoney</code> card variant.</div>
-        <div class="dep-list"><span class="dep-tag">StockCard (deepmoney variant)</span><span class="dep-tag">GET /api/dashboard/deepmoney-picks</span></div>
+        <div class="comp-desc">Fetches the latest AI-curated picks from <code>GET /api/dashboard/deepmoney-picks</code> and renders four grids: <strong>Off Market Movers</strong> (⚡, shown only when positive movers exist), <strong>Top Growth Candidates</strong> (🔥, hot stocks), <strong>Hot ETFs Under $300</strong> (🧺), and <strong>Surfaced ETF Holdings</strong> (📡, shown only when ETF holdings exist). All grids use the <code>deepmoney</code> card variant. A "Refresh Analysis" button re-fetches all data. Tickers shown as movers are suppressed from the Top Growth Candidates and Surfaced ETF Holdings grids to avoid duplication.</div>
+        <div class="updated"><strong>August 2026:</strong> Added the <strong>Off Market Movers</strong> grid. Client-side filters <code>off_market_movers</code> from the API response to positive <code>metric_value</code> entries, sorts descending by magnitude, and renders them uncapped above the discovery grids. The mover card maps to a <code>deepmoney</code> variant with <code>offMarketMover: { marketState: 'PRE' | 'POST', changePct }</code> — the card shows the extended-hours badge. Discovery and ETF holdings share a separate 16-slot budget (<code>TOTAL_CAP = 16</code>, <code>HOLDINGS_MAX = 4</code>) independently of movers so movers never eat into discovery slots.</div>
+        <div class="dep-list"><span class="dep-tag">StockCard (deepmoney variant)</span><span class="dep-tag">StockCardSection</span><span class="dep-tag">GET /api/dashboard/deepmoney-picks</span></div>
       </div>
 
       <div class="comp-card">

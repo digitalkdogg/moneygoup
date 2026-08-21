@@ -97,7 +97,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">API Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-09</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-20</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -163,16 +163,18 @@
     <div class="page-meta">
       <span>GrowMyStocks</span>
       <span>Next.js 14 App Router</span>
-      <span>38+ routes documented</span>
-      <span>Updated 2026-08-09</span>
+      <span>39+ routes documented</span>
+      <span>Updated 2026-08-20</span>
     </div>
 
     <div class="summary-grid">
-      <div class="stat-card"><div class="value">38+</div><div class="label">API Routes</div></div>
+      <div class="stat-card"><div class="value">39+</div><div class="label">API Routes</div></div>
       <div class="stat-card"><div class="value">9</div><div class="label">Route Groups</div></div>
       <div class="stat-card"><div class="value">5</div><div class="label">Rate Limiters</div></div>
       <div class="stat-card"><div class="value">6h</div><div class="label">Max Cache TTL</div></div>
     </div>
+
+    <div class="updated"><strong>August 2026 changes summary:</strong> <code>GET /api/dashboard/recommendations</code> now surfaces a fifth scope: <strong>off_market_mover</strong>. Rows in <code>recommended_stocks</code> with <code>type='off_market_mover'</code> and a positive <code>metric_value</code> are mixed into the unified recommendation pool (up to 4 via <code>DASHBOARD_MOVER_CAP</code>). The pool algorithm was redesigned as four independently-capped buckets (pinned, movers, ETF, discovery) merged in priority order with a hard cap of 20 total. Off-market movers bypass <code>dashboard_tenure</code> rotation. <code>DashboardRecommendation</code> type in <code>src/types/dashboard.ts</code> gains <code>offMarketChangePct</code> and <code>offMarketLabel</code> fields; the <code>scope</code> union gains <code>'off_market_mover'</code>. <code>GET /api/dashboard/deepmoney-picks</code> also gains an <code>off_market_movers</code> array in its response (all positive movers, uncapped, for the search-page DeepMoney engine). The <code>OFF_MARKET_MIN_CHANGE_PCT</code> threshold in <code>scripts/deepmoney_sync.py</code> was raised from 1% to 3%.</div>
 
     <div class="updated"><strong>July 2026 (late, second wave) changes — July 24:</strong> New <code>GET /api/earnings-calendar</code> route serves the Earnings Calendar widget on <code>/search</code>. Fetches next 5 business days from the NASDAQ earnings API, groups by date, attaches GPS scores from <code>stock_gps_scores</code>, and caches the full result in memory for 6 hours. A stop-list of common non-ticker tokens (CEO, FED, AI, ETF, etc.) is applied to filter noise from NASDAQ payloads. See the <a href="#stock-data-routes">Market Routes</a> section for the full spec.<br><br><code>GET /api/prediction/[ticker]/ai-take</code> gains a <strong>stock classification layer</strong>: <code>classifyStock()</code> now computes a <code>growthLabel</code>, <code>riskLabel</code>, and <code>quadrant</code> from the ticker's GPS/metrics context and returns them via <code>X-AiTake-Growth-Label</code>, <code>X-AiTake-Risk-Label</code>, and <code>X-AiTake-Quadrant</code> response headers. These drive the three classification badges displayed in <code>AiTakePanel.tsx</code>. The default Ollama model was <strong>switched from <code>gemma3:4b</code> to <code>gemma3:1b</code></strong> (~1 GB RAM, 3-5x faster on CPU). News fetch now runs in <strong>parallel</strong> with the DB context lookup and cache query (was sequential previously), shaving 2-6s off cache-miss latency. The <code>?cache_only=1</code> query param enables a fast auto-load path that runs the GPS join and cache lookup in parallel so classification badges are available immediately on page mount.<br><br><strong>Watchlist company name fix:</strong> <code>normalizeYahooData()</code> in <code>/api/stock_data/[ticker]/route.ts</code> now strips non-alphanumeric characters from company names (regex <code>/[^a-zA-Z0-9\s&amp;.,'-]/g</code>) before the value is stored, preventing SEC EDGAR names like <code>"AMPHENOL CORP /DE/"</code> from failing watchlist add validation.</div>
 
@@ -549,8 +551,10 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
           <span class="badge badge-new">Updated 2026-06-15</span>
           <span class="route-file">src/app/api/dashboard/recommendations/route.ts</span>
         </div>
-        <div class="route-desc">Aggregates GPS-scored predictions across four scopes — <strong>portfolio</strong>, <strong>watchlist</strong>, <strong>discovery</strong>, and <strong>etf_holding</strong> — and returns BUY/SELL recommendations sorted by GPS score descending. BUY/SELL action is determined purely by GPS thresholds and the user's strategy, not by delta percentage alone.</div>
-        <div class="updated"><strong>Tenure rotation (July 2026, late):</strong> When <code>DASHBOARD_TENURE_ROTATION</code> is on (default), a LEFT JOIN against <code>dashboard_tenure</code> attaches <code>consecutive_days</code> to every rec. Then a two-pass filter runs on the built list: SELL warnings + portfolio-scope recs are always kept (users need divestment signals; owned holdings need BUY MORE / SELL); watchlist / discovery / etf_holding BUYs are filtered to the "fresh pool" (<code>consecutive_days ≤ DASHBOARD_TENURE_MAX_DAYS</code> AND not in cooldown), sorted by GPS DESC, and capped at <code>DASHBOARD_TENURE_TARGET_CARDS</code>. If the fresh pool has fewer than <code>DASHBOARD_TENURE_MIN_CARDS</code> stocks, backfill from the stale pool by GPS DESC guarantees a never-empty section. Each rec carries <code>consecutiveDays</code> in the response so the UI can render a "NEW" badge on cards ≤3 days old. Log line: <code>"Dashboard tenure rotation applied"</code> with fresh/rotatable/final counts.</div>
+        <div class="route-desc">Aggregates GPS-scored predictions across five scopes — <strong>portfolio</strong>, <strong>watchlist</strong>, <strong>discovery</strong>, <strong>etf_holding</strong>, and <strong>off_market_mover</strong> — and returns BUY/SELL recommendations via a unified one-pool algorithm. Hard cap of 20 cards total. BUY/SELL action for GPS-scored scopes is determined purely by GPS thresholds and the user's strategy.</div>
+        <div class="updated"><strong>Off-market movers added to unified pool (August 2026):</strong> <code>recommended_stocks</code> rows with <code>type='off_market_mover'</code> are now fetched (2-day rolling window, <code>metric_value &gt; 0</code> filter, sorted by change % descending) and mixed into the recommendation pool as a fifth scope: <code>'off_market_mover'</code>. Movers display an orange <strong>⚡ mover</strong> scope badge and a <strong>PRE-MKT</strong> or <strong>AFTER-HRS</strong> action badge (derived from <code>offMarketLabel</code>). The "New" badge fires when <code>consecutiveDays &le; 3</code> — for movers this is 1 if from today's sync, 2 if from yesterday's. MySQL <code>DECIMAL</code> columns in the movers query are coerced with <code>Number()</code> before arithmetic to avoid NaN from Decimal string values. Movers bypass <code>dashboard_tenure</code> rotation entirely — they self-age via the 2-day DB window.</div>
+        <div class="updated"><strong>Unified pool algorithm (August 2026):</strong> The response is assembled from four independently-capped buckets merged in priority order: (1) <strong>Pinned</strong> — all portfolio/watchlist/SELL recs, always shown, no cap; (2) <strong>Movers</strong> — up to <code>MOVER_SOFT_CAP</code> (default 4) positive off-market movers; (3) <strong>ETF</strong> — up to <code>ETF_SOFT_CAP</code> (default 4) ETF holding recs, with tenure-based fresh/stale split and a floor of 2; (4) <strong>Discovery</strong> — fills the remaining budget up to <code>DISCOVERY_SOFT_CAP</code> (default 8), tenure-filtered, backfilled from the stale pool if below <code>DISCOVERY_MIN_CARDS</code> (default 4). All buckets are deduplicated by symbol, then hard-capped at 20 total. Sort priority within the merged list: SELL &gt; portfolio &gt; watchlist &gt; off_market_mover &gt; etf_holding &gt; discovery; within the same scope, movers sort by absolute change % desc, others by GPS score desc. Caps are all env-configurable: <code>DASHBOARD_MOVER_CAP</code>, <code>DASHBOARD_ETF_CAP</code>, <code>DASHBOARD_DISCOVERY_CAP</code>, <code>DASHBOARD_TENURE_MIN_CARDS</code>.</div>
+        <div class="updated"><strong>Tenure rotation (July 2026, late):</strong> When <code>DASHBOARD_TENURE_ROTATION</code> is on (default), a lookup against <code>dashboard_tenure</code> attaches <code>consecutive_days</code> to every rec. SELL warnings + portfolio-scope recs are always kept; watchlist / discovery / etf_holding BUYs are filtered to the "fresh pool" (<code>consecutive_days ≤ DASHBOARD_TENURE_MAX_DAYS</code> AND not in cooldown), sorted by GPS DESC. Off-market movers bypass this rotation. Each rec carries <code>consecutiveDays</code> in the response so the UI can render a "NEW" badge on cards ≤3 days old. Set <code>DASHBOARD_TENURE_ROTATION=off</code> to revert to the flat GPS sort.</div>
         <div class="updated"><strong>Top-level horizonLabel (June 15, 2026):</strong> The response now includes a top-level <code>horizonLabel</code> string matching the user's <code>investment_timeframe.shortLabel</code> (e.g. <code>"in 6 months"</code>). This lets the dashboard recommendation cards render a single horizon caption without re-resolving the strategy client-side.</div>
         <div class="updated"><strong>Latest-snapshot ETF holdings (June 12, 2026):</strong> The ETF holding recommendations sub-query selects only rows where <code>snapshot_date = (SELECT MAX(snapshot_date) FROM etf_stock_recommendations WHERE user_id = ?)</code>, replacing the prior rolling 7-day window. This mirrors the deepmoney-picks pattern and prevents stale picks from earlier <code>update_predictions.py</code> runs from leaking into the current card list.</div>
         <div class="updated"><strong>Strategy-aware GPS (June 2026):</strong> All GPS thresholds are multiplied by the user's <code>envFloorMultiplier</code> (safe=1.05, neutral=1.0, aggressive=0.95). The sell threshold additionally shifts by <code>sellThresholdShift</code> (longer horizons tolerate more dip before a sell signal). The predicted-change gate is the strategy's <code>predChangeGate</code> multiplied by <code>predChangeMultiplier</code> (longer horizons require a larger absolute move). The GPS breakdown's <code>mlpUpside</code> component is patched to the user's horizon via <code>adjustGpsForHorizon()</code>, yielding a per-user GPS score rather than the cached 1-month baseline.</div>
@@ -572,30 +576,33 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
             <tr><td><code>watchlist</code></td><td>is_purchased=0, user_confirmed=1</td><td>adjustedGPS &ge; buyThreshold AND deltaPct &ge; predChangeGate</td><td>—</td></tr>
             <tr><td><code>discovery</code></td><td>is_purchased=0, user_confirmed=0</td><td>adjustedGPS &ge; discoveryThreshold AND deltaPct &ge; predChangeGate</td><td>—</td></tr>
             <tr><td><code>etf_holding</code></td><td>From etf_stock_recommendations WHERE snapshot_date = MAX(snapshot_date) per user</td><td>Always BUY (pre-filtered by ETF sync)</td><td>—</td></tr>
+            <tr><td><code>off_market_mover</code></td><td>recommended_stocks WHERE type='off_market_mover' AND snapshot_date &ge; CURDATE()-1 AND metric_value &gt; 0</td><td>Always BUY (positive movers only)</td><td>—</td></tr>
           </tbody>
         </table>
         <div class="sub-heading">Macro GPS adjustment</div>
-        <div class="route-desc">The route fetches World Bank data (6-hour cached) and applies a ±3 pt macro adjustment to each raw GPS score before threshold comparison. Unemployment bearish: −2 pts. Global health score above 70: +1.5 pts. Below 45: −3 pts. Clamped to [−3, +3].</div>
+        <div class="route-desc">The route fetches World Bank data (6-hour cached) and applies a ±3 pt macro adjustment to each raw GPS score before threshold comparison. Unemployment bearish: −2 pts. Global health score above 70: +1.5 pts. Below 45: −3 pts. Clamped to [−3, +3]. Off-market movers carry <code>gpsScore: null</code> and are unaffected by macro GPS adjustment.</div>
         <div class="sub-heading">Response</div>
         <pre>{
   "recommendations": [
     {
-      "stockId":         number,
-      "symbol":          string,
-      "action":          "BUY" | "SELL",
-      "currentPrice":    number,
-      "predictedPrice1m": number,
-      "deltaPct":        number,
-      "gpsScore":        number | null,       // horizon-patched, before macro adj
-      "gpsBreakdown":    object | null,       // horizon-patched
-      "gpsHorizon":      string,              // e.g. "6_month"
-      "lastRequestedAt": string,
-      "scope":           "portfolio" | "watchlist" | "discovery" | "etf_holding",
-      "etfTicker":       string | undefined,  // present only for etf_holding scope
-      "consecutiveDays": number | null        // days on dashboard; drives "NEW" badge (≤3)
+      "stockId":            number,
+      "symbol":             string,
+      "action":             "BUY" | "SELL",
+      "currentPrice":       number,
+      "predictedPrice1m":   number,
+      "deltaPct":           number,
+      "gpsScore":           number | null,        // horizon-patched, before macro adj; null for movers
+      "gpsBreakdown":       object | null,        // horizon-patched; null for movers
+      "gpsHorizon":         string,               // e.g. "6_month"
+      "lastRequestedAt":    string,
+      "scope":              "portfolio" | "watchlist" | "discovery" | "etf_holding" | "off_market_mover",
+      "etfTicker":          string | undefined,   // present only for etf_holding scope
+      "offMarketChangePct": number | undefined,   // present only for off_market_mover scope
+      "offMarketLabel":     string | undefined,   // "Pre-Market" | "After-Hours"
+      "consecutiveDays":    number | null         // days on dashboard; drives "NEW" badge (≤3)
     }
   ],
-  "horizonLabel": string,                     // top-level — e.g. "in 6 months"
+  "horizonLabel": string,                         // top-level — e.g. "in 6 months"
   "asOf": string
 }</pre>
         <div class="dep-list">
@@ -606,6 +613,7 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
           <span class="dep-tag">GET /api/worldbank</span>
           <span class="dep-tag">checkApprovalGuard</span>
           <span class="dep-tag">etf_stock_recommendations (DB)</span>
+          <span class="dep-tag">recommended_stocks (DB — off_market_mover type)</span>
           <span class="dep-tag">dashboard_tenure (DB)</span>
         </div>
       </div>
@@ -618,7 +626,8 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
           <span class="badge badge-new">Updated 2026-06-09</span>
           <span class="route-file">src/app/api/dashboard/deepmoney-picks/route.ts</span>
         </div>
-        <div class="route-desc">Returns the latest AI-curated snapshot from the <code>recommended_stocks</code> and <code>hot_etfs</code> database tables. Each category is scoped to its own <code>MAX(snapshot_date)</code> to handle sync timing offsets. Enriches hot stocks and ETFs with Yahoo Finance <code>previousClose</code> to compute <code>changeAmount</code> and <code>changePercent</code>. ETF holdings (<code>type = 'etf_holding'</code>) are surfaced from the same <code>recommended_stocks</code> table, deduplicated by ticker (highest GPS first).</div>
+        <div class="route-desc">Returns the latest AI-curated snapshot from the <code>recommended_stocks</code> and <code>hot_etfs</code> database tables. Each category is scoped to its own <code>MAX(snapshot_date)</code> to handle sync timing offsets. Enriches hot stocks and ETFs with Yahoo Finance <code>previousClose</code> to compute <code>changeAmount</code> and <code>changePercent</code>. ETF holdings (<code>type = 'etf_holding'</code>) and off-market movers (<code>type = 'off_market_mover'</code>) are surfaced from the same <code>recommended_stocks</code> table.</div>
+        <div class="updated"><strong>Off-market movers added (August 2026):</strong> The response now includes an <code>off_market_movers</code> array. Fetched from <code>recommended_stocks</code> where <code>type='off_market_mover'</code> and <code>snapshot_date &ge; CURDATE()-1</code>. All positive movers are returned uncapped (no GPS filter). <code>DeepMoneyPicksSection</code> on the search page client-side filters to positive <code>metric_value</code> and sorts by descending magnitude. Tickers already shown as movers are suppressed from the Top Growth Candidates and Surfaced ETF Holdings grids.</div>
         <div class="updated"><strong>Strategy-aware timeframe label (June 2026):</strong> The route reads the user's <code>investment_timeframe</code> via <code>getUserStrategy()</code> and returns both <code>timeframe</code> (e.g. <code>"6_month"</code>) and <code>timeframe_label</code> (e.g. <code>"in 6 months"</code> — sourced from <code>resolveStrategy(...).timeframe.displayLabel</code>) in the response. The underlying ML data is from the latest sync (currently a 1-month baseline run); the timeframe fields are used purely for UI labeling so DeepMoney cards display the correct horizon string.</div>
         <div class="sub-heading">GPS Thresholds</div>
         <table class="props-table">
@@ -627,15 +636,17 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
             <tr><td>Hot stocks</td><td><code>GPS_DEEPMONEY_MIN_SCORE</code> env var (default 65)</td><td><code>getStockGpsThreshold()</code></td></tr>
             <tr><td>Hot ETFs</td><td><code>preset.etfGpsThreshold</code> (L5 default 58) resolved from <code>ETF_HOLDING_ALGORITHM</code></td><td><code>resolveEtfHoldingAlgorithm()</code></td></tr>
             <tr><td>ETF holdings</td><td>No GPS filter — all <code>type='etf_holding'</code> rows for the snapshot date</td><td>Deduplicated by ticker</td></tr>
+            <tr><td>Off-market movers</td><td>No GPS filter — positive <code>metric_value</code> only, 2-day rolling window</td><td>Sorted by absolute % move desc</td></tr>
           </tbody>
         </table>
         <div class="sub-heading">Response</div>
         <pre>{
-  "hot_stocks":    [ { ...recommended_stocks columns, "changeAmount": number | null, "changePercent": number | null, "recommendationLabel": string } ],
-  "hot_etfs":      [ { ...hot_etfs columns,           "changeAmount": number | null, "changePercent": number | null } ],
-  "etf_holdings":  [ { ...recommended_stocks columns (type='etf_holding'), "parent_etf_ticker": string } ],
-  "timeframe":       string,   // e.g. "6_month"
-  "timeframe_label": string    // e.g. "in 6 months"
+  "hot_stocks":       [ { ...recommended_stocks columns, "changeAmount": number | null, "changePercent": number | null, "recommendationLabel": string } ],
+  "hot_etfs":         [ { ...hot_etfs columns,           "changeAmount": number | null, "changePercent": number | null } ],
+  "etf_holdings":     [ { ...recommended_stocks columns (type='etf_holding'), "parent_etf_ticker": string } ],
+  "off_market_movers":[ { "ticker": string, "company_name": string, "current_price": number | null, "metric_value": number, "metric_label": "Pre-Market" | "After-Hours", "discovery_source": "pre_market" | "after_hours" } ],
+  "timeframe":          string,   // e.g. "6_month"
+  "timeframe_label":    string    // e.g. "in 6 months"
 }</pre>
         <div class="dep-list">
           <span class="dep-tag">getUserStrategy</span>
@@ -948,7 +959,7 @@ X-AiTake-Rate-Limit-Note: string             // user-facing note when rate limit
           <span class="route-path">/api/analytics/model-accuracy</span>
           <span class="badge badge-noauth">No auth required (PUBLIC_PATHS)</span>
           <span class="badge badge-cache">1-hour in-memory cache</span>
-          <span class="badge badge-new">Updated 2026-08-09</span>
+          <span class="badge badge-new">Updated 2026-08-20</span>
           <span class="route-file">src/app/api/analytics/model-accuracy/route.ts</span>
         </div>
         <div class="route-desc">Returns the headline model-accuracy metric that powers the dashboard's <code>ModelAccuracyWidget</code> and the public landing page's <code>ModelAccuracyStats</code> section. This route is listed in <code>PUBLIC_PATHS</code> in <code>src/proxy.ts</code> — no login is required. Operates in two modes: <strong>global</strong> (no symbol provided, aggregates every resolved row in <code>prediction_records</code>) and <strong>per-symbol</strong> (filtered to a single ticker). Accuracy is computed using a MAPE-style proximity formula across each horizon and then averaged across all horizons via a <code>UNION ALL</code> subquery. Requires a minimum of 30 resolved prediction rows to return <code>status: 'ready'</code>; fewer returns <code>status: 'insufficient_data'</code>.</div>

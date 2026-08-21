@@ -96,7 +96,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Developer Docs</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-09</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-20</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -147,6 +147,7 @@
     <a href="#step5">5. ETF Holdings</a>
     <a href="#step5-tenure">5.5. Dashboard Tenure Reconciliation</a> <span class="new-badge">new</span>
     <a href="#step6">6. Persistence &amp; Cleanup</a>
+    <a href="#off-market-movers">— Off-Market Movers</a> <span class="new-badge">new</span>
     <a href="#analytics-record">— Analytics Recording</a>
     <a href="#summary-block">— End-of-Run Summary</a>
     <a href="#step7">7. API Response Shape</a>
@@ -184,8 +185,8 @@
       <span>src/utils/etfHoldingPreset.ts</span>
       <span>models/algorithm_presets.json</span>
       <span>models/etf_holding_presets.json</span>
-      <span>Updated 2026-08-09</span>
-      <span>Reviewed 2026-08-09</span>
+      <span>Updated 2026-08-20</span>
+      <span>Reviewed 2026-08-20</span>
     </div>
 
     <div class="highlight-box" style="background:#eff6ff;border-left-color:#3b82f6;color:#1e3a8a;">
@@ -516,9 +517,11 @@ if hi_ratio &gt; 0.97 and beta_val &gt; 2.0:
     <section id="step6">
       <h2><span class="step-num">6</span> Persistence &amp; Stale Entry Cleanup</h2>
       <div class="step-card">
-        <div class="component-tag">deepmoney_sync.py — post-sync cleanup</div>
-        <p>The sync begins with a hard <code>DELETE FROM recommended_stocks</code> — the table is fully rebuilt every run with today's <code>snapshot_date</code>. Both hot stocks and ETF holdings (<code>type = 'etf_holding'</code>) share this same table.</p>
-        <p>After all stocks and ETF holdings are processed, stale discovery entries from previous runs are removed. The approach is exact: only stocks that did not qualify in today's run (i.e., not in <code>qualifying_stock_ids</code>) and are still marked as active unconfirmed discoveries are removed from <code>user_stocks</code> and <code>user_stock_predictions</code>.</p>
+        <div class="component-tag">deepmoney_sync.py — post-sync cleanup + off-market mover scan</div>
+        <p>The sync begins with a hard <code>DELETE FROM recommended_stocks</code> — the table is fully rebuilt every run with today's <code>snapshot_date</code>. Hot stocks, ETF holdings (<code>type = 'etf_holding'</code>), and off-market movers (<code>type = 'off_market_mover'</code>) all share this same table.</p>
+        <h3 id="off-market-movers" style="background:none;padding:0;color:#334155;margin-top:1rem;">Off-Market Movers <span class="new-badge">August 2026</span></h3>
+        <p>After all stocks and ETF holdings are processed, <code>sync_off_market_movers()</code> scans the full processed ticker universe for pre- and post-market moves. Qualifying movers (absolute move ≥ <code>OFF_MARKET_MIN_CHANGE_PCT</code> = 3.0%, positive metric_value) are written to <code>recommended_stocks</code> with <code>type = 'off_market_mover'</code> and <code>snapshot_date = today</code>, replacing any previous rows for that date. Market states <code>POSTPOST</code> and <code>PREPRE</code> (overnight Yahoo states) are normalized to <code>POST</code> for storage. The full ticker universe (<code>all_processed_tickers</code>) is used — not just ranker survivors — so any stock the sync touched can appear as a mover regardless of its GPS fate.</p>
+        <p>Stale discovery entries from previous runs are then removed. The approach is exact: only stocks that did not qualify in today's run (i.e., not in <code>qualifying_stock_ids</code>) and are still marked as active unconfirmed discoveries are removed from <code>user_stocks</code> and <code>user_stock_predictions</code>.</p>
         <p>If <code>qualifying_stock_ids</code> is empty (degenerate case), <em>all</em> active unconfirmed discoveries are eligible for removal — purchased positions remain untouched because of the <code>user_confirmed = 0</code> filter.</p>
         <p>This post-sync cleanup replaced an earlier pre-clear approach and is safe for concurrent runs because it only touches <code>is_active = 1 AND user_confirmed = 0</code> rows — confirmed (user-purchased) positions are never removed.</p>
         <p>The entire DB block is wrapped in <code>try / except</code>; on any error the transaction is rolled back and the cursor/connection are closed in <code>finally</code>.</p>
@@ -744,7 +747,7 @@ if hi_ratio &gt; 0.97 and beta_val &gt; 2.0:
         <table>
           <thead><tr><th>Table</th><th>Operation</th><th>Notes</th></tr></thead>
           <tbody>
-            <tr><td><code>recommended_stocks</code></td><td><code>DELETE</code> + bulk <code>INSERT</code></td><td>Fully rebuilt each run. Holds both <code>hot_stocks</code> and <code>etf_holding</code> rows for today's <code>snapshot_date</code>. v2.6 added <code>gps_score_type</code>, <code>ranker_score</code>, <code>hist_vol_30</code>.</td></tr>
+            <tr><td><code>recommended_stocks</code></td><td><code>DELETE</code> + bulk <code>INSERT</code></td><td>Fully rebuilt each run. Holds <code>hot_stocks</code>, <code>etf_holding</code>, and <code>off_market_mover</code> rows for today's <code>snapshot_date</code>. v2.6 added <code>gps_score_type</code>, <code>ranker_score</code>, <code>hist_vol_30</code>. Off-market mover rows have <code>gps_score = NULL</code>, <code>metric_value</code> = change %, <code>metric_label</code> = 'Pre-Market' | 'After-Hours'.</td></tr>
             <tr><td><code>macro_context_snapshots</code></td><td><code>INSERT ... ON DUPLICATE KEY UPDATE</code></td><td>Keyed on <code>snapshot_date</code>. Only written when <code>wb_data.success</code> is true.</td></tr>
             <tr><td><code>stocks</code></td><td><code>SELECT</code> then <code>INSERT</code> if missing</td><td>Ensures a <code>stock_id</code> exists for every qualifying ticker before downstream upserts.</td></tr>
             <tr><td><code>stock_gps_scores</code></td><td><code>INSERT ... ON DUPLICATE KEY UPDATE</code></td><td>Only when the rounded value actually changed. <code>source = 'deepmoney_sync'</code>. v2.6 added <code>gps_score_type</code>, <code>ranker_score</code>, <code>hist_vol_30</code>.</td></tr>
@@ -789,6 +792,8 @@ if hi_ratio &gt; 0.97 and beta_val &gt; 2.0:
             <tr><td><code>ETF_HOLDING_MAX_BETA</code></td><td>2.0</td><td>Independent of the preset. Beta cap applied in <code>src/utils/etfHoldings.ts</code> surfacing. The read-side <code>/holdings</code> route skips this check (no beta column on <code>stock_gps_scores</code>); kept for backward compat there.</td></tr>
             <tr><td><code>ETF_HOLDING_STALENESS_HOURS</code></td><td>4</td><td>Independent of the preset. How old a cached <code>etf_holding_scores</code> row can be before <code>/holdings</code> re-scores it.</td></tr>
             <tr><td><code>GPS_PREDICTION_MAX</code></td><td>3</td><td>Used by <code>calculateGpsScore</code> for the <code>mlpUpside</code> component, and by the <code>/holdings</code> endpoint to invert <code>mlpUpside → predicted_change_pct</code>. Production-tuned values (e.g. 15) reduce <code>mlpUpside</code> magnitude proportionally.</td></tr>
+            <tr><td colspan="3" style="background:#f0fdf4;font-weight:600;color:#166534;padding-top:.6rem;">Off-Market Movers (August 2026)</td></tr>
+            <tr><td><code>OFF_MARKET_MIN_CHANGE_PCT</code></td><td><code>3.0</code></td><td>Minimum absolute pre- or post-market move (%) for a stock to surface as an off-market mover. Raised from 1% to 3% in August 2026 to reduce noise. Applied after Yahoo Finance extended-hours quotes are fetched for the full processed ticker universe. Set in module scope of <code>scripts/deepmoney_sync.py</code>; not an env var but a code constant.</td></tr>
           </tbody>
         </table>
         <h3 style="margin-top:1.5rem;">Algorithm Preset Table</h3>
@@ -836,6 +841,7 @@ if hi_ratio &gt; 0.97 and beta_val &gt; 2.0:
         <table>
           <thead><tr><th>Date</th><th>Change</th><th>Detail</th></tr></thead>
           <tbody>
+            <tr><td>2026-08-20</td><td>Off-market movers added to sync + docs updated <span class="new-badge">new</span></td><td><code>sync_off_market_movers()</code> now runs after the ETF holdings pass. Scans the full processed ticker universe for pre/post-market moves ≥ <code>OFF_MARKET_MIN_CHANGE_PCT</code> (3.0%, raised from 1%). Writes qualifying positive movers to <code>recommended_stocks</code> with <code>type='off_market_mover'</code>. <code>POSTPOST</code>/<code>PREPRE</code> market states normalized to <code>POST</code>. MySQL DECIMAL coercion bug fixed: <code>Number()</code> applied before arithmetic in the recommendations route. Threshold constant noted in env-config table. Dashboard recommendation pool redesigned as four independently-capped buckets; movers bypass <code>dashboard_tenure</code> rotation.</td></tr>
             <tr><td>2026-07-24</td><td>predict_light.py v4/v5 corrections documented <span class="new-badge">new</span></td><td>Phase 3c (CS Light-Model pre-filter) flow diagram updated to show all active corrections now applied by <code>scripts/predict_light.py</code>: v4 momentum drift (ret90d scaling), Fix A (downtrend trap cap), Fix C (structural decline ceiling), Fix D (extreme momentum scale-up), and <code>CALIBRATION_SCALAR = 0.55</code> final multiplier. Fix B (VIX modifier) is explicitly noted as not applied — <code>predict_light.py</code> does not call <code>predict_long_term()</code>.</td></tr>
             <tr><td>2026-07-12</td><td>Doc reviewed against source</td><td>Compared this page against <code>scripts/deepmoney_sync.py</code>. Last commit to that script was 2026-06-29 (<code>52fc99d</code>, ollama integration), which is already reflected in v2.7/v2.8. No workflow changes since; no doc updates needed.</td></tr>
             <tr><td>2026-06-20</td><td>ETF holdings single-knob (v2.8) <span class="new-badge">new</span></td><td>New <code>ETF_HOLDING_ALGORITHM</code> (float 1.0–10.0, default 5) resolves via <code>models/etf_holding_presets.json</code> into <code>{etfGpsThreshold, topNEtfs, maxTickers, gpsSurfaceValue, minPredChangePct}</code>. Wired into <code>etfDiscovery.ts</code> (qualification + top-N + per-ETF cap), <code>etfHoldings.ts</code> (post-dedup cap + surfacing thresholds via <code>sharedContext.etfHoldingPreset</code>), the <code>/holdings</code> read-side route, the <code>deepmoney-picks</code> dashboard widget (<code>etf_gps_score</code> filter), and <code>scripts/update_predictions.py</code> via a new Python mirror <code>scripts/etf_holding_preset.py</code>. Retired: <code>ETF_GPS_THRESHOLD</code> in-code constant, <code>ETF_HOLDING_MAX_TICKERS</code>, <code>ETF_HOLDING_GPS_SURFACE_VALUE</code>, <code>ETF_HOLDING_MIN_PRED_CHANGE</code>. <code>ETF_HOLDING_MIN_CONFIDENCE</code>, <code>ETF_HOLDING_MAX_BETA</code>, <code>ETF_HOLDING_STALENESS_HOURS</code> kept as independent knobs.</td></tr>

@@ -138,7 +138,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Database Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-09</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-20</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -482,12 +482,12 @@
             <!-- RECOMMENDED_STOCKS -->
             <div id="recommended_stocks" class="table-card">
                 <div class="table-title">recommended_stocks</div>
-                <p>Stores the latest DeepMoney discovery results. Supports multiple record types via the <code>type</code> column: <code>hot_stocks</code> (standard DeepMoney picks) and <code>hot_ai_tech_stocks</code>. This table is the <strong>third-tier fallback</strong> for <code>GET /api/stock_data/[ticker]/gps</code>.</p>
+                <p>Stores the latest DeepMoney discovery results. Supports multiple record types via the <code>type</code> column: <code>hot_stocks</code> (standard DeepMoney picks), <code>hot_ai_tech_stocks</code>, <code>etf_holding</code> (top ETF holding breakouts), and <code>off_market_mover</code> (pre/after-hours movers ≥ 3% move, August 2026). This table is the <strong>third-tier fallback</strong> for <code>GET /api/stock_data/[ticker]/gps</code>.</p>
                 <table class="schema-table">
                     <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
                     <tbody>
                         <tr><td><code>id</code></td><td><code>INT</code></td><td>Primary Key. Auto-increment. NOT NULL.</td></tr>
-                        <tr><td><code>type</code></td><td><code>VARCHAR(50)</code></td><td>NOT NULL. 'hot_stocks' or 'hot_ai_tech_stocks'. Indexed.</td></tr>
+                        <tr><td><code>type</code></td><td><code>VARCHAR(50)</code></td><td>NOT NULL. 'hot_stocks', 'hot_ai_tech_stocks', 'etf_holding', or 'off_market_mover'. Indexed.</td></tr>
                         <tr><td><code>ticker</code></td><td><code>VARCHAR(10)</code></td><td>NOT NULL. Stock symbol. Indexed.</td></tr>
                         <tr><td><code>company_name</code></td><td><code>VARCHAR(255)</code></td><td>NOT NULL. Full legal name.</td></tr>
                         <tr><td><code>current_price</code></td><td><code>DECIMAL(12,4)</code></td><td>Nullable. Price at discovery time.</td></tr>
@@ -502,8 +502,8 @@
                         <tr><td><code>rd_spend_pct</code></td><td><code>DECIMAL(8,2)</code></td><td>Nullable. R&amp;D spend as % of revenue.</td></tr>
                         <tr><td><code>trailing_pe</code></td><td><code>DECIMAL(10,2)</code></td><td>Nullable. Trailing P/E at scoring time. Written by the <code>hot_stocks</code> branch of <code>deepmoney_sync.py</code>.</td></tr>
                         <tr><td><code>price_to_book</code></td><td><code>DECIMAL(10,2)</code></td><td>Nullable. Price-to-book ratio at scoring time.</td></tr>
-                        <tr><td><code>metric_value</code></td><td><code>DECIMAL(12,4)</code></td><td>Nullable. Primary numeric metric for the row (e.g. predicted 1-month change % for hot_stocks).</td></tr>
-                        <tr><td><code>metric_label</code></td><td><code>VARCHAR(100)</code></td><td>Nullable. Human label for <code>metric_value</code> (e.g. <code>"CS: {confidence_score}"</code>).</td></tr>
+                        <tr><td><code>metric_value</code></td><td><code>DECIMAL(12,4)</code></td><td>Nullable. Primary numeric metric for the row (predicted 1-month change % for hot_stocks; extended-hours change % for off_market_mover rows). For off_market_mover rows, <code>Number()</code> coercion is required before arithmetic to handle MySQL DECIMAL string representation.</td></tr>
+                        <tr><td><code>metric_label</code></td><td><code>VARCHAR(100)</code></td><td>Nullable. Human label for <code>metric_value</code>. For off_market_mover rows: <code>'Pre-Market'</code> or <code>'After-Hours'</code>.</td></tr>
                         <tr><td><code>market_cap_m</code></td><td><code>DECIMAL(16,2)</code></td><td>Nullable. Market cap in millions.</td></tr>
                         <tr><td><code>mention_count</code></td><td><code>INT</code></td><td>Default 0. Social/news mention count.</td></tr>
                         <tr><td><code>discovery_source</code></td><td><code>VARCHAR(100)</code></td><td>Nullable. Origin of discovery (e.g. 'v2_engine').</td></tr>
@@ -514,7 +514,7 @@
                     </tbody>
                 </table>
                 <div class="highlight-box">
-                    <strong>Note on GPS fallback:</strong> The GPS read path checks <code>stock_gps_scores</code> first, then falls back to <code>recommended_stocks</code>. GPS data is kept in sync by <code>deepmoney_sync.py</code> and <code>/api/prediction/save</code>. Previously documented columns <code>bearish_signal</code>, <code>parent_etf_ticker</code>, and <code>holding_percent</code> are no longer part of this table — ETF holding recommendations now live in their own table (<code>etf_stock_recommendations</code>).
+                    <strong>Note on GPS fallback:</strong> The GPS read path checks <code>stock_gps_scores</code> first, then falls back to <code>recommended_stocks</code>. GPS data is kept in sync by <code>deepmoney_sync.py</code> and <code>/api/prediction/save</code>. Previously documented columns <code>bearish_signal</code>, <code>parent_etf_ticker</code>, and <code>holding_percent</code> are no longer part of this table — ETF holding recommendations now live in their own table (<code>etf_stock_recommendations</code>). <strong>Off-market mover rows</strong> (<code>type='off_market_mover'</code>) always have <code>gps_score = NULL</code> and <code>gps_breakdown = NULL</code>; they carry only <code>metric_value</code> (change %) and <code>metric_label</code> ('Pre-Market' | 'After-Hours'). The dashboard recommendations route reads them with a 2-day rolling window (<code>snapshot_date &ge; CURDATE()-1</code>) and filters to <code>metric_value &gt; 0</code>.
                 </div>
             </div>
 

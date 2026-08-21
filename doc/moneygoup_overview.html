@@ -213,7 +213,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">App Overview</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-09</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-20</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -397,7 +397,9 @@
 
         <section id="recommendations">
             <h2>6. Recommendation Buckets</h2>
-            <p>The recommendation engine classifies stocks into four buckets so that user-owned positions, monitored interests, AI discoveries, and ETF top-holding breakouts each get the right level of urgency and validation. Every BUY / SELL card on the dashboard belongs to one of these four buckets.</p>
+            <p>The recommendation engine classifies stocks into five buckets so that user-owned positions, monitored interests, AI discoveries, ETF top-holding breakouts, and real-time off-market movers each get the right level of urgency and validation. Every card on the dashboard belongs to one of these five buckets.</p>
+
+            <div class="updated-note"><strong>August 2026:</strong> A fifth bucket — <strong>Off-Market Mover</strong> — was added. Stocks with pre-market or after-hours moves ≥ 3% are mixed into the unified recommendation pool up to a cap of 4. They surface on the dashboard with an orange ⚡ badge and a "PRE-MKT" or "AFTER-HRS" action badge. The pool algorithm was also redesigned as four independently-capped buckets merged in priority order.</div>
 
             <div class="updated-note"><strong>June 2026:</strong> A fourth bucket — <strong>ETF Holding</strong> — was added. When a user holds ETFs in their portfolio, the <code>/portfolio</code> page surfaces BUY recommendations for high-GPS individual stocks found inside those ETFs.</div>
 
@@ -474,6 +476,28 @@
                 <div class="threshold-pill">Confidence: 60 (default)</div>
             </div>
 
+            <div class="bucket-card" style="border-color:#fed7aa;background:#fff7ed;border-left-color:#ea580c;">
+                <div class="bucket-header">
+                    <span style="font-size: 1.4rem;" role="img" aria-label="lightning">&#9889;</span>
+                    <span class="bucket-title" style="color:#9a3412;">Bucket 5: Off-Market Mover <span class="new-badge">new Aug 2026</span></span>
+                </div>
+                <p>Stocks with significant pre-market or after-hours price moves detected by the nightly deepmoney sync. These appear without a GPS score — they are purely price-momentum signals from extended-hours trading.</p>
+                <ul class="logic-list">
+                    <li><strong>Signals:</strong> Surfaces <strong>BUY-direction</strong> alerts only (positive movers only — negative moves are excluded).</li>
+                    <li><strong>Source:</strong> Written by <code>scripts/deepmoney_sync.py</code> via <code>sync_off_market_movers()</code> at the end of each sync run. Scans the full processed ticker universe.</li>
+                    <li><strong>Threshold:</strong> Absolute move ≥ 3% (<code>OFF_MARKET_MIN_CHANGE_PCT = 3.0</code> — code constant, raised from 1% in August 2026).</li>
+                    <li><strong>Detection window:</strong> Rolling 2-day window (<code>snapshot_date &ge; CURDATE()-1</code>) — no GPS rotation needed.</li>
+                    <li><strong>Market states:</strong> PRE (pre-market 4–9:30 AM ET), POST/POSTPOST (after-hours). POSTPOST and PREPRE states normalized to POST for storage.</li>
+                    <li><strong>Action badge:</strong> "PRE-MKT" (pre-market) or "AFTER-HRS" (after-hours) — not "BUY"/"SELL".</li>
+                    <li><strong>Badge color:</strong> Orange (<code>bg-orange-100 text-orange-700</code>) · <strong>Scope:</strong> <code>'off_market_mover'</code> · <strong>Extra fields:</strong> <code>offMarketChangePct</code>, <code>offMarketLabel</code></li>
+                    <li><strong>Pool cap:</strong> Up to 4 movers shown on dashboard (<code>DASHBOARD_MOVER_CAP</code>). Search-page DeepMoney engine shows all positive movers uncapped.</li>
+                    <li><strong>GPS:</strong> Always null — no GPS breakdown or score for movers. Secondary text shows the change % instead.</li>
+                </ul>
+                <div class="criteria-box">Source: recommended_stocks WHERE type='off_market_mover'<br>metric_value &gt; 0 (positive move only)<br>snapshot_date &ge; CURDATE() - INTERVAL 1 DAY<br>Sorted by metric_value DESC</div>
+                <div class="threshold-pill">Min move: ±3% (code constant)</div>
+                <div class="threshold-pill">Cap: 4 per dashboard (DASHBOARD_MOVER_CAP)</div>
+            </div>
+
             <h4 style="margin-top:2rem;">UI filtering on the Portfolio page</h4>
             <div class="info-note">The <code>etf_holding</code> scope is only enabled on <code>/portfolio</code> — the dashboard home page (<code>/</code>) doesn't include it. Controlled by the <code>scopes</code> prop on <code>RecommendationsSection</code>.</div>
             <p>The <code>/portfolio</code> page derives two values from the portfolio API response:</p>
@@ -497,6 +521,9 @@
                     <tr><td><a href="#env-vars-deepmoney"><code>ETF_HOLDING_MIN_CONFIDENCE</code></a></td><td>60</td><td>ETF Holding — confidence gate (independent of the preset)</td></tr>
                     <tr><td><a href="#env-vars-deepmoney"><code>ETF_HOLDING_MAX_BETA</code></a></td><td>2.0</td><td>ETF Holding — max beta for inclusion (independent of the preset)</td></tr>
                     <tr><td><a href="#env-vars-deepmoney"><code>ETF_HOLDING_STALENESS_HOURS</code></a></td><td>4</td><td>ETF Holding — cache staleness before re-fetch</td></tr>
+                    <tr><td><code>DASHBOARD_MOVER_CAP</code></td><td>4</td><td>Off-Market Mover — max movers shown in the recommendation pool (env var)</td></tr>
+                    <tr><td><code>DASHBOARD_ETF_CAP</code></td><td>4</td><td>ETF Holding — max ETF holding cards in the recommendation pool (env var)</td></tr>
+                    <tr><td><code>DASHBOARD_DISCOVERY_CAP</code></td><td>8</td><td>Discovery — max discovery cards in the recommendation pool (env var)</td></tr>
                 </tbody>
             </table>
             <p style="font-size:.82rem;color:#666;margin-top:.5rem;">Retired (replaced by <code>ETF_HOLDING_ALGORITHM</code>): <code>ETF_HOLDING_GPS_SURFACE_VALUE</code>, <code>ETF_HOLDING_MIN_PRED_CHANGE</code>, <code>ETF_HOLDING_MAX_TICKERS</code>, <code>ETF_HOLDING_TOP_N</code>, in-code <code>ETF_GPS_THRESHOLD</code>.</p>

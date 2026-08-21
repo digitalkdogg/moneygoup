@@ -107,7 +107,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Business Rules</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-09</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-20</div>
   </div>
   <div class="nav-scroll-controls"><button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">&lsaquo;</button></div>
   <nav class="top-bar-nav">
@@ -694,6 +694,15 @@
           <span class="src">src/app/api/prediction/deepmoney/route.ts · src/app/api/prediction/deepmoney/analyzer.ts (trendingPreFiltered + Phase 3c) · scripts/deepmoney_sync.py (split vol-gate)</span>
         </div>
       </div>
+
+      <div class="rule">
+        <div class="rid">BR-6.11</div>
+        <div class="body">
+          <span class="tag sync">Sync</span> <span class="tag cfg">Config</span>
+          <p><strong>Off-market mover detection.</strong> At the end of each <code>deepmoney_sync.py</code> run, <code>sync_off_market_movers()</code> scans all tickers processed during that run for significant pre- or post-market moves. A ticker qualifies when its absolute move meets or exceeds <code>OFF_MARKET_MIN_CHANGE_PCT = 3.0</code> (raised from 1% in August 2026 to reduce noise). Yahoo Finance <code>marketState</code> values <code>POSTPOST</code> and <code>PREPRE</code> are normalised to <code>POST</code> and <code>PRE</code> respectively before writing — both reflect extended-session data beyond the core 4–8 PM / pre-open window. Qualifying rows are written to <code>recommended_stocks</code> with <code>type = 'off_market_mover'</code>, <code>metric_value</code> = signed change %, and <code>metric_label</code> = <code>'Pre-Market'</code> or <code>'After-Hours'</code>. Both positive and negative movers are written to the DB; the dashboard and search page filter to positive only at read time (<code>metric_value &gt; 0</code>). Rows self-age via a 2-day rolling <code>snapshot_date</code> window — no <code>dashboard_tenure</code> entry is created.</p>
+          <span class="src">scripts/deepmoney_sync.py · sync_off_market_movers() · src/app/api/dashboard/recommendations/route.ts · src/app/api/dashboard/deepmoney-picks/route.ts</span>
+        </div>
+      </div>
     </section>
 
     <!-- ─────────────────────────── 7. ETF HOLDINGS ─────────────────────────── -->
@@ -769,6 +778,15 @@
     <section id="recommendations">
       <h2>8. Recommendation Buckets</h2>
       <p class="see-also"><strong>See also:</strong> <a href="moneygoup_overview.html#recommendations">App Overview · Recommendation Buckets</a> <span class="sep">·</span> <a href="components_documentation.html">Components</a> <span class="sep">·</span> <a href="strategy_system.html">Strategy System</a></p>
+
+      <div class="rule" style="border-left: 4px solid #017e3b;">
+        <div class="rid">BR-8.0</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <p><strong>One unified pool — intent and design principle.</strong> The dashboard Recommendations section is deliberately a <em>single mixed grid</em>, not separate sections per category. All five sources — <strong>portfolio</strong>, <strong>watchlist</strong>, <strong>discovery</strong>, <strong>ETF holdings</strong>, and <strong>off-market movers</strong> — are treated as one pool of candidates. Cards from every source are drawn together, deduplicated by ticker, and rendered in a single grid so the user sees a varied, rotating mix of actionable ideas rather than the same static list each day. The mixing is intentional: portfolio and watchlist anchors keep personal context visible, while discovery, ETF holdings, and movers inject freshness and variety. No source has a dedicated visual section on the dashboard — they are distinguished only by their badge color and label (blue = portfolio, amber = watchlist, purple = discovery, teal = ETF holding, orange ⚡ = off-market mover). The algorithm that builds this pool is defined in BR-8.14. Individual source rules are in BR-8.1 through BR-8.3 and BR-8.13.</p>
+          <span class="src">src/app/api/dashboard/recommendations/route.ts · src/app/components/RecommendationsSection.tsx</span>
+        </div>
+      </div>
 
       <div class="rule">
         <div class="rid">BR-8.1</div>
@@ -880,6 +898,37 @@
           <span class="tag new">new — 2026-07-18</span>
           <p>A <strong>"Discover more →"</strong> link renders at the bottom of the Recommendations white box, under a hairline divider. Points to <code>/search</code>. Renders whether the recommendation grid has 0 cards or many.</p>
           <span class="src">src/app/components/RecommendationsSection.tsx</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-8.13</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <span class="tag py">Sync</span>
+          <span class="tag new">new — 2026-08-20</span>
+          <p><strong>Off-Market Mover bucket.</strong> A fifth scope, <code>off_market_mover</code>, is now mixed into the unified recommendation pool. Rows in <code>recommended_stocks</code> with <code>type='off_market_mover'</code>, <code>snapshot_date &ge; CURDATE()-1</code>, and positive <code>metric_value</code> qualify. Positive movers only (<code>metric_value &gt; 0</code>) are surfaced — negative after-hours moves are filtered out. Badge color orange (⚡ mover). Action badge reads "PRE-MKT" (Pre-Market) or "AFTER-HRS" (After-Hours). GPS score is always null for movers; they carry no GPS breakdown. Movers bypass <code>dashboard_tenure</code> rotation — they self-age via the 2-day DB window. The section header on the search page reads "Off Market Movers" with a ⚡ icon.</p>
+          <span class="src">src/app/api/dashboard/recommendations/route.ts · src/app/components/RecommendationsSection.tsx · src/app/components/DeepMoneyPicksSection.tsx</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-8.14</div>
+        <div class="body">
+          <span class="tag app">Web App</span>
+          <span class="tag new">new — 2026-08-20</span>
+          <p><strong>Unified pool algorithm — per-category budgets.</strong> The recommendation response is built from four independently-capped buckets merged in priority order into a deduplicated list, hard-capped at 20 total: (1) <strong>Pinned</strong> (portfolio, watchlist, SELL) — always shown, no cap; (2) <strong>Movers</strong> — up to <code>DASHBOARD_MOVER_CAP</code> (default 4) positive off-market movers sorted by absolute % desc; (3) <strong>ETF</strong> — up to <code>DASHBOARD_ETF_CAP</code> (default 4) ETF holdings, fresh-pool first (tenure), backfill floor of 2; (4) <strong>Discovery</strong> — fills remaining budget, up to <code>DASHBOARD_DISCOVERY_CAP</code> (default 8), tenure-filtered, backfill if below <code>DASHBOARD_TENURE_MIN_CARDS</code>. Sort priority: SELL &gt; portfolio &gt; watchlist &gt; off_market_mover &gt; etf_holding &gt; discovery.</p>
+          <span class="src">src/app/api/dashboard/recommendations/route.ts</span>
+        </div>
+      </div>
+
+      <div class="rule">
+        <div class="rid">BR-8.15</div>
+        <div class="body">
+          <span class="tag py">Sync</span>
+          <span class="tag new">new — 2026-08-20</span>
+          <p><strong>Off-market mover detection threshold.</strong> The minimum absolute pre- or post-market move for a stock to qualify as an off-market mover is 3% (code constant <code>OFF_MARKET_MIN_CHANGE_PCT = 3.0</code> in <code>scripts/deepmoney_sync.py</code>). Raised from 1% to 3% in August 2026 to reduce noise. Applied to the full processed ticker universe at the end of each deepmoney sync run. Market states <code>POSTPOST</code> and <code>PREPRE</code> are normalized to <code>POST</code> for storage; both reflect after-hours extended session data.</p>
+          <span class="src">scripts/deepmoney_sync.py · sync_off_market_movers()</span>
         </div>
       </div>
     </section>

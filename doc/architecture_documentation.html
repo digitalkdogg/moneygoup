@@ -97,7 +97,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Architecture Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-09</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-20</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -163,7 +163,7 @@
       <span>Next.js 16 App Router</span>
       <span>TypeScript</span>
       <span>Tailwind CSS</span>
-      <span>Updated 2026-08-09</span>
+      <span>Updated 2026-08-20</span>
     </div>
 
     <div class="summary-grid">
@@ -425,16 +425,16 @@ doc/                               All HTML documentation files</pre>
       </div>
 
       <div class="arch-card">
-        <h4>Recommendations Data Flow <span style="font-size:.75rem;font-weight:400;color:#64748b;">(updated June 2026)</span></h4>
+        <h4>Recommendations Data Flow <span style="font-size:.75rem;font-weight:400;color:#64748b;">(updated August 2026)</span></h4>
         <ol class="flow-steps">
           <li><code>RecommendationsSection</code> calls <code>GET /api/dashboard/recommendations</code>.</li>
-          <li>API fetches user's saved predictions from <code>user_stock_predictions</code> for portfolio and watchlist scopes. ETF holding recommendations are fetched separately from <code>etf_stock_recommendations</code>.</li>
-          <li>Fetches current prices from Yahoo Finance to compare against predicted prices.</li>
-          <li>Calls <code>GET /api/worldbank</code> (6-hour cached) to get macro dampeners: if unemployment is bearish, BUY threshold rises by 2%; <code>globalHealthScore</code> adjusts delta multiplier.</li>
-          <li>Returns recommendations sorted by |deltaPct|, tagged with scope (<code>portfolio</code>, <code>watchlist</code>, <code>discovery</code>, or <code>etf_holding</code>). ETF holding items also carry an <code>etfTicker</code> field.</li>
-          <li>On the <code>/portfolio</code> page, <code>RecommendationsSection</code> receives a <code>portfolioEtfTickers</code> prop and client-side filters <code>etf_holding</code> cards so only holdings within the user's actual ETF positions are shown (not watchlist ETFs).</li>
+          <li>API fetches user's saved predictions from <code>user_stock_predictions</code> for portfolio and watchlist scopes. ETF holding recommendations fetched separately from <code>etf_stock_recommendations</code>. Off-market movers fetched from <code>recommended_stocks WHERE type='off_market_mover'</code> (2-day rolling window, positive movers only).</li>
+          <li>Fetches current prices from Yahoo Finance to compare against predicted prices (GPS-scored scopes only; movers use the extended-hours price stored at sync time).</li>
+          <li>Calls <code>GET /api/worldbank</code> (6-hour cached) for macro dampeners applied to GPS scores. Off-market movers carry null GPS and are unaffected.</li>
+          <li>Assembles a unified pool using four independently-capped buckets: pinned (portfolio/watchlist/SELL, no cap) → movers (up to 4) → ETF holdings (up to 4, tenure-filtered) → discovery (fills remaining budget, up to 8). Deduplicated by symbol, hard-capped at 20 total. Returns items tagged with scope (<code>portfolio</code>, <code>watchlist</code>, <code>discovery</code>, <code>etf_holding</code>, or <code>off_market_mover</code>).</li>
+          <li>On the <code>/portfolio</code> page, <code>RecommendationsSection</code> receives a <code>portfolioEtfTickers</code> prop and client-side filters <code>etf_holding</code> cards to the user's actual ETF positions.</li>
         </ol>
-        <div class="info" style="margin-top:.75rem;"><strong>ETF holding card badge:</strong> Cards with <code>scope === 'etf_holding'</code> render a teal badge labelled "etf holding" and display "In {etfTicker}" in the sub-label instead of the standard last-updated timestamp.</div>
+        <div class="info" style="margin-top:.75rem;"><strong>Badge types by scope:</strong> <code>portfolio</code>/<code>watchlist</code>/<code>discovery</code> → "BUY" or "SELL" badges. <code>etf_holding</code> → teal badge, "In {etfTicker}" sub-label. <code>off_market_mover</code> → orange ⚡ badge, action badge reads "PRE-MKT" or "AFTER-HRS", secondary text shows the extended-hours change %.</div>
       </div>
     </div>
 
