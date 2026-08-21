@@ -562,9 +562,11 @@ export default function Stock({
     
     const indicators = data.indicators
 
-    // Extended-hours price takes precedence during pre/post market sessions
-    const isPreMarket  = stockData?.marketState === 'PRE'  && !!stockData?.preMarketPrice
-    const isPostMarket = stockData?.marketState === 'POST' && !!stockData?.postMarketPrice
+    // Extended-hours price takes precedence during pre/post market sessions.
+    // Yahoo returns 'PREPRE' and 'POSTPOST' outside the core extended window —
+    // use includes() so all variants are caught.
+    const isPreMarket  = (stockData?.marketState?.includes('PRE')  ?? false) && !!stockData?.preMarketPrice
+    const isPostMarket = (stockData?.marketState?.includes('POST') ?? false) && !!stockData?.postMarketPrice
     const extendedPrice      = isPreMarket  ? stockData!.preMarketPrice!
                              : isPostMarket ? stockData!.postMarketPrice!
                              : null
