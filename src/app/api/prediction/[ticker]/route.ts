@@ -6,7 +6,7 @@ import { checkOrigin } from '@/utils/originCheck';
 import { isInternalRequest } from '@/utils/internalAuth';
 import { unauthorizedResponse, createErrorResponse, validationErrorResponse } from '@/utils/errorResponse';
 import { createLogger } from '@/utils/logger';
-import { predictionSemaphore, narrationSemaphore } from '@/utils/predictionQueue';
+import { predictionSemaphore } from '@/utils/predictionQueue';
 import { spawn } from 'child_process';
 import { writeFileSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
@@ -196,62 +196,6 @@ export async function POST(
           confidenceReason1y: result.confidence_reason_1y,
           llmRationale: null,
         }).catch(() => {});
-
-        // Fire narration asynchronously — never holds the prediction semaphore.
-        // warmServiceUrl is in scope here because buildResponse is only called
-        // with source='livedata' after the semaphore block where it's declared.
-        // If the warm service is up, /narrate handles generation + DB UPDATE.
-        // Otherwise, spawn generate_rationale.py as a detached background process.
-        const _warmUrl: string | undefined = process.env.PREDICTION_SERVICE_URL;
-        logger.info(`Narration queued for ${validatedTicker} (warmUrl=${_warmUrl ?? 'none'})`);
-        if (!narrationSemaphore.isFull()) {
-          narrationSemaphore.acquire().then(async () => {
-            try {
-              if (_warmUrl) {
-                const nr = await fetch(`${_warmUrl}/narrate`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    ticker: validatedTicker,
-                    result,
-                    analyst_rating: body.stockMetrics?.recommendationKey ?? null,
-                  }),
-                  signal: AbortSignal.timeout(90_000),
-                });
-                logger.info(`Narrate response: ${nr.status} for ${validatedTicker}`);
-                if (nr.ok) {
-                  const data = await nr.json() as { llm_rationale?: string | null };
-                  if (data.llm_rationale) {
-                    result.llm_rationale = data.llm_rationale;
-                    predictionCache.set(`${validatedTicker}_all_${result.model_version}`, result);
-                  }
-                }
-              } else {
-                // Spawn path fallback: generate_rationale.py writes to DB directly.
-                const { spawn: spawnProc } = await import('child_process');
-                const { writeFileSync: wf, unlinkSync: ul } = await import('fs');
-                const narrationTmp = join(tmpdir(), `narration_${randomUUID()}.json`);
-                wf(narrationTmp, JSON.stringify({
-                  result,
-                  analyst_rating: body.stockMetrics?.recommendationKey ?? null,
-                }));
-                const np = spawnProc(
-                  getPythonExecutable(),
-                  ['scripts/generate_rationale.py', validatedTicker,
-                   '--result-file', narrationTmp],
-                  { detached: true, stdio: 'ignore',
-                    env: { ...process.env } },
-                );
-                np.unref();
-                // Temp file is cleaned up by generate_rationale.py on exit.
-              }
-            } catch {
-              // narration is optional — ignore all errors
-            } finally {
-              narrationSemaphore.release();
-            }
-          }).catch(() => {});
-        }
       }
     }
 
