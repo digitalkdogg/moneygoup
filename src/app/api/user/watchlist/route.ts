@@ -103,11 +103,11 @@ export async function GET(request: NextRequest) {
           }),
           // Only fetch history when stocksdailyprice has no rows for this stock
           ma6_month == null
-            ? yahooFinanceInstance.historical(item.symbol, {
+            ? yahooFinanceInstance.chart(item.symbol, {
                 period1: sixMonthsAgo,
                 period2: new Date(),
                 interval: '1d',
-              }).catch(() => [] as any[])
+              }).then((r: any) => r?.quotes ?? []).catch(() => [] as any[])
             : Promise.resolve(null),
         ]);
 
