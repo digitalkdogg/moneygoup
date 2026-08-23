@@ -51,7 +51,7 @@ np.random.seed(SEED)
 SEQ_LEN    = 45    # 45 trading-day lookback window
 N_EPOCHS   = 50    # capped for speed
 BATCH_SIZE = 128
-MC_RUNS    = 12
+MC_RUNS    = 30
 CACHE_DIR  = os.path.join(os.path.dirname(__file__), 'prediction_cache')
 CACHE_SCHEMA_VERSION = 25  # bumped: trajectory anchored at T1M (1-month waypoint now matches predicted_price_1m)
 

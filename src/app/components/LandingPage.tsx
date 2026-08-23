@@ -319,7 +319,7 @@ export default function LandingPage() {
             <div className={s.archRow}>
               {[
                 { icon: '🧠', title: 'MLP Architecture',       desc: '256 → 128 → 64 → 32 (ReLU + Dropout)' },
-                { icon: '🎲', title: 'Monte Carlo Inference',  desc: '12× dropout passes · per-feature noise scaling' },
+                { icon: '🎲', title: 'Monte Carlo Inference',  desc: '30× dropout passes · per-feature noise scaling' },
                 { icon: '📡', title: 'Regime Detection',       desc: 'GMM clustering on VIX & Credit Spreads' },
                 { icon: '🌍', title: 'Macro Dampeners',        desc: 'Unemployment & Global Health Score modifiers' },
               ].map(({ icon, title, desc }) => (

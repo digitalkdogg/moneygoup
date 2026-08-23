@@ -70,7 +70,7 @@ np.random.seed(SEED)
 SEQ_LEN    = 45    # 45 trading-day lookback window (compromise for speed/accuracy)
 N_EPOCHS   = 50    # capped for speed
 BATCH_SIZE = 128   # larger batches for faster training
-MC_RUNS    = 12    # reduced for faster trajectory generation
+MC_RUNS    = 30    # reduced for faster trajectory generation
 CACHE_DIR  = os.path.join(os.path.dirname(__file__), 'prediction_cache')
 
 # Dirichlet (Laplace) smoothing applied to regime probabilities. Mirrors the
