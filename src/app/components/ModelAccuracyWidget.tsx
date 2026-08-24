@@ -9,6 +9,8 @@ interface Horizon {
   proximity_accuracy_pct: number | null;
   resolved_count: number;
   high_accuracy_count: number;
+  direction_accuracy_pct?: number | null;
+  pqs?: number | null;
 }
 
 interface AccuracyResponse {
@@ -191,20 +193,20 @@ export default function ModelAccuracyWidget() {
           </div>
         </div>
 
-        {/* High Accuracy Count */}
-        {typeof currentHorizon?.high_accuracy_count === 'number' && (
-          <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-lg px-4 py-3 md:p-6 border border-amber-200">
-            <div className="flex items-center justify-between md:block md:text-center">
-              <p className="text-gray-600 text-sm md:mb-3">High Accuracy (≥95%)</p>
-              <div>
-                <p className="text-4xl font-bold text-amber-600 md:mb-2">
-                  {currentHorizon.high_accuracy_count}/{resolvedCount}
-                </p>
-                <p className="text-xs text-gray-600 hidden md:block">{HORIZON_LABELS[selectedHorizon]} predictions</p>
-              </div>
+        {/* Quality Score (PQS) */}
+        <div className="bg-gradient-to-br from-violet-50 to-purple-50 rounded-lg px-4 py-3 md:p-6 border border-violet-200">
+          <div className="flex items-center justify-between md:block md:text-center">
+            <p className="text-gray-600 text-sm md:mb-3">Quality Score</p>
+            <div>
+              <p className="text-4xl font-bold text-violet-600 md:mb-2">
+                {typeof currentHorizon?.pqs === 'number' && currentHorizon.pqs !== null
+                  ? currentHorizon.pqs.toFixed(1)
+                  : '—'}
+              </p>
+              <p className="text-xs text-gray-600 hidden md:block">Composite score measuring prediction model quality</p>
             </div>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Data Freshness */}

@@ -13,6 +13,19 @@ interface CacheEntry {
   expiresAt: number;
 }
 
+const PQS_WEIGHTS: Record<string, { dir: number; acc: number }> = {
+  '1_week':  { dir: 0.30, acc: 0.70 },
+  '1_month': { dir: 0.40, acc: 0.60 },
+  '6_month': { dir: 0.60, acc: 0.40 },
+  '1_year':  { dir: 0.70, acc: 0.30 },
+};
+
+function computePqs(acc: number | null, dir: number | null, key: string): number | null {
+  if (acc === null || dir === null) return null;
+  const w = PQS_WEIGHTS[key];
+  return Math.round(10 * (w.acc * acc + w.dir * dir)) / 10;
+}
+
 const cache: Map<string, CacheEntry> = new Map();
 
 export async function GET(request: NextRequest) {
@@ -110,6 +123,16 @@ async function getGlobalAccuracy(conn: any) {
        WHERE predicted_price_1y IS NOT NULL AND actual_price_1y IS NOT NULL AND actual_price_1y > 0
        AND GREATEST(0, 1 - ABS(predicted_price_1y - actual_price_1y) / NULLIF(actual_price_1y, 0)) >= 0.95) AS count_95_1y,
 
+      -- Direction accuracy per horizon
+      (SELECT SUM(direction_correct_1w) FROM prediction_records WHERE direction_correct_1w IS NOT NULL) AS dir_correct_1w,
+      (SELECT COUNT(direction_correct_1w) FROM prediction_records WHERE direction_correct_1w IS NOT NULL) AS dir_resolved_1w,
+      (SELECT SUM(direction_correct_1m) FROM prediction_records WHERE direction_correct_1m IS NOT NULL) AS dir_correct_1m,
+      (SELECT COUNT(direction_correct_1m) FROM prediction_records WHERE direction_correct_1m IS NOT NULL) AS dir_resolved_1m,
+      (SELECT SUM(direction_correct_6m) FROM prediction_records WHERE direction_correct_6m IS NOT NULL) AS dir_correct_6m,
+      (SELECT COUNT(direction_correct_6m) FROM prediction_records WHERE direction_correct_6m IS NOT NULL) AS dir_resolved_6m,
+      (SELECT SUM(direction_correct_1y) FROM prediction_records WHERE direction_correct_1y IS NOT NULL) AS dir_correct_1y,
+      (SELECT COUNT(direction_correct_1y) FROM prediction_records WHERE direction_correct_1y IS NOT NULL) AS dir_resolved_1y,
+
       MAX(updated_at) AS last_resolved_at
 
     FROM prediction_records
@@ -164,6 +187,21 @@ async function getGlobalAccuracy(conn: any) {
   const formatAccuracy = (val: any) => val !== null && val !== undefined ? Number(val) : null;
   const formatInt = (val: any) => val !== null && val !== undefined ? Number(val) : 0;
 
+  const dirPct = (correct: any, resolved: any): number | null => {
+    const r = Number(resolved);
+    return r > 0 ? Math.round(100 * Number(correct) / r) : null;
+  };
+
+  const acc1w = formatAccuracy(row.avg_accuracy_pct_1w);
+  const acc1m = formatAccuracy(row.avg_accuracy_pct_1m);
+  const acc6m = formatAccuracy(row.avg_accuracy_pct_6m);
+  const acc1y = formatAccuracy(row.avg_accuracy_pct_1y);
+
+  const dir1w = dirPct(row.dir_correct_1w, row.dir_resolved_1w);
+  const dir1m = dirPct(row.dir_correct_1m, row.dir_resolved_1m);
+  const dir6m = dirPct(row.dir_correct_6m, row.dir_resolved_6m);
+  const dir1y = dirPct(row.dir_correct_1y, row.dir_resolved_1y);
+
   return {
     status: 'ready',
     total_records: row.total_records || 0,
@@ -173,23 +211,31 @@ async function getGlobalAccuracy(conn: any) {
     horizons: {
       '1_week': {
         resolved_count: formatInt(row.resolved_count_1w),
-        proximity_accuracy_pct: formatAccuracy(row.avg_accuracy_pct_1w),
+        proximity_accuracy_pct: acc1w,
         high_accuracy_count: formatInt(row.count_95_1w),
+        direction_accuracy_pct: dir1w,
+        pqs: computePqs(acc1w, dir1w, '1_week'),
       },
       '1_month': {
         resolved_count: formatInt(row.resolved_count_1m),
-        proximity_accuracy_pct: formatAccuracy(row.avg_accuracy_pct_1m),
+        proximity_accuracy_pct: acc1m,
         high_accuracy_count: formatInt(row.count_95_1m),
+        direction_accuracy_pct: dir1m,
+        pqs: computePqs(acc1m, dir1m, '1_month'),
       },
       '6_month': {
         resolved_count: formatInt(row.resolved_count_6m),
-        proximity_accuracy_pct: formatAccuracy(row.avg_accuracy_pct_6m),
+        proximity_accuracy_pct: acc6m,
         high_accuracy_count: formatInt(row.count_95_6m),
+        direction_accuracy_pct: dir6m,
+        pqs: computePqs(acc6m, dir6m, '6_month'),
       },
       '1_year': {
         resolved_count: formatInt(row.resolved_count_1y),
-        proximity_accuracy_pct: formatAccuracy(row.avg_accuracy_pct_1y),
+        proximity_accuracy_pct: acc1y,
         high_accuracy_count: formatInt(row.count_95_1y),
+        direction_accuracy_pct: dir1y,
+        pqs: computePqs(acc1y, dir1y, '1_year'),
       },
     },
   };
