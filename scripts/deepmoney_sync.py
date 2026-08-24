@@ -1471,6 +1471,27 @@ def _print_run_summary(
             source   = str(q.get('source', 'v2_engine'))[:17]
             print(f"    {ticker:<10} {gps:>6.1f}  {cs:>5.0f}  {pred_pct:>+6.2f}%  {source}")
 
+    # ── Phase-4 retrain coverage gate ──────────────────────────────────────
+    # Non-blocking: import the check inline so a DB hiccup doesn't abort the
+    # summary.  Pass --fire only when you're ready to let it auto-trigger.
+    try:
+        import importlib.util, types
+        _spec = importlib.util.spec_from_file_location(
+            "check_retrain_coverage",
+            str(Path(__file__).resolve().parent / "check_retrain_coverage.py"),
+        )
+        _mod = importlib.util.module_from_spec(_spec)
+        _spec.loader.exec_module(_mod)  # type: ignore[union-attr]
+
+        import logging as _logging
+        _log = _logging.getLogger("deepmoney_sync.coverage")
+        _stats = _mod.query_coverage(_log)
+        if _stats:
+            _state = _mod.load_state()
+            _mod.print_coverage_summary(_stats, _state)
+    except Exception as _cov_err:
+        print(f"  [coverage check skipped: {_cov_err}]")
+
     print("=" * 70)
 
 if __name__ == "__main__":
