@@ -246,7 +246,7 @@ def forward_return(ohlcv: pd.DataFrame, snap: pd.Timestamp, horizon: int) -> Opt
         return None
     p0 = float(base["close"].iloc[-1])
     p1 = float(fwd["close"].iloc[-1])
-    if p0 <= 0:
+    if not np.isfinite(p0) or p0 <= 0 or not np.isfinite(p1):
         return None
     return p1 / p0 - 1.0
 
@@ -450,7 +450,7 @@ def main() -> int:
 
             for snap in snaps:
                 fwd = forward_return(ohlcv, snap, args.horizon)
-                if fwd is None:
+                if fwd is None or not np.isfinite(fwd):
                     continue
                 wb_y = wb_by_year.get(snap.year, {}) or wb_by_year.get(snap.year - 1, {})
                 # green_v2: nearest-before fundamentals + sector medians for this snap
