@@ -83,7 +83,7 @@ DB_PASSWORD = os.getenv('DB_PASSWORD')
 DB_DATABASE = os.getenv('DB_DATABASE')
 DB_PORT     = int(os.getenv('DB_PORT', 3306))
 
-HORIZONS = [('1w', 7), ('1m', 30), ('6m', 180), ('1y', 365)]
+HORIZONS = [('1w', 7), ('1m', 30), ('3m', 91), ('6m', 180)]
 
 # ---------------------------------------------------------------------------
 # Mirrors SECTOR_MEDIANS / SECTOR_ETF in
@@ -484,8 +484,8 @@ def find_actual_price(full_hist: list, target_date: date):
 DIRECTION_DEADBAND_PCT = {
     '1w': 0.02,
     '1m': 0.02,
+    '3m': 0.02,
     '6m': 0.02,
-    '1y': 0.02,
 }
 _DEFAULT_DEADBAND = 0.02
 
@@ -542,15 +542,15 @@ def upsert_backtest_row(conn, row: dict, overwrite: bool):
 
         columns = [
             'price_at_prediction',
-            'predicted_price_1w', 'predicted_price_1m', 'predicted_price_6m', 'predicted_price_1y',
-            'predicted_change_pct_1w', 'predicted_change_pct_1m', 'predicted_change_pct_6m', 'predicted_change_pct_1y',
-            'actual_price_1w', 'actual_price_1m', 'actual_price_6m', 'actual_price_1y',
-            'accuracy_pct_1w', 'accuracy_pct_1m', 'accuracy_pct_6m', 'accuracy_pct_1y',
-            'direction_correct_1w', 'direction_correct_1m', 'direction_correct_6m', 'direction_correct_1y',
-            'resolved_1w', 'resolved_1m', 'resolved_6m', 'resolved_1y',
-            'confidence_score_1w', 'confidence_score_1m', 'confidence_score_6m', 'confidence_score_1y',
-            'signal_confidence_1w', 'signal_confidence_1m', 'signal_confidence_6m', 'signal_confidence_1y',
-            'precedent_confidence_1w', 'precedent_confidence_1m', 'precedent_confidence_6m', 'precedent_confidence_1y',
+            'predicted_price_1w', 'predicted_price_1m', 'predicted_price_3m', 'predicted_price_6m',
+            'predicted_change_pct_1w', 'predicted_change_pct_1m', 'predicted_change_pct_3m', 'predicted_change_pct_6m',
+            'actual_price_1w', 'actual_price_1m', 'actual_price_3m', 'actual_price_6m',
+            'accuracy_pct_1w', 'accuracy_pct_1m', 'accuracy_pct_3m', 'accuracy_pct_6m',
+            'direction_correct_1w', 'direction_correct_1m', 'direction_correct_3m', 'direction_correct_6m',
+            'resolved_1w', 'resolved_1m', 'resolved_3m', 'resolved_6m',
+            'confidence_score_1w', 'confidence_score_1m', 'confidence_score_3m', 'confidence_score_6m',
+            'signal_confidence_1w', 'signal_confidence_1m', 'signal_confidence_3m', 'signal_confidence_6m',
+            'precedent_confidence_1w', 'precedent_confidence_1m', 'precedent_confidence_3m', 'precedent_confidence_6m',
             'blended_confidence_1m',
         ]
         values = [row[c] for c in columns]
@@ -642,7 +642,7 @@ def backtest_one(ticker: str, as_of: str, full_hist: list, macro_full: dict, con
     summary_bits = [f"{ticker} {as_of} price={price_at_prediction:.2f}"]
 
     # Confidence fields — written once, outside the horizons loop.
-    for h in ('1w', '1m', '6m', '1y'):
+    for h in ('1w', '1m', '3m', '6m'):
         row[f'predicted_change_pct_{h}'] = result.get(f'predicted_change_pct_{h}')
         row[f'confidence_score_{h}']     = result.get(f'confidence_score_{h}')
         row[f'signal_confidence_{h}']    = result.get(f'signal_confidence_{h}')

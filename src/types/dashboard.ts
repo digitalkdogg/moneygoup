@@ -1,6 +1,7 @@
 /**
  * Dashboard widget specific types
  */
+import type { HorizonKey } from '@/utils/horizons';
 
 export interface MarketIndexItem {
   symbol: string;
@@ -45,7 +46,7 @@ export interface DashboardRecommendation {
   gpsScore: number | null;
   gpsBreakdown: object | null;
   /** Which prediction horizon the GPS reflects (i.e. which delta drove mlpUpside). */
-  gpsHorizon?: '1_week' | '1_month' | '6_month' | '1_year';
+  gpsHorizon?: HorizonKey;
   lastRequestedAt: string;
   scope: 'portfolio' | 'watchlist' | 'discovery' | 'etf_holding' | 'off_market_mover';
   etfTicker?: string;         // set when scope === 'etf_holding'

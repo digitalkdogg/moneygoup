@@ -61,16 +61,16 @@ interface PredictionResult {
   regularMarketPrice: number
   predicted_price_1w: number
   predicted_price_1m: number
+  predicted_price_3m: number
   predicted_price_6m: number
-  predicted_price_1y: number
   predicted_change_pct_1w: number
   predicted_change_pct_1m: number
+  predicted_change_pct_3m: number
   predicted_change_pct_6m: number
-  predicted_change_pct_1y: number
   confidence_score_1w: number
   confidence_score_1m: number
+  confidence_score_3m: number
   confidence_score_6m: number
-  confidence_score_1y: number
   high_uncertainty: boolean
   predicted_change_range: [number, number]
   predicted_range_1w?: [number, number]
@@ -92,13 +92,13 @@ interface PredictionResult {
     imputedFields: string[]
   }
   metric_analysis?: any
-  // Set by Python's _sanitize_predictions when 6m + 1y both push against
+  // Set by Python's _sanitize_predictions when 3m + 6m both push against
   // their vol-scaled caps in the same direction. Signals "strong directional
   // extrapolation, price target is at the model ceiling, don't treat the
   // point value as precise." UI swaps the "+X% from current" text for a
   // directional pill and prefixes the price with ≥ / ≤.
+  at_model_ceiling_3m?: boolean
   at_model_ceiling_6m?: boolean
-  at_model_ceiling_1y?: boolean
   ceiling_direction?: 'up' | 'down'
   confidence_breakdown?: ConfidenceBreakdown | null
   // Per-horizon override reasons emitted by _sanitize_predictions when it
@@ -107,19 +107,19 @@ interface PredictionResult {
   // over the component-based reasons when present.
   confidence_reason_1w?: string
   confidence_reason_1m?: string
+  confidence_reason_3m?: string
   confidence_reason_6m?: string
-  confidence_reason_1y?: string
   // Decomposed confidence axes (Item 1 of confidence redesign).
   // signal_confidence: MC ensemble agreement + CV MAPE — model-internal certainty.
   // precedent_confidence: % of historical windows that matched this magnitude/direction.
   signal_confidence_1w?: number | null
   signal_confidence_1m?: number | null
+  signal_confidence_3m?: number | null
   signal_confidence_6m?: number | null
-  signal_confidence_1y?: number | null
   precedent_confidence_1w?: number | null
   precedent_confidence_1m?: number | null
+  precedent_confidence_3m?: number | null
   precedent_confidence_6m?: number | null
-  precedent_confidence_1y?: number | null
   /** Optional LLM-written 2-3 sentence narrative. Rendered as a
    *  "Why this range" callout above the trajectory chart when present.
    *  NULL when Ollama is disabled/down; UI falls back to the rule-based
@@ -321,7 +321,7 @@ function TrajectoryChart({
 }: {
   trajectory: TrajectoryPoint[]
   currentPrice: number
-  anchorPcts?: { w1?: number | null; m1?: number | null; m6?: number | null; y1?: number | null }
+  anchorPcts?: { w1?: number | null; m1?: number | null; m3?: number | null; m6?: number | null }
 }) {
   const [tooltip, setTooltip] = useState<TooltipState>(null)
 
@@ -349,29 +349,48 @@ function TrajectoryChart({
   const xScale = (i: number) => PAD.left + (i / (pts.length - 1)) * chartW
   const yScale = (p: number) => PAD.top + chartH - ((p - minP) / (maxP - minP)) * chartH
 
-  const linePath = pts
-    .map((t, i) => `${i === 0 ? 'M' : 'L'} ${xScale(i).toFixed(1)} ${yScale(t.predicted_price).toFixed(1)}`)
-    .join(' ')
+  // Catmull-Rom → cubic Bezier spline. alpha controls tension (0.5 = balanced).
+  function smoothPath(points: { x: number; y: number }[], close = false): string {
+    if (points.length < 2) return ''
+    const a = 0.5 / 6
+    let d = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`
+    for (let i = 1; i < points.length; i++) {
+      const p0 = points[Math.max(0, i - 2)]
+      const p1 = points[i - 1]
+      const p2 = points[i]
+      const p3 = points[Math.min(points.length - 1, i + 1)]
+      const cp1x = p1.x + (p2.x - p0.x) * a
+      const cp1y = p1.y + (p2.y - p0.y) * a
+      const cp2x = p2.x - (p3.x - p1.x) * a
+      const cp2y = p2.y - (p3.y - p1.y) * a
+      d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)},${cp2x.toFixed(1)} ${cp2y.toFixed(1)},${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`
+    }
+    if (close) d += ' Z'
+    return d
+  }
 
-  const bandPath =
-    pts.map((t, i) => `${i === 0 ? 'M' : 'L'} ${xScale(i).toFixed(1)} ${yScale(t.upper_bound).toFixed(1)}`).join(' ') +
-    ' ' +
-    pts.map((t, i) => `L ${xScale(pts.length - 1 - i).toFixed(1)} ${yScale(pts[pts.length - 1 - i].lower_bound).toFixed(1)}`).join(' ') +
-    ' Z'
+  const linePts  = pts.map((t, i) => ({ x: xScale(i), y: yScale(t.predicted_price) }))
+  const upperPts = pts.map((t, i) => ({ x: xScale(i), y: yScale(t.upper_bound) }))
+  const lowerPts = [...pts].reverse().map((t, i) => ({ x: xScale(pts.length - 1 - i), y: yScale(t.lower_bound) }))
+
+  const linePath = smoothPath(linePts)
+  // Band: smooth upper arc forward, then smooth lower arc reversed, closed
+  const bandPath = smoothPath(upperPts) + ' ' + smoothPath(lowerPts).replace('M', 'L') + ' Z'
 
   const currentY  = yScale(currentPrice)
-  // Indexes shift +1 because pts[0] is now the "Now" anchor
-  const m1wIdx    = 1   // t+5  (1 week)
-  const m1Idx     = 2   // t+21 (1 month)
+  // Indexes shift +1 because pts[0] is now the "Now" anchor.
+  // Trajectory has 10 waypoints: [T5, T21, T42, T63, T84, T105, T126, T147, T168, T189]
+  const m1wIdx    = 1   // t+5   (1 week)
+  const m1Idx     = 2   // t+21  (1 month)
+  const m3Idx     = 4   // t+63  (3 months)
   const m6Idx     = 7   // t+126 (6 months)
-  const m12Idx    = 13  // t+252 (12 months)
   const dividerX  = xScale(m6Idx)
   const m1wX      = xScale(m1wIdx)
   const m1wY      = yScale(pts[m1wIdx]?.predicted_price ?? currentPrice)
+  const m3X       = xScale(m3Idx)
+  const m3Y       = yScale(pts[m3Idx]?.predicted_price ?? currentPrice)
   const m6X       = xScale(m6Idx)
-  const m12X      = xScale(m12Idx)
   const m6Y       = yScale(pts[m6Idx]?.predicted_price ?? currentPrice)
-  const m12Y      = yScale(pts[m12Idx]?.predicted_price ?? currentPrice)
   const m1X       = xScale(m1Idx)
   const m1Y       = yScale(pts[m1Idx]?.predicted_price ?? currentPrice)
 
@@ -384,10 +403,14 @@ function TrajectoryChart({
           <clipPath id="chart-clip">
             <rect x={PAD.left} y={PAD.top} width={chartW} height={chartH} />
           </clipPath>
+          <linearGradient id="band-gradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#2563EB" stopOpacity="0.18" />
+            <stop offset="100%" stopColor="#2563EB" stopOpacity="0.04" />
+          </linearGradient>
         </defs>
 
         {/* Confidence band */}
-        <path d={bandPath} fill="#2563EB" fillOpacity="0.10" clipPath="url(#chart-clip)" />
+        <path d={bandPath} fill="url(#band-gradient)" clipPath="url(#chart-clip)" />
 
         {/* Current price reference line */}
         <line
@@ -406,7 +429,7 @@ function TrajectoryChart({
         <text x={dividerX + 4}  y={PAD.top + 12} fontSize="9" fill="#6B7280">Extended Outlook</text>
 
         {/* Price line */}
-        <path d={linePath} fill="none" stroke="#2563EB" strokeWidth="2" clipPath="url(#chart-clip)" />
+        <path d={linePath} fill="none" stroke="#2563EB" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" clipPath="url(#chart-clip)" />
 
         {/* 1-week dot */}
         <circle
@@ -429,10 +452,10 @@ function TrajectoryChart({
           onMouseLeave={() => setTooltip(null)}
         />
 
-        {/* 12-month dot */}
+        {/* 3-month dot */}
         <circle
-          cx={m12X} cy={m12Y} r="6" fill="#2563EB" stroke="#1d4ed8" style={{ cursor: 'pointer' }}
-          onMouseEnter={() => { const p = pts[m12Idx]?.predicted_price ?? currentPrice; setTooltip({ x: m12X, y: m12Y, label: '12 Months', price: p, pct: anchorPcts?.y1 ?? (p - currentPrice) / currentPrice * 100 }) }}
+          cx={m3X} cy={m3Y} r="6" fill="#2563EB" stroke="#1d4ed8" style={{ cursor: 'pointer' }}
+          onMouseEnter={() => { const p = pts[m3Idx]?.predicted_price ?? currentPrice; setTooltip({ x: m3X, y: m3Y, label: '3 Months', price: p, pct: anchorPcts?.m3 ?? (p - currentPrice) / currentPrice * 100 }) }}
           onMouseLeave={() => setTooltip(null)}
         />
 
@@ -639,24 +662,24 @@ export default function StockPrediction({
     }
     const p1w = prefetchedPrediction.predicted_price_1w ?? null
     const p1m = prefetchedPrediction.predicted_price_1m ?? null
+    const p3m = prefetchedPrediction.predicted_price_3m ?? null
     const p6m = prefetchedPrediction.predicted_price_6m ?? null
-    const p1y = prefetchedPrediction.predicted_price_1y ?? null
 
     const inflated: PredictionResult = {
       ticker,
       regularMarketPrice:      currentPrice,
       predicted_price_1w:      p1w ?? 0,
       predicted_price_1m:      p1m ?? 0,
+      predicted_price_3m:      p3m ?? 0,
       predicted_price_6m:      p6m ?? 0,
-      predicted_price_1y:      p1y ?? 0,
       predicted_change_pct_1w: p1w != null ? reanchorPct(p1w) : (prefetchedPrediction.predicted_change_pct_1w ?? 0),
       predicted_change_pct_1m: p1m != null ? reanchorPct(p1m) : (prefetchedPrediction.predicted_change_pct_1m ?? 0),
+      predicted_change_pct_3m: p3m != null ? reanchorPct(p3m) : (prefetchedPrediction.predicted_change_pct_3m ?? 0),
       predicted_change_pct_6m: p6m != null ? reanchorPct(p6m) : (prefetchedPrediction.predicted_change_pct_6m ?? 0),
-      predicted_change_pct_1y: p1y != null ? reanchorPct(p1y) : (prefetchedPrediction.predicted_change_pct_1y ?? 0),
       confidence_score_1w:     prefetchedPrediction.confidence_score_1w     ?? 0,
       confidence_score_1m:     prefetchedPrediction.confidence_score_1m     ?? 0,
+      confidence_score_3m:     prefetchedPrediction.confidence_score_3m     ?? 0,
       confidence_score_6m:     prefetchedPrediction.confidence_score_6m     ?? 0,
-      confidence_score_1y:     prefetchedPrediction.confidence_score_1y     ?? 0,
       high_uncertainty:        prefetchedPrediction.high_uncertainty        ?? false,
       predicted_change_range:  prefetchedPrediction.predicted_change_range  ?? [0, 0],
       predicted_range_1w:      prefetchedPrediction.predicted_range_1w,
@@ -669,14 +692,14 @@ export default function StockPrediction({
       note:                    prefetchedPrediction.note,
       data_quality:            prefetchedPrediction.data_quality,
       metric_analysis:         prefetchedPrediction.metric_analysis,
+      at_model_ceiling_3m:     prefetchedPrediction.at_model_ceiling_3m ?? undefined,
       at_model_ceiling_6m:     prefetchedPrediction.at_model_ceiling_6m ?? undefined,
-      at_model_ceiling_1y:     prefetchedPrediction.at_model_ceiling_1y ?? undefined,
       ceiling_direction:       prefetchedPrediction.ceiling_direction   ?? undefined,
       confidence_breakdown:    prefetchedPrediction.confidence_breakdown ?? undefined,
       confidence_reason_1w:    prefetchedPrediction.confidence_reason_1w ?? undefined,
       confidence_reason_1m:    prefetchedPrediction.confidence_reason_1m ?? undefined,
+      confidence_reason_3m:    prefetchedPrediction.confidence_reason_3m ?? undefined,
       confidence_reason_6m:    prefetchedPrediction.confidence_reason_6m ?? undefined,
-      confidence_reason_1y:    prefetchedPrediction.confidence_reason_1y ?? undefined,
       llm_rationale:           (prefetchedPrediction as { llm_rationale?: string | null }).llm_rationale ?? null,
     }
     setPrediction(inflated)
@@ -698,7 +721,7 @@ export default function StockPrediction({
         <>
           <TitleTag className="text-2xl font-semibold text-gray-800 mb-4">📊 AI-Powered Price Prediction</TitleTag>
           <p className="text-gray-600 mb-4">
-            Click the button to generate 1-week, 1-month, 6-month and 12-month price predictions for {ticker} using an MLP neural network.
+            Click the button to generate 1-week, 1-month, 3-month and 6-month price predictions for {ticker} using an MLP neural network.
           </p>
         </>
       )}
@@ -844,10 +867,39 @@ export default function StockPrediction({
               )}
             </div>
 
-            {/* 6-month card */}
+            {/* 3-month card */}
             <div className="p-5 bg-emerald-50 rounded-xl border border-emerald-200">
-              <p className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-2">6-Month Price Target</p>
+              <p className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-2">3-Month Price Target</p>
               <p className="text-3xl font-bold text-emerald-800 mb-1">
+                {prediction.at_model_ceiling_3m
+                  ? `${prediction.ceiling_direction === 'down' ? '≤' : '≥'} ${formatCurrency(prediction.predicted_price_3m)}`
+                  : formatCurrency(prediction.predicted_price_3m)}
+              </p>
+              {prediction.at_model_ceiling_3m ? (
+                <p className="text-sm font-semibold mb-3"
+                   style={{ color: prediction.ceiling_direction === 'down' ? '#dc2626' : '#005a00' }}>
+                  Strong {prediction.ceiling_direction === 'down' ? 'downward' : 'upward'} signal — target at model ceiling
+                </p>
+              ) : (
+                <p
+                  className={`text-sm font-semibold mb-3 ${prediction.predicted_change_pct_3m < 0 ? 'text-red-600' : ''}`}
+                  style={prediction.predicted_change_pct_3m >= 0 ? { color: "#005a00" } : {}}
+                >
+                  {prediction.predicted_change_pct_3m >= 0 ? '+' : ''}{formatNumber(prediction.predicted_change_pct_3m, 2)}% from current
+                </p>
+              )}
+              <ConfidenceBadge score={prediction.confidence_score_3m} breakdown={prediction.confidence_breakdown} overrideReason={prediction.confidence_reason_3m} />
+              {prediction.monthly_trajectory?.[3] && (
+                <p className="text-xs text-green-700 mt-3">
+                  Range: {formatCurrency(prediction.monthly_trajectory[3].lower_bound)} – {formatCurrency(prediction.monthly_trajectory[3].upper_bound)}
+                </p>
+              )}
+            </div>
+
+            {/* 6-month card */}
+            <div className="p-5 bg-white rounded-xl border border-green-300">
+              <p className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-2">6-Month Price Target</p>
+              <p className="text-3xl font-bold text-green-900 mb-1">
                 {prediction.at_model_ceiling_6m
                   ? `${prediction.ceiling_direction === 'down' ? '≤' : '≥'} ${formatCurrency(prediction.predicted_price_6m)}`
                   : formatCurrency(prediction.predicted_price_6m)}
@@ -867,37 +919,8 @@ export default function StockPrediction({
               )}
               <ConfidenceBadge score={prediction.confidence_score_6m} breakdown={prediction.confidence_breakdown} overrideReason={prediction.confidence_reason_6m} />
               {prediction.monthly_trajectory?.[6] && (
-                <p className="text-xs text-green-700 mt-3">
-                  Range: {formatCurrency(prediction.monthly_trajectory[6].lower_bound)} – {formatCurrency(prediction.monthly_trajectory[6].upper_bound)}
-                </p>
-              )}
-            </div>
-
-            {/* 12-month card */}
-            <div className="p-5 bg-white rounded-xl border border-green-300">
-              <p className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-2">12-Month Price Target</p>
-              <p className="text-3xl font-bold text-green-900 mb-1">
-                {prediction.at_model_ceiling_1y
-                  ? `${prediction.ceiling_direction === 'down' ? '≤' : '≥'} ${formatCurrency(prediction.predicted_price_1y)}`
-                  : formatCurrency(prediction.predicted_price_1y)}
-              </p>
-              {prediction.at_model_ceiling_1y ? (
-                <p className="text-sm font-semibold mb-3"
-                   style={{ color: prediction.ceiling_direction === 'down' ? '#dc2626' : '#005a00' }}>
-                  Strong {prediction.ceiling_direction === 'down' ? 'downward' : 'upward'} signal — target at model ceiling
-                </p>
-              ) : (
-                <p
-                  className={`text-sm font-semibold mb-3 ${prediction.predicted_change_pct_1y < 0 ? 'text-red-600' : ''}`}
-                  style={prediction.predicted_change_pct_1y >= 0 ? { color: "#005a00" } : {}}
-                >
-                  {prediction.predicted_change_pct_1y >= 0 ? '+' : ''}{formatNumber(prediction.predicted_change_pct_1y, 2)}% from current
-                </p>
-              )}
-              <ConfidenceBadge score={prediction.confidence_score_1y} breakdown={prediction.confidence_breakdown} overrideReason={prediction.confidence_reason_1y} />
-              {prediction.monthly_trajectory?.[12] && (
                 <p className="text-xs text-green-800 mt-3">
-                  Range: {formatCurrency(prediction.monthly_trajectory[12].lower_bound)} – {formatCurrency(prediction.monthly_trajectory[12].upper_bound)}
+                  Range: {formatCurrency(prediction.monthly_trajectory[6].lower_bound)} – {formatCurrency(prediction.monthly_trajectory[6].upper_bound)}
                 </p>
               )}
               <p className="text-xs text-gray-800 mt-2 italic">Wider uncertainty — treat as <br />directional guidance</p>
@@ -913,8 +936,8 @@ export default function StockPrediction({
               anchorPcts={{
                 w1: prediction.predicted_change_pct_1w,
                 m1: prediction.predicted_change_pct_1m,
+                m3: prediction.predicted_change_pct_3m,
                 m6: prediction.predicted_change_pct_6m,
-                y1: prediction.predicted_change_pct_1y,
               }}
             />
           )}

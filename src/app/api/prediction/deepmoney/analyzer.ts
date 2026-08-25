@@ -1,4 +1,5 @@
 import { createLogger } from '@/utils/logger';
+import type { HorizonKey } from '@/utils/horizons';
 import { getStockDataForPrediction, runPredictionInternal, runFallbackPrediction } from '@/utils/stockDataHelper';
 import { calculateGpsScore } from '@/utils/gps';
 import { fetchRankerSharedMacro, scoreWithRanker, type RankerScoreMap } from '@/utils/rankerInference';
@@ -79,8 +80,8 @@ export interface EnrichedStock {
 
 /** Options that drive how the analyzer runs the ML and gates the results. */
 export interface AnalyzeOptions {
-    /** outlook passed to predict_weighted_analysis.py — '1_week' / '1_month' / '6_month' / '1_year'. */
-    outlook?: '1_week' | '1_month' | '6_month' | '1_year';
+    /** outlook passed to predict_weighted_analysis.py — '1_week' / '1_month' / '3_month' / '6_month'. */
+    outlook?: HorizonKey;
     /** Minimum positive predicted change % required to surface (ML Validation Gate). */
     mlGate?: number;
     /** Fraction of ranker-scored stocks (sorted by rank_pct desc) to keep.
@@ -496,7 +497,7 @@ export async function analyzeStocks(
                     '1_week':  { predicted_price: allHorizons.predicted_price_1w,  predicted_change_pct: allHorizons.predicted_change_pct_1w, confidence_score: allHorizons.confidence_score_1w, predicted_range: allHorizons.predicted_range_1w },
                     '1_month': { predicted_price: allHorizons.predicted_price_1m,  predicted_change_pct: allHorizons.predicted_change_pct_1m, confidence_score: allHorizons.confidence_score_1m },
                     '6_month': { predicted_price: allHorizons.predicted_price_6m,  predicted_change_pct: allHorizons.predicted_change_pct_6m, confidence_score: allHorizons.confidence_score_6m, predicted_change_range: allHorizons.predicted_change_range },
-                    '1_year':  { predicted_price: allHorizons.predicted_price_1y,  predicted_change_pct: allHorizons.predicted_change_pct_1y, confidence_score: allHorizons.confidence_score_1y },
+                    '3_month': { predicted_price: allHorizons.predicted_price_3m,  predicted_change_pct: allHorizons.predicted_change_pct_3m, confidence_score: allHorizons.confidence_score_3m },
                 };
                 // predictionResult was previously the 1_month filtered blob;
                 // preserving the name keeps downstream code (GPS, prediction_input
@@ -572,7 +573,7 @@ export async function analyzeStocks(
                     stock.classification = 'standard';
                 }
 
-                // Spread the full --outlook='all' result so every _1w/_1m/_6m/_1y
+                // Spread the full --outlook='all' result so every _1w/_1m/_3m/_6m
                 // key AND common metadata (data_quality, accuracy_metrics,
                 // regime_info, llm_rationale, etc.) survive into prediction_input.
                 // Legacy unsuffixed keys (predicted_change_pct, confidence_score,

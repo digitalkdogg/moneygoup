@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """
-extend_long_term_labels.py — add 126d / 252d forward-return labels to
+extend_long_term_labels.py — add 63d / 126d forward-return labels to
 ranking_training_snapshots so we can train a long-term cross-sectional
 model on the existing GREEN-feature dataset.
 
 The table currently only has the 20-day forward return that the ranker
-uses. For 6m / 1y prediction we need labels at 126d and 252d. We compute
+uses. For 3m / 6m prediction we need labels at 63d and 126d. We compute
 those from per-ticker price history (cached one yfinance pull per ticker)
 and UPDATE the rows in place.
 
 Idempotent:
-  - Adds `forward_return_126d` and `forward_return_252d` columns if missing.
+  - Adds `forward_return_63d` and `forward_return_126d` columns if missing.
   - Skips rows that already have non-NULL labels (use --recompute to force).
 
-Recent snapshots can't have 6m or 1y labels yet (the future hasn't
+Recent snapshots can't have 3m or 6m labels yet (the future hasn't
 happened). Those rows are left NULL.
 
 USAGE:
@@ -51,8 +51,8 @@ DB_DATABASE = os.getenv('DB_DATABASE')
 DB_PORT     = int(os.getenv('DB_PORT', 3306))
 
 HORIZON_DAYS = [
+    ('forward_return_63d',  63),
     ('forward_return_126d', 126),
-    ('forward_return_252d', 252),
 ]
 
 
@@ -64,7 +64,7 @@ def get_db():
 
 
 def ensure_columns(conn):
-    """Idempotent ALTER TABLE — add the 126d / 252d label columns if missing."""
+    """Idempotent ALTER TABLE — add the 63d / 126d label columns if missing."""
     cur = conn.cursor()
     cur.execute("SHOW COLUMNS FROM ranking_training_snapshots")
     existing = {row[0] for row in cur.fetchall()}
@@ -129,7 +129,7 @@ def process_ticker(conn, ticker: str, recompute: bool) -> tuple[int, int]:
     else:
         cur.execute(
             "SELECT id, snapshot_date FROM ranking_training_snapshots "
-            "WHERE ticker = %s AND (forward_return_126d IS NULL OR forward_return_252d IS NULL)",
+            "WHERE ticker = %s AND (forward_return_63d IS NULL OR forward_return_126d IS NULL)",
             (ticker,),
         )
     rows = cur.fetchall()
@@ -145,16 +145,16 @@ def process_ticker(conn, ticker: str, recompute: bool) -> tuple[int, int]:
     for record_id, snapshot_date in rows:
         if hasattr(snapshot_date, 'date'):
             snapshot_date = snapshot_date.date()
+        r63  = compute_forward_return(prices, snapshot_date, 63)
         r126 = compute_forward_return(prices, snapshot_date, 126)
-        r252 = compute_forward_return(prices, snapshot_date, 252)
-        if r126 is None and r252 is None:
+        if r63 is None and r126 is None:
             skipped += 1
             continue
         cur.execute(
             "UPDATE ranking_training_snapshots "
-            "SET forward_return_126d = %s, forward_return_252d = %s "
+            "SET forward_return_63d = %s, forward_return_126d = %s "
             "WHERE id = %s",
-            (r126, r252, record_id),
+            (r63, r126, record_id),
         )
         updated += 1
     conn.commit()
@@ -162,7 +162,7 @@ def process_ticker(conn, ticker: str, recompute: bool) -> tuple[int, int]:
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Extend ranking_training_snapshots with 6m/1y labels")
+    ap = argparse.ArgumentParser(description="Extend ranking_training_snapshots with 3m/6m labels")
     ap.add_argument('--recompute', action='store_true', help="Recompute even non-NULL labels")
     ap.add_argument('--tickers', type=str, default=None, help="Comma-separated subset (default: all)")
     args = ap.parse_args()
@@ -192,15 +192,15 @@ def main():
     cur.execute("""
         SELECT
           COUNT(*) AS total,
-          SUM(forward_return_126d IS NOT NULL) AS has_126d,
-          SUM(forward_return_252d IS NOT NULL) AS has_252d
+          SUM(forward_return_63d  IS NOT NULL) AS has_63d,
+          SUM(forward_return_126d IS NOT NULL) AS has_126d
         FROM ranking_training_snapshots
     """)
-    total, has_126d, has_252d = cur.fetchone()
+    total, has_63d, has_126d = cur.fetchone()
     print(f"\nDone. Final label coverage:")
     print(f"  total rows:           {total}")
+    print(f"  forward_return_63d:   {has_63d}/{total}  ({100*has_63d/total:.1f}%)")
     print(f"  forward_return_126d:  {has_126d}/{total} ({100*has_126d/total:.1f}%)")
-    print(f"  forward_return_252d:  {has_252d}/{total} ({100*has_252d/total:.1f}%)")
     print(f"  this run:             updated={total_updated} skipped={total_skipped}")
 
     conn.close()

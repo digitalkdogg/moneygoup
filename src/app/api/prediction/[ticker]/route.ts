@@ -21,6 +21,7 @@ import { LimitService } from '@/utils/limitService';
 import { checkApprovalGuard } from '@/utils/approvalStatus';
 import { getUserStrategy, resolveStrategy, DEFAULT_STRATEGY } from '@/utils/strategy';
 import { recordPrediction } from '@/utils/predictionRecorder';
+import type { HorizonKey } from '@/utils/horizons';
 
 const logger = createLogger('api/prediction');
 
@@ -93,7 +94,7 @@ export async function POST(
   }
 
   const outlook = (body.outlook || queryOutlook).toString();
-  const validOutlooks = ['1_week', '1_month', '6_month', '1_year', 'all'];
+  const validOutlooks = ['1_week', '1_month', '3_month', '6_month', 'all'];
   const validatedOutlook = validOutlooks.includes(outlook) ? outlook : 'all';
 
   // Helper: compute GPS from a prediction result + body metrics. The GPS shown
@@ -103,7 +104,7 @@ export async function POST(
   async function buildResponse(result: any, source: 'cache' | 'livedata') {
     let computedGps: ReturnType<typeof calculateGpsScore> | null = null;
     let baselineGps: ReturnType<typeof calculateGpsScore> | null = null;
-    let gpsHorizon: '1_week' | '1_month' | '6_month' | '1_year' = '1_month';
+    let gpsHorizon: HorizonKey = '1_month';
 
     if (!isInternal && result?.predicted_price_1m) {
       const gpsMetrics = {
@@ -124,8 +125,8 @@ export async function POST(
       // Per-user horizon: pick the prediction matching the user's timeframe.
       const strategy = await getUserStrategy(userId).catch(() => DEFAULT_STRATEGY);
       gpsHorizon = strategy.investment_timeframe;
-      const horizonKey = strategy.investment_timeframe.replace('_', ''); // '1week' / '1month' / '6month' / '1year'
-      const suffixMap: Record<string, string> = { '1week': '1w', '1month': '1m', '6month': '6m', '1year': '1y' };
+      const horizonKey = strategy.investment_timeframe.replace('_', ''); // '1week' / '1month' / '3month' / '6month'
+      const suffixMap: Record<string, string> = { '1week': '1w', '1month': '1m', '3month': '3m', '6month': '6m' };
       const sfx = suffixMap[horizonKey] ?? '1m';
       const horizonChange = result[`predicted_change_pct_${sfx}`] ?? result.predicted_change_pct_1m;
       const horizonConfidence = result[`confidence_score_${sfx}`] ?? result.confidence_score_1m;
@@ -162,38 +163,38 @@ export async function POST(
           modelVersion: result.model_version,
           predictedPrice1w: result.predicted_price_1w,
           predictedPrice1m: result.predicted_price_1m,
+          predictedPrice3m: result.predicted_price_3m,
           predictedPrice6m: result.predicted_price_6m,
-          predictedPrice1y: result.predicted_price_1y,
           predictedChangePct1w: result.predicted_change_pct_1w,
           predictedChangePct1m: result.predicted_change_pct_1m,
+          predictedChangePct3m: result.predicted_change_pct_3m,
           predictedChangePct6m: result.predicted_change_pct_6m,
-          predictedChangePct1y: result.predicted_change_pct_1y,
           confidenceScore1w: result.confidence_score_1w,
           confidenceScore1m: result.confidence_score_1m,
+          confidenceScore3m: result.confidence_score_3m,
           confidenceScore6m: result.confidence_score_6m,
-          confidenceScore1y: result.confidence_score_1y,
           signalConfidence1w: result.signal_confidence_1w ?? null,
           signalConfidence1m: result.signal_confidence_1m ?? null,
+          signalConfidence3m: result.signal_confidence_3m ?? null,
           signalConfidence6m: result.signal_confidence_6m ?? null,
-          signalConfidence1y: result.signal_confidence_1y ?? null,
           precedentConfidence1w: result.precedent_confidence_1w ?? null,
           precedentConfidence1m: result.precedent_confidence_1m ?? null,
+          precedentConfidence3m: result.precedent_confidence_3m ?? null,
           precedentConfidence6m: result.precedent_confidence_6m ?? null,
-          precedentConfidence1y: result.precedent_confidence_1y ?? null,
           blendedConfidence1m: result.blended_confidence_1m ?? null,
           gpsScore: baselineGps?.score,
           gpsBreakdown: baselineGps?.breakdown,
           accuracyMetrics: result.accuracy_metrics,
           dataQuality: result.data_quality,
           modelStatus: result.model_status,
+          atModelCeiling3m: result.at_model_ceiling_3m ?? null,
           atModelCeiling6m: result.at_model_ceiling_6m ?? null,
-          atModelCeiling1y: result.at_model_ceiling_1y ?? null,
           ceilingDirection: result.ceiling_direction ?? null,
           confidenceBreakdown: result.confidence_breakdown,
           confidenceReason1w: result.confidence_reason_1w,
           confidenceReason1m: result.confidence_reason_1m,
+          confidenceReason3m: result.confidence_reason_3m,
           confidenceReason6m: result.confidence_reason_6m,
-          confidenceReason1y: result.confidence_reason_1y,
           llmRationale: null,
         }).catch(() => {});
       }
@@ -307,11 +308,11 @@ export async function POST(
       result.confidence_score = result.confidence_score ?? result.confidence_score_6m;
       result.predicted_price = result.predicted_price ?? result.predicted_price_6m;
       result.predicted_price_6m = result.predicted_price_6m ?? result.predicted_price;
-    } else if (validatedOutlook === '1_year') {
-      result.predicted_change_pct = result.predicted_change_pct ?? result.predicted_change_pct_1y;
-      result.confidence_score = result.confidence_score ?? result.confidence_score_1y;
-      result.predicted_price = result.predicted_price ?? result.predicted_price_1y;
-      result.predicted_price_1y = result.predicted_price_1y ?? result.predicted_price;
+    } else if (validatedOutlook === '3_month') {
+      result.predicted_change_pct = result.predicted_change_pct ?? result.predicted_change_pct_3m;
+      result.confidence_score = result.confidence_score ?? result.confidence_score_3m;
+      result.predicted_price = result.predicted_price ?? result.predicted_price_3m;
+      result.predicted_price_3m = result.predicted_price_3m ?? result.predicted_price;
     }
     predictionCache.set(`${validatedTicker}_${validatedOutlook}_${modelTag}`, result);
 
@@ -457,16 +458,16 @@ async function savePredictionAsync(
         ticker,
         predicted_price_1m: result.predicted_price_1m,
         predicted_price_1w: positive(result.predicted_price_1w),
+        predicted_price_3m: positive(result.predicted_price_3m),
         predicted_price_6m: positive(result.predicted_price_6m),
-        predicted_price_1y: positive(result.predicted_price_1y),
         predicted_change_pct_1w: num(result.predicted_change_pct_1w),
         predicted_change_pct_1m: num(result.predicted_change_pct_1m),
+        predicted_change_pct_3m: num(result.predicted_change_pct_3m),
         predicted_change_pct_6m: num(result.predicted_change_pct_6m),
-        predicted_change_pct_1y: num(result.predicted_change_pct_1y),
         confidence_score_1w: num(result.confidence_score_1w),
         confidence_score_1m: num(result.confidence_score_1m),
+        confidence_score_3m: num(result.confidence_score_3m),
         confidence_score_6m: num(result.confidence_score_6m),
-        confidence_score_1y: num(result.confidence_score_1y),
         user_id: userId,
         gps_score: gpsScore,
         gps_breakdown: gpsBreakdown,

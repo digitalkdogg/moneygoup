@@ -2,14 +2,14 @@
 """
 train_long_term_cs.py — train the cross-sectional long-term model.
 
-Reads (snapshot_date, ticker, features_json, forward_return_126d,
-forward_return_252d) rows from ranking_training_snapshots, time-splits
+Reads (snapshot_date, ticker, features_json, forward_return_63d,
+forward_return_126d) rows from ranking_training_snapshots, time-splits
 80/20 by date, trains an MLPRegressor with 2 output heads
-([return_126d, return_252d]), and persists model + scaler + feature
+([return_63d, return_126d]), and persists model + scaler + feature
 manifest for predict_long_term.py to load.
 
 Pre-req: scripts/extend_long_term_labels.py must have run to populate
-the 126d / 252d label columns.
+the 63d / 126d label columns.
 
 Outputs:
   - models/long_term_cs_v1.pkl              joblib pickle: dict with model + scaler + meta
@@ -71,10 +71,10 @@ def load_dataset(conn) -> pd.DataFrame:
     cur = conn.cursor(dictionary=True)
     cur.execute("""
         SELECT snapshot_date, ticker, features_json,
-               forward_return_126d, forward_return_252d, feature_set_version
+               forward_return_63d, forward_return_126d, feature_set_version
         FROM ranking_training_snapshots
-        WHERE forward_return_126d IS NOT NULL
-          AND forward_return_252d IS NOT NULL
+        WHERE forward_return_63d  IS NOT NULL
+          AND forward_return_126d IS NOT NULL
         ORDER BY snapshot_date, ticker
     """)
     rows = cur.fetchall()
@@ -91,8 +91,8 @@ def load_dataset(conn) -> pd.DataFrame:
         if isinstance(fj, str):
             fj = json.loads(fj)
         record = {'snapshot_date': r['snapshot_date'], 'ticker': r['ticker'],
-                  'return_126d': float(r['forward_return_126d']),
-                  'return_252d': float(r['forward_return_252d'])}
+                  'return_63d':  float(r['forward_return_63d']),
+                  'return_126d': float(r['forward_return_126d'])}
         for col in CS_FEATURE_COLUMNS:
             v = fj.get(col)
             # Some features stored as None; treat as 0 (matches ranker behavior)
@@ -141,8 +141,8 @@ def main():
 
     X_train = train_df[CS_FEATURE_COLUMNS].values.astype(np.float32)
     X_val   = val_df[CS_FEATURE_COLUMNS].values.astype(np.float32)
-    Y_train = train_df[['return_126d', 'return_252d']].values.astype(np.float32)
-    Y_val   = val_df[['return_126d', 'return_252d']].values.astype(np.float32)
+    Y_train = train_df[['return_63d', 'return_126d']].values.astype(np.float32)
+    Y_val   = val_df[['return_63d', 'return_126d']].values.astype(np.float32)
 
     # StandardScaler (not MinMax) so the cross-sectional model handles new
     # tickers whose features may fall outside the training percentile range.
@@ -169,7 +169,7 @@ def main():
 
     # ── Validation metrics ──────────────────────────────────────────────────
     pred_val = model.predict(X_val_s)
-    for i, h in enumerate(['return_126d', 'return_252d']):
+    for i, h in enumerate(['return_63d', 'return_126d']):
         mae = mean_absolute_error(Y_val[:, i], pred_val[:, i])
         r2  = r2_score(Y_val[:, i], pred_val[:, i])
         dir_correct = float(np.mean(np.sign(pred_val[:, i]) == np.sign(Y_val[:, i])))
@@ -177,8 +177,8 @@ def main():
 
     # Baseline: just predict 0 (assume flat) on val
     print(f"  baseline (predict 0): "
-          f"return_126d mae={np.mean(np.abs(Y_val[:, 0])):.4f}  "
-          f"return_252d mae={np.mean(np.abs(Y_val[:, 1])):.4f}")
+          f"return_63d  mae={np.mean(np.abs(Y_val[:, 0])):.4f}  "
+          f"return_126d mae={np.mean(np.abs(Y_val[:, 1])):.4f}")
 
     # ── Persist ─────────────────────────────────────────────────────────────
     payload = {
@@ -186,7 +186,7 @@ def main():
         'scaler': scaler,
         'feature_columns': CS_FEATURE_COLUMNS,
         'feature_set_version': FEATURE_SET_VERSION,
-        'target_columns': ['return_126d', 'return_252d'],
+        'target_columns': ['return_63d', 'return_126d'],
         'trained_at': datetime.now().isoformat(),
         'train_rows': len(train_df),
         'val_rows': len(val_df),
@@ -198,7 +198,7 @@ def main():
     manifest = {
         'feature_columns': CS_FEATURE_COLUMNS,
         'feature_set_version': FEATURE_SET_VERSION,
-        'target_columns': ['return_126d', 'return_252d'],
+        'target_columns': ['return_63d', 'return_126d'],
         'hidden_layers': list(hidden_layers),
         'max_iter': args.max_iter,
         'trained_at': datetime.now().isoformat(),
@@ -206,10 +206,10 @@ def main():
         'val_rows': len(val_df),
         'train_tickers': int(train_df['ticker'].nunique()),
         'val_metrics': {
-            'return_126d_mae': float(mean_absolute_error(Y_val[:, 0], pred_val[:, 0])),
-            'return_252d_mae': float(mean_absolute_error(Y_val[:, 1], pred_val[:, 1])),
-            'return_126d_dir_correct': float(np.mean(np.sign(pred_val[:, 0]) == np.sign(Y_val[:, 0]))),
-            'return_252d_dir_correct': float(np.mean(np.sign(pred_val[:, 1]) == np.sign(Y_val[:, 1]))),
+            'return_63d_mae':  float(mean_absolute_error(Y_val[:, 0], pred_val[:, 0])),
+            'return_126d_mae': float(mean_absolute_error(Y_val[:, 1], pred_val[:, 1])),
+            'return_63d_dir_correct':  float(np.mean(np.sign(pred_val[:, 0]) == np.sign(Y_val[:, 0]))),
+            'return_126d_dir_correct': float(np.mean(np.sign(pred_val[:, 1]) == np.sign(Y_val[:, 1]))),
         },
     }
     with open(MANIFEST_PATH, 'w') as f:

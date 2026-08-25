@@ -104,7 +104,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Developer Docs</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-20</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-25</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -206,25 +206,40 @@
       <span>src/app/api/prediction/save/route.ts</span>
       <span>src/utils/predictionRecorder.ts</span>
       <span>src/app/components/StockPrediction.tsx</span>
-      <span>Updated 2026-08-20</span>
+      <span>Updated 2026-08-25</span>
     </div>
 
     <section id="overview">
-      <p>This document details the end-to-end execution path and mathematical logic behind the Stock Prediction System (v3.5). The pipeline produces 1-week, 1-month, 6-month, and 1-year price targets with Monte Carlo uncertainty bands and an 18-month trajectory chart. <strong>A single Python invocation returns all four horizons at once.</strong> Two model paths exist and are selected at runtime by the <code>USE_LEGACY_PREDICTION_MODEL</code> environment variable; the v3-split path further selects a cross-sectional long-term model version via <code>CS_MODEL_VERSION</code>. See <a href="#model-paths">Model Path Selection</a> for the full matrix.</p>
+      <p>This document details the end-to-end execution path and mathematical logic behind the Stock Prediction System (v3.5). The pipeline produces 1-week, 1-month, 3-month, and 6-month price targets with Monte Carlo uncertainty bands and a trajectory chart. <strong>A single Python invocation returns all four horizons at once.</strong> Two model paths exist and are selected at runtime by the <code>USE_LEGACY_PREDICTION_MODEL</code> environment variable; the v3-split path further selects a cross-sectional long-term model version via <code>CS_MODEL_VERSION</code> (current production: <strong>v5</strong>). See <a href="#model-paths">Model Path Selection</a> for the full matrix.</p>
+      <div class="updated-box" style="margin-top:1rem;">
+        <strong>August 2026 — Horizon migration (1-year retired, 3-month added):</strong>
+        <ul style="margin-top:.5rem;">
+          <li>The 1-year prediction horizon has been <strong>retired</strong>. It is replaced by a <strong>3-month</strong> horizon throughout the system.</li>
+          <li><code>WIDGET_HORIZON_KEYS = ['1_week', '1_month', '3_month', '6_month']</code></li>
+          <li><code>VALID_TIMEFRAMES = ['1_week', '1_month', '3_month', '6_month']</code></li>
+          <li>All <code>_1y</code> DB columns (<code>predicted_price_1y</code>, <code>confidence_score_1y</code>, etc.) are no longer written by the application. Their <code>_3m</code> equivalents are now the active columns.</li>
+          <li><code>resolve_predictions.py</code> now resolves <code>('3m', 91)</code> instead of <code>('1y', 365)</code>.</li>
+          <li><code>backtest_predictions.py</code> HORIZONS: <code>[('1w',7), ('1m',30), ('3m',91), ('6m',180)]</code>.</li>
+          <li><code>_DASHBOARD_TIMEFRAME_CONFIG</code> in <code>update_predictions.py</code>: <code>'3_month'</code> key replaces <code>'1_year'</code>.</li>
+          <li>CS model promoted to <strong>v5</strong> (<code>long_term_cs_v5.pkl</code>): 87 features, trained 2026-08-18, targets <code>[return_126d, return_252d]</code>. Model version tag: <code>v3split_v5</code>.</li>
+          <li>Trajectory chart now uses smooth Catmull-Rom cubic Bezier spline (10 waypoints: T5, T21, T42, T63, T84, T105, T126, T147, T168, T189). 3-month card: <code>monthly_trajectory[3]</code> (T63); 6-month card: <code>monthly_trajectory[6]</code> (T126).</li>
+          <li>Prediction cards: 1-week (purple), 1-month (blue), 3-month (emerald), 6-month (green border).</li>
+        </ul>
+      </div>
 
       <div class="updated-box">
         <strong>v5 / July 2026 — Variant-gated post-hoc fix stack:</strong>
         <ul style="margin-top:.5rem;">
           <li>The orchestrator (<code>scripts/predict_weighted_analysis.py</code>) now applies a stack of post-hoc adjustments gated by the <code>MODEL_VARIANT</code> env var: <code>v3</code> = bare model (no adjustments), <code>v4</code> = 90d drift + VIX×beta confidence multiplier + direction deadband + RSI-beta short-term gate, <code>v5</code> (default) = v4 base <em>minus</em> the VIX-conf multiplier <em>plus</em> Fix A/B/C/D. See the new <a href="#model-variant">MODEL_VARIANT Fix Stack</a> section for the full flow.</li>
-          <li><strong>Fix B</strong> (beta-signed VIX modifier on <code>long_term_multiplier</code>) runs <em>before</em> <code>predict_long_term()</code>, so the multiplier flows into the raw 6m/1y price. Low-beta names (β&lt;0.5) get a flight-to-quality boost; high-beta names get a softer dampener than v4 (threshold VIX=25, scale 35pts, floored at 0.55).</li>
-          <li><strong>v4 90d drift</strong> (unchanged, fires in v4 and v5) — when <code>|ret90d| &gt; 15%</code>, multiplies 6m/1y prices by <code>1 + ret90d × 0.75/1.25</code>.</li>
+          <li><strong>Fix B</strong> (beta-signed VIX modifier on <code>long_term_multiplier</code>) runs <em>before</em> <code>predict_long_term()</code>, so the multiplier flows into the raw 6m price. Low-beta names (β&lt;0.5) get a flight-to-quality boost; high-beta names get a softer dampener than v4 (threshold VIX=25, scale 35pts, floored at 0.55).</li>
+          <li><strong>v4 90d drift</strong> (unchanged, fires in v4 and v5) — when <code>|ret90d| &gt; 15%</code>, multiplies 3m/6m prices by <code>1 + ret90d × 0.75/1.25</code>.</li>
           <li><strong>Fix A</strong> — downtrend-trap ceiling for high-beta (β&gt;0.8) names when 30d &lt; −5% AND 90d &lt; −10%.</li>
           <li><strong>Fix C</strong> — structural-decline ceiling when &gt;20% below 52w high AND 90d &lt; −15%.</li>
           <li><strong>Fix D</strong> — extreme-momentum move-delta scaler (up to 1.5×) when <code>ret90d &gt; 30%</code>.</li>
           <li><strong>Deadband</strong> — <code>|Δ| &lt; 2%</code> ⇒ <code>predicted_direction_{h} = 'neutral'</code>. Propagates to <code>compute_accuracy_metrics()</code> in both <a href="#analytics-recording"><code>resolve_predictions.py</code></a> and <code>backtest_predictions.py</code>: near-flat predictions yield <code>direction_correct = NULL</code> and are excluded from the direction-accuracy metric.</li>
           <li><strong>RSI-beta short-term gate</strong> — RSI&gt;70 boosts (β&gt;0.8) or damps (β&lt;0.5) <code>confidence_score_1w/1m</code>.</li>
           <li><code>_apply_variant_adjustments()</code> emits a <code>variant_adjustments</code> telemetry block on every result (variant, VIX, RSI, beta, 30d/90d returns, and per-fix outputs when they fire).</li>
-          <li>Cache schema bumped to v23 (from v19). The intermediate versions covered v4→v5 A/B/C/D and short-lived E/F/G experiments (see footnote in <a href="#model-variant">MODEL_VARIANT Fix Stack</a>). <code>_sanitize_predictions()</code> is unchanged in role — still clamps out-of-bounds prices, floors at 0.01, and glide-paths opposite-sign 6m/1y.</li>
+          <li>Cache schema bumped to v23 (from v19). The intermediate versions covered v4→v5 A/B/C/D and short-lived E/F/G experiments (see footnote in <a href="#model-variant">MODEL_VARIANT Fix Stack</a>). <code>_sanitize_predictions()</code> is unchanged in role — still clamps out-of-bounds prices, floors at 0.01, and glide-paths opposite-sign 3m/6m.</li>
         </ul>
       </div>
 
@@ -233,8 +248,8 @@
         <ul style="margin-top:.5rem;">
           <li><code>scripts/predict_weighted_analysis.py</code> refactored into an orchestrator that delegates to <code>predict_short_term.py</code> (1w + 1m heads), <code>predict_long_term.py</code> (6m + 1y heads, cross-sectional or per-ticker fallback), and <code>predict_core.py</code> (shared features, caching, sanitize). The pre-refactor monolith is preserved verbatim at <code>scripts/predict_weighted_analysis_baseline.py</code>.</li>
           <li><strong>Env-var model toggle:</strong> <code>USE_LEGACY_PREDICTION_MODEL=true</code> reverts every prediction path (UI button, backtest, nightly sync, DeepMoney) to the baseline file. Default (unset / "false") uses the v3-split orchestrator. The toggle is honored by the route, the backtest script, and the helper in <code>src/utils/stockDataHelper.ts</code>.</li>
-          <li><strong>Cross-sectional long-term model:</strong> <code>predict_long_term.py</code> auto-loads <code>models/long_term_cs_{version}.pkl</code> at import time. v1 is sklearn MLPRegressor (MSE loss, no TF needed). v2 is Keras MLP with Huber loss + joint 6m/1y consistency penalty + tanh × cap bounded output (±70% / ±100%). Version chosen by <code>CS_MODEL_VERSION</code> env var; loader silently falls back to per-ticker MLP training if the artifact is missing.</li>
-          <li><strong>Sanitize guard (<code>_sanitize_predictions</code>):</strong> post-orchestrator gate with <strong>vol-scaled per-horizon caps</strong> (base 15/30/60/100 × <code>max(1, min(2.5, realized_vol_60d / 0.30))</code>), <strong>signal-aware confidence</strong> (coherent 6m+1y extrapolation keeps the model's own confidence + sets <code>at_model_ceiling_*</code> flags for the UI's directional pill), a <strong>trajectory-smoothness gate</strong> for cyclical peak-and-reverse patterns (drops confidence to 60 rather than 25 when the shape is coherent), and floors prices at 0.01. Every horizon-specific adjustment stamps a <code>confidence_reason_{h}</code> plain-language string that the UI tooltip surfaces on Medium/Low badges. Full detail in the <a href="#sanitize-layer">Sanitize Layer</a> section below.</li>
+          <li><strong>Cross-sectional long-term model:</strong> <code>predict_long_term.py</code> auto-loads <code>models/long_term_cs_{version}.pkl</code> at import time. v1 is sklearn MLPRegressor (MSE loss, no TF needed). v2 is Keras MLP with Huber loss + joint 6m consistency penalty + tanh × cap bounded output. v5 (current default, trained 2026-08-18) is Keras MLP with 87 features, targeting <code>return_126d</code> / <code>return_252d</code>. Version chosen by <code>CS_MODEL_VERSION</code> env var; loader silently falls back to per-ticker MLP training if the artifact is missing.</li>
+          <li><strong>Sanitize guard (<code>_sanitize_predictions</code>):</strong> post-orchestrator gate with <strong>vol-scaled per-horizon caps</strong> (base 15/30/60/100 × <code>max(1, min(2.5, realized_vol_60d / 0.30))</code>), <strong>signal-aware confidence</strong> (coherent 3m+6m extrapolation keeps the model's own confidence + sets <code>at_model_ceiling_*</code> flags for the UI's directional pill), a <strong>trajectory-smoothness gate</strong> for cyclical peak-and-reverse patterns (drops confidence to 60 rather than 25 when the shape is coherent), and floors prices at 0.01. Every horizon-specific adjustment stamps a <code>confidence_reason_{h}</code> plain-language string that the UI tooltip surfaces on Medium/Low badges. Full detail in the <a href="#sanitize-layer">Sanitize Layer</a> section below.</li>
           <li><strong>Tracking:</strong> <code>prediction_records</code> now has a <code>model_version</code> column (defaults to <code>'legacy'</code>; backtest writes <code>'v3split'</code> or whatever <code>MODEL_VERSION_TAG</code> overrides). Unique index changed from <code>(symbol, predicted_at)</code> to <code>(symbol, predicted_at, model_version)</code> so legacy and v3-split predictions can coexist for side-by-side comparison.</li>
           <li>Cache schema bumped to v13. The Node route cache key now includes the CS model version (<code>{ticker}_{outlook}_v3split_{csModelVersion}</code>) so promoting v1 → v2 → v3 produces fresh predictions instead of returning stale results from the prior model.</li>
         </ul>
@@ -244,7 +259,7 @@
         <strong>v3.4.1 / June 2026 — Dual-GPS &amp; full horizon persistence:</strong>
         <ul style="margin-top:.5rem;">
           <li><code>POST /api/prediction/[ticker]</code> now runs the Python model once and computes <strong>two</strong> GPS scores from the result: a <em>neutral 1-month baseline</em> (saved to the global <code>stock_gps_scores</code> table) and a <em>user-horizon GPS</em> built from the horizon-matched <code>predicted_change_pct_*</code> / <code>confidence_score_*</code> fields and returned in the response as <code>gps_score</code> + <code>gps_breakdown</code> + <code>gps_horizon</code>.</li>
-          <li><code>savePredictionAsync()</code> now forwards <strong>all eight</strong> per-horizon outputs (four <code>predicted_change_pct_{1w,1m,6m,1y}</code> + four <code>confidence_score_{1w,1m,6m,1y}</code>) plus all four <code>predicted_price_{1w,1m,6m,1y}</code> to <code>/api/prediction/save</code>. Previously only the 1m price was sent.</li>
+          <li><code>savePredictionAsync()</code> now forwards <strong>all eight</strong> per-horizon outputs (four <code>predicted_change_pct_{1w,1m,3m,6m}</code> + four <code>confidence_score_{1w,1m,3m,6m}</code>) plus all four <code>predicted_price_{1w,1m,3m,6m}</code> to <code>/api/prediction/save</code>. Previously only the 1m price was sent.</li>
           <li><code>POST /api/prediction/save</code> accepts those eight new optional Zod fields and persists them to <code>user_stock_predictions</code>. The dashboard can now recompute horizon-aware GPS using the model's own outputs instead of a price-derived approximation.</li>
           <li><code>scripts/update_predictions.py</code> captures all eight per-horizon stats from the Python result, threads them through <code>save_prediction()</code> kwargs, and stores them in the in-process <code>prediction_cache</code> (and the <code>_empty_cache_entry()</code> sentinel) so cached-prediction branches also forward the per-horizon fields.</li>
         </ul>
@@ -271,7 +286,7 @@
           <li><strong>Guard chain.</strong> The route validates origin, session, approval status, lookup quota, ticker format, body shape (<code>historicalData</code> length ≥ 365 + <code>stockMetrics</code> object), and the <code>outlook</code> query value. Internal calls (<code>x-api-key</code>) skip session + lookup checks.</li>
           <li><strong>Cache check.</strong> Unless <code>?refresh=true</code> is set, the route consults the in-memory <code>predictionCache</code> at key <code>{ticker}_{outlook}</code>. On a hit, the Python script is skipped entirely — but GPS is still computed live from the cached result because GPS is per-user.</li>
           <li><strong>Concurrency gate.</strong> If the cache misses, the route acquires a slot from <code>predictionSemaphore</code> (503 Busy if full).</li>
-          <li><strong>Python model.</strong> A temp JSON file is written and <code>scripts/predict_weighted_analysis.py</code> is spawned. The Python script always trains a fresh MLP and returns all four horizons in one call (see <a href="#single-call">Single Call → 4 Horizons</a>). The result includes <code>predicted_price_{1w,1m,6m,1y}</code>, <code>predicted_change_pct_{1w,1m,6m,1y}</code>, <code>confidence_score_{1w,1m,6m,1y}</code>, the 18-month trajectory, accuracy metrics, and regime info.</li>
+          <li><strong>Python model.</strong> A temp JSON file is written and <code>scripts/predict_weighted_analysis.py</code> is spawned. The Python script always trains a fresh MLP and returns all four horizons in one call (see <a href="#single-call">Single Call → 4 Horizons</a>). The result includes <code>predicted_price_{1w,1m,3m,6m}</code>, <code>predicted_change_pct_{1w,1m,3m,6m}</code>, <code>confidence_score_{1w,1m,3m,6m}</code>, the trajectory chart, accuracy metrics, and regime info.</li>
           <li><strong>Analytics record.</strong> Immediately after Python returns, <code>recordPrediction()</code> fires once (fire-and-forget) to insert a row into <code>prediction_records</code>.</li>
           <li><strong>Generic-key backfill + cache write.</strong> The route populates legacy <code>predicted_price</code> / <code>predicted_change_pct</code> / <code>confidence_score</code> keys based on the requested <code>outlook</code> and stores the result in <code>predictionCache</code>.</li>
           <li><strong>Dual GPS computation.</strong> <code>buildResponse()</code> computes the <strong>neutral 1m baseline GPS</strong> (used for persistence) and the <strong>user-horizon GPS</strong> (returned to the caller). See <a href="#dual-gps">Dual GPS Computation</a>.</li>
@@ -285,7 +300,7 @@
     <section id="strategy-integration">
       <h2><span class="step-num" style="background:#7c3aed;">S</span> Strategy Integration</h2>
       <div class="step-card">
-        <p>A user's investment strategy has two dimensions: <strong>aggressiveness</strong> (<code>safe</code> / <code>neutral</code> / <code>aggressive</code>) and <strong>investment timeframe</strong> (<code>1_week</code> / <code>1_month</code> / <code>6_month</code> / <code>1_year</code>). Both are stored in the <code>user_investment_strategy</code> database table and fetched via <code>getUserStrategy(userId)</code> which falls back to <code>DEFAULT_STRATEGY</code> (<code>neutral / 1_month</code>) if no row exists.</p>
+        <p>A user's investment strategy has two dimensions: <strong>aggressiveness</strong> (<code>safe</code> / <code>neutral</code> / <code>aggressive</code>) and <strong>investment timeframe</strong> (<code>1_week</code> / <code>1_month</code> / <code>3_month</code> / <code>6_month</code>). Both are stored in the <code>user_investment_strategy</code> database table and fetched via <code>getUserStrategy(userId)</code> which falls back to <code>DEFAULT_STRATEGY</code> (<code>neutral / 1_month</code>) if no row exists.</p>
 
         <h4>Where strategy affects the prediction pipeline</h4>
         <table>
@@ -334,8 +349,8 @@
             <tr>
               <td><code>false</code> / unset</td>
               <td><code>v2</code> (default)</td>
-              <td><code>predict_weighted_analysis.py</code> + Keras CS v2</td>
-              <td>v3-split orchestrator. Long-term head loaded from <code>models/long_term_cs_v2.pkl</code> (Keras MLP, Huber loss, joint 6m/1y consistency penalty, tanh × cap bounded output ±70% / ±100%). <strong>Requires <code>tensorflow-cpu</code> in the environment.</strong></td>
+              <td><code>predict_weighted_analysis.py</code> + Keras CS v5 (default)</td>
+              <td>v3-split orchestrator. Long-term head loaded from <code>models/long_term_cs_v5.pkl</code> (87 features, Keras MLP, Huber loss, trained 2026-08-18, targets return_126d/return_252d). Model version tag: <code>v3split_v5</code>. <strong>Requires <code>tensorflow-cpu</code> in the environment.</strong></td>
             </tr>
           </tbody>
         </table>
@@ -353,7 +368,7 @@
 
         <h4>Cross-sectional long-term model details</h4>
         <p><code>predict_long_term.py</code> loads <code>models/long_term_cs_{version}.pkl</code> once at module import:</p>
-        <pre><code>_CS_MODEL_VERSION = os.environ.get('CS_MODEL_VERSION', 'v2')
+        <pre><code>_CS_MODEL_VERSION = os.environ.get('CS_MODEL_VERSION', 'v5')  # current default
 _CS_MODEL_PATH    = ... / 'models' / f'long_term_cs_{_CS_MODEL_VERSION}.pkl'
 
 try:
@@ -361,26 +376,37 @@ try:
         _CS_MODEL = joblib.load(_CS_MODEL_PATH)
 except Exception:
     _CS_MODEL = None   # falls back to per-ticker MLP training</code></pre>
-        <p>The pkl holds a sklearn-compatible <code>.predict()</code> object (for v1) or a <code>KerasModelWrapper</code> instance (for v2) that lazy-loads the underlying <code>.keras</code> file on first call. The wrapper makes the v2 model look like an sklearn regressor so the predict-time code path is identical regardless of which backend was used to train.</p>
+        <p>The pkl holds a sklearn-compatible <code>.predict()</code> object (for v1) or a <code>KerasModelWrapper</code> instance (for v2/v5) that lazy-loads the underlying <code>.keras</code> file on first call. The wrapper makes Keras models look like sklearn regressors so the predict-time code path is identical regardless of which backend was used to train.</p>
 
         <table>
-          <thead><tr><th>CS version</th><th>Backend</th><th>Loss</th><th>Output bound</th><th>TF required</th><th>Training file</th></tr></thead>
+          <thead><tr><th>CS version</th><th>Backend</th><th>Loss</th><th>Features</th><th>Targets</th><th>TF required</th><th>Trained</th></tr></thead>
           <tbody>
             <tr>
               <td><code>v1</code></td>
               <td>sklearn MLPRegressor</td>
               <td>MSE</td>
-              <td>none</td>
+              <td>—</td>
+              <td>forward_return_126d, forward_return_252d</td>
               <td>no</td>
-              <td><code>scripts/train_long_term_cs.py</code></td>
+              <td>—</td>
             </tr>
             <tr>
               <td><code>v2</code></td>
               <td>Keras + TF</td>
-              <td>Huber(δ=0.5) + joint 6m/1y penalty (λ=1.0, ratio=1.5)</td>
-              <td>tanh × cap (±70% / ±100%)</td>
+              <td>Huber(δ=0.5) + joint consistency penalty</td>
+              <td>—</td>
+              <td>forward_return_126d, forward_return_252d</td>
               <td>yes</td>
-              <td><code>scripts/train_long_term_cs_v2.py</code></td>
+              <td>—</td>
+            </tr>
+            <tr style="background:#f0fdf4;">
+              <td><code>v5</code> <strong>(current)</strong></td>
+              <td>Keras + TF</td>
+              <td>Huber(δ=0.5) + joint consistency + opposite-sign penalty</td>
+              <td>87</td>
+              <td>return_126d, return_252d</td>
+              <td>yes</td>
+              <td>2026-08-18</td>
             </tr>
           </tbody>
         </table>
@@ -388,7 +414,7 @@ except Exception:
         <div class="warning-box"><strong>Production deploys without TensorFlow</strong> must explicitly set <code>CS_MODEL_VERSION=v1</code> until the next Docker rebuild bundles <code>tensorflow-cpu</code> (see <code>requirements.txt</code>). Otherwise the v2 loader will succeed at unpickle time but fail at inference when <code>KerasModelWrapper._load()</code> tries to <code>import tensorflow</code>. The orchestrator catches the exception and returns a 500 — surface symptom is <code>"Prediction failed"</code> in the UI.</div>
 
         <h4>prediction_records tagging</h4>
-        <p>The unique key on <code>prediction_records</code> is <code>(symbol, predicted_at, model_version)</code> — so legacy and v3-split backtests for the same (ticker, date) can coexist as separate rows. The <code>model_version</code> column defaults to <code>'legacy'</code> for legacy live predictions; v3-split live predictions are tagged <code>'v3split'</code> by the route. Backtest runs can override the tag via <code>MODEL_VERSION_TAG</code> env var (e.g. <code>v3split_v2</code>, <code>v3split_v3</code>) for ad-hoc CS-version A/B tests without colliding on the unique key.</p>
+        <p>The unique key on <code>prediction_records</code> is <code>(symbol, predicted_at, model_version)</code> — so legacy and v3-split backtests for the same (ticker, date) can coexist as separate rows. The <code>model_version</code> column defaults to <code>'legacy'</code> for legacy live predictions; v3-split live predictions are tagged <code>'v3split_v5'</code> by the route (reflecting <code>CS_MODEL_VERSION=v5</code>). Backtest runs can override the tag via <code>MODEL_VERSION_TAG</code> env var for ad-hoc CS-version A/B tests without colliding on the unique key.</p>
       </div>
     </section>
 
@@ -422,22 +448,22 @@ except Exception:
         </table>
 
         <h4>Where the adjustments plug in — inline flow inside <code>predict()</code></h4>
-        <p>Some adjustments must run <em>before</em> the long-term model (so the multiplier affects the raw 6m/1y price), some <em>after</em> the model (so they compose with each other on the predicted price), and some at the very end on the result dict (deadband + confidence). The order is load-bearing.</p>
+        <p>Some adjustments must run <em>before</em> the long-term model (so the multiplier affects the raw 6m price), some <em>after</em> the model (so they compose with each other on the predicted price), and some at the very end on the result dict (deadband + confidence). The order is load-bearing.</p>
 
         <div class="step-card" style="background:#f8fafc;border:1px dashed var(--purple);">
           <p style="text-align:center;line-height:1.7;font-size:.9rem;">
           Compute <code>long_term_multiplier</code> from <code>non_analyst_impact + analyst_impact × ANALYST_BOOST_LT × consumer_multiplier</code><br>&darr;<br>
           <strong>v5 Fix B</strong> (beta-signed VIX modifier) multiplies <code>long_term_multiplier</code> — <em>before</em> the long-term model runs<br>&darr;<br>
-          <code>predict_long_term()</code> → raw 6m + 1y prices<br>&darr;<br>
-          <strong>v4 90d drift</strong> — multiplies 6m and 1y prices (fires in v4 AND v5 when <code>|ret90d| &gt; 15%</code>)<br>&darr;<br>
-          <strong>v5 Fix A</strong> (downtrend trap) — applies <code>min()</code> ceiling on 6m/1y prices<br>&darr;<br>
-          <strong>v5 Fix C</strong> (structural decline) — applies <code>min()</code> ceiling on 6m/1y prices<br>&darr;<br>
+          <code>predict_long_term()</code> → raw 3m + 6m prices<br>&darr;<br>
+          <strong>v4 90d drift</strong> — multiplies 3m and 6m prices (fires in v4 AND v5 when <code>|ret90d| &gt; 15%</code>)<br>&darr;<br>
+          <strong>v5 Fix A</strong> (downtrend trap) — applies <code>min()</code> ceiling on 3m/6m prices<br>&darr;<br>
+          <strong>v5 Fix C</strong> (structural decline) — applies <code>min()</code> ceiling on 3m/6m prices<br>&darr;<br>
           <strong>v5 Fix D</strong> (extreme momentum) — scales the move delta by up to 1.5×<br>&darr;<br>
-          <code>long_out['predicted_change_pct_6m/1y']</code> synced to match the adjusted prices<br>&darr;<br>
+          <code>long_out['predicted_change_pct_3m/6m']</code> synced to match the adjusted prices<br>&darr;<br>
           <code>predict_short_term()</code> — uses the pre-adjustment <code>predicted_price_6m_base</code> as its trajectory anchor<br>&darr;<br>
           Assemble result dict (all four horizons + trajectory + confidence + metric analysis)<br>&darr;<br>
           <strong><code>_apply_variant_adjustments()</code></strong> — writes <code>predicted_direction_{h}</code>, applies v4 VIX-conf mult (v4 only), applies RSI-beta short-term gate (v4/v5), stamps <code>variant_adjustments</code> telemetry<br>&darr;<br>
-          <strong><code>_sanitize_predictions()</code></strong> (in <code>predict_core.py</code>, called from the <code>__main__</code> block after <code>predict()</code> returns) — clamps out-of-bounds prices, floors at 0.01, glide-paths opposite-sign 6m/1y. Role unchanged from v3.5/v3.7.
+          <strong><code>_sanitize_predictions()</code></strong> (in <code>predict_core.py</code>, called from the <code>__main__</code> block after <code>predict()</code> returns) — clamps out-of-bounds prices, floors at 0.01, glide-paths opposite-sign 3m/6m. Role unchanged from v3.5/v3.7.
           </p>
         </div>
 
@@ -460,8 +486,8 @@ long_term_multiplier *= vix_mod</div>
         <div class="formula">
 if abs(ret90d) &gt; 0.15 and current_price &gt; 0:
     predicted_price_6m *= (1.0 + ret90d * 0.75)
-    predicted_price_1y *= (1.0 + ret90d * 1.25)</div>
-        <p>The 1y multiplier is larger than the 6m multiplier because 90d momentum shows up more clearly at longer horizons. Fires in both v4 and v5. Fix D extends this for the extreme-momentum tail (ret90d &gt; 30%).</p>
+    predicted_price_6m *= (1.0 + ret90d * 1.25)   # 6m gets slightly stronger drift</div>
+        <p>The second 6m multiplier compound applies a stronger drift factor because 90d momentum shows up more clearly at longer horizons. Fires in both v4 and v5. Fix D extends this for the extreme-momentum tail (ret90d &gt; 30%).</p>
 
         <h5 style="color:#334155;margin-top:1.25rem;">Fix A — Downtrend trap ceiling (v5 only)</h5>
         <p><code>predict_weighted_analysis.py:471-484</code>. Gate: <code>beta &gt; 0.8 AND ret30d &lt; -5% AND ret90d &lt; -10%</code>. Beta-scaled cap:</p>
@@ -469,17 +495,17 @@ if abs(ret90d) &gt; 0.15 and current_price &gt; 0:
 severity = min(1.0, (-ret90d - 0.10) / 0.25)
 cap      = 1.0 - (severity * 0.08 * min(beta, 2.0) / 2.0)
 predicted_price_6m = min(predicted_price_6m, current_price * cap)
-predicted_price_1y = min(predicted_price_1y, current_price * (cap - 0.03))</div>
+predicted_price_6m = min(predicted_price_6m, current_price * (cap - 0.03))   # tighter cap at 6m</div>
         <p>Excludes low-beta defensives that genuinely mean-revert after dips.</p>
 
         <h5 style="color:#334155;margin-top:1.25rem;">Fix C — Structural decline (v5 only)</h5>
         <p><code>predict_weighted_analysis.py:486-503</code>. Gate: <code>pct_from_52w_high &lt; -20% AND ret90d &lt; -15%</code>. The double gate (depth + recency) prevents misfiring on crash-then-recovery cases (e.g. AAPL April 2025).</p>
         <div class="formula">
 decline_sev = min(1.0, (-pct_from_52w - 0.20) / 0.30)
-f6m         = 1.0 - (0.05 + decline_sev * 0.05)   # 5-10% down at 6m
-f1y         = 1.0 - (0.08 + decline_sev * 0.07)   # 8-15% down at 1y
-predicted_price_6m = min(predicted_price_6m, current_price * f6m)
-predicted_price_1y = min(predicted_price_1y, current_price * f1y)</div>
+f3m         = 1.0 - (0.05 + decline_sev * 0.05)   # 5-10% down at 3m
+f6m         = 1.0 - (0.08 + decline_sev * 0.07)   # 8-15% down at 6m
+predicted_price_3m = min(predicted_price_3m, current_price * f3m)
+predicted_price_6m = min(predicted_price_6m, current_price * f6m)</div>
 
         <h5 style="color:#334155;margin-top:1.25rem;">Fix D — Extreme positive momentum (v5 only)</h5>
         <p><code>predict_weighted_analysis.py:505-518</code>. Gate: <code>ret90d &gt; 30%</code>. Scales the move <em>delta</em>, not the absolute price, so we amplify the direction of the model's call rather than pushing toward an arbitrary level. Mutually exclusive with Fix A/C by sign of ret90d.</p>
@@ -487,8 +513,8 @@ predicted_price_1y = min(predicted_price_1y, current_price * f1y)</div>
 excess   = ret90d - 0.30
 extra    = min(0.50, excess * 2.0)                 # capped at +50%
 xtscale  = 1.0 + extra                             # in [1.0, 1.5]
-predicted_price_6m = current_price + (predicted_price_6m - current_price) * xtscale
-predicted_price_1y = current_price + (predicted_price_1y - current_price) * xtscale</div>
+predicted_price_3m = current_price + (predicted_price_3m - current_price) * xtscale
+predicted_price_6m = current_price + (predicted_price_6m - current_price) * xtscale</div>
 
         <h5 style="color:#334155;margin-top:1.25rem;">Direction deadband + <code>predicted_direction_{h}</code> (v4 and v5)</h5>
         <p><code>predict_weighted_analysis.py:732-747</code> inside <code>_apply_variant_adjustments()</code>. Writes a new field on the result dict for every horizon:</p>
@@ -506,7 +532,7 @@ else:                       predicted_direction_h = 'down'</div>
 stress          = max(0, (vix - 20) / 30)                    # 0 at VIX≤20, 1 at VIX=50
 beta_absorb     = max(0, beta) / 1.5                          # beta=1.5 ⇒ full absorption
 vix_conf_mult   = max(0, 1.0 - stress * beta_absorb)
-# multiplies confidence_score_{1w, 1m, 6m, 1y}</div>
+# multiplies confidence_score_{1w, 1m, 3m, 6m}</div>
 
         <h5 style="color:#334155;margin-top:1.25rem;">RSI-gated short-term confidence (v4 and v5)</h5>
         <p><code>predict_weighted_analysis.py:763-776</code>. Only fires when <code>RSI_14 &gt; 70</code>. Multiplies <code>confidence_score_1w</code> and <code>confidence_score_1m</code> only (long-horizon confidence unaffected):</p>
@@ -525,7 +551,7 @@ vix_conf_mult   = max(0, 1.0 - stress * beta_absorb)
   "ret30d":          -0.083,
   "ret90d":          -0.187,
   "v4_drift_6m":     -0.140,   // when 90d drift fires
-  "v4_drift_1y":     -0.234,
+  "v4_drift_6m_strong": -0.234,
   "fixA_severity":   0.35,     // when Fix A fires
   "fixA_cap":        0.981,
   "fixC_pct_from_52w": -0.28,  // when Fix C fires
@@ -570,10 +596,10 @@ vix_conf_mult   = max(0, 1.0 - stress * beta_absorb)
         <table>
           <thead><tr><th>Card</th><th>Color scheme</th><th>Field</th></tr></thead>
           <tbody>
-            <tr><td>1-Week Price Target</td><td>Purple</td><td><code>predicted_price_1w</code> / <code>predicted_change_pct_1w</code> / <code>confidence_score_1w</code></td></tr>
-            <tr><td>1-Month Price Target</td><td>Blue</td><td><code>predicted_price_1m</code></td></tr>
-            <tr><td>6-Month Price Target</td><td>Emerald</td><td><code>predicted_price_6m</code></td></tr>
-            <tr><td>12-Month Price Target</td><td>White/Green border</td><td><code>predicted_price_1y</code></td></tr>
+            <tr><td>1-Week Price Target</td><td>Purple (bg-purple-50)</td><td><code>predicted_price_1w</code> / <code>predicted_change_pct_1w</code> / <code>confidence_score_1w</code></td></tr>
+            <tr><td>1-Month Price Target</td><td>Blue (bg-blue-50)</td><td><code>predicted_price_1m</code> / <code>predicted_change_pct_1m</code> / <code>confidence_score_1m</code></td></tr>
+            <tr><td>3-Month Price Target</td><td>Emerald (bg-emerald-50) — uses <code>monthly_trajectory[3]</code> (T63)</td><td><code>predicted_price_3m</code> / <code>confidence_score_3m</code></td></tr>
+            <tr><td>6-Month Price Target</td><td>White/Green border (bg-white, border-green-300) — uses <code>monthly_trajectory[6]</code> (T126)</td><td><code>predicted_price_6m</code> / <code>confidence_score_6m</code></td></tr>
           </tbody>
         </table>
 
@@ -611,7 +637,7 @@ vix_conf_mult   = max(0, 1.0 - stress * beta_absorb)
       <h2><span class="step-num">3</span> API Gateway &amp; Guards</h2>
       <div class="step-card">
         <div class="component-tag">POST /api/prediction/[ticker] — route.ts</div>
-        <p>Valid <code>outlook</code> values: <code>1_week</code>, <code>1_month</code>, <code>6_month</code>, <code>1_year</code>, <code>all</code>. Default: <code>all</code>. The outlook only controls which generic-key aliases (<code>predicted_price</code> / <code>predicted_change_pct</code> / <code>confidence_score</code>) get populated and which cache bucket is used — the Python model itself always returns all four horizons.</p>
+        <p>Valid <code>outlook</code> values: <code>1_week</code>, <code>1_month</code>, <code>3_month</code>, <code>6_month</code>, <code>all</code>. Default: <code>all</code>. The outlook only controls which generic-key aliases (<code>predicted_price</code> / <code>predicted_change_pct</code> / <code>confidence_score</code>) get populated and which cache bucket is used — the Python model itself always returns all four horizons.</p>
 
         <h4>Guard chain (in order)</h4>
         <table>
@@ -642,7 +668,7 @@ vix_conf_mult   = max(0, 1.0 - stress * beta_absorb)
             </tbody>
           </table>
           <p>The suffix map inside <code>buildResponse()</code> is:</p>
-          <pre><code>{ '1week': '1w', '1month': '1m', '6month': '6m', '1year': '1y' }</code></pre>
+          <pre><code>{ '1week': '1w', '1month': '1m', '3month': '3m', '6month': '6m' }</code></pre>
           <p>If the user's timeframe is missing or unrecognised, the function falls back to the 1m fields, meaning the user-horizon GPS equals the baseline GPS for the default <code>neutral / 1_month</code> strategy.</p>
           <div class="highlight-box"><strong>Internal calls</strong> (<code>userId === 'internal'</code>) skip GPS computation entirely — <code>buildResponse()</code> only computes GPS when <code>!isInternal</code> and the result contains <code>predicted_price_1m</code>. Internal consumers (DeepMoney sync, batch update) compute GPS themselves using <code>calculate_gps_v3()</code> in Python.</div>
         </section>
@@ -800,7 +826,7 @@ if beta &gt; 2.5 AND HiRatio_52w &gt; 0.95:
               </tr>
               <tr>
                 <td><code>scripts/predict_long_term.py</code></td>
-                <td>Produces <code>predicted_price_6m</code> and <code>predicted_price_1y</code>. Two execution paths:<br>
+                <td>Produces <code>predicted_price_3m</code> and <code>predicted_price_6m</code>. Two execution paths:<br>
                   <strong>(a) Cross-sectional</strong> — loads the persisted <code>long_term_cs_{version}.pkl</code> at import time and runs a single forward pass on the ticker's current feature vector (~50ms per call, no per-ticker training).<br>
                   <strong>(b) Per-ticker fallback</strong> — if the CS artifact is missing or fails to load, falls back to training a fresh MLPRegressor on this ticker's own history (~10s per call). Same fallback engaged on any unpickle exception.
                 </td>
@@ -814,7 +840,7 @@ if beta &gt; 2.5 AND HiRatio_52w &gt; 0.95:
 
         <section id="horizon-optimizations">
           <h4>Per-Horizon Optimizations — Short-Term vs Long-Term <span class="new-badge">v3.5</span></h4>
-          <p>The whole point of splitting the model is that <strong>different signals dominate at different timescales</strong>. A 1-week forecast is mostly about technical momentum, intraday volatility regime, and post-earnings drift; a 1-year forecast is mostly about fundamental revaluation, macro regime, and analyst-revision velocity. Mixing both signal families through one shared 4-output head — what the legacy MLP did — forces the network to compromise across horizons. Splitting lets each module specialize.</p>
+          <p>The whole point of splitting the model is that <strong>different signals dominate at different timescales</strong>. A 1-week forecast is mostly about technical momentum, intraday volatility regime, and post-earnings drift; a 3–6 month forecast is mostly about fundamental revaluation, macro regime, and analyst-revision velocity. Mixing both signal families through one shared 4-output head — what the legacy MLP did — forces the network to compromise across horizons. Splitting lets each module specialize.</p>
 
           <h5 style="margin-top:1.25rem;color:#334155;">1. Different feature masks (the biggest difference)</h5>
           <p>Both modules start from the same 118-column base feature tensor, but each applies its own mask before training:</p>
@@ -841,7 +867,7 @@ if beta &gt; 2.5 AND HiRatio_52w &gt; 0.95:
                 <td><strong>Microstructure</strong><br>(PreMarket_GapPct, PostMarket_GapPct, Peer_RS_5d, PostEarnings_DayN/CumReturn/VolRatio)</td>
                 <td>✅ kept</td>
                 <td>❌ dropped</td>
-                <td>Pre/post-market gaps and post-earnings drift dissipate over 1-2 weeks. Useless at 1y; harmful as noise at 6m.</td>
+                <td>Pre/post-market gaps and post-earnings drift dissipate over 1-2 weeks. Useless at 6m; harmful as noise at 3m.</td>
               </tr>
               <tr>
                 <td><strong>Options market</strong><br>(IV, IV_Rank, Put_Call_Ratio, VIX_RealVol_Ratio, PC_Skew_Proxy)</td>
@@ -853,7 +879,7 @@ if beta &gt; 2.5 AND HiRatio_52w &gt; 0.95:
                 <td><strong>Earnings-window dampening</strong><br>(Earnings_In_Window, Days_To/Since_Earnings, EarningsSeason)</td>
                 <td>✅ kept</td>
                 <td>❌ dropped</td>
-                <td>These flag a specific upcoming volatility event — critical for 1w, irrelevant for 1y (which integrates over 4 earnings windows).</td>
+                <td>These flag a specific upcoming volatility event — critical for 1w, irrelevant for 6m (which integrates over multiple earnings windows).</td>
               </tr>
               <tr>
                 <td><strong>Fundamentals</strong><br>(PE, PB, TrailingEPS, ForwardEPS, RevenueGrowth, EarningsGrowth, ProfitMargins, DebtToEquity, ROE, Beta, DivYield, AnalystPremium, RecommendationMean)</td>
@@ -865,7 +891,7 @@ if beta &gt; 2.5 AND HiRatio_52w &gt; 0.95:
                 <td><strong>Long-horizon macro &amp; rates</strong><br>(VIX, VIX_20d_Avg, Treasury10Y/3M, CurveSlope, HYG/LQD credit, DXY, SPY/Sector RS, WTI/Copper/Wheat betas)</td>
                 <td>❌ dropped</td>
                 <td>✅ kept</td>
-                <td>Macro regimes shift over months/quarters. A daily VIX print is noise at 1w; a 60-day sector correlation matters at 1y.</td>
+                <td>Macro regimes shift over months/quarters. A daily VIX print is noise at 1w; a 60-day sector correlation matters at 3–6m.</td>
               </tr>
               <tr>
                 <td><strong>Long-horizon technicals</strong><br>(SMA_200, EMA_200, GoldenCross, ROC_6m, ROC_12m)</td>
@@ -889,7 +915,7 @@ if beta &gt; 2.5 AND HiRatio_52w &gt; 0.95:
                 <td><strong>World Bank macro</strong><br>(WorldBank_GDP, Inflation, Consumption, Real_GDP)</td>
                 <td>❌ dropped</td>
                 <td>✅ kept</td>
-                <td>Annual scalars — meaningless at 1w resolution, meaningful for 1y growth/inflation backdrop.</td>
+                <td>Annual scalars — meaningless at 1w resolution, meaningful for 3–6m growth/inflation backdrop.</td>
               </tr>
               <tr>
                 <td><strong>Earnings surprises</strong> (4Q avg)</td>
@@ -952,7 +978,7 @@ if beta &gt; 2.5 AND HiRatio_52w &gt; 0.95:
             <thead><tr><th>Score</th><th>Source</th><th>Logic</th></tr></thead>
             <tbody>
               <tr><td><code>confidence_score_6m</code> (cs6m)</td><td>Long-term module's holdout CV-MAPE on its 126-day predictions, augmented with history depth, feature completeness, and analyst-coverage components. <strong>This is the anchor</strong> — every other horizon's confidence is derived from it.</td><td>Computed by <code>confidence_score()</code> in <code>predict_core.py</code>.</td></tr>
-              <tr><td><code>confidence_score_1y</code> (cs1y)</td><td><code>max(0, cs6m − 15)</code></td><td>1y confidence is always 15 points lower than 6m — long-horizon forecasts are structurally less reliable.</td></tr>
+              <tr><td><code>confidence_score_3m</code> (cs3m)</td><td><code>max(0, cs6m − 5)</code></td><td>3m confidence is slightly below 6m — shorter horizon has less fundamental revaluation signal but more uncertainty from near-term volatility.</td></tr>
               <tr><td><code>confidence_score_1m</code> (cs1m)</td><td>Earnings-window aware: if <code>days_to_earnings ≤ 14</code>, <code>cs1m = max(0, cs6m − 10)</code>; otherwise <code>cs1m = min(100, cs6m + 10)</code>.</td><td>The 1m horizon is more reliable than 6m <em>except</em> when an earnings event is imminent, in which case it becomes <em>less</em> reliable than 6m. The short-term module owns this logic.</td></tr>
               <tr><td><code>confidence_score_1w</code> (cs1w)</td><td><code>min(100, cs1m + 3)</code></td><td>1w gets a small bump over 1m because the prediction window is tighter — less time for events to disrupt the forecast.</td></tr>
             </tbody>
@@ -985,29 +1011,27 @@ _blended_1w     = 0.50 × _mlp_1w_raw + 0.50 × _traj_anchor_1w</div>
 
         <section id="cs-model-versions">
           <h4>CS Long-Term Model Versions <span class="new-badge">v3.5</span></h4>
-          <p>The cross-sectional long-term model is trained <strong>once</strong> on the pooled <code>ranking_training_snapshots</code> table (~27k rows, ~474 tickers, time-split 80/20 by snapshot_date). Inference at request time is just a feature lookup + forward pass. Two versions ship today:</p>
+          <p>The cross-sectional long-term model is trained <strong>once</strong> on the pooled <code>ranking_training_snapshots</code> table (~115k+ rows, 1,185 tickers, time-split 80/20 by snapshot_date). Inference at request time is just a feature lookup + forward pass. Three versions shipped; v5 is current production:</p>
 
           <table>
-            <thead><tr><th></th><th><code>v1</code> (sklearn)</th><th><code>v2</code> (Keras, default)</th></tr></thead>
+            <thead><tr><th></th><th><code>v1</code> (sklearn)</th><th><code>v2</code> (Keras)</th><th><code>v5</code> (Keras, default)</th></tr></thead>
             <tbody>
-              <tr><td>Backend</td><td>sklearn MLPRegressor</td><td>Keras / TF 2.20+ (custom <code>TanhScaled</code> layer)</td></tr>
-              <tr><td>Hidden layers</td><td>(256, 128, 64)</td><td>(256, 128, 64)</td></tr>
-              <tr><td>Output heads</td><td>2 — [return_126d, return_252d]</td><td>2 — [return_126d, return_252d]</td></tr>
-              <tr><td>Loss</td><td>MSE</td><td>Huber(δ=0.5) <em>+</em> same-sign overshoot penalty: λ·ReLU(|p_6m| − 1.5·|p_1y|)² when same-signed <em>+</em> opposite-sign penalty: λ·ReLU(−p_6m · p_1y) (July 2026)</td></tr>
-              <tr><td>Output bound</td><td>none (unbounded linear)</td><td>tanh × per-head cap: ±70% on 6m, ±100% on 1y</td></tr>
-              <tr><td>TF dependency</td><td>no</td><td>yes — <code>tensorflow-cpu&gt;=2.20.0,&lt;2.21.0</code></td></tr>
-              <tr><td>Val MAE (return_126d)</td><td>0.520</td><td>0.527</td></tr>
-              <tr><td>Val MAE (return_252d)</td><td>1.064</td><td>1.040</td></tr>
-              <tr><td>Val direction-correct (126d)</td><td>65.2%</td><td>67.8%</td></tr>
-              <tr><td>Val direction-correct (252d)</td><td>69.9%</td><td>72.1%</td></tr>
-              <tr><td>Val 6m/1y same-sign inconsistency rate</td><td>13.0%</td><td>7.8%</td></tr>
-              <tr><td>Val 6m/1y opposite-sign rate (both &gt;5%)</td><td>—</td><td>~18% pre-fix (tracked in manifest as <code>opposite_sign_rate</code> after July 2026 retrain)</td></tr>
-              <tr><td>Persisted artifact(s)</td><td><code>models/long_term_cs_v1.pkl</code></td><td><code>models/long_term_cs_v2.pkl</code> (joblib wrapper) + <code>models/long_term_cs_v2.keras</code> (weights)</td></tr>
-              <tr><td>Trainer</td><td><code>scripts/train_long_term_cs.py</code></td><td><code>scripts/train_long_term_cs_v2.py</code></td></tr>
+              <tr><td>Backend</td><td>sklearn MLPRegressor</td><td>Keras / TF 2.20+</td><td>Keras / TF 2.20+ (custom <code>TanhScaled</code> layer)</td></tr>
+              <tr><td>Hidden layers</td><td>(256, 128, 64)</td><td>(256, 128, 64)</td><td>(256, 128, 64)</td></tr>
+              <tr><td>Features</td><td>72</td><td>72</td><td><strong>87</strong></td></tr>
+              <tr><td>Output heads</td><td>2 — [return_126d, return_252d]</td><td>2 — [return_126d, return_252d]</td><td>2 — [return_126d, return_252d]</td></tr>
+              <tr><td>Loss</td><td>MSE</td><td>Huber(δ=0.5) + same-sign overshoot penalty + opposite-sign penalty (July 2026)</td><td>Huber(δ=0.5) + same-sign overshoot penalty + opposite-sign penalty</td></tr>
+              <tr><td>Output bound</td><td>none (unbounded linear)</td><td>tanh × per-head cap: ±70% / ±100%</td><td>tanh × per-head cap: ±70% / ±100%</td></tr>
+              <tr><td>Train rows</td><td>~27k</td><td>~27k</td><td><strong>115,721</strong> (train) / 30,523 (val)</td></tr>
+              <tr><td>TF dependency</td><td>no</td><td>yes</td><td>yes</td></tr>
+              <tr><td>Trained</td><td>June 2026</td><td>July 2026</td><td><strong>2026-08-18</strong></td></tr>
+              <tr><td>Model version tag</td><td>v3split_v1</td><td>v3split_v2</td><td><strong>v3split_v5</strong></td></tr>
+              <tr><td>Persisted artifact(s)</td><td><code>models/long_term_cs_v1.pkl</code></td><td><code>models/long_term_cs_v2.pkl</code></td><td><code>models/long_term_cs_v5.pkl</code> + <code>long_term_cs_v5_manifest.json</code></td></tr>
+              <tr><td>Trainer</td><td><code>scripts/train_long_term_cs.py</code></td><td><code>scripts/train_long_term_cs_v2.py</code></td><td><code>scripts/train_ranker.py</code></td></tr>
             </tbody>
           </table>
 
-          <p>v2's joint loss explicitly penalizes the "6m head overshoots 1y head" pattern during training; combined with the tanh × cap output bound, this prevents the runaway-prediction failure mode where unusual real-world feature combinations produce raw returns in the 100s of percent. A July 2026 update added a second loss term penalizing opposite-sign disagreement between the two heads (<code>ReLU(−p_6m · p_1y)</code>) — zero when signs agree, grows with magnitude when they don't — targeting the systemic bias where ~18% of predictions showed 6m negative / 1y positive. The <a href="#sanitize-layer">sanitize layer</a> is still active as a belt-and-suspenders safety net.</p>
+          <p>v5 is a major retrain: 87 features (vs. 72 in v1/v2), 115k training rows (vs. ~27k), and trained on the August 2026 snapshot. The joint loss penalizes same-sign overshoot and opposite-sign disagreement between the two heads — preventing runaway predictions and the historical bias where ~18% of rows showed 6m-negative / 6m-strong-divergence. The <a href="#sanitize-layer">sanitize layer</a> is still active as a belt-and-suspenders safety net.</p>
         </section>
 
         <section id="mlp-targets">
@@ -1018,7 +1042,7 @@ _blended_1w     = 0.50 × _mlp_1w_raw + 0.50 × _traj_anchor_1w</div>
               <tr><td>0 — T+1</td><td>Next trading day</td><td>Auxiliary loss; not directly exposed in UI</td></tr>
               <tr><td>1 — T+5</td><td>1 trading week</td><td>Blended with trajectory to produce <code>predicted_price_1w</code></td></tr>
               <tr><td>2 — T+126</td><td>~6 months</td><td>Primary anchor for <code>predicted_price_6m</code></td></tr>
-              <tr><td>3 — T+252</td><td>~12 months</td><td>Primary anchor for <code>predicted_price_1y</code></td></tr>
+              <tr><td>3 — T+252</td><td>~12 months</td><td>Auxiliary target in per-ticker fallback only; <strong>not exposed in UI</strong>. CS model uses this label for training but the UI only surfaces through 6-month (T+126).</td></tr>
             </tbody>
           </table>
           <p>In the v3-split path, these same targets live in the per-module training data: <code>predict_short_term</code> trains on [T+1, T+5], <code>predict_long_term</code> (per-ticker fallback) trains on [T+126, T+252], and the cross-sectional model trains on pooled <code>forward_return_126d</code> / <code>forward_return_252d</code> labels from <code>ranking_training_snapshots</code>.</p>
@@ -1032,8 +1056,8 @@ _blended_1w     = 0.50 × _mlp_1w_raw + 0.50 × _traj_anchor_1w</div>
   "regularMarketPrice": 197.45,
   "predicted_price_1w": 199.10,  "predicted_change_pct_1w": 0.84,  "confidence_score_1w": 72,
   "predicted_price_1m": 201.30,  "predicted_change_pct_1m": 1.95,  "confidence_score_1m": 69,
+  "predicted_price_3m": 207.90,  "predicted_change_pct_3m": 5.30,  "confidence_score_3m": 66,
   "predicted_price_6m": 213.40,  "predicted_change_pct_6m": 8.08,  "confidence_score_6m": 64,
-  "predicted_price_1y": 225.80,  "predicted_change_pct_1y": 14.36, "confidence_score_1y": 58,
   "predicted_range_1w": [...],
   "monthly_trajectory": [...19 waypoints...],
   "accuracy_metrics": {...},
@@ -1050,7 +1074,7 @@ _blended_1w     = 0.50 × _mlp_1w_raw + 0.50 × _traj_anchor_1w</div>
           <p>Final post-processing pass on the prediction result. Rather than a blunt "clamp fires → floor confidence to 25" mechanic, the current sanitizer distinguishes between <strong>model failure</strong> (numerical breakage, uncorrelated horizons, opposite-sign disagreement) and <strong>coherent extrapolation</strong> (raw signal exceeded the cap but the horizons agree with each other about direction and magnitude). Confidence is only mechanically demoted in the former case; in the latter, the model's own confidence is preserved and the UI renders a directional pill instead of a false-precision point target.</p>
 
           <h5>1. Vol-scaled per-horizon caps</h5>
-          <p>Base caps <code>1w ±15%, 1m ±30%, 6m ±60%, 1y ±100%</code> — calibrated to roughly 3σ moves for a 30%-annualized-vol equity. Each is multiplied by <code>max(1, min(2.5, realized_vol_60d / 0.30))</code> so a high-vol name like WULF (~90% annualized vol) gets caps of <code>37.5 / 75 / 150 / 250</code> and doesn't trip the ceiling on every prediction. The <code>realized_vol_60d</code> input is computed from log returns at the top of <code>predict()</code> and stamped onto the result dict for observability.</p>
+          <p>Base caps <code>1w ±15%, 1m ±30%, 3m ±45%, 6m ±60%</code> — calibrated to roughly 3σ moves for a 30%-annualized-vol equity. Each is multiplied by <code>max(1, min(2.5, realized_vol_60d / 0.30))</code> so a high-vol name like WULF (~90% annualized vol) gets proportionally wider caps and doesn't trip the ceiling on every prediction. The <code>realized_vol_60d</code> input is computed from log returns at the top of <code>predict()</code> and stamped onto the result dict for observability.</p>
 
           <h5>2. Two-pass confidence rules (Proposal A: signal-aware)</h5>
           <p>The horizon loop no longer sets confidence in-line. Instead it records a <code>clamp_events</code> map, then a post-loop pass inspects the pattern and decides:</p>
@@ -1058,20 +1082,20 @@ _blended_1w     = 0.50 × _mlp_1w_raw + 0.50 × _traj_anchor_1w</div>
             <thead><tr><th>Pattern</th><th>Effect on confidence &amp; ceiling flags</th></tr></thead>
             <tbody>
               <tr>
-                <td><strong>Both 6m + 1y clamped, same direction</strong></td>
-                <td>Keep the model's own <code>confidence_score_6m/1y</code>. Set <code>at_model_ceiling_6m = at_model_ceiling_1y = true</code>, <code>ceiling_direction = 'up' / 'down'</code>. Coherent extrapolation — not a model failure.</td>
+                <td><strong>Both 3m + 6m clamped, same direction</strong></td>
+                <td>Keep the model's own <code>confidence_score_3m/6m</code>. Set <code>at_model_ceiling_3m = at_model_ceiling_6m = true</code>, <code>ceiling_direction = 'up' / 'down'</code>. Coherent extrapolation — not a model failure.</td>
               </tr>
               <tr>
-                <td><strong>Only 1y clamped, 6m same-signed AND <code>|pct_6m| ≥ 0.5 × cap_6m_scaled</code></strong></td>
-                <td>Same as above but only <code>at_model_ceiling_1y = true</code>. Typical shape: +57% at 6m → clamped +100% at 1y (HBM-style growth).</td>
+                <td><strong>Only 6m clamped, 3m same-signed AND <code>|pct_3m| ≥ 0.5 × cap_3m_scaled</code></strong></td>
+                <td>Same as above but only <code>at_model_ceiling_6m = true</code>. Typical shape: +40% at 3m → clamped +60% at 6m (HBM-style growth).</td>
               </tr>
               <tr>
-                <td><strong>Only 6m clamped, 1y same-signed AND <code>|pct_1y| ≥ 0.5 × cap_1y_scaled</code></strong></td>
-                <td>Symmetric to above. Only <code>at_model_ceiling_6m = true</code>.</td>
+                <td><strong>Only 3m clamped, 6m same-signed AND <code>|pct_6m| ≥ 0.5 × cap_6m_scaled</code></strong></td>
+                <td>Symmetric to above. Only <code>at_model_ceiling_3m = true</code>.</td>
               </tr>
               <tr>
-                <td><strong>Only 1y clamped, 6m near zero or opposite direction</strong></td>
-                <td>Confidence → 25 (real outlier). <code>confidence_reason_1y</code> populated with a plain-language explanation the tooltip renders.</td>
+                <td><strong>Only 6m clamped, 3m near zero or opposite direction</strong></td>
+                <td>Confidence → 25 (real outlier). <code>confidence_reason_6m</code> populated with a plain-language explanation the tooltip renders.</td>
               </tr>
               <tr>
                 <td><strong>Price floor fires (predicted_price &lt; 0.01)</strong></td>
@@ -1089,15 +1113,15 @@ _blended_1w     = 0.50 × _mlp_1w_raw + 0.50 × _traj_anchor_1w</div>
           </table>
 
           <h5>3. Cross-horizon consistency + trajectory smoothness (Proposal 2 + 4)</h5>
-          <p>The historical <code>|pct_6m| &gt; 1.5 × |pct_1y|</code> same-sign check used to blindly clamp pct_6m and floor its confidence to 25. That was a false positive for legitimate cyclical-peak forecasts (semis at ADI-style inflection points: +20% at 6m → +4% at 1y → −13% at 18m). The current gate checks the trajectory shape:</p>
+          <p>The historical <code>|pct_3m| &gt; 1.5 × |pct_6m|</code> same-sign check used to blindly clamp pct_3m and floor its confidence to 25. That was a false positive for legitimate cyclical-peak forecasts (semis at ADI-style inflection points: +20% at 3m → +4% at 6m → −13% at 9m). The current gate checks the trajectory shape:</p>
           <ul>
-            <li><strong>Smooth transition</strong> (waypoints 6→12 in <code>monthly_trajectory</code> are monotonic) → model is deliberately forecasting peak-and-reverse. Keep the raw 6m target; drop confidence to <strong>60</strong> (Medium) and populate <code>confidence_reason_6m</code>.</li>
-            <li><strong>Non-smooth</strong> (waypoint 7 jumps back toward the 1y anchor — real spike outlier) → clamp pct_6m to <code>1.3 × pct_1y</code>, patch <code>monthly_trajectory[6]</code> to match, drop confidence to <strong>60</strong>.</li>
-            <li><strong>Opposite-sign disagreement</strong> (<code>|pct_6m| &gt; 5</code> AND <code>|pct_1y| &gt; 5</code>) → glide-path pct_6m to <code>pct_1y × 0.5</code>, floor confidence to 25.</li>
+            <li><strong>Smooth transition</strong> (waypoints 3→6 in <code>monthly_trajectory</code> are monotonic) → model is deliberately forecasting peak-and-reverse. Keep the raw 3m target; drop confidence to <strong>60</strong> (Medium) and populate <code>confidence_reason_3m</code>.</li>
+            <li><strong>Non-smooth</strong> (waypoint 4 jumps back toward the 6m anchor — real spike outlier) → clamp pct_3m to <code>1.3 × pct_6m</code>, patch <code>monthly_trajectory[3]</code> to match, drop confidence to <strong>60</strong>.</li>
+            <li><strong>Opposite-sign disagreement</strong> (<code>|pct_3m| &gt; 5</code> AND <code>|pct_6m| &gt; 5</code>) → glide-path pct_3m to <code>pct_6m × 0.5</code>, floor confidence to 25.</li>
           </ul>
 
           <h5>4. Trajectory + range re-centering</h5>
-          <p>Whenever a horizon clamp fires, both <code>predicted_range_{h}</code> and <code>monthly_trajectory[6]/[12]</code> are re-centered on the clamped price (preserving spread). This prevents the earlier UI bug where the "Range" text on the 6m card floated above the target.</p>
+          <p>Whenever a horizon clamp fires, both <code>predicted_range_{h}</code> and the corresponding trajectory waypoints (<code>monthly_trajectory[3]</code> for 3m, <code>monthly_trajectory[6]</code> for 6m) are re-centered on the clamped price (preserving spread). This prevents the earlier UI bug where the "Range" text on the card floated above the target.</p>
 
           <h5>5. Confidence-breakdown emission</h5>
           <p><code>confidence_score()</code> now returns <code>(score, breakdown)</code> when <code>return_breakdown=True</code>. The breakdown carries per-component points (<code>cv_mape</code>, <code>history</code>, <code>features</code>, <code>analyst</code>) + raw input values (cv_mape %, history years, imputed field list, analyst count). It flows through <code>predict_long_term.py</code> → the result JSON → <code>prediction_records.confidence_breakdown</code> → the UI tooltip on Medium/Low badges. When the sanitizer manually adjusts a horizon's confidence, it also stamps <code>confidence_reason_{h}</code> with a plain-language explanation that takes precedence over the component-based tooltip.</p>
@@ -1125,8 +1149,8 @@ predicted_1w = clip(_blended_1w, current_price - _atr_cap, current_price + _atr_
         </section>
 
         <section id="trajectory">
-          <h4>18-Month Trajectory Generation</h4>
-          <p><strong>19 waypoints</strong> at trading-day offsets: [5, 21, 42, 63, 84, 105, 126, …, 378]. The UI prepends a t=0 "Now" dot. MC runs provide spread bands only; midpoints use deterministic MLP outputs.</p>
+          <h4>Trajectory Chart Generation</h4>
+          <p><strong>10 waypoints</strong> at trading-day offsets: T5, T21, T42, T63, T84, T105, T126, T147, T168, T189. The UI renders these using a <strong>smooth Catmull-Rom cubic Bezier spline</strong> (implemented in <code>StockPrediction.tsx</code>) rather than straight line segments. The prediction cards map to specific waypoints: 3-month = <code>monthly_trajectory[3]</code> (T63); 6-month = <code>monthly_trajectory[6]</code> (T126). MC runs provide spread bands only; midpoints use deterministic MLP outputs.</p>
         </section>
 
         <section id="earnings-dampening">
@@ -1175,23 +1199,23 @@ Body:
   // Prices
   predicted_price_1m,                          // required
   predicted_price_1w,                          // optional, positive only
+  predicted_price_3m,                          // optional, positive only
   predicted_price_6m,                          // optional, positive only
-  predicted_price_1y,                          // optional, positive only
-  // Per-horizon model outputs (NEW)
+  // Per-horizon model outputs
   predicted_change_pct_1w,
   predicted_change_pct_1m,
+  predicted_change_pct_3m,
   predicted_change_pct_6m,
-  predicted_change_pct_1y,
   confidence_score_1w,
   confidence_score_1m,
+  confidence_score_3m,
   confidence_score_6m,
-  confidence_score_1y,
   // Context
   user_id,                                     // internal-call user
   gps_score,                                   // baseline 1m GPS
   gps_breakdown                                // baseline 1m breakdown
 }</code></pre>
-          <div class="highlight-box"><strong>Why all 8 per-horizon stats?</strong> Persisting <code>predicted_change_pct_*</code> and <code>confidence_score_*</code> next to the prices lets the dashboard, portfolio, and watchlist routes recompute horizon-aware GPS using the model's own outputs. Previously they had to derive the horizon delta from <code>predicted_price_horizon − current_price</code>, which becomes inaccurate as the current price drifts between prediction runs.</div>
+          <div class="highlight-box"><strong>Why per-horizon stats for all 4 horizons?</strong> Persisting <code>predicted_change_pct_*</code> and <code>confidence_score_*</code> next to the prices lets the dashboard, portfolio, and watchlist routes recompute horizon-aware GPS using the model's own outputs. Previously they had to derive the horizon delta from <code>predicted_price_horizon − current_price</code>, which becomes inaccurate as the current price drifts between prediction runs.</div>
         </section>
 
         <section id="save-route">
@@ -1202,9 +1226,9 @@ Body:
             <tbody>
               <tr><td><code>ticker</code></td><td><code>tickerSchema</code></td><td>resolved to <code>stocks.id</code></td></tr>
               <tr><td><code>predicted_price_1m</code></td><td>required, positive</td><td><code>user_stock_predictions.predicted_price_1m</code></td></tr>
-              <tr><td><code>predicted_price_1w / _6m / _1y</code></td><td>optional, positive</td><td>matching <code>user_stock_predictions</code> column</td></tr>
-              <tr><td><code>predicted_change_pct_{1w,1m,6m,1y}</code></td><td>optional, number</td><td>matching <code>user_stock_predictions.predicted_change_pct_*</code> column <span class="new-badge">new</span></td></tr>
-              <tr><td><code>confidence_score_{1w,1m,6m,1y}</code></td><td>optional, [0,100]</td><td>matching <code>user_stock_predictions.confidence_score_*</code> column <span class="new-badge">new</span></td></tr>
+              <tr><td><code>predicted_price_1w / _3m / _6m</code></td><td>optional, positive</td><td>matching <code>user_stock_predictions</code> column</td></tr>
+              <tr><td><code>predicted_change_pct_{1w,1m,3m,6m}</code></td><td>optional, number</td><td>matching <code>user_stock_predictions.predicted_change_pct_*</code> column</td></tr>
+              <tr><td><code>confidence_score_{1w,1m,3m,6m}</code></td><td>optional, [0,100]</td><td>matching <code>user_stock_predictions.confidence_score_*</code> column</td></tr>
               <tr><td><code>gps_score</code></td><td>optional, [0,100]</td><td><code>stock_gps_scores.gps_score</code> + append to <code>stock_gps_score_history</code></td></tr>
               <tr><td><code>gps_breakdown</code></td><td>any</td><td><code>stock_gps_scores.gps_breakdown</code> (JSON)</td></tr>
               <tr><td><code>macro_features_used</code></td><td>optional, string[]</td><td><code>user_stock_predictions.macro_features_used</code></td></tr>
@@ -1228,7 +1252,7 @@ Body:
         <p>Every successful live prediction run from <code>POST /api/prediction/[ticker]</code> fires a fire-and-forget call to <code>recordPrediction()</code> immediately after the Python script returns and before the response is sent. The function does a single <code>INSERT IGNORE</code> keyed on <code>(symbol, predicted_at = CURDATE())</code>, so the second prediction for the same ticker on the same calendar day is silently dropped — preserving the "one prediction per symbol per day" semantic the analytics layer depends on.</p>
         <pre><code>INSERT IGNORE INTO prediction_records (
   symbol, predicted_at, price_at_prediction,
-  predicted_price_1w, predicted_price_1m, predicted_price_6m, predicted_price_1y
+  predicted_price_1w, predicted_price_1m, predicted_price_3m, predicted_price_6m
 ) VALUES (?, CURDATE(), ?, ?, ?, ?, ?)</code></pre>
         <p>The same writer is used by <code>scripts/update_predictions.py</code> (via the Python sibling <code>scripts/prediction_recorder.py</code>) so the analytics table accumulates predictions from both the live UI path and the nightly DeepMoney sync without double-counting same-day duplicates.</p>
         <p><strong>Downstream consumers:</strong></p>
@@ -1270,11 +1294,11 @@ Body:
           <pre><code>save_prediction(
   ticker, predicted_price, user_id,
   gps_score=None, gps_breakdown=None,
-  predicted_price_1w=None, predicted_price_6m=None, predicted_price_1y=None,
+  predicted_price_1w=None, predicted_price_3m=None, predicted_price_6m=None,
   predicted_change_pct_1w=None, predicted_change_pct_1m=None,
-  predicted_change_pct_6m=None, predicted_change_pct_1y=None,
+  predicted_change_pct_3m=None, predicted_change_pct_6m=None,
   confidence_score_1w=None,     confidence_score_1m=None,
-  confidence_score_6m=None,     confidence_score_1y=None,
+  confidence_score_3m=None,     confidence_score_6m=None,
 )</code></pre>
           <p>Each kwarg is only added to the outbound JSON payload when it is non-<code>None</code>, mirroring the surgical-upsert behavior of the save route on the receiving side. Both the fresh-prediction branch and the cached-prediction branch in <code>sync_portfolio_predictions()</code> read these fields and pass them through.</p>
           <p>The cache sentinel <code>_empty_cache_entry()</code> was updated to include the eight per-horizon keys so a failed fetch still produces a dict whose <code>.get()</code> calls return <code>None</code> rather than <code>KeyError</code>.</p>
@@ -1351,14 +1375,29 @@ conf_threshold = ETF_HOLDING_MIN_CONFIDENCE * mult
     <section id="changelog">
       <h2>Recent Changes</h2>
       <div class="step-card">
-        <h4>2026-07-12 — v5 variant-gated post-hoc fix stack</h4>
+        <h4>2026-08-18 — 3-month horizon added; CS model v5 retrained</h4>
         <table>
           <thead><tr><th>File</th><th>Change</th></tr></thead>
           <tbody>
-            <tr><td><code>scripts/predict_weighted_analysis.py</code></td><td>Added <code>MODEL_VARIANT</code> env-var gate (module scope, line 54) with three values: <code>v3</code> (bare model), <code>v4</code> (VIX-conf mult + 90d drift + deadband + RSI-beta gate), <code>v5</code> (default — v4 base minus VIX-conf mult, plus Fix A/B/C/D). Fix B multiplies <code>long_term_multiplier</code> before <code>predict_long_term()</code> runs. Fix A/C/D apply <code>min()</code> ceilings / delta scaling on the returned 6m/1y prices. All fixes emit a <code>variant_adjustments</code> telemetry block on the result.</td></tr>
+            <tr><td><code>scripts/deepmoney_sync.py</code></td><td>All <code>record_prediction()</code> calls now pass <code>predicted_price_3m</code>, <code>predicted_change_pct_3m</code>, <code>confidence_score_3m</code> instead of <code>_1y</code> equivalents.</td></tr>
+            <tr><td><code>scripts/update_predictions.py</code></td><td><code>_DASHBOARD_TIMEFRAME_CONFIG</code> key <code>'3_month'</code> replaces <code>'1_year'</code>. <code>record_prediction()</code> calls updated to <code>_3m</code> fields.</td></tr>
+            <tr><td><code>scripts/resolve_predictions.py</code></td><td>Horizons list changed to <code>[('1w',7), ('1m',30), ('6m',180), ('3m',91)]</code>. <code>('1y',365)</code> removed.</td></tr>
+            <tr><td><code>scripts/backtest_predictions.py</code></td><td><code>HORIZONS = [('1w',7), ('1m',30), ('3m',91), ('6m',180)]</code>.</td></tr>
+            <tr><td><code>src/utils/predictionRecorder.ts</code></td><td><code>PredictionInput</code> interface now includes <code>predictedPrice3m</code>, <code>predictedChangePct3m</code>, <code>confidenceScore3m</code>, <code>atModelCeiling3m</code>, <code>confidenceReason3m</code>. INSERT writes <code>_3m</code> columns.</td></tr>
+            <tr><td><code>src/utils/strategy.ts</code></td><td><code>VALID_TIMEFRAMES</code> updated to <code>['1_week','1_month','3_month','6_month']</code>. <code>TIMEFRAME_CONFIG['3_month']</code> added; <code>'1_year'</code> key removed.</td></tr>
+            <tr><td><code>src/app/api/analytics/model-accuracy/route.ts</code></td><td><code>PQS_WEIGHTS</code> now includes <code>'3_month': { dir: 0.55, acc: 0.45 }</code>. Queries <code>actual_price_3m</code>, <code>direction_correct_3m</code>, etc.</td></tr>
+            <tr><td><code>models/long_term_cs_v5.pkl</code></td><td>New CS model: 87 features, Keras, targets <code>['return_126d', 'return_252d']</code>, trained 2026-08-18, 115,721 train rows, 1,185 tickers. Model version tag: <code>v3split_v5</code>.</td></tr>
+          </tbody>
+        </table>
+
+        <h4 style="margin-top:2rem;">2026-07-12 — v5 variant-gated post-hoc fix stack</h4>
+        <table>
+          <thead><tr><th>File</th><th>Change</th></tr></thead>
+          <tbody>
+            <tr><td><code>scripts/predict_weighted_analysis.py</code></td><td>Added <code>MODEL_VARIANT</code> env-var gate (module scope, line 54) with three values: <code>v3</code> (bare model), <code>v4</code> (VIX-conf mult + 90d drift + deadband + RSI-beta gate), <code>v5</code> (default — v4 base minus VIX-conf mult, plus Fix A/B/C/D). Fix B multiplies <code>long_term_multiplier</code> before <code>predict_long_term()</code> runs. Fix A/C/D apply <code>min()</code> ceilings / delta scaling on the returned 3m/6m prices. All fixes emit a <code>variant_adjustments</code> telemetry block on the result.</td></tr>
             <tr><td><code>scripts/predict_weighted_analysis.py</code></td><td>New helper <code>_apply_variant_adjustments()</code> — runs at the end of <code>predict()</code>. Writes <code>predicted_direction_{h}</code> ∈ up/down/neutral for every horizon (2% deadband in v4/v5; 0 in v3), applies the v4-only VIX×beta confidence multiplier, and applies the v4/v5 RSI-beta short-term confidence gate (1w/1m only).</td></tr>
             <tr><td><code>scripts/resolve_predictions.py</code> &amp; <code>scripts/backtest_predictions.py</code></td><td><code>compute_accuracy_metrics()</code> in both files now mirrors the 2% deadband — near-flat predictions produce <code>direction_correct = NULL</code>, excluded from the direction-accuracy metric surfaced by <code>/api/analytics/model-accuracy</code>.</td></tr>
-            <tr><td><code>scripts/predict_core.py</code></td><td><code>CACHE_SCHEMA_VERSION</code> bumped from 19 → 23 across the v4 → v5 A/B/C/D → revert-of-E-F-G evolution. <code>_sanitize_predictions()</code> unchanged in role — still clamps out-of-bounds prices, floors at 0.01, and glide-paths opposite-sign 6m/1y.</td></tr>
+            <tr><td><code>scripts/predict_core.py</code></td><td><code>CACHE_SCHEMA_VERSION</code> bumped from 19 → 23 across the v4 → v5 A/B/C/D → revert-of-E-F-G evolution. <code>_sanitize_predictions()</code> unchanged in role — still clamps out-of-bounds prices, floors at 0.01, and glide-paths opposite-sign 3m/6m.</td></tr>
             <tr><td>Reports</td><td><code>reports/data_4way_newset.txt</code> — the 15-ticker backtest that motivated reverting Fix E/F/G (no measurable improvement over v5 A-D).</td></tr>
           </tbody>
         </table>
@@ -1371,12 +1410,12 @@ conf_threshold = ETF_HOLDING_MIN_CONFIDENCE * mult
             <tr><td><code>scripts/predict_weighted_analysis_baseline.py</code></td><td>NEW (frozen pre-refactor copy). Loaded when <code>USE_LEGACY_PREDICTION_MODEL=true</code>. Identical to v3.4.1 behavior including its own copy of <code>_sanitize_predictions</code>.</td></tr>
             <tr><td><code>scripts/predict_core.py</code></td><td>NEW. Shared module: <code>FEATURE_COLUMNS</code> (118), <code>SHORT_TERM_FEATURES</code> (58), <code>LONG_TERM_FEATURES</code> (71), <code>build_features</code>, <code>metric_analysis</code>, <code>confidence_score</code>, <code>extend_with_regime_cols</code>, MC helpers, cache helpers, <code>_sanitize_predictions</code> with cross-horizon clamp. <code>CACHE_SCHEMA_VERSION = 13</code>.</td></tr>
             <tr><td><code>scripts/predict_short_term.py</code></td><td>NEW. 1w + 1m heads. Per-ticker MLP (96, 48, 24) on 58-feature short-term mask. 50/50 MLP/trajectory blend for 1w with ATR cap.</td></tr>
-            <tr><td><code>scripts/predict_long_term.py</code></td><td>NEW. 6m + 1y heads. Loads <code>models/long_term_cs_{version}.pkl</code> at import (default <code>v2</code>); cross-sectional inference is ~50ms vs ~10s for per-ticker fallback. Fallback to per-ticker MLP (192, 96, 48) if artifact missing.</td></tr>
+            <tr><td><code>scripts/predict_long_term.py</code></td><td>NEW. 3m + 6m heads. Loads <code>models/long_term_cs_{version}.pkl</code> at import (default <code>v5</code>); cross-sectional inference is ~50ms vs ~10s for per-ticker fallback. Fallback to per-ticker MLP (192, 96, 48) if artifact missing.</td></tr>
             <tr><td><code>scripts/train_long_term_cs.py</code></td><td>NEW. Trains v1 — sklearn MLPRegressor (256, 128, 64) with MSE on pooled <code>ranking_training_snapshots</code> labels (<code>forward_return_126d</code>, <code>forward_return_252d</code>). Time-split 80/20.</td></tr>
-            <tr><td><code>scripts/train_long_term_cs_v2.py</code></td><td>NEW. Trains v2 — Keras MLP with Huber(δ=0.5) + joint 6m/1y consistency penalty (λ=1.0, ratio=1.5) + tanh × cap output (±70% / ±100%). Same hidden architecture as v1; depends on <code>tensorflow-cpu</code>. July 2026: added <code>--lambda-opposite-sign</code> (default 1.0) penalty term (<code>ReLU(−p_6m · p_1y)</code>) + <code>opposite_sign_rate()</code> metric + <code>opposite_sign_rate</code> / <code>v_prev_opposite_sign_rate</code> fields in manifest.</td></tr>
+            <tr><td><code>scripts/train_long_term_cs_v2.py</code></td><td>NEW. Trains v2 — Keras MLP with Huber(δ=0.5) + joint 6m consistency penalty (λ=1.0, ratio=1.5) + tanh × cap output (±70% / ±100%). Same hidden architecture as v1; depends on <code>tensorflow-cpu</code>. July 2026: added <code>--lambda-opposite-sign</code> (default 1.0) penalty term + <code>opposite_sign_rate()</code> metric.</td></tr>
             <tr><td><code>scripts/keras_wrapper.py</code></td><td>NEW. <code>KerasModelWrapper</code> (pickleable, lazy TF import on first <code>predict()</code>) and registered <code>TanhScaled</code> custom layer for v2 output bounding.</td></tr>
             <tr><td><code>scripts/extend_long_term_labels.py</code></td><td>NEW. One-off helper that adds <code>forward_return_126d</code> / <code>forward_return_252d</code> columns to <code>ranking_training_snapshots</code> via per-ticker yfinance lookup.</td></tr>
-            <tr><td><code>scripts/predict_core.py</code> — <code>_sanitize_predictions</code></td><td>Cross-horizon consistency clamp added: when same-signed and <code>|pct_6m| &gt; 1.5 × |pct_1y|</code> AND <code>|pct_6m| &gt; 15%</code>, pct_6m is clamped to <code>1.3 × pct_1y</code> and confidence_score_6m → 25. Existing per-horizon bound clamp now also recomputes <code>predicted_price_{h}</code> so pct and price stay in sync (was a latent pre-refactor bug). July 2026: added opposite-sign branch — when signs differ AND both magnitudes &gt; 5%, pct_6m is glide-pathed to <code>pct_1y × 0.5</code> and confidence_score_6m → 25.</td></tr>
+            <tr><td><code>scripts/predict_core.py</code> — <code>_sanitize_predictions</code></td><td>Cross-horizon consistency clamp added: when same-signed and <code>|pct_3m| &gt; 1.5 × |pct_6m|</code> AND <code>|pct_3m| &gt; 15%</code>, pct_3m is clamped to <code>1.3 × pct_6m</code> and confidence_score_3m → 25. Existing per-horizon bound clamp now also recomputes <code>predicted_price_{h}</code> so pct and price stay in sync (was a latent pre-refactor bug). August 2026: added opposite-sign branch — when signs differ AND both magnitudes &gt; 5%, pct_3m is glide-pathed to <code>pct_6m × 0.5</code> and confidence_score_3m → 25.</td></tr>
             <tr><td><code>scripts/test_sanitize_predictions.py</code></td><td>NEW. 10 standalone tests covering legit / overshoot / negative overshoot / opposite signs / below floor / below ratio / bound retrofit / chained clamp / negative price / missing horizon. July 2026: updated to 12 tests — <code>test_opposite_signs_no_clamp</code> renamed to <code>test_opposite_signs_clamped</code> (now fires under new rule); added <code>test_opposite_signs_small_no_clamp</code> and <code>test_reported_dip_pattern_clamped</code> (PCAR regression test).</td></tr>
             <tr><td><code>scripts/backtest_predictions.py</code></td><td>Env-var-driven model selection: imports <code>predict_weighted_analysis_baseline</code> or <code>predict_weighted_analysis</code>. Persists <code>model_version</code> column (<code>'legacy'</code> or <code>'v3split'</code>) — optional override via <code>MODEL_VERSION_TAG</code>. SELECT/INSERT in <code>upsert_backtest_row</code> include model_version. Cursor switched to <code>buffered=True</code>.</td></tr>
             <tr><td><code>prediction_records</code> table</td><td>Added <code>model_version VARCHAR(20) NOT NULL DEFAULT 'legacy'</code> column. Dropped <code>uq_symbol_date</code> unique index; replaced with <code>uq_symbol_date_model</code> on <code>(symbol, predicted_at, model_version)</code> so legacy and v3split predictions for the same (ticker, date) coexist as separate rows.</td></tr>
@@ -1393,8 +1432,8 @@ conf_threshold = ETF_HOLDING_MIN_CONFIDENCE * mult
           <tbody>
             <tr><td><code>src/app/api/prediction/[ticker]/route.ts</code></td><td><code>buildResponse()</code> now computes both a <strong>1m baseline GPS</strong> (persisted globally) and a <strong>user-horizon GPS</strong> (returned in the response). The user's <code>investment_timeframe</code> is resolved via <code>getUserStrategy(userId)</code> and the matching <code>predicted_change_pct_*</code> + <code>confidence_score_*</code> are plugged into <code>calculateGpsScore()</code>.</td></tr>
             <tr><td><code>src/app/api/prediction/[ticker]/route.ts</code></td><td><code>savePredictionAsync()</code> forwards all four horizon prices, all four <code>predicted_change_pct_*</code>, and all four <code>confidence_score_*</code> to <code>/api/prediction/save</code>. Numbers coerced via <code>num()</code> / <code>positive()</code>; invalid values drop out.</td></tr>
-            <tr><td><code>src/app/api/prediction/save/route.ts</code></td><td>Zod schema <code>savePredictionSchema</code> extended with 8 new optional fields: <code>predicted_change_pct_{1w,1m,6m,1y}</code> and <code>confidence_score_{1w,1m,6m,1y}</code> (the latter constrained to <code>[0,100]</code>). All are persisted to <code>user_stock_predictions</code> via the surgical-assignment branch.</td></tr>
-            <tr><td><code>scripts/update_predictions.py</code></td><td><code>save_prediction()</code> signature extended with 8 new per-horizon kwargs. The fresh-prediction branch captures all 8 stats from the Python result; the cached-prediction branch reads them from <code>prediction_cache</code>. <code>_empty_cache_entry()</code> updated to include the 8 keys.</td></tr>
+            <tr><td><code>src/app/api/prediction/save/route.ts</code></td><td>Zod schema <code>savePredictionSchema</code> extended with optional fields: <code>predicted_change_pct_{1w,1m,3m,6m}</code> and <code>confidence_score_{1w,1m,3m,6m}</code> (the latter constrained to <code>[0,100]</code>). All are persisted to <code>user_stock_predictions</code> via the surgical-assignment branch.</td></tr>
+            <tr><td><code>scripts/update_predictions.py</code></td><td><code>save_prediction()</code> signature extended with per-horizon kwargs for all 4 horizons. The fresh-prediction branch captures all stats from the Python result; the cached-prediction branch reads them from <code>prediction_cache</code>. <code>_empty_cache_entry()</code> updated to include the keys.</td></tr>
             <tr><td>Lifecycle docs</td><td>End-to-end lifecycle section added; cache hit/miss table; single-call → 4-horizons section; per-horizon persistence section; <code>savePredictionAsync</code> payload spec; <code>/api/prediction/save</code> Zod schema documented.</td></tr>
           </tbody>
         </table>
@@ -1414,7 +1453,7 @@ conf_threshold = ETF_HOLDING_MIN_CONFIDENCE * mult
           <thead><tr><th>File</th><th>Change</th></tr></thead>
           <tbody>
             <tr><td><code>scripts/update_predictions.py</code></td><td>Added <code>strategy_config</code> module import. Batch-fetches all user strategies at startup. ETF holding gates now scaled per user via <code>resolve_strategy()</code> aggressiveness multiplier and predChangeGate floor.</td></tr>
-            <tr><td><code>scripts/update_predictions.py</code></td><td>All four horizon prices (<code>predicted_price_1w / _1m / _6m / _1y</code>) now persisted to <code>user_stock_predictions</code>.</td></tr>
+            <tr><td><code>scripts/update_predictions.py</code></td><td>All four horizon prices (<code>predicted_price_1w / _1m / _3m / _6m</code>) now persisted to <code>user_stock_predictions</code>.</td></tr>
             <tr><td><code>scripts/update_predictions.py</code></td><td>Added <code>calculate_gps_v3()</code> Python mirror function (GPS v3.0, 8 components, 100 pts) — kept in sync with <code>src/utils/gps.ts</code>.</td></tr>
             <tr><td><code>src/app/api/user/portfolio/route.ts</code></td><td>Reads <code>getUserStrategy()</code> to select predicted_price horizon column; calls <code>adjustMlpUpsideForHorizon()</code> per item. Returns <code>gpsHorizon</code> field.</td></tr>
             <tr><td><code>src/app/api/user/watchlist/route.ts</code></td><td>Same horizon-aware GPS patch as portfolio route.</td></tr>

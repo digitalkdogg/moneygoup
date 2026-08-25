@@ -3,13 +3,13 @@ predict_short_term.py — 1w / 1m horizon model.
 
 Trains a 2-output MLP head on (p1d, p1w) using only the SHORT_TERM_FEATURES
 mask (momentum / technical / microstructure). Post-processes:
-  - 1w price = 50/50 blend of (MLP raw output, 1w trajectory anchor toward 6m)
+  - 1w price = 50/50 blend of (MLP raw output, 1w trajectory anchor toward 3m)
     clamped to ±2× ATR(14) × √5.
   - 1m price = linear interpolation between predicted_price_1w and
-    predicted_price_6m at t+21 trading days (matches the legacy trajectory
+    predicted_price_3m at t+21 trading days (matches the legacy trajectory
     builder's t+21 waypoint).
 
-Long-term outputs (predicted_price_6m, confidence_score_6m) are explicit
+Long-term outputs (predicted_price_3m, confidence_score_3m) are explicit
 function arguments — no hidden import path between horizon files.
 
 Per-horizon optimizations vs the legacy monolithic 4-output MLP:
@@ -44,9 +44,9 @@ from predict_core import (
 
 # Horizon constants — match the legacy predict() body so trajectory math
 # stays equivalent.
-T5 = 5      # 1 trading week
-T21 = 21    # 1 trading month (approx)
-T6 = 126    # 6 months
+T5  = 5    # 1 trading week
+T21 = 21   # 1 trading month (approx)
+T3M = 63   # 3 months (medium-term anchor for 1w/1m blending)
 
 
 # ── Cross-sectional pretrained model loader (best-effort) ──────────────────
@@ -111,8 +111,8 @@ def _predict_with_st_cs_model(
     current_price: float,
     mult_1w: float,
     mult_1m: float,
-    predicted_price_6m_base: float,
-    confidence_score_6m: int,
+    predicted_price_3m_base: float,
+    confidence_score_3m: int,
     stock_metrics: dict,
 ) -> dict:
     """
@@ -141,7 +141,7 @@ def _predict_with_st_cs_model(
     _mlp_1m_base = current_price * (1.0 + float(pred_returns[1]))
 
     # 1w: 50/50 blend with trajectory anchor (same logic as per-ticker path).
-    _traj_anchor_1w_base = current_price + (predicted_price_6m_base - current_price) * (T5 / T6)
+    _traj_anchor_1w_base = current_price + (predicted_price_3m_base - current_price) * (T5 / T3M)
     _blended_1w_base = 0.50 * _mlp_1w_base + 0.50 * _traj_anchor_1w_base
     _blended_1w = _blended_1w_base * mult_1w
 
@@ -150,9 +150,9 @@ def _predict_with_st_cs_model(
     predicted_price_1w = float(np.clip(_blended_1w, current_price - _max_move_1w, current_price + _max_move_1w))
     pct_1w = round((predicted_price_1w - current_price) / (current_price + 1e-9) * 100, 2)
 
-    # 1m: blend the CS 1m base with the 6m trajectory (mirrors per-ticker interpolation).
-    t_norm = (T21 - T5) / (T6 - T5)
-    _blended_1m_base = _blended_1w_base + (predicted_price_6m_base - _blended_1w_base) * t_norm
+    # 1m: blend the CS 1m base with the 3m trajectory (mirrors per-ticker interpolation).
+    t_norm = (T21 - T5) / (T3M - T5)
+    _blended_1m_base = _blended_1w_base + (predicted_price_3m_base - _blended_1w_base) * t_norm
     _cs_1m_base = 0.50 * _mlp_1m_base + 0.50 * _blended_1m_base
     predicted_price_1m = _cs_1m_base * mult_1m
     pct_1m = round((predicted_price_1m - current_price) / (current_price + 1e-9) * 100, 2)
@@ -168,7 +168,7 @@ def _predict_with_st_cs_model(
             ).days
         except Exception:
             pass
-    cs1m = max(0, confidence_score_6m - 10) if days_to_earnings <= 14 else min(100, confidence_score_6m + 10)
+    cs1m = max(0, confidence_score_3m - 10) if days_to_earnings <= 14 else min(100, confidence_score_3m + 10)
     cs1w = min(100, cs1m + 3)
     # signal_confidence resolved in outer predict_short_term after this returns.
 
@@ -204,11 +204,11 @@ def predict_short_term(
     scaler,
     close_col_idx: int,
     n_features: int,
-    predicted_price_6m_base: float,
-    confidence_score_6m: int,
+    predicted_price_3m_base: float,
+    confidence_score_3m: int,
     stock_metrics: dict,
     seed: int = SEED,
-    signal_confidence_6m: int = 65,
+    signal_confidence_3m: int = 65,
 ) -> dict:
     """
     Train + predict the 1w / 1m horizon using SHORT_TERM_FEATURES.
@@ -219,8 +219,8 @@ def predict_short_term(
     analyst lift (avoids noisy single-firm coverage on small caps moving
     near-term prices).
 
-    The 1w trajectory anchor uses `predicted_price_6m_base` — the long-term
-    model's pre-multiplier 6m output — so analyst weighting doesn't leak
+    The 1w trajectory anchor uses `predicted_price_3m_base` — the long-term
+    model's pre-multiplier 3m output — so analyst weighting doesn't leak
     from the LT boost (1.67×) into the 1w prediction via the anchor.
 
     Returns the 6 short-horizon output fields:
@@ -244,8 +244,8 @@ def predict_short_term(
             current_price=current_price,
             mult_1w=mult_1w,
             mult_1m=mult_1m,
-            predicted_price_6m_base=predicted_price_6m_base,
-            confidence_score_6m=confidence_score_6m,
+            predicted_price_3m_base=predicted_price_3m_base,
+            confidence_score_3m=confidence_score_3m,
             stock_metrics=stock_metrics,
         )
         # signal_confidence was intentionally deferred to here (see comment in
@@ -260,7 +260,7 @@ def predict_short_term(
                 ).days
             except Exception:
                 pass
-        _sig_1m = max(0, signal_confidence_6m - 10) if _days_to_earn <= 14 else min(100, signal_confidence_6m + 10)
+        _sig_1m = max(0, signal_confidence_3m - 10) if _days_to_earn <= 14 else min(100, signal_confidence_3m + 10)
         cs_result['signal_confidence_1m'] = _sig_1m
         cs_result['signal_confidence_1w'] = min(100, _sig_1m + 3)
         return cs_result
@@ -288,12 +288,12 @@ def predict_short_term(
         return float(scaler.inverse_transform(dummy)[0, close_col_idx])
 
     # ── 1-week blend (MLP head + trajectory anchor) ──────────────────────────
-    # 50/50 blend of model output and a trajectory anchor toward the 6m
+    # 50/50 blend of model output and a trajectory anchor toward the 3m
     # PRE-MULTIPLIER price. Using the pre-multiplier base prevents the LT
     # analyst boost (1.67×) from leaking into 1w via the anchor — 1w gets its
     # own 0.25× boost via mult_1w applied at the end.
     _mlp_1w_base = inverse_close(pred_scaled[1])
-    _traj_anchor_1w_base = current_price + (predicted_price_6m_base - current_price) * (T5 / T6)
+    _traj_anchor_1w_base = current_price + (predicted_price_3m_base - current_price) * (T5 / T3M)
     _blended_1w_base = 0.50 * _mlp_1w_base + 0.50 * _traj_anchor_1w_base
     _blended_1w = _blended_1w_base * mult_1w
 
@@ -311,8 +311,8 @@ def predict_short_term(
     # Interpolate on pre-multiplier bases, then apply mult_1m (which has the
     # 0.83× analyst boost) at the end. Keeps each horizon's analyst weight
     # independent.
-    t_norm = (T21 - T5) / (T6 - T5)
-    predicted_price_1m_base = _blended_1w_base + (predicted_price_6m_base - _blended_1w_base) * t_norm
+    t_norm = (T21 - T5) / (T3M - T5)
+    predicted_price_1m_base = _blended_1w_base + (predicted_price_3m_base - _blended_1w_base) * t_norm
     predicted_price_1m = predicted_price_1m_base * mult_1m
     pct_1m = round((predicted_price_1m - current_price) / (current_price + 1e-9) * 100, 2)
 
@@ -326,14 +326,14 @@ def predict_short_term(
         except Exception:
             pass
     if days_to_earnings <= 14:
-        cs1m = max(0, confidence_score_6m - 10)
+        cs1m = max(0, confidence_score_3m - 10)
     else:
-        cs1m = min(100, confidence_score_6m + 10)
+        cs1m = min(100, confidence_score_3m + 10)
 
     cs1w = min(100, cs1m + 3)
 
     # Signal confidence mirrors the same earnings-window logic as blended confidence.
-    sig_1m = max(0, signal_confidence_6m - 10) if days_to_earnings <= 14 else min(100, signal_confidence_6m + 10)
+    sig_1m = max(0, signal_confidence_3m - 10) if days_to_earnings <= 14 else min(100, signal_confidence_3m + 10)
     sig_1w = min(100, sig_1m + 3)
 
     return {

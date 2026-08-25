@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { createLogger } from '@/utils/logger';
+import { WIDGET_HORIZON_KEYS, HORIZON_LABELS } from '@/utils/horizons';
+import type { WidgetHorizonKey } from '@/utils/horizons';
 
 const logger = createLogger('ModelAccuracyWidget');
 
@@ -22,19 +24,12 @@ interface AccuracyResponse {
   horizons?: {
     '1_week': Horizon;
     '1_month': Horizon;
+    '3_month': Horizon;
     '6_month': Horizon;
-    '1_year': Horizon;
   };
 }
 
-type HorizonKey = '1_week' | '1_month' | '6_month' | '1_year';
-
-const HORIZON_LABELS: Record<HorizonKey, string> = {
-  '1_week': '1 Week',
-  '1_month': '1 Month',
-  '6_month': '6 Months',
-  '1_year': '1 Year',
-};
+type HorizonKey = WidgetHorizonKey;
 
 export default function ModelAccuracyWidget() {
   const [data, setData] = useState<AccuracyResponse | null>(null);
@@ -130,7 +125,7 @@ export default function ModelAccuracyWidget() {
           onChange={(e) => setSelectedHorizon(e.target.value as HorizonKey)}
           className="block w-full min-h-[44px] rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:border-blue-600"
         >
-          {(Object.keys(HORIZON_LABELS) as HorizonKey[]).map((horizon) => (
+          {(WIDGET_HORIZON_KEYS as readonly HorizonKey[]).map((horizon) => (
             <option key={horizon} value={horizon}>
               {HORIZON_LABELS[horizon]}
             </option>

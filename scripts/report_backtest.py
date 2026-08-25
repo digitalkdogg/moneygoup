@@ -42,7 +42,7 @@ DB_PASSWORD = os.getenv('DB_PASSWORD')
 DB_DATABASE = os.getenv('DB_DATABASE')
 DB_PORT     = int(os.getenv('DB_PORT', 3306))
 
-HORIZONS = ['1w', '1m', '6m', '1y']
+HORIZONS = ['1w', '1m', '3m', '6m']
 
 
 def connect():
@@ -100,13 +100,13 @@ def overall(cur, symbol, mv, from_date, to_date):
           MIN(predicted_at)                                AS first_at,
           MAX(predicted_at)                                AS last_at,
           SUM(resolved_1w) AS r1w, SUM(resolved_1m) AS r1m,
-          SUM(resolved_6m) AS r6m, SUM(resolved_1y) AS r1y,
+          SUM(resolved_3m) AS r3m, SUM(resolved_6m) AS r6m,
           AVG(accuracy_pct_1w) AS a1w, AVG(accuracy_pct_1m) AS a1m,
-          AVG(accuracy_pct_6m) AS a6m, AVG(accuracy_pct_1y) AS a1y,
+          AVG(accuracy_pct_3m) AS a3m, AVG(accuracy_pct_6m) AS a6m,
           AVG(direction_correct_1w)*100 AS d1w,
           AVG(direction_correct_1m)*100 AS d1m,
-          AVG(direction_correct_6m)*100 AS d6m,
-          AVG(direction_correct_1y)*100 AS d1y
+          AVG(direction_correct_3m)*100 AS d3m,
+          AVG(direction_correct_6m)*100 AS d6m
         FROM prediction_records
         WHERE symbol = %s AND model_version = %s{date_clause}
     """, (symbol, mv, *date_params))[0]
@@ -198,11 +198,11 @@ def _segment(cur, symbol, mv, from_date, to_date, bucket_expr, order_expr, title
           {bucket_expr} AS bucket,
           COUNT(*)                         AS n,
           AVG(pr.accuracy_pct_1m)          AS a1m,
+          AVG(pr.accuracy_pct_3m)          AS a3m,
           AVG(pr.accuracy_pct_6m)          AS a6m,
-          AVG(pr.accuracy_pct_1y)          AS a1y,
           AVG(pr.direction_correct_1m)*100 AS d1m,
-          AVG(pr.direction_correct_6m)*100 AS d6m,
-          AVG(pr.direction_correct_1y)*100 AS d1y
+          AVG(pr.direction_correct_3m)*100 AS d3m,
+          AVG(pr.direction_correct_6m)*100 AS d6m
         FROM prediction_records pr
         JOIN prediction_details pd ON pd.prediction_record_id = pr.id
         WHERE pr.symbol = %s AND pr.model_version = %s{date_clause}
@@ -211,12 +211,12 @@ def _segment(cur, symbol, mv, from_date, to_date, bucket_expr, order_expr, title
     """, (symbol, mv, *date_params))
     if not rows:
         print("  (no rows)"); return
-    print(f"  {'bucket':<14} {'n':>5}   {'1m acc':>8} {'6m acc':>8} {'1y acc':>8}   {'1m dir':>7} {'6m dir':>7} {'1y dir':>7}")
+    print(f"  {'bucket':<14} {'n':>5}   {'1m acc':>8} {'3m acc':>8} {'6m acc':>8}   {'1m dir':>7} {'3m dir':>7} {'6m dir':>7}")
     print(f"  {'-'*14} {'-'*5}   {'-'*8} {'-'*8} {'-'*8}   {'-'*7} {'-'*7} {'-'*7}")
     for r in rows:
         print(f"  {str(r['bucket']):<14} {r['n']:>5}   "
-              f"{fmt(r['a1m'], '.1f')+'%':>8} {fmt(r['a6m'], '.1f')+'%':>8} {fmt(r['a1y'], '.1f')+'%':>8}   "
-              f"{fmt(r['d1m'], '.1f')+'%':>7} {fmt(r['d6m'], '.1f')+'%':>7} {fmt(r['d1y'], '.1f')+'%':>7}")
+              f"{fmt(r['a1m'], '.1f')+'%':>8} {fmt(r['a3m'], '.1f')+'%':>8} {fmt(r['a6m'], '.1f')+'%':>8}   "
+              f"{fmt(r['d1m'], '.1f')+'%':>7} {fmt(r['d3m'], '.1f')+'%':>7} {fmt(r['d6m'], '.1f')+'%':>7}")
 
 
 def segments(cur, symbol, mv, from_date, to_date):
@@ -251,26 +251,26 @@ def cross_ticker_summary(cur, symbols, mv, from_date, to_date):
             SELECT
               COUNT(*)                       AS n,
               AVG(accuracy_pct_1m)           AS a1m,
+              AVG(accuracy_pct_3m)           AS a3m,
               AVG(accuracy_pct_6m)           AS a6m,
-              AVG(accuracy_pct_1y)           AS a1y,
               AVG(direction_correct_1m)*100  AS d1m,
-              AVG(direction_correct_6m)*100  AS d6m,
-              AVG(direction_correct_1y)*100  AS d1y
+              AVG(direction_correct_3m)*100  AS d3m,
+              AVG(direction_correct_6m)*100  AS d6m
             FROM prediction_records
             WHERE symbol = %s AND model_version = %s{date_clause}
         """, (sym, mv, *date_params))[0]
         r['symbol'] = sym
         rows.append(r)
 
-    print(f"  {'symbol':<8} {'n':>5}   {'1m acc':>8} {'6m acc':>8} {'1y acc':>8}   {'1m dir':>7} {'6m dir':>7} {'1y dir':>7}")
+    print(f"  {'symbol':<8} {'n':>5}   {'1m acc':>8} {'3m acc':>8} {'6m acc':>8}   {'1m dir':>7} {'3m dir':>7} {'6m dir':>7}")
     print(f"  {'-'*8} {'-'*5}   {'-'*8} {'-'*8} {'-'*8}   {'-'*7} {'-'*7} {'-'*7}")
     for r in rows:
         if not r['n']:
             print(f"  {r['symbol']:<8} {0:>5}   {'(no rows in window)'}")
             continue
         print(f"  {r['symbol']:<8} {r['n']:>5}   "
-              f"{fmt(r['a1m'], '.1f')+'%':>8} {fmt(r['a6m'], '.1f')+'%':>8} {fmt(r['a1y'], '.1f')+'%':>8}   "
-              f"{fmt(r['d1m'], '.1f')+'%':>7} {fmt(r['d6m'], '.1f')+'%':>7} {fmt(r['d1y'], '.1f')+'%':>7}")
+              f"{fmt(r['a1m'], '.1f')+'%':>8} {fmt(r['a3m'], '.1f')+'%':>8} {fmt(r['a6m'], '.1f')+'%':>8}   "
+              f"{fmt(r['d1m'], '.1f')+'%':>7} {fmt(r['d3m'], '.1f')+'%':>7} {fmt(r['d6m'], '.1f')+'%':>7}")
 
 
 def _run_report(cur, symbols, mv, from_date, to_date):

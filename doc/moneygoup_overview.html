@@ -213,7 +213,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">App Overview</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-20</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-25</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -387,7 +387,7 @@
             <p>The two strategy axes combine into a single <code>StrategyConfig</code> object that every personalized route reads before producing numbers.</p>
             <ul>
                 <li><span class="pill">Aggressiveness</span> <code>safe</code> / <code>neutral</code> / <code>aggressive</code> — sets the gating bar (confidence floor, beta cutoff, GPS gate, predicted-change gate, and an env-floor multiplier of 1.05× / 1.0× / 0.95×).</li>
-                <li><span class="pill teal">Investment timeframe</span> <code>1_week</code> / <code>1_month</code> / <code>6_month</code> / <code>1_year</code> — selects which predicted-price column to read from <code>user_stock_predictions</code>, sets the outlook passed to the Python MLP, scales the predicted-change gate, shifts the sell-side threshold, and chooses the DeepMoney ML gate and the UI display label.</li>
+                <li><span class="pill teal">Investment timeframe</span> <code>1_week</code> / <code>1_month</code> / <code>3_month</code> / <code>6_month</code> — selects which predicted-price column to read from <code>user_stock_predictions</code>, sets the outlook passed to the Python MLP, scales the predicted-change gate, shifts the sell-side threshold, and chooses the DeepMoney ML gate and the UI display label.</li>
                 <li><span class="pill purple">Where it is applied</span> Recommendation gates, DeepMoney candidate filtering, single-ticker GPS adjustment, and the prediction outlook are all derived from the same resolved config.</li>
             </ul>
             <div class="highlight-box">

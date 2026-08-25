@@ -97,7 +97,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">API Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-20</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-25</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -164,7 +164,7 @@
       <span>GrowMyStocks</span>
       <span>Next.js 14 App Router</span>
       <span>39+ routes documented</span>
-      <span>Updated 2026-08-20</span>
+      <span>Updated 2026-08-25</span>
     </div>
 
     <div class="summary-grid">
@@ -490,7 +490,7 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
   },
   "strategy": {
     "aggressiveness": "safe" | "neutral" | "aggressive",
-    "investment_timeframe": "1_week" | "1_month" | "6_month" | "1_year"
+    "investment_timeframe": "1_week" | "1_month" | "3_month" | "6_month"
   }
 }
 // Admin users:
@@ -506,19 +506,19 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
 {
   "strategy": {
     "aggressiveness": "safe" | "neutral" | "aggressive",
-    "investment_timeframe": "1_week" | "1_month" | "6_month" | "1_year"
+    "investment_timeframe": "1_week" | "1_month" | "3_month" | "6_month"
   }
 }
 // Flat shape (legacy / also accepted):
 {
   "aggressiveness": "safe" | "neutral" | "aggressive",
-  "investment_timeframe": "1_week" | "1_month" | "6_month" | "1_year"
+  "investment_timeframe": "1_week" | "1_month" | "3_month" | "6_month"
 }</pre>
         <div class="sub-heading">PATCH Response</div>
         <pre>200 { "ok": true, "strategy": { "aggressiveness": string, "investment_timeframe": string } }
 400 { "message": "Must supply aggressiveness and/or investment_timeframe" }
 400 { "message": "Invalid aggressiveness — must be one of: safe, neutral, aggressive" }
-400 { "message": "Invalid investment_timeframe — must be one of: 1_week, 1_month, 6_month, 1_year" }</pre>
+400 { "message": "Invalid investment_timeframe — must be one of: 1_week, 1_month, 3_month, 6_month" }</pre>
         <div class="note">The profile PATCH is how the UI (pill selectors and dropdown on the Profile page) persists strategy changes. Changes take effect immediately — the next call to portfolio, watchlist, recommendations, or DeepMoney will use the new strategy to select the correct predicted-price horizon and GPS thresholds.</div>
         <div class="dep-list">
           <span class="dep-tag">getUserStrategy (utils/strategy)</span>
@@ -703,14 +703,14 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
           <span class="route-file">src/app/api/prediction/[ticker]/route.ts</span>
         </div>
         <div class="route-desc">Runs the ML prediction pipeline for a single ticker. Spawns <code>scripts/predict_weighted_analysis.py</code> via Node <code>child_process.spawn</code> inside a semaphore. Results are cached in <code>predictionCache</code> and persisted asynchronously via <code>/api/prediction/save</code>.</div>
-        <div class="updated"><strong>All-horizons save forwarding (June 15, 2026):</strong> The internal <code>savePredictionAsync()</code> helper (lines ~248-290) now forwards every horizon of the Python script's output to <code>/api/prediction/save</code> — all 4 prices (<code>predicted_price_1w/_1m/_6m/_1y</code>), all 4 change percentages (<code>predicted_change_pct_1w/_1m/_6m/_1y</code>), and all 4 confidence scores (<code>confidence_score_1w/_1m/_6m/_1y</code>). Numeric values are sanitized through <code>num()</code>/<code>positive()</code> guards; non-finite or non-positive values are dropped so Zod validation on the save endpoint stays happy. Prices and the user_id are sent alongside the standard <code>gps_score</code> + <code>gps_breakdown</code>. The route's own response shape (<code>gps_score</code>, <code>gps_breakdown</code>, <code>gps_horizon</code>) is unchanged.</div>
-        <div class="updated"><strong>Analytics recording (June 2026):</strong> Immediately after a successful Python run, the route fires-and-forgets a <code>recordPrediction()</code> call (from <code>src/utils/predictionRecorder.ts</code>) that inserts a row into <code>prediction_records</code> with <code>(symbol, predicted_at = CURDATE(), price_at_prediction, predicted_price_1w/_1m/_6m/_1y)</code>. The insert uses <code>INSERT IGNORE</code> so duplicate predictions for the same symbol on the same day are silently skipped. These rows are later resolved against actual prices and feed the <code>/api/analytics/model-accuracy</code> endpoint.</div>
-        <div class="updated"><strong>Strategy-aware outlook + GPS horizon (June 2026):</strong> For authenticated non-internal requests the route resolves the user's <code>investment_timeframe</code> via <code>getUserStrategy()</code>. The neutral 1m GPS baseline is always computed and persisted to <code>stock_gps_scores</code>, but the response also includes a per-user <code>gps_score</code> / <code>gps_breakdown</code> recomputed against the prediction matching the user's timeframe (<code>predicted_change_pct_1w/_1m/_6m/_1y</code> + matching confidence). The <code>outlook</code> query param defaults to <code>'all'</code> when not provided; clients drive the user-facing horizon by sending the user's <code>investment_timeframe</code>.</div>
+        <div class="updated"><strong>All-horizons save forwarding (June 15, 2026):</strong> The internal <code>savePredictionAsync()</code> helper now forwards every horizon of the Python script's output to <code>/api/prediction/save</code> — all 4 prices (<code>predicted_price_1w/_1m/_3m/_6m</code>), all 4 change percentages (<code>predicted_change_pct_1w/_1m/_3m/_6m</code>), and all 4 confidence scores (<code>confidence_score_1w/_1m/_3m/_6m</code>). Numeric values are sanitized through <code>num()</code>/<code>positive()</code> guards; non-finite or non-positive values are dropped so Zod validation on the save endpoint stays happy. Prices and the user_id are sent alongside the standard <code>gps_score</code> + <code>gps_breakdown</code>. The route's own response shape (<code>gps_score</code>, <code>gps_breakdown</code>, <code>gps_horizon</code>) is unchanged.</div>
+        <div class="updated"><strong>Analytics recording (June 2026):</strong> Immediately after a successful Python run, the route fires-and-forgets a <code>recordPrediction()</code> call (from <code>src/utils/predictionRecorder.ts</code>) that inserts a row into <code>prediction_records</code> with <code>(symbol, predicted_at = CURDATE(), price_at_prediction, predicted_price_1w/_1m/_3m/_6m)</code>. The insert uses <code>INSERT IGNORE</code> so duplicate predictions for the same symbol on the same day are silently skipped. These rows are later resolved against actual prices and feed the <code>/api/analytics/model-accuracy</code> endpoint.</div>
+        <div class="updated"><strong>Strategy-aware outlook + GPS horizon (June 2026):</strong> For authenticated non-internal requests the route resolves the user's <code>investment_timeframe</code> via <code>getUserStrategy()</code>. The neutral 1m GPS baseline is always computed and persisted to <code>stock_gps_scores</code>, but the response also includes a per-user <code>gps_score</code> / <code>gps_breakdown</code> recomputed against the prediction matching the user's timeframe (<code>predicted_change_pct_1w/_1m/_3m/_6m</code> + matching confidence). The <code>outlook</code> query param defaults to <code>'all'</code> when not provided; clients drive the user-facing horizon by sending the user's <code>investment_timeframe</code>.</div>
         <div class="sub-heading">Query Params</div>
         <table class="props-table">
           <thead><tr><th>Param</th><th>Values</th><th>Notes</th></tr></thead>
           <tbody>
-            <tr><td><code>outlook</code></td><td>'1_week' | '1_month' | '6_month' | '1_year' | 'all'</td><td>Controls prediction horizon passed to the Python script. Body's <code>outlook</code> field takes precedence over the query param. Defaults to <code>'all'</code>.</td></tr>
+            <tr><td><code>outlook</code></td><td>'1_week' | '1_month' | '3_month' | '6_month' | 'all'</td><td>Controls prediction horizon passed to the Python script. Body's <code>outlook</code> field takes precedence over the query param. Defaults to <code>'all'</code>.</td></tr>
             <tr><td><code>refresh</code></td><td>'true'</td><td>Bypasses <code>predictionCache</code> and forces a new Python run.</td></tr>
           </tbody>
         </table>
@@ -732,8 +732,8 @@ LEFT JOIN stock_gps_scores sgs ON sgs.stock_id = us.stock_id</pre>
   "regularMarketPrice": number,
   "predicted_price_1w": number,
   "predicted_price_1m": number,
+  "predicted_price_3m": number,
   "predicted_price_6m": number,
-  "predicted_price_1y": number,
   "predicted_change_pct": number,
   "confidence_score": number,
   "gps_score": number,          // per-user, horizon-patched
@@ -840,24 +840,24 @@ X-AiTake-Rate-Limit-Note: string             // user-facing note when rate limit
           <span class="route-file">src/app/api/prediction/save/route.ts</span>
         </div>
         <div class="route-desc">Persists a prediction result to <code>user_stock_predictions</code>. Upserts on <code>(user_id, stock_id)</code>. All four price horizons plus the new per-horizon change% and confidence columns are written when provided so the dashboard recommendations, portfolio, and watchlist routes can pick the right columns per the user's timeframe. The canonical GPS score is mirrored to <code>stock_gps_scores</code> (and historic snapshots appended to <code>stock_gps_score_history</code>) only when the score has actually changed at 1-decimal precision — avoiding spurious writes on repeat predictions.</div>
-        <div class="updated"><strong>New optional fields (June 15, 2026):</strong> The Zod schema now accepts 8 additional optional fields — <code>predicted_change_pct_{1w,1m,6m,1y}</code> and <code>confidence_score_{1w,1m,6m,1y}</code>. When present they are upserted directly into the matching <code>user_stock_predictions</code> columns. Field assignments use surgical guards (<code>if (payload.X !== undefined)</code>) so legacy callers that don't send them never overwrite existing values. The Zod schema in <code>src/app/api/prediction/save/route.ts</code> is the authoritative source of truth for the payload contract.</div>
+        <div class="updated"><strong>New optional fields (June 15, 2026; updated August 2026 for 3-month horizon):</strong> The Zod schema accepts optional per-horizon fields — <code>predicted_change_pct_{1w,1m,3m,6m}</code> and <code>confidence_score_{1w,1m,3m,6m}</code>. When present they are upserted directly into the matching <code>user_stock_predictions</code> columns. Field assignments use surgical guards (<code>if (payload.X !== undefined)</code>) so legacy callers that don't send them never overwrite existing values. The Zod schema in <code>src/app/api/prediction/save/route.ts</code> is the authoritative source of truth for the payload contract.</div>
         <div class="sub-heading">Request Body (Zod validated)</div>
         <pre>{
   "ticker":                  string,                  // required
   "predicted_price_1m":      number (positive),      // required
   "predicted_price_1w":      number (positive),      // optional
+  "predicted_price_3m":      number (positive),      // optional
   "predicted_price_6m":      number (positive),      // optional
-  "predicted_price_1y":      number (positive),      // optional
 
-  // New June 2026 — per-horizon model outputs (all optional)
+  // Per-horizon model outputs (all optional)
   "predicted_change_pct_1w": number,                 // optional
   "predicted_change_pct_1m": number,                 // optional
+  "predicted_change_pct_3m": number,                 // optional
   "predicted_change_pct_6m": number,                 // optional
-  "predicted_change_pct_1y": number,                 // optional
   "confidence_score_1w":     number (0-100),         // optional
   "confidence_score_1m":     number (0-100),         // optional
+  "confidence_score_3m":     number (0-100),         // optional
   "confidence_score_6m":     number (0-100),         // optional
-  "confidence_score_1y":     number (0-100),         // optional
 
   "macro_features_used":         string[],           // optional
   "consumer_multiplier_applied": number,             // optional
@@ -910,8 +910,8 @@ X-AiTake-Rate-Limit-Note: string             // user-facing note when rate limit
           <tbody>
             <tr><td>1_week</td><td>0.5%</td></tr>
             <tr><td>1_month</td><td>1.5%</td></tr>
+            <tr><td>3_month</td><td>3.0%</td></tr>
             <tr><td>6_month</td><td>5.0%</td></tr>
-            <tr><td>1_year</td><td>10.0%</td></tr>
           </tbody>
         </table>
         <div class="sub-heading">Query Params</div>
@@ -959,7 +959,7 @@ X-AiTake-Rate-Limit-Note: string             // user-facing note when rate limit
           <span class="route-path">/api/analytics/model-accuracy</span>
           <span class="badge badge-noauth">No auth required (PUBLIC_PATHS)</span>
           <span class="badge badge-cache">1-hour in-memory cache</span>
-          <span class="badge badge-new">Updated 2026-08-20</span>
+          <span class="badge badge-new">Updated 2026-08-25</span>
           <span class="route-file">src/app/api/analytics/model-accuracy/route.ts</span>
         </div>
         <div class="route-desc">Returns the headline model-accuracy metric that powers the dashboard's <code>ModelAccuracyWidget</code> and the public landing page's <code>ModelAccuracyStats</code> section. This route is listed in <code>PUBLIC_PATHS</code> in <code>src/proxy.ts</code> — no login is required. Operates in two modes: <strong>global</strong> (no symbol provided, aggregates every resolved row in <code>prediction_records</code>) and <strong>per-symbol</strong> (filtered to a single ticker). Accuracy is computed using a MAPE-style proximity formula across each horizon and then averaged across all horizons via a <code>UNION ALL</code> subquery. Requires a minimum of 30 resolved prediction rows to return <code>status: 'ready'</code>; fewer returns <code>status: 'insufficient_data'</code>.</div>
@@ -1001,8 +1001,8 @@ total_accuracy_pct     = ROUND(100 × AVG(accuracy_score across all horizons), 2
       "high_accuracy_count":    number   // rows scoring >= 0.95
     },
     "1_month": { ... },
-    "6_month": { ... },
-    "1_year":  { ... }
+    "3_month": { ... },
+    "6_month": { ... }
   }
 }</pre>
         <div class="sub-heading">Response (status = "ready", per-symbol mode)</div>
@@ -1021,8 +1021,8 @@ total_accuracy_pct     = ROUND(100 × AVG(accuracy_score across all horizons), 2
       "direction_resolved_count": number,         // COUNT(direction_correct_1m) non-NULL — denominator for accuracy
       "direction_accuracy_pct":   number | null   // ROUND(100 * correct / resolved); null when resolved = 0
     },
-    "6_month": { ... },
-    "1_year":  { ... }
+    "3_month": { ... },
+    "6_month": { ... }
   }
 }</pre>
         <div class="updated"><strong>Direction accuracy fields (July 12, 2026):</strong> Per-symbol responses now include <code>direction_correct_count</code>, <code>direction_resolved_count</code>, and <code>direction_accuracy_pct</code> under <code>horizons['1_month']</code>. These are computed from <code>prediction_records.direction_correct_1m</code> — the SUM is the numerator, the non-NULL COUNT is the denominator (NULL rows represent neutral calls and are excluded from both). <code>direction_accuracy_pct</code> is null when <code>resolved_count = 0</code>. Consumed by <code>SymbolAccuracyIndicator.tsx</code> on <code>/search/[ticker]</code> to render "13/21 correct (62%)" widgets — the missing fields previously caused a "21/21 correct (NaN%)" display bug. Global-mode response shape is unchanged. See <code>src/app/api/analytics/model-accuracy/route.ts</code> lines 222-226 (SQL) and 322-328 (response assembly).</div>
@@ -1138,19 +1138,19 @@ total_accuracy_pct     = ROUND(100 × AVG(accuracy_score across all horizons), 2
   "prediction": {
     "ticker":                  string,
     "regularMarketPrice":      number | null,
-    "predicted_price_1w"..."_1y":       number | null,
-    "predicted_change_pct_1w"..."_1y":  number | null,
-    "confidence_score_1w"..."_1y":      number | null,
+    "predicted_price_1w"..."_6m":       number | null,   // 1w, 1m, 3m, 6m
+    "predicted_change_pct_1w"..."_6m":  number | null,
+    "confidence_score_1w"..."_6m":      number | null,
     "gps_score":               number | null,
     "gps_breakdown":           object | null,
     "accuracy_metrics":        { "model": { "mae": number, "rmse": number, "cv_mae": number } } | null,
     "data_quality":            object | null,
     "model_status":            string | null,
+    "at_model_ceiling_3m":     boolean | null,
     "at_model_ceiling_6m":     boolean | null,
-    "at_model_ceiling_1y":     boolean | null,
     "ceiling_direction":       "up" | "down" | null,
     "confidence_breakdown":    { "total": number, "components": {...} } | null,
-    "confidence_reason_1w"..."_1y":     string | null,
+    "confidence_reason_1w"..."_6m":     string | null,   // 1w, 1m, 3m, 6m
     "model_version":           string
   },
   "predictedAt": string,   // ISO — prediction's own predicted_at

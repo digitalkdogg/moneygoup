@@ -733,41 +733,41 @@ def sync_deepmoney():
             if predicted_price_1m is None:
                 predicted_price_1m = pred_input.get('predicted_price')
             predicted_price_6m = pred_input.get('predicted_price_6m')
-            predicted_price_1y = pred_input.get('predicted_price_1y')
+            predicted_price_3m = pred_input.get('predicted_price_3m')
 
             # Record to analytics prediction_records table BEFORE the vol-gate
             # check. Every ranker survivor has a real per-horizon prediction;
             # recording the rejects too lets us audit how well the floor was
             # calibrated (was the model right to be confident?).
-            if price and (predicted_price_1w or predicted_price_1m or predicted_price_6m or predicted_price_1y):
+            if price and (predicted_price_1w or predicted_price_1m or predicted_price_6m or predicted_price_3m):
                 record_prediction(
                     symbol=ticker,
                     price_at_prediction=price,
                     predicted_price_1w=predicted_price_1w,
                     predicted_price_1m=predicted_price_1m,
                     predicted_price_6m=predicted_price_6m,
-                    predicted_price_1y=predicted_price_1y,
+                    predicted_price_3m=predicted_price_3m,
                     predicted_change_pct_1w=pred_input.get('predicted_change_pct_1w'),
                     predicted_change_pct_1m=pred_input.get('predicted_change_pct_1m') or pred_input.get('predicted_change_pct'),
                     predicted_change_pct_6m=pred_input.get('predicted_change_pct_6m'),
-                    predicted_change_pct_1y=pred_input.get('predicted_change_pct_1y'),
+                    predicted_change_pct_3m=pred_input.get('predicted_change_pct_3m'),
                     confidence_score_1w=pred_input.get('confidence_score_1w'),
                     confidence_score_1m=pred_input.get('confidence_score_1m') or pred_input.get('confidence_score'),
                     confidence_score_6m=pred_input.get('confidence_score_6m'),
-                    confidence_score_1y=pred_input.get('confidence_score_1y'),
+                    confidence_score_3m=pred_input.get('confidence_score_3m'),
                     gps_score=gps,
                     gps_breakdown=gps_breakdown if gps_breakdown else None,
                     accuracy_metrics=pred_input.get('accuracy_metrics'),
                     data_quality=pred_input.get('data_quality'),
                     model_status=pred_input.get('model_status'),
                     at_model_ceiling_6m=pred_input.get('at_model_ceiling_6m'),
-                    at_model_ceiling_1y=pred_input.get('at_model_ceiling_1y'),
+                    at_model_ceiling_3m=pred_input.get('at_model_ceiling_3m'),
                     ceiling_direction=pred_input.get('ceiling_direction'),
                     confidence_breakdown=pred_input.get('confidence_breakdown'),
                     confidence_reason_1w=pred_input.get('confidence_reason_1w'),
                     confidence_reason_1m=pred_input.get('confidence_reason_1m'),
                     confidence_reason_6m=pred_input.get('confidence_reason_6m'),
-                    confidence_reason_1y=pred_input.get('confidence_reason_1y'),
+                    confidence_reason_3m=pred_input.get('confidence_reason_3m'),
                     model_version='deepmoney_sync',
                 )
 
@@ -833,11 +833,11 @@ def sync_deepmoney():
             if vol_gate_failed:
                 cs_1w = pred_input.get('confidence_score_1w')
                 cs_6m = pred_input.get('confidence_score_6m')
-                cs_1y = pred_input.get('confidence_score_1y')
+                cs_3m = pred_input.get('confidence_score_3m')
                 reason_1m = pred_input.get('confidence_reason_1m') or ''
                 reason_suffix = f"  reason={reason_1m[:80]!r}" if reason_1m else ''
                 print(f"  [vol-gate] SKIP {ticker} ({effective_label}): CS {conf_score} < floor {effective_floor_final} (beta {beta_val:.2f})"
-                      f"  [all-horizons: 1w={cs_1w} 1m={conf_score} 6m={cs_6m} 1y={cs_1y}]{reason_suffix}")
+                      f"  [all-horizons: 1w={cs_1w} 1m={conf_score} 6m={cs_6m} 3m={cs_3m}]{reason_suffix}")
                 counters["vol_gate_rejected"] += 1
                 if not (is_trending_48h or is_unusual_options or is_sec_8k):
                     continue

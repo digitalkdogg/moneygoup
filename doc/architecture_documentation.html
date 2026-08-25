@@ -97,7 +97,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Architecture Documentation</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-20</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-25</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -163,7 +163,7 @@
       <span>Next.js 16 App Router</span>
       <span>TypeScript</span>
       <span>Tailwind CSS</span>
-      <span>Updated 2026-08-20</span>
+      <span>Updated 2026-08-25</span>
     </div>
 
     <div class="summary-grid">
@@ -606,7 +606,7 @@ Each variant uses:
             <tr><td><code>hot_etfs</code></td><td>System-wide AI-curated hot ETFs snapshot</td></tr>
             <tr><td><code>etf_stock_recommendations</code></td><td>Per-user ETF holding recommendations written by <code>update_predictions.py</code>. Each row links a user, a parent ETF ticker, and a holding ticker with GPS/prediction metadata.</td></tr>
             <tr><td><code>fred_macro_indicators</code></td><td>FRED macro data series (9 series, 6 categories). Upserted nightly by <code>fred_macro_sync.py</code>. Served by <code>GET /api/macro/fred</code>.</td></tr>
-            <tr><td><code>prediction_records</code></td><td>Analytics + prefetch ledger of multi-horizon model predictions. Used by ModelAccuracyWidget and /search/[ticker] latest-prediction. Extended 2026-07-11 with 11 new columns (<code>accuracy_metrics</code>, <code>data_quality</code>, <code>model_status</code>, <code>at_model_ceiling_6m</code>, <code>at_model_ceiling_1y</code>, <code>ceiling_direction</code>, <code>confidence_breakdown</code>, and <code>confidence_reason_1w/1m/6m/1y</code>). Migration file for the July 11 extension is not present in <code>scripts/migrations/</code> — the columns may have been applied directly against the DB or via a script since removed. Verify against live schema before restoring.</td></tr>
+            <tr><td><code>prediction_records</code></td><td>Analytics + prefetch ledger of multi-horizon model predictions. Used by ModelAccuracyWidget and /search/[ticker] latest-prediction. Extended 2026-07-11 with 11 new columns (<code>accuracy_metrics</code>, <code>data_quality</code>, <code>model_status</code>, <code>at_model_ceiling_6m</code>, <code>ceiling_direction</code>, <code>confidence_breakdown</code>, <code>confidence_reason_1w/1m/6m/1y</code>). August 2026: 3-month horizon columns added (<code>predicted_price_3m</code>, <code>confidence_score_3m</code>, <code>at_model_ceiling_3m</code>, <code>actual_price_3m</code>, <code>direction_correct_3m</code>, <code>resolved_3m</code>, etc.); 1-year columns remain in DB but are no longer written. Active horizons: 1w / 1m / 3m / 6m.</td></tr>
             <tr><td><code>prediction_details</code></td><td><strong>New (2026-07-10):</strong> 1:1 sibling of <code>prediction_records</code> via <code>prediction_record_id</code> FK (<code>ON DELETE CASCADE</code>). Stores the per-prediction feature snapshot (VIX, beta, RSI, momentum, sector medians, and other regime inputs) so segmented accuracy analysis can be done after resolution without re-fetching source data. Migration file not present in <code>scripts/migrations/</code>; live schema is the source of truth.</td></tr>
             <tr><td><code>ranking_training_snapshots</code></td><td>Historical snapshots of features and forward returns for training the cross-sectional ranker model.</td></tr>
           </tbody>

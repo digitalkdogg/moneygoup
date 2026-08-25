@@ -96,7 +96,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Strategy System</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-20</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-25</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -156,10 +156,10 @@
       <span>GrowMyStocks</span>
       <span>src/utils/strategy.ts</span>
       <span>Added June 2026</span>
-      <span>Updated 2026-08-20</span>
+      <span>Updated 2026-08-25</span>
     </div>
 
-    <div class="updated" style="margin-bottom:1.5rem;"><strong>Latest revision (June 2026).</strong> <code>TimeframeConfig</code> now carries a <code>shortLabel</code> (<code>'1W' | '1M' | '6M' | '1Y'</code>) that every horizon-aware list endpoint returns as <code>horizonLabel</code> on the JSON response. The frontend uses this to render dynamic copy such as <em>"6M Pred"</em>, <em>"Based on 6M prediction"</em>, etc. without hard-coding a default. <code>resolveStrategy()</code> now also returns the user's <code>aggressiveness</code> and <code>investment_timeframe</code> alongside the resolved gates/timeframe.</div>
+    <div class="updated" style="margin-bottom:1.5rem;"><strong>Latest revision (August 2026).</strong> The 1-year investment timeframe has been <strong>retired</strong> and replaced by <strong>3-month</strong>. <code>VALID_TIMEFRAMES = ['1_week', '1_month', '3_month', '6_month']</code>. All <code>_1y</code> prediction columns and references have been replaced with <code>_3m</code> equivalents throughout the codebase. <code>TimeframeConfig</code> now carries a <code>shortLabel</code> (<code>'1W' | '1M' | '3M' | '6M'</code>) that every horizon-aware list endpoint returns as <code>horizonLabel</code> on the JSON response. <code>resolveStrategy()</code> returns the user's <code>aggressiveness</code> and <code>investment_timeframe</code> alongside the resolved gates/timeframe.</div>
 
     <div class="summary-grid">
       <div class="stat-card"><div class="value">2</div><div class="label">Dimensions</div></div>
@@ -186,8 +186,8 @@
         </div>
         <div class="card">
           <h4>Dimension 2 — Investment Timeframe</h4>
-          <p>Controls <strong>which prediction horizon is used</strong>. The ML model produces four horizon outputs (1-week, 1-month, 6-month, 1-year). The timeframe setting selects the column referenced for recommendations, GPS patching, and the short label shown on cards.</p>
-          <p style="margin-top:.5rem;">Values: <code>1_week</code> | <code>1_month</code> | <code>6_month</code> | <code>1_year</code></p>
+          <p>Controls <strong>which prediction horizon is used</strong>. The ML model produces four horizon outputs (1-week, 1-month, 3-month, 6-month). The timeframe setting selects the column referenced for recommendations, GPS patching, and the short label shown on cards.</p>
+          <p style="margin-top:.5rem;">Values: <code>1_week</code> | <code>1_month</code> | <code>3_month</code> | <code>6_month</code></p>
           <p style="margin-top:.5rem;">Default: <strong>1_month</strong></p>
         </div>
       </div>
@@ -199,7 +199,7 @@
       <div class="card">
         <h4>TypeScript Types (src/utils/strategy.ts)</h4>
         <pre>export type Aggressiveness = 'safe' | 'neutral' | 'aggressive';
-export type InvestmentTimeframe = '1_week' | '1_month' | '6_month' | '1_year';
+export type InvestmentTimeframe = '1_week' | '1_month' | '3_month' | '6_month';
 
 export interface UserStrategy {
   aggressiveness: Aggressiveness;
@@ -211,7 +211,7 @@ export interface StrategyGates {
   betaCutoff:         number;  // maximum beta tolerated
   gpsGate:            number;  // minimum GPS score
   predChangeGate:     number;  // minimum predicted change %
-  envFloorMultiplier: number;  // <1 loosens, >1 tightens env-driven floors
+  envFloorMultiplier: number;  // &lt;1 loosens, &gt;1 tightens env-driven floors
 }
 
 export interface TimeframeConfig {
@@ -219,11 +219,11 @@ export interface TimeframeConfig {
   predChangeMultiplier: number;                    // stacked on gates.predChangeGate
   sellThresholdShift:  number;                     // added to env-driven sell threshold
   mlGate:              number;                     // minimum positive predicted change %
-  displayLabel:        string;                     // e.g. "in 6 months"
-  shortLabel:          '1W' | '1M' | '6M' | '1Y';  // compact card label
+  displayLabel:        string;                     // e.g. "in 3 months"
+  shortLabel:          '1W' | '1M' | '3M' | '6M';  // compact card label
   predictedPriceColumn:
     | 'predicted_price_1w' | 'predicted_price_1m'
-    | 'predicted_price_6m' | 'predicted_price_1y';
+    | 'predicted_price_3m' | 'predicted_price_6m';
 }
 
 export interface StrategyConfig {
@@ -359,6 +359,16 @@ const userStrategy = await getUserStrategy(userId).catch(() => DEFAULT_STRATEGY)
               <td><code>predicted_price_1m</code></td>
             </tr>
             <tr>
+              <td><code>3_month</code></td>
+              <td><code>3_month</code></td>
+              <td>1.25</td>
+              <td>+2</td>
+              <td>3%</td>
+              <td>"in 3 months"</td>
+              <td><code>3M</code></td>
+              <td><code>predicted_price_3m</code></td>
+            </tr>
+            <tr>
               <td><code>6_month</code></td>
               <td><code>6_month</code></td>
               <td>1.5</td>
@@ -368,28 +378,18 @@ const userStrategy = await getUserStrategy(userId).catch(() => DEFAULT_STRATEGY)
               <td><code>6M</code></td>
               <td><code>predicted_price_6m</code></td>
             </tr>
-            <tr>
-              <td><code>1_year</code></td>
-              <td><code>1_year</code></td>
-              <td>2.0</td>
-              <td>+5</td>
-              <td>10%</td>
-              <td>"in 1 year"</td>
-              <td><code>1Y</code></td>
-              <td><code>predicted_price_1y</code></td>
-            </tr>
           </tbody>
         </table>
         <div class="card" style="margin-top:1rem;border-left:3px solid #86efac;background:#f0fdf4;">
           <h4 style="color:#166534;">Column interpretation</h4>
           <ul>
             <li><strong>outlook</strong> — string flag passed to <code>predict_weighted_analysis.py</code> via the DeepMoney enrichment pipeline. Mirrors the timeframe key.</li>
-            <li><strong>predChangeMultiplier</strong> — stacked on <code>gates.predChangeGate</code>. Final predChange gate = <code>gates.predChangeGate × timeframe.predChangeMultiplier</code>. A 1-week / safe user needs 3.0 × 0.5 = 1.5%; a 1-year / aggressive user needs 0.5 × 2.0 = 1.0%.</li>
+            <li><strong>predChangeMultiplier</strong> — stacked on <code>gates.predChangeGate</code>. Final predChange gate = <code>gates.predChangeGate × timeframe.predChangeMultiplier</code>. A 1-week / safe user needs 3.0 × 0.5 = 1.5%; a 3-month / aggressive user needs 0.5 × 1.25 = 0.625%.</li>
             <li><strong>sellThresholdShift</strong> — <em>added</em> to the env-driven GPS SELL threshold (not multiplied). Long-horizon investors tolerate a lower GPS before calling a sell (positive shift raises the bar; <code>+3</code> at 6M means they hold longer). Short-horizon investors sell sooner (<code>-2</code> at 1W tightens it).</li>
             <li><strong>mlGate</strong> — minimum predicted change % for a DeepMoney pick to be validated by the ML signal in <code>/api/prediction/deepmoney</code>. Short horizons have a low bar (small moves matter in 1 week); long horizons require significant expected gain.</li>
             <li><strong>displayLabel</strong> — long, sentence-style label, e.g. <em>"in 6 months"</em>. Returned by <code>/api/dashboard/deepmoney-picks</code> as <code>timeframe_label</code> for prediction-card copy.</li>
-            <li><strong>shortLabel</strong> — compact two-char label (<code>'1W'</code>, <code>'1M'</code>, <code>'6M'</code>, <code>'1Y'</code>). Returned as <code>horizonLabel</code> by the watchlist, portfolio, and recommendations APIs so the frontend can render <em>"6M Pred"</em> or <em>"Based on 6M prediction"</em> dynamically.</li>
-            <li><strong>predictedPriceColumn</strong> — the SQL column in <code>user_stock_predictions</code> to use for the predicted price. Backs the suffix <code>sfx</code> (<code>'1w' | '1m' | '6m' | '1y'</code>) which routes also use to read <code>predicted_change_pct_&lt;sfx&gt;</code> and <code>confidence_score_&lt;sfx&gt;</code> from the same row.</li>
+            <li><strong>shortLabel</strong> — compact two-char label (<code>'1W'</code>, <code>'1M'</code>, <code>'3M'</code>, <code>'6M'</code>). Returned as <code>horizonLabel</code> by the watchlist, portfolio, and recommendations APIs so the frontend can render <em>"3M Pred"</em> or <em>"Based on 3M prediction"</em> dynamically.</li>
+            <li><strong>predictedPriceColumn</strong> — the SQL column in <code>user_stock_predictions</code> to use for the predicted price. Backs the suffix <code>sfx</code> (<code>'1w' | '1m' | '3m' | '6m'</code>) which routes also use to read <code>predicted_change_pct_&lt;sfx&gt;</code> and <code>confidence_score_&lt;sfx&gt;</code> from the same row.</li>
           </ul>
         </div>
       </div>
@@ -477,7 +477,7 @@ if (baselineBreakdown) {
 
       <div class="card">
         <h4>GPS Breakdown Modal — horizon label</h4>
-        <p>The GPS breakdown modal receives a <code>horizon</code> prop (<code>'1_week' | '1_month' | '6_month' | '1_year'</code>, default <code>'1_month'</code>) sourced from the <code>gpsHorizon</code> field on each card. The ML Prediction row label is rendered as "ML Prediction (1m)", "ML Prediction (6m)", etc., so the user knows which horizon the displayed <code>mlpUpside</code> reflects.</p>
+        <p>The GPS breakdown modal receives a <code>horizon</code> prop (<code>'1_week' | '1_month' | '3_month' | '6_month'</code>, default <code>'1_month'</code>) sourced from the <code>gpsHorizon</code> field on each card. The ML Prediction row label is rendered as "ML Prediction (1m)", "ML Prediction (3m)", etc., so the user knows which horizon the displayed <code>mlpUpside</code> reflects.</p>
         <p style="margin-top:.5rem;">The <code>gpsHorizon</code> field is part of the <code>DeepmoneyCard</code>, <code>PortfolioCard</code>, and <code>WatchlistCard</code> types (in <code>src/app/components/cards/types.ts</code>) and is forwarded through <code>GpsTooltip</code> → <code>GpsBreakdownModal</code>.</p>
       </div>
     </div>
@@ -499,7 +499,7 @@ if (baselineBreakdown) {
             <tr>
               <td><code>GET /api/user/portfolio</code></td>
               <td>
-                Identical pattern to the watchlist endpoint. Returns <code>{ portfolio, horizonLabel }</code> (where <code>horizonLabel</code> is the <code>shortLabel</code>: <code>'1W' | '1M' | '6M' | '1Y'</code>) and stamps each holding with <code>gpsHorizon</code>.
+                Identical pattern to the watchlist endpoint. Returns <code>{ portfolio, horizonLabel }</code> (where <code>horizonLabel</code> is the <code>shortLabel</code>: <code>'1W' | '1M' | '3M' | '6M'</code>) and stamps each holding with <code>gpsHorizon</code>.
               </td>
             </tr>
             <tr>
@@ -612,7 +612,7 @@ Next time user loads dashboard:
 { "investment_timeframe": "6_month" }
 
 // Full nested update:
-{ "strategy": { "aggressiveness": "aggressive", "investment_timeframe": "1_year" } }
+{ "strategy": { "aggressiveness": "aggressive", "investment_timeframe": "3_month" } }
 
 // Response on success:
 { "ok": true, "strategy": { "aggressiveness": "safe", "investment_timeframe": "6_month" } }</pre>
@@ -647,7 +647,7 @@ Next time user loads dashboard:
             <tr><td><code>1_week</code></td><td>1 Week</td><td>Hair-trigger predictions, lower upside bar; ML gate ≥ 0.5%</td></tr>
             <tr><td><code>1_month</code></td><td>1 Month</td><td>Default horizon (baseline); ML gate ≥ 1.5%</td></tr>
             <tr><td><code>6_month</code></td><td>6 Month</td><td>Holds through dips, requires larger upside; ML gate ≥ 5%</td></tr>
-            <tr><td><code>1_year</code></td><td>1 Year</td><td>Long horizon; requires sizable expected gain; ML gate ≥ 10%</td></tr>
+            <tr><td><code>3_month</code></td><td>3 Months</td><td>Medium horizon; moderate expected gain required; ML gate ≥ 3%</td></tr>
           </tbody>
         </table>
       </div>
@@ -670,7 +670,7 @@ TIMEFRAME_CONFIG = {
     '1_week':  {'pred_change_multiplier': 0.5, 'predicted_price_col': 'predicted_price_1w', ...},
     '1_month': {'pred_change_multiplier': 1.0, 'predicted_price_col': 'predicted_price_1m', ...},
     '6_month': {'pred_change_multiplier': 1.5, 'predicted_price_col': 'predicted_price_6m', ...},
-    '1_year':  {'pred_change_multiplier': 2.0, 'predicted_price_col': 'predicted_price_1y', ...},
+    '3_month': {'pred_change_multiplier': 1.25, 'predicted_price_col': 'predicted_price_3m', ...},
 }
 
 def resolve_strategy(strategy: UserStrategy) -> StrategyConfig:
@@ -705,7 +705,7 @@ def get_all_user_strategies(cursor, user_ids: list[int]) -> dict[int, UserStrate
           <tbody>
             <tr><td><code>user_id</code></td><td>INT, PRIMARY KEY</td><td>Foreign key → <code>users.id</code>. One row per user.</td></tr>
             <tr><td><code>aggressiveness</code></td><td>ENUM('safe','neutral','aggressive')</td><td>Default <code>'neutral'</code></td></tr>
-            <tr><td><code>investment_timeframe</code></td><td>ENUM('1_week','1_month','6_month','1_year')</td><td>Default <code>'1_month'</code></td></tr>
+            <tr><td><code>investment_timeframe</code></td><td>ENUM('1_week','1_month','3_month','6_month')</td><td>Default <code>'1_month'</code></td></tr>
             <tr><td><code>updated_at</code></td><td>TIMESTAMP</td><td>Updated on every PATCH</td></tr>
           </tbody>
         </table>

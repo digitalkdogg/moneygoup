@@ -42,8 +42,8 @@ export async function POST(
   let row: Record<string, unknown> | null = null;
   try {
     const [rows] = await executeRawQuery(
-      `SELECT predicted_change_pct_6m, predicted_change_pct_1y,
-              confidence_reason_6m, confidence_reason_1y
+      `SELECT predicted_change_pct_3m, predicted_change_pct_6m,
+              confidence_reason_3m, confidence_reason_6m
        FROM prediction_records
        WHERE symbol = ? AND model_version = ?
          AND created_at >= NOW() - INTERVAL 12 HOUR
@@ -65,10 +65,10 @@ export async function POST(
 
   // Build a minimal result dict from stored prediction fields.
   const result = {
+    predicted_change_pct_3m: row.predicted_change_pct_3m ?? null,
     predicted_change_pct_6m: row.predicted_change_pct_6m ?? null,
-    predicted_change_pct_1y: row.predicted_change_pct_1y ?? null,
+    confidence_reason_3m:    row.confidence_reason_3m    ?? null,
     confidence_reason_6m:    row.confidence_reason_6m    ?? null,
-    confidence_reason_1y:    row.confidence_reason_1y    ?? null,
   };
 
   const tmpFile = join(tmpdir(), `rationale_${randomUUID()}.json`);

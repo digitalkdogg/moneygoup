@@ -140,7 +140,7 @@ export async function PATCH(request: NextRequest) {
   }
   if (hasTimeframe && !isValidTimeframe(timeframeRaw)) {
     return NextResponse.json(
-      { message: `Invalid investment_timeframe — must be one of: 1_week, 1_month, 6_month, 1_year` },
+      { message: `Invalid investment_timeframe — must be one of: 1_week, 1_month, 3_month, 6_month` },
       { status: 400 }
     );
   }

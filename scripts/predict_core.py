@@ -53,7 +53,7 @@ N_EPOCHS   = 50    # capped for speed
 BATCH_SIZE = 128
 MC_RUNS    = 30
 CACHE_DIR  = os.path.join(os.path.dirname(__file__), 'prediction_cache')
-CACHE_SCHEMA_VERSION = 25  # bumped: trajectory anchored at T1M (1-month waypoint now matches predicted_price_1m)
+CACHE_SCHEMA_VERSION = 26  # bumped: long-term model swapped from [6m,1y] to [3m,6m] horizons
 
 # Dirichlet (Laplace) smoothing applied to regime probabilities before they
 # leave build_regime_detector(). Mixes raw probs with a uniform prior so that
@@ -1320,10 +1320,10 @@ def select_regime_k(market_vec, min_state_frac=0.15, max_flip_rate=0.30):
 # ============================================================================
 # SEQUENCE BUILDER
 # ============================================================================
-def make_sequences(scaled, targets_1d, targets_1w, targets_6m, targets_1y):
+def make_sequences(scaled, targets_1d, targets_1w, targets_3m, targets_6m):
     """
     Build (X, y) sequences of length SEQ_LEN.
-    Y columns: [p1d, p1w, p6m, p1y]
+    Y columns: [p1d, p1w, p3m, p6m]
     """
     n_samples = len(scaled) - SEQ_LEN
     if n_samples <= 0:
@@ -1336,8 +1336,8 @@ def make_sequences(scaled, targets_1d, targets_1w, targets_6m, targets_1y):
     Y = np.column_stack([
         targets_1d[SEQ_LEN:],
         targets_1w[SEQ_LEN:],
+        targets_3m[SEQ_LEN:],
         targets_6m[SEQ_LEN:],
-        targets_1y[SEQ_LEN:],
     ])
 
     return X.astype(np.float32), Y.astype(np.float32)
@@ -1710,8 +1710,8 @@ def _sanitize_predictions(result: dict) -> dict:
     vol = result.get('realized_vol_60d')
     sigma_annual = vol if isinstance(vol, (int, float)) and vol > 0 else 0.30
     Z_CAP = 3.0
-    _horizon_days  = {'1w': 5,    '1m': 21,   '6m': 126,  '1y': 252}
-    _abs_floors    = {'1w': 7.0,  '1m': 12.0, '6m': 30.0, '1y': 40.0}
+    _horizon_days  = {'1w': 5,    '1m': 21,   '3m': 63,   '6m': 126}
+    _abs_floors    = {'1w': 7.0,  '1m': 12.0, '3m': 20.0, '6m': 30.0}
     horizons = [
         (h, max(_abs_floors[h], Z_CAP * sigma_annual * math.sqrt(days / 252) * 100))
         for h, days in _horizon_days.items()
@@ -1782,7 +1782,7 @@ def _sanitize_predictions(result: dict) -> dict:
             # Same fix for the 18-month trajectory waypoints the UI actually
             # reads for the 1m/6m/1y card ranges (StockPrediction.tsx reads
             # monthly_trajectory[1], [6], and [12], not predicted_range_*).
-            traj_idx = {'1m': 1, '6m': 6, '1y': 12}.get(h)
+            traj_idx = {'1m': 1, '3m': 3, '6m': 6}.get(h)
             trajectory = result.get('monthly_trajectory')
             if traj_idx is not None and isinstance(trajectory, list) and len(trajectory) > traj_idx:
                 wp = trajectory[traj_idx]
@@ -1837,7 +1837,7 @@ def _sanitize_predictions(result: dict) -> dict:
             'Target clamped and confidence lowered to Low as a safety measure.'
         )
 
-    # 6m / 1y — Proposal A (signal-aware) + Proposal D (directional pill flag).
+    # 3m / 6m — Proposal A (signal-aware) + Proposal D (directional pill flag).
     #
     # We accept three coherence patterns; each keeps the model's own confidence
     # and flags the clamped horizon(s) as "at model ceiling" for the UI pill.
@@ -1845,128 +1845,114 @@ def _sanitize_predictions(result: dict) -> dict:
     # (|pct| ≥ half its own vol-scaled cap) in the same direction as the
     # clamped horizon, so we don't accept a spike+flat pair as "coherent."
     #
-    #   1. Both 6m and 1y clamped, same direction. (Original case.)
-    #   2. Only 1y clamped, 6m same-signed, |pct_6m| ≥ 0.5 × cap_6m_scaled.
-    #      (Typical high-growth name: +57% at 6m → +130%(clamped 100%) at 1y.)
-    #   3. Only 6m clamped, 1y same-signed, |pct_1y| ≥ 0.5 × cap_1y_scaled.
+    #   1. Both 3m and 6m clamped, same direction. (Original case.)
+    #   2. Only 6m clamped, 3m same-signed, |pct_3m| ≥ 0.5 × cap_3m_scaled.
+    #      (Typical high-growth name: +25% at 3m → +60%(clamped) at 6m.)
+    #   3. Only 3m clamped, 6m same-signed, |pct_6m| ≥ 0.5 × cap_6m_scaled.
     #      (Rarer; e.g. mean-reversion cases where the near-term move is
-    #      caught by the cap but the long-term rate stays elevated.)
+    #      caught by the cap but the medium-term rate stays elevated.)
     #
     # Everything else — one side clamped with the other near zero or opposite
     # direction, or a price-floor event — still floors confidence to 25.
+    ev_3m = clamp_events.get('3m')
     ev_6m = clamp_events.get('6m')
-    ev_1y = clamp_events.get('1y')
 
     # Re-derive the (vol-scaled) per-horizon caps for the meaningful-magnitude
     # threshold. Cheaper than plumbing them through as state.
+    cap_3m_scaled = 40.0 * vol_mult
     cap_6m_scaled = 60.0 * vol_mult
-    cap_1y_scaled = 85.0 * vol_mult
+    pct_3m_final = result.get('predicted_change_pct_3m')
     pct_6m_final = result.get('predicted_change_pct_6m')
-    pct_1y_final = result.get('predicted_change_pct_1y')
 
     coherent_direction = False
     direction: str | None = None
     coherence_reason = ''
 
     both_pct_clamped = (
-        ev_6m and ev_1y
-        and not ev_6m['price_floored'] and not ev_1y['price_floored']
-        and ev_6m['pct_clamped'] and ev_1y['pct_clamped']
-    )
-    only_1y_pct_clamped = (
-        ev_1y and ev_1y['pct_clamped'] and not ev_1y['price_floored']
-        and (ev_6m is None)
+        ev_3m and ev_6m
+        and not ev_3m['price_floored'] and not ev_6m['price_floored']
+        and ev_3m['pct_clamped'] and ev_6m['pct_clamped']
     )
     only_6m_pct_clamped = (
         ev_6m and ev_6m['pct_clamped'] and not ev_6m['price_floored']
-        and (ev_1y is None)
+        and (ev_3m is None)
+    )
+    only_3m_pct_clamped = (
+        ev_3m and ev_3m['pct_clamped'] and not ev_3m['price_floored']
+        and (ev_6m is None)
     )
 
     if both_pct_clamped:
-        if (ev_6m['new_pct'] >= 0) == (ev_1y['new_pct'] >= 0):
+        if (ev_3m['new_pct'] >= 0) == (ev_6m['new_pct'] >= 0):
+            coherent_direction = True
+            direction = 'up' if ev_3m['new_pct'] >= 0 else 'down'
+            coherence_reason = 'both_clamped_same_sign'
+    elif only_6m_pct_clamped and isinstance(pct_3m_final, (int, float)):
+        same_dir = (pct_3m_final >= 0) == (ev_6m['new_pct'] >= 0)
+        meaningful = abs(pct_3m_final) >= 0.5 * cap_3m_scaled
+        if same_dir and meaningful:
             coherent_direction = True
             direction = 'up' if ev_6m['new_pct'] >= 0 else 'down'
-            coherence_reason = 'both_clamped_same_sign'
-    elif only_1y_pct_clamped and isinstance(pct_6m_final, (int, float)):
-        same_dir = (pct_6m_final >= 0) == (ev_1y['new_pct'] >= 0)
+            coherence_reason = f'only_6m_clamped_3m_meaningful({pct_3m_final:.1f}%)'
+    elif only_3m_pct_clamped and isinstance(pct_6m_final, (int, float)):
+        same_dir = (pct_6m_final >= 0) == (ev_3m['new_pct'] >= 0)
         meaningful = abs(pct_6m_final) >= 0.5 * cap_6m_scaled
         if same_dir and meaningful:
             coherent_direction = True
-            direction = 'up' if ev_1y['new_pct'] >= 0 else 'down'
-            coherence_reason = f'only_1y_clamped_6m_meaningful({pct_6m_final:.1f}%)'
-    elif only_6m_pct_clamped and isinstance(pct_1y_final, (int, float)):
-        same_dir = (pct_1y_final >= 0) == (ev_6m['new_pct'] >= 0)
-        meaningful = abs(pct_1y_final) >= 0.5 * cap_1y_scaled
-        if same_dir and meaningful:
-            coherent_direction = True
-            direction = 'up' if ev_6m['new_pct'] >= 0 else 'down'
-            coherence_reason = f'only_6m_clamped_1y_meaningful({pct_1y_final:.1f}%)'
+            direction = 'up' if ev_3m['new_pct'] >= 0 else 'down'
+            coherence_reason = f'only_3m_clamped_6m_meaningful({pct_6m_final:.1f}%)'
 
     if coherent_direction:
         # For upside coherence, restore the model's own confidence — it's
         # genuinely extrapolating a growth signal. For downside coherence,
         # extreme bearish ceiling hits are inherently uncertain; keep at 25.
         if direction == 'up':
+            if ev_3m is not None and ev_3m['original_conf'] is not None:
+                result['confidence_score_3m'] = ev_3m['original_conf']
             if ev_6m is not None and ev_6m['original_conf'] is not None:
                 result['confidence_score_6m'] = ev_6m['original_conf']
-            if ev_1y is not None and ev_1y['original_conf'] is not None:
-                result['confidence_score_1y'] = ev_1y['original_conf']
         else:
+            result['confidence_score_3m'] = 25
             result['confidence_score_6m'] = 25
-            result['confidence_score_1y'] = 25
         # Ceiling flag only on the horizon(s) that actually clamped.
+        if ev_3m is not None and ev_3m['pct_clamped']:
+            result['at_model_ceiling_3m'] = True
         if ev_6m is not None and ev_6m['pct_clamped']:
             result['at_model_ceiling_6m'] = True
-        if ev_1y is not None and ev_1y['pct_clamped']:
-            result['at_model_ceiling_1y'] = True
         result['ceiling_direction'] = direction
         print(f"[sanitize] {ticker} coherent {direction}-extrapolation "
               f"({coherence_reason}); "
               f"{'keeping' if direction == 'up' else 'flooring'} confidence to "
-              f"(cs6m={result['confidence_score_6m']}, cs1y={result['confidence_score_1y']})",
+              f"(cs3m={result['confidence_score_3m']}, cs6m={result['confidence_score_6m']})",
               file=sys.stderr)
     else:
         # Outlier or inconsistent — floor confidence to 25 as before.
-        if ev_6m:
-            result['confidence_score_6m'] = 25
-            result['confidence_reason_6m'] = (
-                '6-month prediction hit the volatility-scaled ceiling but the 12-month '
+        if ev_3m:
+            result['confidence_score_3m'] = 25
+            result['confidence_reason_3m'] = (
+                '3-month prediction hit the volatility-scaled ceiling but the 6-month '
                 'prediction didn\'t confirm the direction with meaningful magnitude. '
                 'Treated as an outlier; confidence lowered to Low.'
             )
-        if ev_1y:
-            result['confidence_score_1y'] = 25
-            result['confidence_reason_1y'] = (
-                '12-month prediction hit the volatility-scaled ceiling but the 6-month '
+        if ev_6m:
+            result['confidence_score_6m'] = 25
+            result['confidence_reason_6m'] = (
+                '6-month prediction hit the volatility-scaled ceiling but the 3-month '
                 'prediction didn\'t confirm the direction with meaningful magnitude. '
                 'Treated as an outlier; confidence lowered to Low.'
             )
 
-    # ── Cross-horizon consistency: 6m magnitude vs 1y ────────────────────────
+    # ── Cross-horizon consistency: 3m magnitude vs 6m ────────────────────────
     #
-    # Historical behavior: when |pct_6m| > 1.5×|pct_1y| and both same-signed and
-    # |pct_6m| > 15%, clamp pct_6m to 1.3×pct_1y and floor confidence to 25 on
-    # the theory that "a genuine 6m move that big should persist or grow by 1y."
-    #
-    # False positive: this treats a legitimate peak-and-reverse trajectory
-    # (ADI: raw 6m ≈ +20%, 1y ≈ +4%, then smooth decline through 2027)
-    # identically to a numerically-broken 6m spike (6m = +200% out of nowhere,
-    # 1y = +5%). The ratio alone can't distinguish them.
-    #
-    # New two-part gate:
-    #   Option 2 — trajectory smoothness gate. Look at the waypoints between
-    #     the 6m peak (traj[6]) and the 1y anchor (traj[12]). If the sequence
-    #     is monotonic (each interior waypoint is between its neighbours), the
-    #     model is deliberately forecasting peak-and-reverse — keep the raw
-    #     6m target.
-    #   Option 4 — moderate-confidence penalty. Whether we clamp the value or
-    #     not, if the 6m and 1y magnitudes disagree by >1.5×, drop confidence
-    #     to ~60 to signal "this shape is unusual." A grain of salt, not a
-    #     hard 25.
+    # When |pct_3m| > 1.5×|pct_6m| and both same-signed and |pct_3m| > 15%,
+    # check trajectory smoothness between traj[3] (3m anchor) and traj[6]
+    # (6m anchor). Smooth = legitimate peak-and-reverse; keep raw 3m target
+    # but cap confidence at 60. Not smooth = spike outlier; clamp and cap at 60.
+    # Opposite-sign disagreements above noise floor glide-path the 3m to 0.5×6m.
+    pct_3m = result.get('predicted_change_pct_3m')
     pct_6m = result.get('predicted_change_pct_6m')
-    pct_1y = result.get('predicted_change_pct_1y')
-    if isinstance(pct_6m, (int, float)) and isinstance(pct_1y, (int, float)):
-        same_sign = (pct_6m >= 0) == (pct_1y >= 0)
+    if isinstance(pct_3m, (int, float)) and isinstance(pct_6m, (int, float)):
+        same_sign = (pct_3m >= 0) == (pct_6m >= 0)
 
         def _is_smooth_transition(traj: list, i0: int, i1: int) -> bool:
             """True if trajectory prices from index i0 to i1 (inclusive) are
@@ -1986,80 +1972,77 @@ def _sanitize_predictions(result: dict) -> dict:
             all_nonneg = all(d >= -1e-6 for d in deltas)
             return all_nonpos or all_nonneg
 
-        if same_sign and abs(pct_6m) > abs(pct_1y) * 1.5 and abs(pct_6m) > 15.0:
+        if same_sign and abs(pct_3m) > abs(pct_6m) * 1.5 and abs(pct_3m) > 15.0:
             trajectory = result.get('monthly_trajectory')
-            smooth = _is_smooth_transition(trajectory, 6, 12)
+            smooth = _is_smooth_transition(trajectory, 3, 6)
             if smooth:
                 # Legitimate peak-and-reverse — model is being deliberate.
-                # Keep the raw 6m target; drop confidence to signal "unusual
+                # Keep the raw 3m target; drop confidence to signal "unusual
                 # shape, take the target with a grain of salt."
-                cur_conf = result.get('confidence_score_6m')
+                cur_conf = result.get('confidence_score_3m')
                 new_conf = min(int(cur_conf) if isinstance(cur_conf, (int, float)) else 60, 60)
-                print(f"[sanitize] {ticker} 6m/1y ratio-disagree ({pct_6m:.1f}% vs "
-                      f"{pct_1y:.1f}%) but trajectory smooth — keeping raw 6m target, "
+                print(f"[sanitize] {ticker} 3m/6m ratio-disagree ({pct_3m:.1f}% vs "
+                      f"{pct_6m:.1f}%) but trajectory smooth — keeping raw 3m target, "
                       f"confidence {cur_conf} → {new_conf}", file=sys.stderr)
-                result['confidence_score_6m'] = new_conf
-                result['confidence_reason_6m'] = (
-                    f"Model predicts a cyclical peak at 6 months (+{pct_6m:.1f}%) followed by "
-                    f"a decline toward the 12-month target (+{pct_1y:.1f}%). Peak-and-reverse "
+                result['confidence_score_3m'] = new_conf
+                result['confidence_reason_3m'] = (
+                    f"Model predicts a cyclical peak at 3 months (+{pct_3m:.1f}%) followed by "
+                    f"a decline toward the 6-month target (+{pct_6m:.1f}%). Peak-and-reverse "
                     f"forecasts are a valid but less common shape, so confidence is capped at "
                     f"Medium to signal the target should be taken with a grain of salt."
                 )
             else:
-                # Spike outlier — clamp the value AND drop confidence, but to
-                # 60 (moderate) rather than 25 (hard floor). We still don't
-                # trust the number, but we're honest that a ratio disagreement
-                # isn't the same signal as a wild-price emergency.
-                new_pct_6m = round(pct_1y * 1.3, 2)
-                print(f"[sanitize] {ticker} 6m/1y inconsistency: pct_6m {pct_6m} vs "
-                      f"pct_1y {pct_1y}, trajectory NOT smooth → pct_6m clamped to "
-                      f"{new_pct_6m}, confidence → 60", file=sys.stderr)
-                result['predicted_change_pct_6m'] = new_pct_6m
+                # Spike outlier — clamp the value AND drop confidence to 60
+                # (moderate) rather than 25 (hard floor).
+                new_pct_3m = round(pct_6m * 1.3, 2)
+                print(f"[sanitize] {ticker} 3m/6m inconsistency: pct_3m {pct_3m} vs "
+                      f"pct_6m {pct_6m}, trajectory NOT smooth → pct_3m clamped to "
+                      f"{new_pct_3m}, confidence → 60", file=sys.stderr)
+                result['predicted_change_pct_3m'] = new_pct_3m
                 if isinstance(current_price, (int, float)) and current_price > 0:
-                    new_price = round(current_price * (1 + new_pct_6m / 100), 2)
-                    result['predicted_price_6m'] = new_price
-                    # Patch trajectory[6] so the card's Range doesn't float
-                    # above the target — same fix pattern as the horizon-clamp
-                    # branch does.
+                    new_price = round(current_price * (1 + new_pct_3m / 100), 2)
+                    result['predicted_price_3m'] = new_price
+                    # Patch trajectory[3] so the card's Range doesn't float
+                    # above the target.
                     trajectory = result.get('monthly_trajectory')
-                    if isinstance(trajectory, list) and len(trajectory) > 6:
-                        wp = trajectory[6]
+                    if isinstance(trajectory, list) and len(trajectory) > 3:
+                        wp = trajectory[3]
                         if isinstance(wp, dict):
                             lo, hi = wp.get('lower_bound'), wp.get('upper_bound')
                             spread = (hi - lo) if isinstance(lo, (int, float)) and isinstance(hi, (int, float)) else 0.0
                             wp['predicted_price'] = new_price
                             wp['lower_bound']     = round(new_price - spread / 2, 2)
                             wp['upper_bound']     = round(new_price + spread / 2, 2)
-                result['confidence_score_6m'] = 60
-                result['confidence_reason_6m'] = (
-                    f"6-month prediction disagreed sharply with the 12-month prediction "
-                    f"(6m raw was much larger than 1y). The 6-month target was pulled toward "
-                    f"the 1-year trajectory and confidence lowered to Medium."
+                result['confidence_score_3m'] = 60
+                result['confidence_reason_3m'] = (
+                    f"3-month prediction disagreed sharply with the 6-month prediction "
+                    f"(3m raw was much larger than 6m). The 3-month target was pulled toward "
+                    f"the 6-month trajectory and confidence lowered to Medium."
                 )
-        elif not same_sign and abs(pct_6m) > 5.0 and abs(pct_1y) > 5.0:
-            # Opposite-sign disagreement above noise floor: treat the 6m head as the
-            # outlier and pull it onto the glide path toward the 1y target.
-            new_pct_6m = round(pct_1y * 0.5, 2)
-            print(f"[sanitize] {ticker} 6m/1y opposite-sign: pct_6m {pct_6m} vs pct_1y {pct_1y} "
-                  f"→ pct_6m glide-pathed to {new_pct_6m}", file=sys.stderr)
-            result['predicted_change_pct_6m'] = new_pct_6m
+        elif not same_sign and abs(pct_3m) > 5.0 and abs(pct_6m) > 5.0:
+            # Opposite-sign disagreement above noise floor: treat the 3m head as the
+            # outlier and pull it onto the glide path toward the 6m target.
+            new_pct_3m = round(pct_6m * 0.5, 2)
+            print(f"[sanitize] {ticker} 3m/6m opposite-sign: pct_3m {pct_3m} vs pct_6m {pct_6m} "
+                  f"→ pct_3m glide-pathed to {new_pct_3m}", file=sys.stderr)
+            result['predicted_change_pct_3m'] = new_pct_3m
             if isinstance(current_price, (int, float)) and current_price > 0:
-                new_price = round(current_price * (1 + new_pct_6m / 100), 2)
-                result['predicted_price_6m'] = new_price
+                new_price = round(current_price * (1 + new_pct_3m / 100), 2)
+                result['predicted_price_3m'] = new_price
                 trajectory = result.get('monthly_trajectory')
-                if isinstance(trajectory, list) and len(trajectory) > 6:
-                    wp = trajectory[6]
+                if isinstance(trajectory, list) and len(trajectory) > 3:
+                    wp = trajectory[3]
                     if isinstance(wp, dict):
                         lo, hi = wp.get('lower_bound'), wp.get('upper_bound')
                         spread = (hi - lo) if isinstance(lo, (int, float)) and isinstance(hi, (int, float)) else 0.0
                         wp['predicted_price'] = new_price
                         wp['lower_bound']     = round(new_price - spread / 2, 2)
                         wp['upper_bound']     = round(new_price + spread / 2, 2)
-            result['confidence_score_6m'] = 25
-            result['confidence_reason_6m'] = (
-                "6-month prediction disagreed with 12-month on direction (one bullish, one "
-                "bearish). The 6-month target was pulled onto the glide path toward the "
-                "1-year target and confidence lowered to Low."
+            result['confidence_score_3m'] = 25
+            result['confidence_reason_3m'] = (
+                "3-month prediction disagreed with 6-month on direction (one bullish, one "
+                "bearish). The 3-month target was pulled onto the glide path toward the "
+                "6-month target and confidence lowered to Low."
             )
 
     # ── Cross-horizon coherence: 1m vs 6m spike-then-crash check ────────────
@@ -2068,7 +2051,8 @@ def _sanitize_predictions(result: dict) -> dict:
     # (or vice versa). The resulting spike-then-crash trajectory is not a
     # plausible forecast — it implies a complete reversal in 4 weeks with no
     # fundamental justification. Glide-path 1m to the linear interpolation
-    # between 1w and 6m so the trajectory is monotonic.
+    # between 1w and 6m. (6m horizon still valid; sourced from the long-term
+    # model's second head.)
     pct_1w_final = result.get('predicted_change_pct_1w')
     pct_1m_final = result.get('predicted_change_pct_1m')
     pct_6m_final_check = result.get('predicted_change_pct_6m')

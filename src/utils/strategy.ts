@@ -6,9 +6,10 @@
  * and the DeepMoney discovery flow.
  */
 import { executeRawQuery } from './databaseHelper';
+import type { InvestmentTimeframe } from './horizons';
 
 export type Aggressiveness = 'safe' | 'neutral' | 'aggressive';
-export type InvestmentTimeframe = '1_week' | '1_month' | '6_month' | '1_year';
+export type { InvestmentTimeframe };
 
 export interface UserStrategy {
   aggressiveness: Aggressiveness;
@@ -40,9 +41,9 @@ export interface TimeframeConfig {
   /** Short label for UI display, e.g. "in 6 months". */
   displayLabel: string;
   /** Compact label used on cards, e.g. "6M". */
-  shortLabel: '1W' | '1M' | '6M' | '1Y';
+  shortLabel: '1W' | '1M' | '3M' | '6M';
   /** Which predicted_price column to read from user_stock_predictions. */
-  predictedPriceColumn: 'predicted_price_1w' | 'predicted_price_1m' | 'predicted_price_6m' | 'predicted_price_1y';
+  predictedPriceColumn: 'predicted_price_1w' | 'predicted_price_1m' | 'predicted_price_3m' | 'predicted_price_6m';
 }
 
 export interface StrategyConfig {
@@ -100,6 +101,15 @@ const TIMEFRAME_CONFIG: Record<InvestmentTimeframe, TimeframeConfig> = {
     shortLabel:           '1M',
     predictedPriceColumn: 'predicted_price_1m',
   },
+  '3_month': {
+    outlook:              '3_month',
+    predChangeMultiplier: 1.25,
+    sellThresholdShift:   2,
+    mlGate:               3,
+    displayLabel:         'in 3 months',
+    shortLabel:           '3M',
+    predictedPriceColumn: 'predicted_price_3m',
+  },
   '6_month': {
     outlook:              '6_month',
     predChangeMultiplier: 1.5,
@@ -108,15 +118,6 @@ const TIMEFRAME_CONFIG: Record<InvestmentTimeframe, TimeframeConfig> = {
     displayLabel:         'in 6 months',
     shortLabel:           '6M',
     predictedPriceColumn: 'predicted_price_6m',
-  },
-  '1_year': {
-    outlook:              '1_year',
-    predChangeMultiplier: 2.0,
-    sellThresholdShift:   5,
-    mlGate:               10,
-    displayLabel:         'in 1 year',
-    shortLabel:           '1Y',
-    predictedPriceColumn: 'predicted_price_1y',
   },
 };
 
@@ -130,7 +131,7 @@ export function resolveStrategy(strategy: UserStrategy): StrategyConfig {
 }
 
 const VALID_AGGRESSIVENESS: readonly Aggressiveness[] = ['safe', 'neutral', 'aggressive'];
-const VALID_TIMEFRAMES: readonly InvestmentTimeframe[] = ['1_week', '1_month', '6_month', '1_year'];
+const VALID_TIMEFRAMES: readonly InvestmentTimeframe[] = ['1_week', '1_month', '3_month', '6_month'];
 
 export function isValidAggressiveness(v: unknown): v is Aggressiveness {
   return typeof v === 'string' && (VALID_AGGRESSIVENESS as readonly string[]).includes(v);

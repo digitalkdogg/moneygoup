@@ -116,8 +116,8 @@ def predict_fallback(ticker: str, input_data: dict, outlook: str = 'all') -> dic
 
     pct_1w = project(5)
     pct_1m = project(21)
+    pct_3m = project(63, dampening=0.30)
     pct_6m = project(126, dampening=0.50)
-    pct_1y = project(252, dampening=0.65)
 
     # Confidence — capped at MAX_CONF_PCT, reduced for RSI extremes and sparse data
     data_factor = min(1.0, n / 252.0)
@@ -126,8 +126,8 @@ def predict_fallback(ticker: str, input_data: dict, outlook: str = 'all') -> dic
 
     conf_1w = max(20, round(base_conf * 0.95))
     conf_1m = max(20, round(base_conf * 0.85))
+    conf_3m = max(15, round(base_conf * 0.75))
     conf_6m = max(15, round(base_conf * 0.65))
-    conf_1y = max(15, round(base_conf * 0.50))
 
     def direction(pct: float) -> str:
         if pct > 0.01:  return 'up'
@@ -140,27 +140,27 @@ def predict_fallback(ticker: str, input_data: dict, outlook: str = 'all') -> dic
         'current_price':           round(current_price, 4),
         'predicted_price_1w':      round(current_price * (1.0 + pct_1w), 4),
         'predicted_price_1m':      round(current_price * (1.0 + pct_1m), 4),
+        'predicted_price_3m':      round(current_price * (1.0 + pct_3m), 4),
         'predicted_price_6m':      round(current_price * (1.0 + pct_6m), 4),
-        'predicted_price_1y':      round(current_price * (1.0 + pct_1y), 4),
         'predicted_change_pct_1w': round(pct_1w * 100.0, 2),
         'predicted_change_pct_1m': round(pct_1m * 100.0, 2),
+        'predicted_change_pct_3m': round(pct_3m * 100.0, 2),
         'predicted_change_pct_6m': round(pct_6m * 100.0, 2),
-        'predicted_change_pct_1y': round(pct_1y * 100.0, 2),
         'predicted_direction_1w':  direction(pct_1w),
         'predicted_direction_1m':  direction(pct_1m),
+        'predicted_direction_3m':  direction(pct_3m),
         'predicted_direction_6m':  direction(pct_6m),
-        'predicted_direction_1y':  direction(pct_1y),
         'confidence_score_1w':     conf_1w,
         'confidence_score_1m':     conf_1m,
+        'confidence_score_3m':     conf_3m,
         'confidence_score_6m':     conf_6m,
-        'confidence_score_1y':     conf_1y,
         'news_sentiment_score':    round(float(sentiment), 4),
         'rsi':                     round(float(rsi), 2),
         'high_uncertainty':        False,
         'monthly_trajectory':      [],
         'predicted_change_range':  [
-            round(pct_1y * 100.0 * 0.7, 2),
-            round(pct_1y * 100.0 * 1.3, 2),
+            round(pct_6m * 100.0 * 0.7, 2),
+            round(pct_6m * 100.0 * 1.3, 2),
         ],
         'accuracy_metrics':        {},
         'data_quality': {

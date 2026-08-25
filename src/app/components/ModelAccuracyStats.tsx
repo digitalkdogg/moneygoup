@@ -2,14 +2,20 @@
 
 import { useEffect, useState } from 'react'
 
+interface HorizonStats {
+  resolved_count: number
+  proximity_accuracy_pct: number | null
+  high_accuracy_count: number
+}
+
 interface AccuracyData {
   status: 'ready' | 'insufficient_data' | string
   total_accuracy_pct: number | null
   horizons?: {
-    '1_week'?: { resolved_count: number; proximity_accuracy_pct: number | null; high_accuracy_count: number }
-    '1_month'?: { resolved_count: number; proximity_accuracy_pct: number | null; high_accuracy_count: number }
-    '6_month'?: { resolved_count: number; proximity_accuracy_pct: number | null; high_accuracy_count: number }
-    '1_year'?: { resolved_count: number; proximity_accuracy_pct: number | null; high_accuracy_count: number }
+    '1_week'?:  HorizonStats
+    '1_month'?: HorizonStats
+    '3_month'?: HorizonStats
+    '6_month'?: HorizonStats
   }
 }
 
@@ -43,7 +49,7 @@ export default function ModelAccuracyStats({ variant = 'strip' }: ModelAccuracyS
     (h1w?.resolved_count ?? 0) +
     (h1m?.resolved_count ?? 0) +
     (data.horizons?.['6_month']?.resolved_count ?? 0) +
-    (data.horizons?.['1_year']?.resolved_count ?? 0)
+    (data.horizons?.['3_month']?.resolved_count ?? 0)
 
   const stats: Stat[] = [
     h1w?.proximity_accuracy_pct != null

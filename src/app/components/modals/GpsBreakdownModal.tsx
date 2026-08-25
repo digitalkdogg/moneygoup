@@ -4,6 +4,8 @@
 import React, { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { getGpsLabel, getCardCallLabel } from '@/utils/gps'
+import { HORIZON_LABEL_SHORT } from '@/utils/horizons'
+import type { HorizonKey } from '@/utils/horizons'
 
 interface GpsBreakdownModalProps {
   isOpen: boolean
@@ -14,7 +16,7 @@ interface GpsBreakdownModalProps {
   breakdown: any | null
   /** Which prediction horizon the mlpUpside component reflects.
    *  Defaults to '1_month' for back-compat with callers that don't pass it. */
-  horizon?: '1_week' | '1_month' | '6_month' | '1_year'
+  horizon?: HorizonKey
   /** When 'card', the headline Rating badge label uses the card-only
    *  variant-B thresholds (Hold 45-55, Buy 55-75) and the footer tone
    *  color flips its Buy anchor from 65 to 55. Keeps the modal consistent
@@ -24,12 +26,7 @@ interface GpsBreakdownModalProps {
   variant?: 'default' | 'card'
 }
 
-const HORIZON_LABEL: Record<string, string> = {
-  '1_week':  '1w',
-  '1_month': '1m',
-  '6_month': '6m',
-  '1_year':  '1y',
-}
+const HORIZON_LABEL = HORIZON_LABEL_SHORT
 
 export const GpsBreakdownModal: React.FC<GpsBreakdownModalProps> = ({
   isOpen,

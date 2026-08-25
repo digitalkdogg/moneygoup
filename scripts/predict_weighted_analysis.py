@@ -333,23 +333,23 @@ def predict(ticker, input_data):
 
     scaled = scaler.fit_transform(raw)
 
-    # ── Build training targets (1d, 1w, 6m, 1y) ──────────────────────────────
+    # ── Build training targets (1d, 1w, 3m, 6m) ──────────────────────────────
     T1, T5  = 1, 5
     T1M = 21    # ~1 month  (anchor for trajectory wiggle suppression)
-    T6  = 126   # ~6 months
-    T12 = 252   # ~12 months
-    T18 = 378   # ~18 months (trajectory extrapolation)
+    T3M = 63    # ~3 months (new long-term model first head)
+    T6  = 126   # ~6 months (long-term model second head)
+    T9M = 189   # ~9 months (trajectory extrapolation endpoint)
 
     scaled_close = scaled[:, close_col_idx]
     targets_1d  = np.zeros(len(scaled))
     targets_1w  = np.zeros(len(scaled))
+    targets_3m  = np.zeros(len(scaled))
     targets_6m  = np.zeros(len(scaled))
-    targets_1y  = np.zeros(len(scaled))
     for i in range(len(scaled)):
         targets_1d[i] = scaled_close[min(i + T1,  len(scaled) - 1)]
         targets_1w[i] = scaled_close[min(i + T5,  len(scaled) - 1)]
+        targets_3m[i] = scaled_close[min(i + T3M, len(scaled) - 1)]
         targets_6m[i] = scaled_close[min(i + T6,  len(scaled) - 1)]
-        targets_1y[i] = scaled_close[min(i + T12, len(scaled) - 1)]
 
     # Sanity check that we have enough data for either horizon to train
     # (horizon files build their own X via their feature masks; here we
@@ -488,12 +488,12 @@ def predict(ticker, input_data):
     except Exception:
         pass
 
-    # ── Long-term first (short-term needs predicted_price_6m_base + cs6m) ──
+    # ── Long-term first (short-term needs predicted_price_3m_base + cs3m) ──
     long_out = predict_long_term(
         scaled=scaled,
         feature_columns=extended_feature_cols,
+        targets_3m=targets_3m,
         targets_6m=targets_6m,
-        targets_1y=targets_1y,
         feat_df=feat_df,
         current_price=current_price,
         long_term_multiplier=long_term_multiplier,
@@ -506,15 +506,15 @@ def predict(ticker, input_data):
         analyst_sentiment_v2=analyst_sentiment_v2,
     )
 
+    predicted_price_3m = long_out['predicted_price_3m']
     predicted_price_6m = long_out['predicted_price_6m']
-    predicted_price_1y = long_out['predicted_price_1y']
-    predicted_price_6m_base = long_out['predicted_price_6m_base']
-    cs6m = long_out['confidence_score_6m']
-    sig6m = long_out.get('signal_confidence_6m', cs6m)
+    predicted_price_3m_base = long_out['predicted_price_3m_base']
+    cs3m = long_out['confidence_score_3m']
+    sig3m = long_out.get('signal_confidence_3m', cs3m)
+    spread_3m  = long_out['spread_3m']
     spread_6m  = long_out['spread_6m']
-    spread_12m = long_out['spread_12m']
-    spread_18m = long_out['spread_18m']
-    p18m_est   = long_out['p18m_est']
+    spread_9m  = long_out['spread_9m']
+    p9m_est    = long_out['p9m_est']
     cv_mae     = long_out['cv_mae']
     cv_mape    = long_out['cv_mape']
 
@@ -531,23 +531,23 @@ def predict(ticker, input_data):
         # v4 Fix #4 — 90d momentum drift (|mom| > 15%). Fires in v4 AND v5.
         # Fix D (v5) extends this for the extreme-momentum tail.
         if abs(_ret90d) > 0.15 and current_price > 0:
+            _drift_3m = _ret90d * 0.50
             _drift_6m = _ret90d * 0.75
-            _drift_1y = _ret90d * 1.25
+            predicted_price_3m = predicted_price_3m * (1.0 + _drift_3m)
             predicted_price_6m = predicted_price_6m * (1.0 + _drift_6m)
-            predicted_price_1y = predicted_price_1y * (1.0 + _drift_1y)
+            v_telemetry['v4_drift_3m'] = round(_drift_3m, 4)
             v_telemetry['v4_drift_6m'] = round(_drift_6m, 4)
-            v_telemetry['v4_drift_1y'] = round(_drift_1y, 4)
 
         # ── v5 Fix A: Downtrend Trap ────────────────────────────────────────
         # High-beta names in a sustained decline (30d < -5% AND 90d < -10%)
-        # get a downside ceiling applied to 6m/1y targets. Beta-scaled so β=2
+        # get a downside ceiling applied to 3m/6m targets. Beta-scaled so β=2
         # stocks get a bigger cap than β=1 stocks. Excludes low-beta defensives
         # (JNJ/KO/PG) which genuinely mean-revert after dips.
         if _MODEL_VARIANT == 'v5' and _beta > 0.8 and _ret30d < -0.05 and _ret90d < -0.10:
             _severity = min(1.0, (-_ret90d - 0.10) / 0.25)
             _cap = 1.0 - (_severity * 0.08 * min(_beta, 2.0) / 2.0)
-            predicted_price_6m = min(predicted_price_6m, current_price * _cap)
-            predicted_price_1y = min(predicted_price_1y, current_price * (_cap - 0.03))
+            predicted_price_3m = min(predicted_price_3m, current_price * _cap)
+            predicted_price_6m = min(predicted_price_6m, current_price * (_cap - 0.03))
             v_telemetry['fixA_severity'] = round(_severity, 3)
             v_telemetry['fixA_cap']      = round(_cap, 4)
             print(f"[v5] {ticker} Fix A fired: beta={_beta:.2f} ret30d={_ret30d:.2%} "
@@ -562,14 +562,14 @@ def predict(ticker, input_data):
             _pct_from_52w = _hi_ratio - 1.0
             if _pct_from_52w < -0.20 and _ret90d < -0.15:
                 _decline_sev = min(1.0, (-_pct_from_52w - 0.20) / 0.30)
+                _f3m = 1.0 - (0.03 + _decline_sev * 0.04)
                 _f6m = 1.0 - (0.05 + _decline_sev * 0.05)
-                _f1y = 1.0 - (0.08 + _decline_sev * 0.07)
+                predicted_price_3m = min(predicted_price_3m, current_price * _f3m)
                 predicted_price_6m = min(predicted_price_6m, current_price * _f6m)
-                predicted_price_1y = min(predicted_price_1y, current_price * _f1y)
                 v_telemetry['fixC_pct_from_52w'] = round(_pct_from_52w, 3)
                 v_telemetry['fixC_severity']     = round(_decline_sev, 3)
                 print(f"[v5] {ticker} Fix C fired: pct_from_52w={_pct_from_52w:.2%} "
-                      f"ret90d={_ret90d:.2%} sev={_decline_sev:.2f} → f6m={_f6m:.3f} f1y={_f1y:.3f}",
+                      f"ret90d={_ret90d:.2%} sev={_decline_sev:.2f} → f3m={_f3m:.3f} f6m={_f6m:.3f}",
                       file=sys.stderr)
 
         # ── v5 Fix D: Extreme Positive Momentum ─────────────────────────────
@@ -581,16 +581,16 @@ def predict(ticker, input_data):
             _excess  = _ret90d - 0.30
             _extra   = min(0.50, _excess * 2.0)
             _xtscale = 1.0 + _extra
+            predicted_price_3m = current_price + (predicted_price_3m - current_price) * _xtscale
             predicted_price_6m = current_price + (predicted_price_6m - current_price) * _xtscale
-            predicted_price_1y = current_price + (predicted_price_1y - current_price) * _xtscale
             v_telemetry['fixD_xtscale'] = round(_xtscale, 4)
             print(f"[v5] {ticker} Fix D fired: ret90d={_ret90d:.2%} → xtscale={_xtscale:.3f}",
                   file=sys.stderr)
 
         # Sync predicted_change_pct fields so the result dict stays consistent
         if current_price > 0:
+            long_out['predicted_change_pct_3m'] = round((predicted_price_3m - current_price) / current_price * 100, 4)
             long_out['predicted_change_pct_6m'] = round((predicted_price_6m - current_price) / current_price * 100, 4)
-            long_out['predicted_change_pct_1y'] = round((predicted_price_1y - current_price) / current_price * 100, 4)
 
     # ── Short-term ───────────────────────────────────────────────────────────
     # Pass impact components (not a baked multiplier) so the module can build
@@ -609,10 +609,10 @@ def predict(ticker, input_data):
         scaler=scaler,
         close_col_idx=close_col_idx,
         n_features=n_features,
-        predicted_price_6m_base=predicted_price_6m_base,
-        confidence_score_6m=cs6m,
+        predicted_price_3m_base=predicted_price_3m_base,
+        confidence_score_3m=cs3m,
         stock_metrics=stock_metrics,
-        signal_confidence_6m=sig6m,
+        signal_confidence_3m=sig3m,
     )
 
     predicted_price_1w = short_out['predicted_price_1w']
@@ -630,8 +630,8 @@ def predict(ticker, input_data):
         predicted_price_1m = max(current_price * (1 - 0.30 * _vol_mult),
                                  min(current_price * (1 + 0.30 * _vol_mult), predicted_price_1m))
 
-    # ── 18m trajectory (uses both horizon outputs) ───────────────────────────
-    WAYPOINTS = [T5] + list(range(21, 379, 21))  # t+5, t+21, t+42, ... t+378
+    # ── 9m trajectory (uses both horizon outputs) ────────────────────────────
+    WAYPOINTS = [T5] + list(range(21, 190, 21))  # t+5, t+21, t+42, ... t+189
     last_date_str = str(df['Date'].iloc[-1]) if 'Date' in df.columns else datetime.today().strftime('%Y-%m-%d')
     last_date = datetime.strptime(last_date_str[:10], '%Y-%m-%d')
 
@@ -657,24 +657,24 @@ def predict(ticker, input_data):
     for td in WAYPOINTS:
         if td == T5:
             mid    = predicted_price_1w
-            spread = spread_6m * (T5 / T6)
+            spread = spread_3m * (T5 / T3M)
         elif td == T1M:
             mid    = predicted_price_1m
-            spread = spread_6m * (T1M / T6)
-        elif td <= T6:
-            t      = (td - T5) / (T6 - T5)
-            mid    = predicted_price_1w + (predicted_price_6m - predicted_price_1w) * t
-            spread = spread_6m * (td / T6)
+            spread = spread_3m * (T1M / T3M)
+        elif td <= T3M:
+            t      = (td - T5) / (T3M - T5)
+            mid    = predicted_price_1w + (predicted_price_3m - predicted_price_1w) * t
+            spread = spread_3m * (td / T3M)
             mid   += _wiggle(t, spread)
-        elif td <= T12:
-            t      = (td - T6) / (T12 - T6)
-            mid    = predicted_price_6m + (predicted_price_1y - predicted_price_6m) * t
-            spread = spread_6m + (spread_12m - spread_6m) * t
+        elif td <= T6:
+            t      = (td - T3M) / (T6 - T3M)
+            mid    = predicted_price_3m + (predicted_price_6m - predicted_price_3m) * t
+            spread = spread_3m + (spread_6m - spread_3m) * t
             mid   += _wiggle(t, spread)
         else:
-            t      = (td - T12) / (T18 - T12)
-            mid    = predicted_price_1y + (p18m_est - predicted_price_1y) * t
-            spread = spread_12m + (spread_18m - spread_12m) * t
+            t      = (td - T6) / (T9M - T6)
+            mid    = predicted_price_6m + (p9m_est - predicted_price_6m) * t
+            spread = spread_6m + (spread_9m - spread_6m) * t
             mid   += _wiggle(t, spread)
 
         waypoint_date = last_date + timedelta(days=int(td * 365.25 / 252))
@@ -694,14 +694,14 @@ def predict(ticker, input_data):
     rmse    = long_out.get('cv_rmse', cv_mae * 1.253)
     mae_val = cv_mae
 
-    high_uncertainty = abs(predicted_price_1y - current_price) / (current_price + 1e-9) > 0.60
+    high_uncertainty = abs(predicted_price_6m - current_price) / (current_price + 1e-9) > 0.60
 
     # 6m trajectory range (waypoint index 6 after the t+5 prepend = t+126 ≈ 6m)
     traj_6m = trajectory[6]
     prange_low  = round(traj_6m['lower_bound'] - current_price, 2)
     prange_high = round(traj_6m['upper_bound']  - current_price, 2)
 
-    spread_1w = spread_6m * (T5 / T6)
+    spread_1w = spread_3m * (T5 / T3M)
 
     # ── Assemble final result ────────────────────────────────────────────────
     result = {
@@ -713,12 +713,12 @@ def predict(ticker, input_data):
         "confidence_score_1w":     short_out['confidence_score_1w'],
         "predicted_range_1w":      [round(predicted_price_1w - spread_1w / 2, 2), round(predicted_price_1w + spread_1w / 2, 2)],
         # Dual-horizon (long-term)
+        "predicted_price_3m":   round(predicted_price_3m, 2),
         "predicted_price_6m":   round(predicted_price_6m, 2),
-        "predicted_price_1y":   round(predicted_price_1y, 2),
+        "predicted_change_pct_3m":  long_out['predicted_change_pct_3m'],
         "predicted_change_pct_6m":  long_out['predicted_change_pct_6m'],
-        "predicted_change_pct_1y":  long_out['predicted_change_pct_1y'],
-        "confidence_score_6m":  cs6m,
-        "confidence_score_1y":  long_out['confidence_score_1y'],
+        "confidence_score_3m":  cs3m,
+        "confidence_score_6m":  long_out['confidence_score_6m'],
         # 1-month
         "predicted_price_1m":      round(predicted_price_1m, 2),
         "predicted_change_pct_1m": short_out['predicted_change_pct_1m'],
@@ -753,8 +753,8 @@ def predict(ticker, input_data):
         # Signal confidence (MC ensemble agreement + CV MAPE — model-internal certainty)
         "signal_confidence_1w": short_out.get('signal_confidence_1w'),
         "signal_confidence_1m": short_out.get('signal_confidence_1m'),
+        "signal_confidence_3m": long_out.get('signal_confidence_3m'),
         "signal_confidence_6m": long_out.get('signal_confidence_6m'),
-        "signal_confidence_1y": long_out.get('signal_confidence_1y'),
         # Data quality pass-through
         "data_quality":    data_quality,
         # Options data availability
@@ -778,12 +778,12 @@ def predict(ticker, input_data):
     _closes = feat_df['Close'].values if 'Close' in feat_df.columns else np.array([current_price])
     _prec_1w = compute_precedent_confidence(_closes, result.get('predicted_change_pct_1w', 0.0), 5)
     _prec_1m = compute_precedent_confidence(_closes, result.get('predicted_change_pct_1m', 0.0), 21)
+    _prec_3m = compute_precedent_confidence(_closes, result.get('predicted_change_pct_3m', 0.0), 63)
     _prec_6m = compute_precedent_confidence(_closes, result.get('predicted_change_pct_6m', 0.0), 126)
-    _prec_1y = compute_precedent_confidence(_closes, result.get('predicted_change_pct_1y', 0.0), 252)
     result['precedent_confidence_1w'] = _prec_1w
     result['precedent_confidence_1m'] = _prec_1m
+    result['precedent_confidence_3m'] = _prec_3m
     result['precedent_confidence_6m'] = _prec_6m
-    result['precedent_confidence_1y'] = _prec_1y
 
     # Blended confidence (0.7 signal + 0.3 precedent) — single value for sort/filter.
     _sc_1m = result.get('signal_confidence_1m') or result.get('confidence_score_1m', 65)
@@ -803,7 +803,7 @@ def predict(ticker, input_data):
 # function handles the output-level fixes that don't touch predicted_price
 # but do touch predicted_direction_{h} and confidence_score_{h}.
 V4_DEADBAND_PCT     = 0.02   # |Δ| < 2% ⇒ predicted_direction = 'neutral'
-V4_DEADBAND_BY_HORIZON = {'1w': 0.02, '1m': 0.02, '6m': 0.02, '1y': 0.02}
+V4_DEADBAND_BY_HORIZON = {'1w': 0.02, '1m': 0.02, '3m': 0.02, '6m': 0.02}
 V4_VIX_BASELINE     = 20.0   # VIX at/below this ⇒ no confidence nerf (v4 only)
 V4_VIX_STRESS_SCALE = 30.0   # (vix - 20) / 30 ⇒ 1.0 stress at VIX=50 (v4 only)
 V4_BETA_BASELINE    = 1.5    # beta at this level ⇒ full stress absorption (v4 only)
@@ -845,7 +845,7 @@ def _apply_variant_adjustments(result: dict, feat_df, current_price: float,
     # ── Direction deadband (v4 + v5) ────────────────────────────────────────
     # In v3, we still populate predicted_direction_{h} but without the deadband
     # (any non-zero predicted move ⇒ up/down; exactly-flat ⇒ neutral).
-    for h in ('1w', '1m', '6m', '1y'):
+    for h in ('1w', '1m', '3m', '6m'):
         if variant in ('v4', 'v5'):
             _deadband = V4_DEADBAND_BY_HORIZON.get(h, V4_DEADBAND_PCT)
         else:
@@ -869,7 +869,7 @@ def _apply_variant_adjustments(result: dict, feat_df, current_price: float,
         beta_absorb = max(0.0, beta) / V4_BETA_BASELINE
         vix_conf_mult = max(0.0, 1.0 - stress * beta_absorb)
         if vix_conf_mult < 1.0:
-            for h in ('1w', '1m', '6m', '1y'):
+            for h in ('1w', '1m', '3m', '6m'):
                 k = f'confidence_score_{h}'
                 v = result.get(k)
                 if isinstance(v, (int, float)):
@@ -902,7 +902,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='MLP Stock Price Prediction')
     parser.add_argument('ticker',       type=str, help='Stock ticker symbol')
     parser.add_argument('--input_file', type=str, required=True, help='Path to JSON input file')
-    parser.add_argument('--outlook',    type=str, default='all', choices=['1_week', '1_month', '6_month', '1_year', 'all'], help='Prediction outlook')
+    parser.add_argument('--outlook',    type=str, default='all', choices=['1_week', '1_month', '3_month', '6_month', 'all'], help='Prediction outlook')
     args = parser.parse_args()
 
     try:
@@ -955,18 +955,18 @@ if __name__ == '__main__':
                     "predicted_change_pct": result["predicted_change_pct_1m"],
                     "confidence_score": result["confidence_score_1m"]
                 })
+            elif args.outlook == '3_month':
+                filtered.update({
+                    "predicted_price": result["predicted_price_3m"],
+                    "predicted_change_pct": result["predicted_change_pct_3m"],
+                    "confidence_score": result["confidence_score_3m"],
+                })
             elif args.outlook == '6_month':
                 filtered.update({
                     "predicted_price": result["predicted_price_6m"],
                     "predicted_change_pct": result["predicted_change_pct_6m"],
                     "confidence_score": result["confidence_score_6m"],
                     "predicted_change_range": result["predicted_change_range"]
-                })
-            elif args.outlook == '1_year':
-                filtered.update({
-                    "predicted_price": result["predicted_price_1y"],
-                    "predicted_change_pct": result["predicted_change_pct_1y"],
-                    "confidence_score": result["confidence_score_1y"]
                 })
             result = filtered
 

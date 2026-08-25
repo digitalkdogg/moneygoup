@@ -1,4 +1,5 @@
 import React from 'react'
+import type { HorizonKey } from '@/utils/horizons'
 
 export type CardVariant = 'search-trending' | 'deepmoney' | 'portfolio' | 'watchlist'
 
@@ -33,7 +34,7 @@ export interface DeepmoneyCard extends CardBase {
   /** Free-text label appended to the prediction row, e.g. "in 6 months". */
   timeframeLabel?: string | null
   /** Which prediction horizon the breakdown reflects (defaults to 1_month). */
-  gpsHorizon?: '1_week' | '1_month' | '6_month' | '1_year'
+  gpsHorizon?: HorizonKey
   /** Days this ticker has consecutively appeared on the dashboard. Sourced
    *  from dashboard_tenure. Drives the "NEW" badge on cards ≤ 3 days old. */
   consecutiveDays?: number | null
@@ -52,7 +53,7 @@ export interface PortfolioCard extends CardBase {
   gpsScore?: number | null
   gpsBreakdown?: any | null
   /** Which prediction horizon the breakdown reflects (defaults to 1_month). */
-  gpsHorizon?: '1_week' | '1_month' | '6_month' | '1_year'
+  gpsHorizon?: HorizonKey
   topAccentColor?: string
   /** Predicted price for the user's chosen horizon (1W/1M/6M/1Y). */
   predictedPriceHorizon?: number | null
@@ -70,7 +71,7 @@ export interface WatchlistCard extends CardBase {
   gpsScore?: number | null
   gpsBreakdown?: any | null
   /** Which prediction horizon the breakdown reflects (defaults to 1_month). */
-  gpsHorizon?: '1_week' | '1_month' | '6_month' | '1_year'
+  gpsHorizon?: HorizonKey
   isCompact?: boolean
   /** Predicted price for the user's chosen horizon (1W/1M/6M/1Y). */
   predictedPriceHorizon?: number | null

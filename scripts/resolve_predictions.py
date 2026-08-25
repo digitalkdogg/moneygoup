@@ -48,12 +48,12 @@ def get_trading_day_price(symbol: str, target_date: str) -> float | None:
 # Per-horizon direction deadbands — predicted moves smaller than the threshold
 # are treated as 'neutral' calls and excluded from the direction-accuracy metric
 # (NULL) rather than counted wrong. 1m is raised to 3% because the LSTM 1m
-# head produces noisier small-move predictions than the 1w or CS (6m/1y) heads.
+# head produces noisier small-move predictions than the 1w or CS (3m/6m) heads.
 DIRECTION_DEADBAND_PCT = {
     '1w': 0.02,
     '1m': 0.02,
+    '3m': 0.02,
     '6m': 0.02,
-    '1y': 0.02,
 }
 _DEFAULT_DEADBAND = 0.02
 
@@ -93,7 +93,7 @@ def compute_accuracy_metrics(actual_price: float, predicted_price: float, price_
 
 def resolve_horizon(conn, horizon: str, days_offset: int) -> tuple[int, int]:
     """
-    Resolve one horizon (1w, 1m, 6m, 1y).
+    Resolve one horizon (1w, 1m, 3m, 6m).
     Returns (resolved_count, skipped_count).
     """
     cursor = conn.cursor(dictionary=True)
@@ -184,7 +184,7 @@ def main():
             ('1w', 7),
             ('1m', 30),
             ('6m', 180),
-            ('1y', 365),
+            ('3m', 91),
         ]
 
         for horizon, days in horizons:

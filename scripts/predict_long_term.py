@@ -1,16 +1,16 @@
 """
-predict_long_term.py — 6m / 1y horizon model.
+predict_long_term.py — 3m / 6m horizon model.
 
-Trains a 2-output MLP head on (p6m, p1y) using only the LONG_TERM_FEATURES
+Trains a 2-output MLP head on (p3m, p6m) using only the LONG_TERM_FEATURES
 mask (macro / fundamental / long-horizon momentum). Runs Monte Carlo for
-uncertainty bands. Returns 6m/1y output fields plus internals the
-orchestrator needs to build the 18-month trajectory.
+uncertainty bands. Returns 3m/6m output fields plus internals the
+orchestrator needs to build the 9-month trajectory.
 
 Per-horizon optimizations vs the legacy monolithic 4-output MLP:
   - Feature mask: drops short-window momentum + microstructure that adds
-    noise on 6-12m horizons.
-  - Uncertainty bands: spread_6m/spread_12m widened 25% from raw MC range
-    to better calibrate the 60-100% 1y predicted-vs-actual band coverage
+    noise on 3-6m horizons.
+  - Uncertainty bands: spread_3m/spread_6m widened 25% from raw MC range
+    to better calibrate the 60-100% 6m predicted-vs-actual band coverage
     flagged in the refactor plan.
 
 History notes (kept for posterity, don't affect runtime):
@@ -69,8 +69,8 @@ LONG_TERM_SPREAD_WIDENER = 1.25
 
 def build_long_term_model(seed: int = SEED) -> MLPRegressor:
     """
-    2-output MLP for [p6m, p1y]. Slightly wider hidden layers than short-term
-    because 6m/1y predictions need to integrate more disparate signals (macro
+    2-output MLP for [p3m, p6m]. Slightly wider hidden layers than short-term
+    because 3m/6m predictions need to integrate more disparate signals (macro
     + fundamentals + long-horizon momentum).
     """
     return MLPRegressor(
@@ -102,13 +102,13 @@ def _predict_with_cs_model(
 
     Takes the latest row of feat_df, looks up the columns the persisted
     model was trained on (CS_FEATURE_COLUMNS = the ranker's GREEN set),
-    scales via the saved StandardScaler, predicts [return_126d,
-    return_252d], anchors to current_price. MC perturbs the feature
+    scales via the saved StandardScaler, predicts [return_63d,
+    return_126d], anchors to current_price. MC perturbs the feature
     vector to get spread bands. No training happens at predict time.
 
     Returns both the final (post-multiplier) prices AND the pre-multiplier
     base prices so the short-term module can anchor its 1w trajectory to
-    the model's raw long-horizon output (rather than to a price that
+    the model's raw medium-horizon output (rather than to a price that
     already has long-horizon analyst weighting baked in).
     """
     payload = _CS_MODEL
@@ -126,11 +126,11 @@ def _predict_with_cs_model(
     x_current = np.nan_to_num(x_current, nan=0.0, posinf=0.0, neginf=0.0)
     x_current_s = scaler_cs.transform(x_current)
 
-    pred_returns = model.predict(x_current_s)[0]  # [return_126d, return_252d]
-    base_6m = current_price * (1.0 + float(pred_returns[0]))
-    base_1y = current_price * (1.0 + float(pred_returns[1]))
+    pred_returns = model.predict(x_current_s)[0]  # [return_63d, return_126d]
+    base_3m = current_price * (1.0 + float(pred_returns[0]))
+    base_6m = current_price * (1.0 + float(pred_returns[1]))
+    predicted_price_3m = base_3m * long_term_multiplier
     predicted_price_6m = base_6m * long_term_multiplier
-    predicted_price_1y = base_1y * long_term_multiplier
 
     # ── Monte Carlo: perturb the feature vector + re-predict ─────────────────
     # Noise scale: per-feature std from the last 20 days of feat_df, scaled
@@ -148,30 +148,29 @@ def _predict_with_cs_model(
     mc_inputs_s = scaler_cs.transform(mc_inputs)
     mc_returns  = model.predict(mc_inputs_s)  # (MC_RUNS, 2)
 
-    mc_6m_prices  = current_price * (1.0 + mc_returns[:, 0]) * long_term_multiplier
-    mc_12m_prices = current_price * (1.0 + mc_returns[:, 1]) * long_term_multiplier
+    mc_3m_prices = current_price * (1.0 + mc_returns[:, 0]) * long_term_multiplier
+    mc_6m_prices = current_price * (1.0 + mc_returns[:, 1]) * long_term_multiplier
 
-    spread_6m  = float(np.percentile(mc_6m_prices,  90) - np.percentile(mc_6m_prices,  10)) * LONG_TERM_SPREAD_WIDENER
-    spread_12m = float(np.percentile(mc_12m_prices, 90) - np.percentile(mc_12m_prices, 10)) * LONG_TERM_SPREAD_WIDENER
-    # Spread floors prevent the MC ensemble (only MC_RUNS=12 samples) from
-    # collapsing the prediction band to ~$0 when the model is confident on a
-    # stable stock. Floors are calibrated so the 1w band (= spread_6m * 5/126)
-    # stays at least ~0.16% of price, which matches the realistic minimum
-    # one-week move for a liquid equity.
-    spread_6m  = max(spread_6m,  current_price * 0.04)
-    spread_12m = max(spread_12m, current_price * 0.08)
-    spread_18m = spread_12m * 1.5
+    spread_3m = float(np.percentile(mc_3m_prices, 90) - np.percentile(mc_3m_prices, 10)) * LONG_TERM_SPREAD_WIDENER
+    spread_6m = float(np.percentile(mc_6m_prices, 90) - np.percentile(mc_6m_prices, 10)) * LONG_TERM_SPREAD_WIDENER
+    # Spread floors prevent the MC ensemble from collapsing the prediction band
+    # to ~$0 when the model is confident. Calibrated so the 1w band
+    # (= spread_3m * 5/63) stays at least ~0.16% of price — the realistic
+    # minimum one-week move for a liquid equity.
+    spread_3m = max(spread_3m, current_price * 0.02)
+    spread_6m = max(spread_6m, current_price * 0.04)
+    spread_9m = spread_6m * 1.5
 
     # Item 4: Signal confidence from MC ensemble agreement (CoV).
     # CoV=0 → perfect agreement → signal_confidence=100.
     # CoV=0.25 → 25% spread relative to mean → signal_confidence=0.
     # Blended with a MAPE-based component (set after cv_mape is computed below).
-    mc_cv_6m = float(np.std(mc_6m_prices)  / (abs(float(np.mean(mc_6m_prices)))  + 1e-9))
-    mc_cv_1y = float(np.std(mc_12m_prices) / (abs(float(np.mean(mc_12m_prices))) + 1e-9))
+    mc_cv_3m = float(np.std(mc_3m_prices) / (abs(float(np.mean(mc_3m_prices))) + 1e-9))
+    mc_cv_6m = float(np.std(mc_6m_prices) / (abs(float(np.mean(mc_6m_prices))) + 1e-9))
+    _signal_from_mc_3m = max(0.0, 100.0 * (1.0 - mc_cv_3m / 0.25))
     _signal_from_mc_6m = max(0.0, 100.0 * (1.0 - mc_cv_6m / 0.25))
-    _signal_from_mc_1y = max(0.0, 100.0 * (1.0 - mc_cv_1y / 0.25))
 
-    p18m_est = predicted_price_1y + (predicted_price_1y - predicted_price_6m)
+    p9m_est = predicted_price_6m + (predicted_price_6m - predicted_price_3m)
 
     # ── cv_mae / cv_mape: per-ticker backtest of the CS model ────────────────
     # Historically this branch hardcoded cv_mae = current_price × 0.05 because
@@ -205,9 +204,9 @@ def _predict_with_cs_model(
 
     if cv_mape_source == 'fallback_5pct' and 'Close' in feat_df.columns:
         # Backtest window: rows we have (i) enough history to build features
-        # (already built), AND (ii) 126d of future closes to score against.
-        # Skip the last 126 rows (no future truth) and take up to 250 rows.
-        HORIZON = 126
+        # (already built), AND (ii) 63d of future closes to score against.
+        # Skip the last 63 rows (no future truth) and take up to 250 rows.
+        HORIZON = 63
         try:
             closes = feat_df['Close'].values
             n = len(feat_df)
@@ -226,7 +225,7 @@ def _predict_with_cs_model(
                     bt_pred = np.asarray(model.predict(bt_x_s, verbose=0))
                 except TypeError:
                     bt_pred = np.asarray(model.predict(bt_x_s))
-                bt_pred_ret = bt_pred[:, 0] if bt_pred.ndim == 2 else bt_pred  # 6m head
+                bt_pred_ret = bt_pred[:, 0] if bt_pred.ndim == 2 else bt_pred  # 3m head
                 actual_ret = (closes[start + HORIZON : end + HORIZON] / (closes[start:end] + 1e-9)) - 1.0
                 bt_mae_ret = float(np.mean(np.abs(bt_pred_ret - actual_ret)))
                 # Convert return-space MAE to a percentage — same unit as the
@@ -255,44 +254,44 @@ def _predict_with_cs_model(
     # (where <5% is achievable in a week). Passing the raw value always gives
     # 0/40 pts on the cv_mape component for every stock.
     #
-    # Normalize relative to the random-walk baseline (vol × √0.5). A model
+    # Normalize relative to the random-walk baseline (vol × √0.25). A model
     # matching random maps to ~10% → 30 pts. A model 30% better than random
     # maps to ~7% → 30 pts. Clearly worse than random maps to 20%+ → 0 pts.
     _vol_attr = feat_df.attrs.get('realized_vol_60d') if hasattr(feat_df, 'attrs') else None
-    _vol_proxy_pct = float(np.clip((_vol_attr or 0.30) * np.sqrt(0.5) * 100.0, 5.0, 50.0))
+    _vol_proxy_pct = float(np.clip((_vol_attr or 0.30) * np.sqrt(0.25) * 100.0, 5.0, 50.0))
     conf_cv_mape = float(np.clip(cv_mape / _vol_proxy_pct * 10.0, 0.0, 50.0))
 
-    cs6m, cs_breakdown = confidence_score(conf_cv_mape, history_years, imputed_fields, analyst_count,
+    cs3m, cs_breakdown = confidence_score(conf_cv_mape, history_years, imputed_fields, analyst_count,
                                           analyst_sentiment_v2=analyst_sentiment_v2,
                                           return_breakdown=True)
-    cs1y = max(0, cs6m - 10)
+    cs6m = max(0, cs3m - 10)
     cs_breakdown['cv_mape_source'] = cv_mape_source
     cs_breakdown['conf_cv_mape']   = round(conf_cv_mape, 2)
 
     # Blend MC-agreement signal with MAPE-derived signal for final signal_confidence.
     _mape_signal = max(0.0, 100.0 - float(conf_cv_mape) * 2.0)
+    signal_confidence_3m = int(round(0.6 * _signal_from_mc_3m + 0.4 * _mape_signal))
     signal_confidence_6m = int(round(0.6 * _signal_from_mc_6m + 0.4 * _mape_signal))
-    signal_confidence_1y = int(round(0.6 * _signal_from_mc_1y + 0.4 * _mape_signal))
 
+    pct_3m = round((predicted_price_3m - current_price) / (current_price + 1e-9) * 100, 2)
     pct_6m = round((predicted_price_6m - current_price) / (current_price + 1e-9) * 100, 2)
-    pct_1y = round((predicted_price_1y - current_price) / (current_price + 1e-9) * 100, 2)
 
     return {
+        'predicted_price_3m': predicted_price_3m,
         'predicted_price_6m': predicted_price_6m,
-        'predicted_price_1y': predicted_price_1y,
+        'predicted_price_3m_base': base_3m,
         'predicted_price_6m_base': base_6m,
-        'predicted_price_1y_base': base_1y,
+        'predicted_change_pct_3m': pct_3m,
         'predicted_change_pct_6m': pct_6m,
-        'predicted_change_pct_1y': pct_1y,
+        'confidence_score_3m': cs3m,
         'confidence_score_6m': cs6m,
-        'confidence_score_1y': cs1y,
         'confidence_breakdown': cs_breakdown,
+        'signal_confidence_3m': signal_confidence_3m,
         'signal_confidence_6m': signal_confidence_6m,
-        'signal_confidence_1y': signal_confidence_1y,
+        'spread_3m': spread_3m,
         'spread_6m': spread_6m,
-        'spread_12m': spread_12m,
-        'spread_18m': spread_18m,
-        'p18m_est': p18m_est,
+        'spread_9m': spread_9m,
+        'p9m_est': p9m_est,
         'cv_mae': cv_mae,
         'cv_rmse': cv_rmse,
         'cv_mape': cv_mape,
@@ -311,8 +310,8 @@ def predict_long_term(
     *,
     scaled,
     feature_columns,         # extended feature list (FEATURE_COLUMNS + regime)
+    targets_3m,
     targets_6m,
-    targets_1y,
     feat_df,                 # for cross-sectional path: feature lookup at t=now
     current_price: float,
     long_term_multiplier: float,
@@ -326,9 +325,9 @@ def predict_long_term(
     analyst_sentiment_v2: dict | None = None,
 ) -> dict:
     """
-    Predict the 6m / 1y horizon. Two execution paths:
+    Predict the 3m / 6m horizon. Two execution paths:
       - Cross-sectional (preferred): use the persisted model at
-        models/long_term_cs_v1.pkl. Skip training. ~50ms per call.
+        models/long_term_cs_v2.pkl. Skip training. ~50ms per call.
       - Per-ticker fallback (current): train an MLP on this ticker's own
         history. ~10s per call.
 
@@ -355,7 +354,7 @@ def predict_long_term(
     # (defensive: skips silently if a column was renamed/removed upstream)
     mask_indices = [feature_columns.index(f) for f in long_features if f in feature_columns]
 
-    targets_stacked = np.column_stack([targets_6m, targets_1y])
+    targets_stacked = np.column_stack([targets_3m, targets_6m])
     X, Y = make_horizon_sequences(scaled, targets_stacked, mask_indices)
     if len(X) < 50:
         raise ValueError("Not enough sequences for long-term training.")
@@ -370,11 +369,11 @@ def predict_long_term(
     model = build_long_term_model(seed=seed)
     model.fit(X, Y)
 
-    # ── Holdout cv_mae from the 6m head (column 0 of Y_long) ─────────────────
+    # ── Holdout cv_mae from the 3m head (column 0 of Y_long) ─────────────────
     if len(X_hold) > 0:
         hold_pred = model.predict(X_hold)
         dummy_pred = np.zeros((len(hold_pred), n_features), dtype=np.float32)
-        dummy_pred[:, close_col_idx] = hold_pred[:, 0]  # 6m head
+        dummy_pred[:, close_col_idx] = hold_pred[:, 0]  # 3m head
         pred_prices_hold = scaler.inverse_transform(dummy_pred)[:, close_col_idx]
 
         dummy_act = np.zeros((len(Y_hold), n_features), dtype=np.float32)
@@ -388,18 +387,18 @@ def predict_long_term(
         cv_rmse = cv_mae * 1.253
     cv_mape = (cv_mae / (current_price + 1e-9)) * 100
 
-    # ── Deterministic 6m / 1y predictions ────────────────────────────────────
-    pred_scaled = model.predict(last_seq)[0]  # [p6m, p1y]
+    # ── Deterministic 3m / 6m predictions ────────────────────────────────────
+    pred_scaled = model.predict(last_seq)[0]  # [p3m, p6m]
 
     def inverse_close(scaled_val):
         dummy = np.zeros((1, n_features), dtype=np.float32)
         dummy[0, close_col_idx] = float(scaled_val)
         return float(scaler.inverse_transform(dummy)[0, close_col_idx])
 
-    base_6m = inverse_close(pred_scaled[0])
-    base_1y = inverse_close(pred_scaled[1])
+    base_3m = inverse_close(pred_scaled[0])
+    base_6m = inverse_close(pred_scaled[1])
+    predicted_price_3m = base_3m * long_term_multiplier
     predicted_price_6m = base_6m * long_term_multiplier
-    predicted_price_1y = base_1y * long_term_multiplier
 
     # ── Monte Carlo Dropout — spread bands ───────────────────────────────────
     # Noise stds taken from the masked feature subset, tiled across SEQ_LEN
@@ -416,61 +415,61 @@ def predict_long_term(
 
     dummy_mc = np.zeros((MC_RUNS, n_features), dtype=np.float32)
     dummy_mc[:, close_col_idx] = mc_preds[:, 0]
-    mc_6m = scaler.inverse_transform(dummy_mc)[:, close_col_idx] * long_term_multiplier
+    mc_3m = scaler.inverse_transform(dummy_mc)[:, close_col_idx] * long_term_multiplier
 
     dummy_mc[:, close_col_idx] = mc_preds[:, 1]
-    mc_12m = scaler.inverse_transform(dummy_mc)[:, close_col_idx] * long_term_multiplier
+    mc_6m = scaler.inverse_transform(dummy_mc)[:, close_col_idx] * long_term_multiplier
 
     # Spreads — widened to better cover observed actuals on long horizons.
-    # Floor matches the CS-model path above so neither code branch can emit a
+    # Floor matches the CS-model path above so neither code branch emits a
     # zero-width prediction band when the MC ensemble collapses.
-    spread_6m  = float(np.percentile(mc_6m,  90) - np.percentile(mc_6m,  10)) * LONG_TERM_SPREAD_WIDENER
-    spread_12m = float(np.percentile(mc_12m, 90) - np.percentile(mc_12m, 10)) * LONG_TERM_SPREAD_WIDENER
-    spread_6m  = max(spread_6m,  current_price * 0.04)
-    spread_12m = max(spread_12m, current_price * 0.08)
-    spread_18m = spread_12m * 1.5
+    spread_3m = float(np.percentile(mc_3m, 90) - np.percentile(mc_3m, 10)) * LONG_TERM_SPREAD_WIDENER
+    spread_6m = float(np.percentile(mc_6m, 90) - np.percentile(mc_6m, 10)) * LONG_TERM_SPREAD_WIDENER
+    spread_3m = max(spread_3m, current_price * 0.02)
+    spread_6m = max(spread_6m, current_price * 0.04)
+    spread_9m = spread_6m * 1.5
 
     # Item 4: signal confidence from MC CoV (same formula as CS path).
-    _mc_cv_6m = float(np.std(mc_6m)  / (abs(float(np.mean(mc_6m)))  + 1e-9))
-    _mc_cv_1y = float(np.std(mc_12m) / (abs(float(np.mean(mc_12m))) + 1e-9))
+    _mc_cv_3m = float(np.std(mc_3m) / (abs(float(np.mean(mc_3m))) + 1e-9))
+    _mc_cv_6m = float(np.std(mc_6m) / (abs(float(np.mean(mc_6m))) + 1e-9))
+    _signal_from_mc_3m_pt = max(0.0, 100.0 * (1.0 - _mc_cv_3m / 0.25))
     _signal_from_mc_6m_pt = max(0.0, 100.0 * (1.0 - _mc_cv_6m / 0.25))
-    _signal_from_mc_1y_pt = max(0.0, 100.0 * (1.0 - _mc_cv_1y / 0.25))
 
-    # 18m extrapolation beyond 12m anchor (used by orchestrator's trajectory)
-    p18m_est = predicted_price_1y + (predicted_price_1y - predicted_price_6m)
+    # 9m extrapolation beyond 6m anchor (used by orchestrator's trajectory)
+    p9m_est = predicted_price_6m + (predicted_price_6m - predicted_price_3m)
 
     # ── Confidence ───────────────────────────────────────────────────────────
-    cs6m, cs_breakdown = confidence_score(cv_mape, history_years, imputed_fields, analyst_count,
+    cs3m, cs_breakdown = confidence_score(cv_mape, history_years, imputed_fields, analyst_count,
                                           analyst_sentiment_v2=analyst_sentiment_v2,
                                           return_breakdown=True)
     cs_breakdown['cv_mape_source'] = 'per_ticker_holdout'
-    cs1y = max(0, cs6m - 15)
+    cs6m = max(0, cs3m - 15)
 
     _mape_signal_pt = max(0.0, 100.0 - float(cv_mape) * 2.0)
+    signal_confidence_3m = int(round(0.6 * _signal_from_mc_3m_pt + 0.4 * _mape_signal_pt))
     signal_confidence_6m = int(round(0.6 * _signal_from_mc_6m_pt + 0.4 * _mape_signal_pt))
-    signal_confidence_1y = int(round(0.6 * _signal_from_mc_1y_pt + 0.4 * _mape_signal_pt))
 
     # ── Pct changes ──────────────────────────────────────────────────────────
-    pct_6m  = round((predicted_price_6m - current_price) / (current_price + 1e-9) * 100, 2)
-    pct_1y  = round((predicted_price_1y - current_price) / (current_price + 1e-9) * 100, 2)
+    pct_3m = round((predicted_price_3m - current_price) / (current_price + 1e-9) * 100, 2)
+    pct_6m = round((predicted_price_6m - current_price) / (current_price + 1e-9) * 100, 2)
 
     return {
+        'predicted_price_3m': predicted_price_3m,
         'predicted_price_6m': predicted_price_6m,
-        'predicted_price_1y': predicted_price_1y,
+        'predicted_price_3m_base': base_3m,
         'predicted_price_6m_base': base_6m,
-        'predicted_price_1y_base': base_1y,
+        'predicted_change_pct_3m': pct_3m,
         'predicted_change_pct_6m': pct_6m,
-        'predicted_change_pct_1y': pct_1y,
+        'confidence_score_3m': cs3m,
         'confidence_score_6m': cs6m,
-        'confidence_score_1y': cs1y,
         'confidence_breakdown': cs_breakdown,
+        'signal_confidence_3m': signal_confidence_3m,
         'signal_confidence_6m': signal_confidence_6m,
-        'signal_confidence_1y': signal_confidence_1y,
         # Internals exposed for orchestrator + short-term consumers
+        'spread_3m': spread_3m,
         'spread_6m': spread_6m,
-        'spread_12m': spread_12m,
-        'spread_18m': spread_18m,
-        'p18m_est': p18m_est,
+        'spread_9m': spread_9m,
+        'p9m_est': p9m_est,
         'cv_mae': cv_mae,
         'cv_rmse': cv_rmse,
         'cv_mape': cv_mape,

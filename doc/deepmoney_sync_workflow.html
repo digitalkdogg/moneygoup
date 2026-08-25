@@ -96,7 +96,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Developer Docs</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-20</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-25</div>
   </div>
       <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
@@ -185,8 +185,8 @@
       <span>src/utils/etfHoldingPreset.ts</span>
       <span>models/algorithm_presets.json</span>
       <span>models/etf_holding_presets.json</span>
-      <span>Updated 2026-08-20</span>
-      <span>Reviewed 2026-08-20</span>
+      <span>Updated 2026-08-25</span>
+      <span>Reviewed 2026-08-25</span>
     </div>
 
     <div class="highlight-box" style="background:#eff6ff;border-left-color:#3b82f6;color:#1e3a8a;">
@@ -334,7 +334,7 @@
         <div class="step-card">
           <p>Inside <code>src/app/api/prediction/deepmoney/route.ts</code>, the API resolves the caller's strategy via <code>getUserStrategy()</code> &rarr; <code>resolveStrategy()</code> to obtain a <code>TimeframeConfig</code>. Two values flow downstream:</p>
           <ul>
-            <li><code>outlook</code> — passed to the analyzer so prediction calls run against the requested horizon (<code>1_week</code> / <code>1_month</code> / <code>6_month</code> / <code>1_year</code>).</li>
+            <li><code>outlook</code> — passed to the analyzer so prediction calls run against the requested horizon (<code>1_week</code> / <code>1_month</code> / <code>3_month</code> / <code>6_month</code>).</li>
             <li><code>mlGate</code> — the minimum positive <code>predicted_change_pct</code> a candidate must show to survive the analyzer filter. Per-horizon values are defined in <code>TIMEFRAME_CONFIG</code> in <code>src/utils/strategy.ts</code>; see the <a href="strategy_system.html">Strategy System</a> doc.</li>
           </ul>
           <p>The response cache key is bucketed by outlook (<code>hot-tickers-enriched:${outlook}</code>) so each timeframe maintains its own 5-minute snapshot. <code>?refresh=true</code> bypasses the cache.</p>
@@ -538,8 +538,8 @@ if hi_ratio &gt; 0.97 and beta_val &gt; 2.0:
     price_at_prediction=price,
     predicted_price_1w=predicted_price_1w,
     predicted_price_1m=predicted_price_1m,
+    predicted_price_3m=predicted_price_3m,
     predicted_price_6m=predicted_price_6m,
-    predicted_price_1y=predicted_price_1y,
 )</code></pre>
         <p>This call is independent of the GPS / user-dashboard logic — it runs as soon as the stock passes the ML gate + volatility gate, before the Dashboard Qualification threshold is checked. The result feeds the <code>/api/analytics/model-accuracy</code> endpoint and the <code>ModelAccuracyWidget</code> headline direction-accuracy metric (Prediction Tracking System, Phase 2–5).</p>
 
@@ -595,8 +595,8 @@ if hi_ratio &gt; 0.97 and beta_val &gt; 2.0:
       "prediction_input": {
         "predicted_price_1w": 194.20,
         "predicted_price_1m": 198.10,
+        "predicted_price_3m": 203.50,
         "predicted_price_6m": 210.00,
-        "predicted_price_1y": 225.40,
         "predicted_change_pct_1m": 2.91,
         "confidence_score_1m": 72
       }

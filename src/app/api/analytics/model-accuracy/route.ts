@@ -16,8 +16,8 @@ interface CacheEntry {
 const PQS_WEIGHTS: Record<string, { dir: number; acc: number }> = {
   '1_week':  { dir: 0.30, acc: 0.70 },
   '1_month': { dir: 0.40, acc: 0.60 },
+  '3_month': { dir: 0.55, acc: 0.45 },
   '6_month': { dir: 0.60, acc: 0.40 },
-  '1_year':  { dir: 0.70, acc: 0.30 },
 };
 
 function computePqs(acc: number | null, dir: number | null, key: string): number | null {
@@ -113,25 +113,25 @@ async function getGlobalAccuracy(conn: any) {
        WHERE predicted_price_6m IS NOT NULL AND actual_price_6m IS NOT NULL AND actual_price_6m > 0
        AND GREATEST(0, 1 - ABS(predicted_price_6m - actual_price_6m) / NULLIF(actual_price_6m, 0)) >= 0.95) AS count_95_6m,
 
-      -- 1 Year
+      -- 3 Month
       (SELECT COUNT(*) FROM prediction_records
-       WHERE predicted_price_1y IS NOT NULL AND actual_price_1y IS NOT NULL AND actual_price_1y > 0) AS resolved_count_1y,
-      (SELECT ROUND(100 * AVG(GREATEST(0, 1 - ABS(predicted_price_1y - actual_price_1y) / NULLIF(actual_price_1y, 0))), 2)
+       WHERE predicted_price_3m IS NOT NULL AND actual_price_3m IS NOT NULL AND actual_price_3m > 0) AS resolved_count_3m,
+      (SELECT ROUND(100 * AVG(GREATEST(0, 1 - ABS(predicted_price_3m - actual_price_3m) / NULLIF(actual_price_3m, 0))), 2)
        FROM prediction_records
-       WHERE predicted_price_1y IS NOT NULL AND actual_price_1y IS NOT NULL AND actual_price_1y > 0) AS avg_accuracy_pct_1y,
+       WHERE predicted_price_3m IS NOT NULL AND actual_price_3m IS NOT NULL AND actual_price_3m > 0) AS avg_accuracy_pct_3m,
       (SELECT COUNT(*) FROM prediction_records
-       WHERE predicted_price_1y IS NOT NULL AND actual_price_1y IS NOT NULL AND actual_price_1y > 0
-       AND GREATEST(0, 1 - ABS(predicted_price_1y - actual_price_1y) / NULLIF(actual_price_1y, 0)) >= 0.95) AS count_95_1y,
+       WHERE predicted_price_3m IS NOT NULL AND actual_price_3m IS NOT NULL AND actual_price_3m > 0
+       AND GREATEST(0, 1 - ABS(predicted_price_3m - actual_price_3m) / NULLIF(actual_price_3m, 0)) >= 0.95) AS count_95_3m,
 
       -- Direction accuracy per horizon
       (SELECT SUM(direction_correct_1w) FROM prediction_records WHERE direction_correct_1w IS NOT NULL) AS dir_correct_1w,
       (SELECT COUNT(direction_correct_1w) FROM prediction_records WHERE direction_correct_1w IS NOT NULL) AS dir_resolved_1w,
       (SELECT SUM(direction_correct_1m) FROM prediction_records WHERE direction_correct_1m IS NOT NULL) AS dir_correct_1m,
       (SELECT COUNT(direction_correct_1m) FROM prediction_records WHERE direction_correct_1m IS NOT NULL) AS dir_resolved_1m,
+      (SELECT SUM(direction_correct_3m) FROM prediction_records WHERE direction_correct_3m IS NOT NULL) AS dir_correct_3m,
+      (SELECT COUNT(direction_correct_3m) FROM prediction_records WHERE direction_correct_3m IS NOT NULL) AS dir_resolved_3m,
       (SELECT SUM(direction_correct_6m) FROM prediction_records WHERE direction_correct_6m IS NOT NULL) AS dir_correct_6m,
       (SELECT COUNT(direction_correct_6m) FROM prediction_records WHERE direction_correct_6m IS NOT NULL) AS dir_resolved_6m,
-      (SELECT SUM(direction_correct_1y) FROM prediction_records WHERE direction_correct_1y IS NOT NULL) AS dir_correct_1y,
-      (SELECT COUNT(direction_correct_1y) FROM prediction_records WHERE direction_correct_1y IS NOT NULL) AS dir_resolved_1y,
 
       MAX(updated_at) AS last_resolved_at
 
@@ -142,7 +142,7 @@ async function getGlobalAccuracy(conn: any) {
   const row = rows[0];
 
   const totalResolved = (row.resolved_count_1w || 0) + (row.resolved_count_1m || 0) +
-                        (row.resolved_count_6m || 0) + (row.resolved_count_1y || 0);
+                        (row.resolved_count_3m || 0) + (row.resolved_count_6m || 0);
 
   if (totalResolved < MIN_SAMPLE_SIZE) {
     return {
@@ -174,9 +174,9 @@ async function getGlobalAccuracy(conn: any) {
       FROM prediction_records
       WHERE predicted_price_6m IS NOT NULL AND actual_price_6m IS NOT NULL AND actual_price_6m > 0
       UNION ALL
-      SELECT GREATEST(0, 1 - ABS(predicted_price_1y - actual_price_1y) / NULLIF(actual_price_1y, 0)) AS accuracy_score
+      SELECT GREATEST(0, 1 - ABS(predicted_price_3m - actual_price_3m) / NULLIF(actual_price_3m, 0)) AS accuracy_score
       FROM prediction_records
-      WHERE predicted_price_1y IS NOT NULL AND actual_price_1y IS NOT NULL AND actual_price_1y > 0
+      WHERE predicted_price_3m IS NOT NULL AND actual_price_3m IS NOT NULL AND actual_price_3m > 0
     ) AS all_accuracies
   `;
 
@@ -195,12 +195,12 @@ async function getGlobalAccuracy(conn: any) {
   const acc1w = formatAccuracy(row.avg_accuracy_pct_1w);
   const acc1m = formatAccuracy(row.avg_accuracy_pct_1m);
   const acc6m = formatAccuracy(row.avg_accuracy_pct_6m);
-  const acc1y = formatAccuracy(row.avg_accuracy_pct_1y);
+  const acc3m = formatAccuracy(row.avg_accuracy_pct_3m);
 
   const dir1w = dirPct(row.dir_correct_1w, row.dir_resolved_1w);
   const dir1m = dirPct(row.dir_correct_1m, row.dir_resolved_1m);
+  const dir3m = dirPct(row.dir_correct_3m, row.dir_resolved_3m);
   const dir6m = dirPct(row.dir_correct_6m, row.dir_resolved_6m);
-  const dir1y = dirPct(row.dir_correct_1y, row.dir_resolved_1y);
 
   return {
     status: 'ready',
@@ -223,19 +223,19 @@ async function getGlobalAccuracy(conn: any) {
         direction_accuracy_pct: dir1m,
         pqs: computePqs(acc1m, dir1m, '1_month'),
       },
+      '3_month': {
+        resolved_count: formatInt(row.resolved_count_3m),
+        proximity_accuracy_pct: acc3m,
+        high_accuracy_count: formatInt(row.count_95_3m),
+        direction_accuracy_pct: dir3m,
+        pqs: computePqs(acc3m, dir3m, '3_month'),
+      },
       '6_month': {
         resolved_count: formatInt(row.resolved_count_6m),
         proximity_accuracy_pct: acc6m,
         high_accuracy_count: formatInt(row.count_95_6m),
         direction_accuracy_pct: dir6m,
         pqs: computePqs(acc6m, dir6m, '6_month'),
-      },
-      '1_year': {
-        resolved_count: formatInt(row.resolved_count_1y),
-        proximity_accuracy_pct: acc1y,
-        high_accuracy_count: formatInt(row.count_95_1y),
-        direction_accuracy_pct: dir1y,
-        pqs: computePqs(acc1y, dir1y, '1_year'),
       },
     },
   };
@@ -281,15 +281,15 @@ async function getPerSymbolAccuracy(conn: any, symbol: string) {
        WHERE symbol = ? AND predicted_price_6m IS NOT NULL AND actual_price_6m IS NOT NULL AND actual_price_6m > 0
        AND GREATEST(0, 1 - ABS(predicted_price_6m - actual_price_6m) / NULLIF(actual_price_6m, 0)) >= 0.95) AS count_95_6m,
 
-      -- 1 Year
+      -- 3 Month
       (SELECT COUNT(*) FROM prediction_records
-       WHERE symbol = ? AND predicted_price_1y IS NOT NULL AND actual_price_1y IS NOT NULL AND actual_price_1y > 0) AS resolved_1y,
-      (SELECT ROUND(100 * AVG(GREATEST(0, 1 - ABS(predicted_price_1y - actual_price_1y) / NULLIF(actual_price_1y, 0))), 2)
+       WHERE symbol = ? AND predicted_price_3m IS NOT NULL AND actual_price_3m IS NOT NULL AND actual_price_3m > 0) AS resolved_3m,
+      (SELECT ROUND(100 * AVG(GREATEST(0, 1 - ABS(predicted_price_3m - actual_price_3m) / NULLIF(actual_price_3m, 0))), 2)
        FROM prediction_records
-       WHERE symbol = ? AND predicted_price_1y IS NOT NULL AND actual_price_1y IS NOT NULL AND actual_price_1y > 0) AS avg_accuracy_pct_1y,
+       WHERE symbol = ? AND predicted_price_3m IS NOT NULL AND actual_price_3m IS NOT NULL AND actual_price_3m > 0) AS avg_accuracy_pct_3m,
       (SELECT COUNT(*) FROM prediction_records
-       WHERE symbol = ? AND predicted_price_1y IS NOT NULL AND actual_price_1y IS NOT NULL AND actual_price_1y > 0
-       AND GREATEST(0, 1 - ABS(predicted_price_1y - actual_price_1y) / NULLIF(actual_price_1y, 0)) >= 0.95) AS count_95_1y
+       WHERE symbol = ? AND predicted_price_3m IS NOT NULL AND actual_price_3m IS NOT NULL AND actual_price_3m > 0
+       AND GREATEST(0, 1 - ABS(predicted_price_3m - actual_price_3m) / NULLIF(actual_price_3m, 0)) >= 0.95) AS count_95_3m
     FROM prediction_records
     WHERE symbol = ?
     GROUP BY symbol
@@ -307,7 +307,7 @@ async function getPerSymbolAccuracy(conn: any, symbol: string) {
 
   const row = rows[0];
   const totalResolved = (row.resolved_1w || 0) + (row.resolved_1m || 0) +
-                        (row.resolved_6m || 0) + (row.resolved_1y || 0);
+                        (row.resolved_3m || 0) + (row.resolved_6m || 0);
 
   if (totalResolved < MIN_SAMPLE_SIZE) {
     return {
@@ -338,9 +338,9 @@ async function getPerSymbolAccuracy(conn: any, symbol: string) {
       FROM prediction_records
       WHERE symbol = ? AND predicted_price_6m IS NOT NULL AND actual_price_6m IS NOT NULL AND actual_price_6m > 0
       UNION ALL
-      SELECT GREATEST(0, 1 - ABS(predicted_price_1y - actual_price_1y) / NULLIF(actual_price_1y, 0)) AS accuracy_score
+      SELECT GREATEST(0, 1 - ABS(predicted_price_3m - actual_price_3m) / NULLIF(actual_price_3m, 0)) AS accuracy_score
       FROM prediction_records
-      WHERE symbol = ? AND predicted_price_1y IS NOT NULL AND actual_price_1y IS NOT NULL AND actual_price_1y > 0
+      WHERE symbol = ? AND predicted_price_3m IS NOT NULL AND actual_price_3m IS NOT NULL AND actual_price_3m > 0
     ) AS all_accuracies
   `;
 
@@ -373,15 +373,15 @@ async function getPerSymbolAccuracy(conn: any, symbol: string) {
           ? Math.round(100 * Number(row.dir_correct_1m) / Number(row.dir_resolved_1m))
           : null,
       },
+      '3_month': {
+        resolved_count: formatInt(row.resolved_3m),
+        proximity_accuracy_pct: formatAccuracy(row.avg_accuracy_pct_3m),
+        high_accuracy_count: formatInt(row.count_95_3m),
+      },
       '6_month': {
         resolved_count: formatInt(row.resolved_6m),
         proximity_accuracy_pct: formatAccuracy(row.avg_accuracy_pct_6m),
         high_accuracy_count: formatInt(row.count_95_6m),
-      },
-      '1_year': {
-        resolved_count: formatInt(row.resolved_1y),
-        proximity_accuracy_pct: formatAccuracy(row.avg_accuracy_pct_1y),
-        high_accuracy_count: formatInt(row.count_95_1y),
       },
     },
   };

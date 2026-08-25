@@ -64,7 +64,8 @@ export interface ProfileStats {
   watchlistItemCount: number;
 }
 
-export type InvestmentTimeframe = '1_week' | '1_month' | '6_month' | '1_year';
+import type { InvestmentTimeframe } from '@/utils/horizons';
+export type { InvestmentTimeframe };
 
 export interface ProfileStrategy {
   aggressiveness: 'safe' | 'neutral' | 'aggressive';

@@ -296,7 +296,7 @@ def run_prediction(ticker: str, stock_data: dict) -> dict | None:
         print(f"  [pred] {ticker} → 1w={result.get('predicted_price_1w')}, "
               f"1m={result.get('predicted_price_1m')}, "
               f"6m={result.get('predicted_price_6m')}, "
-              f"1y={result.get('predicted_price_1y')}")
+              f"3m={result.get('predicted_price_3m')}")
         return result
     except Exception as exc:
         print(f"  [pred] ERROR running prediction for {ticker}: {exc}")
@@ -317,18 +317,18 @@ def save_prediction(
     gps_breakdown: dict = None,
     predicted_price_1w: float = None,
     predicted_price_6m: float = None,
-    predicted_price_1y: float = None,
+    predicted_price_3m: float = None,
     predicted_change_pct_1w: float = None,
     predicted_change_pct_1m: float = None,
     predicted_change_pct_6m: float = None,
-    predicted_change_pct_1y: float = None,
+    predicted_change_pct_3m: float = None,
     confidence_score_1w: float = None,
     confidence_score_1m: float = None,
     confidence_score_6m: float = None,
-    confidence_score_1y: float = None,
+    confidence_score_3m: float = None,
 ) -> bool:
     """Persist a prediction. GPS goes to stock_gps_scores (one row per stock).
-    All four horizon prices (1w/1m/6m/1y) are persisted to user_stock_predictions
+    All four horizon prices (1w/1m/3m/6m) are persisted to user_stock_predictions
     so the dashboard recommendations route can pick the right column based on
     the user's investment_timeframe setting. Per-horizon change% and confidence
     are also persisted so the dashboard can recompute GPS identically to the
@@ -350,24 +350,24 @@ def save_prediction(
         payload['predicted_price_1w'] = predicted_price_1w
     if predicted_price_6m is not None and predicted_price_6m > 0:
         payload['predicted_price_6m'] = predicted_price_6m
-    if predicted_price_1y is not None and predicted_price_1y > 0:
-        payload['predicted_price_1y'] = predicted_price_1y
+    if predicted_price_3m is not None and predicted_price_3m > 0:
+        payload['predicted_price_3m'] = predicted_price_3m
     if predicted_change_pct_1w is not None:
         payload['predicted_change_pct_1w'] = predicted_change_pct_1w
     if predicted_change_pct_1m is not None:
         payload['predicted_change_pct_1m'] = predicted_change_pct_1m
     if predicted_change_pct_6m is not None:
         payload['predicted_change_pct_6m'] = predicted_change_pct_6m
-    if predicted_change_pct_1y is not None:
-        payload['predicted_change_pct_1y'] = predicted_change_pct_1y
+    if predicted_change_pct_3m is not None:
+        payload['predicted_change_pct_3m'] = predicted_change_pct_3m
     if confidence_score_1w is not None:
         payload['confidence_score_1w'] = confidence_score_1w
     if confidence_score_1m is not None:
         payload['confidence_score_1m'] = confidence_score_1m
     if confidence_score_6m is not None:
         payload['confidence_score_6m'] = confidence_score_6m
-    if confidence_score_1y is not None:
-        payload['confidence_score_1y'] = confidence_score_1y
+    if confidence_score_3m is not None:
+        payload['confidence_score_3m'] = confidence_score_3m
     
     try:
         response = post_with_auth(url, payload)
@@ -397,17 +397,17 @@ def _empty_cache_entry() -> dict:
         'predicted_price':      None,
         'predicted_price_1w':   None,
         'predicted_price_6m':   None,
-        'predicted_price_1y':   None,
+        'predicted_price_3m':   None,
         'predicted_change_pct': None,
         'confidence_score':     None,
         'predicted_change_pct_1w': None,
         'predicted_change_pct_1m': None,
         'predicted_change_pct_6m': None,
-        'predicted_change_pct_1y': None,
+        'predicted_change_pct_3m': None,
         'confidence_score_1w':     None,
         'confidence_score_1m':     None,
         'confidence_score_6m':     None,
-        'confidence_score_1y':     None,
+        'confidence_score_3m':     None,
         'gps_score':            None,
         'gps_breakdown':        None,
         'gps_inputs':           None,
@@ -415,13 +415,13 @@ def _empty_cache_entry() -> dict:
         'data_quality':         None,
         'model_status':         None,
         'at_model_ceiling_6m':  None,
-        'at_model_ceiling_1y':  None,
+        'at_model_ceiling_3m':  None,
         'ceiling_direction':    None,
         'confidence_breakdown': None,
         'confidence_reason_1w': None,
         'confidence_reason_1m': None,
         'confidence_reason_6m': None,
-        'confidence_reason_1y': None,
+        'confidence_reason_3m': None,
     }
 
 
@@ -542,18 +542,18 @@ def run_prediction_for_holding(ticker: str,
     confidence_score_val = float(prediction_result.get('confidence_score', 0))
     predicted_price_1w   = prediction_result.get('predicted_price_1w')
     predicted_price_6m   = prediction_result.get('predicted_price_6m')
-    predicted_price_1y   = prediction_result.get('predicted_price_1y')
+    predicted_price_3m   = prediction_result.get('predicted_price_3m')
 
     def _f(v):
         return float(v) if v is not None else None
     predicted_change_pct_1w = _f(prediction_result.get('predicted_change_pct_1w'))
     predicted_change_pct_1m = _f(prediction_result.get('predicted_change_pct_1m'))
     predicted_change_pct_6m = _f(prediction_result.get('predicted_change_pct_6m'))
-    predicted_change_pct_1y = _f(prediction_result.get('predicted_change_pct_1y'))
+    predicted_change_pct_3m = _f(prediction_result.get('predicted_change_pct_3m'))
     confidence_score_1w = _f(prediction_result.get('confidence_score_1w'))
     confidence_score_1m = _f(prediction_result.get('confidence_score_1m'))
     confidence_score_6m = _f(prediction_result.get('confidence_score_6m'))
-    confidence_score_1y = _f(prediction_result.get('confidence_score_1y'))
+    confidence_score_3m = _f(prediction_result.get('confidence_score_3m'))
 
     sm = stock_data.get('stockMetrics', {})
 
@@ -576,35 +576,35 @@ def run_prediction_for_holding(ticker: str,
     # ETF holdings contribute to the same accuracy stats. Without this,
     # holdings predictions are computed and discarded for analytics purposes.
     price_at_prediction = sm.get('regularMarketPrice', predicted_price)
-    if price_at_prediction and (predicted_price_1w or predicted_price or predicted_price_6m or predicted_price_1y):
+    if price_at_prediction and (predicted_price_1w or predicted_price or predicted_price_6m or predicted_price_3m):
         record_prediction(
             symbol=ticker,
             price_at_prediction=price_at_prediction,
             predicted_price_1w=predicted_price_1w,
             predicted_price_1m=predicted_price,
             predicted_price_6m=predicted_price_6m,
-            predicted_price_1y=predicted_price_1y,
+            predicted_price_3m=predicted_price_3m,
             predicted_change_pct_1w=predicted_change_pct_1w,
             predicted_change_pct_1m=predicted_change_pct_1m,
             predicted_change_pct_6m=predicted_change_pct_6m,
-            predicted_change_pct_1y=predicted_change_pct_1y,
+            predicted_change_pct_3m=predicted_change_pct_3m,
             confidence_score_1w=confidence_score_1w,
             confidence_score_1m=confidence_score_1m,
             confidence_score_6m=confidence_score_6m,
-            confidence_score_1y=confidence_score_1y,
+            confidence_score_3m=confidence_score_3m,
             gps_score=gps_result['score'],
             gps_breakdown=gps_result['breakdown'],
             accuracy_metrics=prediction_result.get('accuracy_metrics'),
             data_quality=prediction_result.get('data_quality'),
             model_status=prediction_result.get('model_status'),
             at_model_ceiling_6m=prediction_result.get('at_model_ceiling_6m'),
-            at_model_ceiling_1y=prediction_result.get('at_model_ceiling_1y'),
+            at_model_ceiling_3m=prediction_result.get('at_model_ceiling_3m'),
             ceiling_direction=prediction_result.get('ceiling_direction'),
             confidence_breakdown=prediction_result.get('confidence_breakdown'),
             confidence_reason_1w=prediction_result.get('confidence_reason_1w'),
             confidence_reason_1m=prediction_result.get('confidence_reason_1m'),
             confidence_reason_6m=prediction_result.get('confidence_reason_6m'),
-            confidence_reason_1y=prediction_result.get('confidence_reason_1y'),
+            confidence_reason_3m=prediction_result.get('confidence_reason_3m'),
             llm_rationale=prediction_result.get('llm_rationale'),
             model_version=MODEL_VERSION_TAG,
         )
@@ -613,7 +613,7 @@ def run_prediction_for_holding(ticker: str,
         'predicted_price':      predicted_price,
         'predicted_price_1w':   predicted_price_1w,
         'predicted_price_6m':   predicted_price_6m,
-        'predicted_price_1y':   predicted_price_1y,
+        'predicted_price_3m':   predicted_price_3m,
         'predicted_change_pct': predicted_change_pct,
         'confidence_score':     confidence_score_val,
         'gps_score':            gps_result['score'],
@@ -687,26 +687,26 @@ def sync_portfolio_predictions():
             gps_breakdown = cached.get('gps_breakdown')
             predicted_price_1w = cached.get('predicted_price_1w')
             predicted_price_6m = cached.get('predicted_price_6m')
-            predicted_price_1y = cached.get('predicted_price_1y')
+            predicted_price_3m = cached.get('predicted_price_3m')
             predicted_change_pct_1w = cached.get('predicted_change_pct_1w')
             predicted_change_pct_1m = cached.get('predicted_change_pct_1m')
             predicted_change_pct_6m = cached.get('predicted_change_pct_6m')
-            predicted_change_pct_1y = cached.get('predicted_change_pct_1y')
+            predicted_change_pct_3m = cached.get('predicted_change_pct_3m')
             confidence_score_1w = cached.get('confidence_score_1w')
             confidence_score_1m = cached.get('confidence_score_1m')
             confidence_score_6m = cached.get('confidence_score_6m')
-            confidence_score_1y = cached.get('confidence_score_1y')
+            confidence_score_3m = cached.get('confidence_score_3m')
             accuracy_metrics = cached.get('accuracy_metrics')
             data_quality = cached.get('data_quality')
             model_status = cached.get('model_status')
             at_model_ceiling_6m = cached.get('at_model_ceiling_6m')
-            at_model_ceiling_1y = cached.get('at_model_ceiling_1y')
+            at_model_ceiling_3m = cached.get('at_model_ceiling_3m')
             ceiling_direction   = cached.get('ceiling_direction')
             confidence_breakdown = cached.get('confidence_breakdown')
             confidence_reason_1w = cached.get('confidence_reason_1w')
             confidence_reason_1m = cached.get('confidence_reason_1m')
             confidence_reason_6m = cached.get('confidence_reason_6m')
-            confidence_reason_1y = cached.get('confidence_reason_1y')
+            confidence_reason_3m = cached.get('confidence_reason_3m')
             print(f"  [cache] Using cached prediction for {ticker}: {predicted_price} (GPS: {gps_score})")
             stats['cached'] += 1
         else:
@@ -737,26 +737,26 @@ def sync_portfolio_predictions():
             confidence_score_val = None
             predicted_price_1w   = None
             predicted_price_6m   = None
-            predicted_price_1y   = None
+            predicted_price_3m   = None
             predicted_change_pct_1w = None
             predicted_change_pct_1m = None
             predicted_change_pct_6m = None
-            predicted_change_pct_1y = None
+            predicted_change_pct_3m = None
             confidence_score_1w = None
             confidence_score_1m = None
             confidence_score_6m = None
-            confidence_score_1y = None
+            confidence_score_3m = None
             accuracy_metrics    = None
             data_quality        = None
             model_status        = None
             at_model_ceiling_6m = None
-            at_model_ceiling_1y = None
+            at_model_ceiling_3m = None
             ceiling_direction   = None
             confidence_breakdown = None
             confidence_reason_1w = None
             confidence_reason_1m = None
             confidence_reason_6m = None
-            confidence_reason_1y = None
+            confidence_reason_3m = None
 
             gps_inputs = None
 
@@ -772,7 +772,7 @@ def sync_portfolio_predictions():
                 # route can pick the right column per the user's investment_timeframe.
                 predicted_price_1w = prediction_result.get('predicted_price_1w')
                 predicted_price_6m = prediction_result.get('predicted_price_6m')
-                predicted_price_1y = prediction_result.get('predicted_price_1y')
+                predicted_price_3m = prediction_result.get('predicted_price_3m')
                 # Per-horizon change% and confidence — persisted so the dashboard
                 # can recompute horizon-aware GPS identically to /api/prediction/[ticker]
                 # instead of re-deriving from possibly-stale prices.
@@ -781,11 +781,11 @@ def sync_portfolio_predictions():
                 predicted_change_pct_1w = _f(prediction_result.get('predicted_change_pct_1w'))
                 predicted_change_pct_1m = _f(prediction_result.get('predicted_change_pct_1m'))
                 predicted_change_pct_6m = _f(prediction_result.get('predicted_change_pct_6m'))
-                predicted_change_pct_1y = _f(prediction_result.get('predicted_change_pct_1y'))
+                predicted_change_pct_3m = _f(prediction_result.get('predicted_change_pct_3m'))
                 confidence_score_1w = _f(prediction_result.get('confidence_score_1w'))
                 confidence_score_1m = _f(prediction_result.get('confidence_score_1m'))
                 confidence_score_6m = _f(prediction_result.get('confidence_score_6m'))
-                confidence_score_1y = _f(prediction_result.get('confidence_score_1y'))
+                confidence_score_3m = _f(prediction_result.get('confidence_score_3m'))
                 # Model performance blocks — persisted so the prefetched
                 # StockPrediction panel can render MAE/RMSE/accuracy and the
                 # data-quality footnote without waiting for a live re-run.
@@ -793,17 +793,17 @@ def sync_portfolio_predictions():
                 data_quality     = prediction_result.get('data_quality')
                 model_status     = prediction_result.get('model_status')
                 # Ceiling flags — set by the model's _sanitize_predictions when
-                # 6m+1y coherently push their vol-scaled caps. UI reads these
+                # 3m+6m coherently push their vol-scaled caps. UI reads these
                 # to render the directional pill instead of a false-precision
                 # point target.
                 at_model_ceiling_6m = prediction_result.get('at_model_ceiling_6m')
-                at_model_ceiling_1y = prediction_result.get('at_model_ceiling_1y')
+                at_model_ceiling_3m = prediction_result.get('at_model_ceiling_3m')
                 ceiling_direction   = prediction_result.get('ceiling_direction')
                 confidence_breakdown = prediction_result.get('confidence_breakdown')
                 confidence_reason_1w = prediction_result.get('confidence_reason_1w')
                 confidence_reason_1m = prediction_result.get('confidence_reason_1m')
                 confidence_reason_6m = prediction_result.get('confidence_reason_6m')
-                confidence_reason_1y = prediction_result.get('confidence_reason_1y')
+                confidence_reason_3m = prediction_result.get('confidence_reason_3m')
 
                 # GPS v3.0 — matches src/utils/gps.ts exactly
                 sm = stock_data.get('stockMetrics', {})
@@ -838,17 +838,17 @@ def sync_portfolio_predictions():
                 'predicted_price':      predicted_price,
                 'predicted_price_1w':   predicted_price_1w,
                 'predicted_price_6m':   predicted_price_6m,
-                'predicted_price_1y':   predicted_price_1y,
+                'predicted_price_3m':   predicted_price_3m,
                 'predicted_change_pct': predicted_change_pct,
                 'confidence_score':     confidence_score_val,
                 'predicted_change_pct_1w': predicted_change_pct_1w,
                 'predicted_change_pct_1m': predicted_change_pct_1m,
                 'predicted_change_pct_6m': predicted_change_pct_6m,
-                'predicted_change_pct_1y': predicted_change_pct_1y,
+                'predicted_change_pct_3m': predicted_change_pct_3m,
                 'confidence_score_1w':     confidence_score_1w,
                 'confidence_score_1m':     confidence_score_1m,
                 'confidence_score_6m':     confidence_score_6m,
-                'confidence_score_1y':     confidence_score_1y,
+                'confidence_score_3m':     confidence_score_3m,
                 'gps_score':            gps_score,
                 'gps_breakdown':        gps_breakdown,
                 'gps_inputs':           gps_inputs,
@@ -856,13 +856,13 @@ def sync_portfolio_predictions():
                 'data_quality':         data_quality,
                 'model_status':         model_status,
                 'at_model_ceiling_6m':  at_model_ceiling_6m,
-                'at_model_ceiling_1y':  at_model_ceiling_1y,
+                'at_model_ceiling_3m':  at_model_ceiling_3m,
                 'ceiling_direction':    ceiling_direction,
                 'confidence_breakdown': confidence_breakdown,
                 'confidence_reason_1w': confidence_reason_1w,
                 'confidence_reason_1m': confidence_reason_1m,
                 'confidence_reason_6m': confidence_reason_6m,
-                'confidence_reason_1y': confidence_reason_1y,
+                'confidence_reason_3m': confidence_reason_3m,
             }
 
         # Skip saving if the prediction failed
@@ -873,21 +873,21 @@ def sync_portfolio_predictions():
         # Save the prediction for this user.
         # - GPS goes to stock_gps_scores (one row per stock).
         # - All four predicted_price_* columns persist to user_stock_predictions so
-        #   the dashboard recommendations route can pick the right horizon based on
-        #   the user's investment_timeframe.
+        #   the dashboard recommendations route can pick the right horizon (1w/1m/3m/6m)
+        #   based on the user's investment_timeframe.
         saved = save_prediction(
             ticker, predicted_price, user_id, gps_score, gps_breakdown,
             predicted_price_1w=predicted_price_1w,
             predicted_price_6m=predicted_price_6m,
-            predicted_price_1y=predicted_price_1y,
+            predicted_price_3m=predicted_price_3m,
             predicted_change_pct_1w=predicted_change_pct_1w,
             predicted_change_pct_1m=predicted_change_pct_1m,
             predicted_change_pct_6m=predicted_change_pct_6m,
-            predicted_change_pct_1y=predicted_change_pct_1y,
+            predicted_change_pct_3m=predicted_change_pct_3m,
             confidence_score_1w=confidence_score_1w,
             confidence_score_1m=confidence_score_1m,
             confidence_score_6m=confidence_score_6m,
-            confidence_score_1y=confidence_score_1y,
+            confidence_score_3m=confidence_score_3m,
         )
         if saved:
             stats['saved'] += 1
@@ -897,35 +897,35 @@ def sync_portfolio_predictions():
         # Record to analytics prediction_records table (fire-and-forget)
         sm = stock_data.get('stockMetrics', {})
         price_at_prediction = sm.get('regularMarketPrice', predicted_price)
-        if price_at_prediction and (predicted_price_1w or predicted_price or predicted_price_6m or predicted_price_1y):
+        if price_at_prediction and (predicted_price_1w or predicted_price or predicted_price_6m or predicted_price_3m):
             record_prediction(
                 symbol=ticker,
                 price_at_prediction=price_at_prediction,
                 predicted_price_1w=predicted_price_1w,
                 predicted_price_1m=predicted_price,
                 predicted_price_6m=predicted_price_6m,
-                predicted_price_1y=predicted_price_1y,
+                predicted_price_3m=predicted_price_3m,
                 predicted_change_pct_1w=predicted_change_pct_1w,
                 predicted_change_pct_1m=predicted_change_pct_1m,
                 predicted_change_pct_6m=predicted_change_pct_6m,
-                predicted_change_pct_1y=predicted_change_pct_1y,
+                predicted_change_pct_3m=predicted_change_pct_3m,
                 confidence_score_1w=confidence_score_1w,
                 confidence_score_1m=confidence_score_1m,
                 confidence_score_6m=confidence_score_6m,
-                confidence_score_1y=confidence_score_1y,
+                confidence_score_3m=confidence_score_3m,
                 gps_score=gps_score,
                 gps_breakdown=gps_breakdown,
                 accuracy_metrics=accuracy_metrics,
                 data_quality=data_quality,
                 model_status=model_status,
                 at_model_ceiling_6m=at_model_ceiling_6m,
-                at_model_ceiling_1y=at_model_ceiling_1y,
+                at_model_ceiling_3m=at_model_ceiling_3m,
                 ceiling_direction=ceiling_direction,
                 confidence_breakdown=confidence_breakdown,
                 confidence_reason_1w=confidence_reason_1w,
                 confidence_reason_1m=confidence_reason_1m,
                 confidence_reason_6m=confidence_reason_6m,
-                confidence_reason_1y=confidence_reason_1y,
+                confidence_reason_3m=confidence_reason_3m,
                 llm_rationale=prediction_result.get('llm_rationale') if isinstance(prediction_result, dict) else None,
                 model_version=MODEL_VERSION_TAG,
             )
@@ -1050,8 +1050,8 @@ _DASHBOARD_STRATEGY_GATES = {
 _DASHBOARD_TIMEFRAME_CONFIG = {
     '1_week':  {'predChangeMultiplier': 0.5, 'sellThresholdShift': -2, 'col_sfx': '1w'},
     '1_month': {'predChangeMultiplier': 1.0, 'sellThresholdShift':  0, 'col_sfx': '1m'},
-    '6_month': {'predChangeMultiplier': 1.5, 'sellThresholdShift':  3, 'col_sfx': '6m'},
-    '1_year':  {'predChangeMultiplier': 2.0, 'sellThresholdShift':  5, 'col_sfx': '1y'},
+    '3_month': {'predChangeMultiplier': 1.5, 'sellThresholdShift':  3, 'col_sfx': '3m'},
+    '6_month': {'predChangeMultiplier': 2.0, 'sellThresholdShift':  5, 'col_sfx': '6m'},
 }
 
 
@@ -1141,11 +1141,11 @@ def _build_dashboard_card_preview(cursor, user_ids: list[int]) -> list[dict]:
         SELECT usp.user_id, s.symbol,
                us.is_purchased, us.user_confirmed, us.shares,
                usp.predicted_price_1w, usp.predicted_price_1m,
-               usp.predicted_price_6m, usp.predicted_price_1y,
+               usp.predicted_price_6m, usp.predicted_price_3m,
                usp.predicted_change_pct_1w, usp.predicted_change_pct_1m,
-               usp.predicted_change_pct_6m, usp.predicted_change_pct_1y,
+               usp.predicted_change_pct_6m, usp.predicted_change_pct_3m,
                usp.confidence_score_1w, usp.confidence_score_1m,
-               usp.confidence_score_6m, usp.confidence_score_1y,
+               usp.confidence_score_6m, usp.confidence_score_3m,
                sgs.gps_score, sgs.gps_breakdown,
                uis.aggressiveness, uis.investment_timeframe
         FROM user_stock_predictions usp

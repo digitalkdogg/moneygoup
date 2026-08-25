@@ -107,7 +107,7 @@
       <div class="brand">Grow<span>MY</span>Stocks</div>
       <div class="subtitle">Business Rules</div>
     </div>
-    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-20</div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-25</div>
   </div>
   <div class="nav-scroll-controls"><button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">&lsaquo;</button></div>
   <nav class="top-bar-nav">
@@ -308,7 +308,7 @@
         <div class="rid">BR-3.1</div>
         <div class="body">
           <span class="tag app">Web App</span>
-          <p>Each user has a strategy made of two axes: <strong>aggressiveness</strong> (<code>safe</code> / <code>neutral</code> / <code>aggressive</code>) and <strong>investment_timeframe</strong> (<code>1_week</code> / <code>1_month</code> / <code>6_month</code> / <code>1_year</code>). All personalized scores, gates, and predictions are derived from this pair.</p>
+          <p>Each user has a strategy made of two axes: <strong>aggressiveness</strong> (<code>safe</code> / <code>neutral</code> / <code>aggressive</code>) and <strong>investment_timeframe</strong> (<code>1_week</code> / <code>1_month</code> / <code>3_month</code> / <code>6_month</code>). All personalized scores, gates, and predictions are derived from this pair.</p>
           <span class="src">src/utils/strategy.ts</span>
         </div>
       </div>
@@ -348,7 +348,7 @@
         <div class="rid">BR-3.4</div>
         <div class="body">
           <span class="tag app">Web App</span>
-          <p>Investment timeframe scales the predicted-change gate: 1w ×0.5, 1m ×1.0, 6m ×1.5, 1y ×2.0. So an aggressive user on a 1-year timeframe needs a stricter percentage move than the same user on 1-week.</p>
+          <p>Investment timeframe scales the predicted-change gate: 1w ×0.5, 1m ×1.0, 3m ×1.25, 6m ×1.5. So an aggressive user on a 6-month timeframe needs a stricter percentage move than the same user on 1-week.</p>
           <span class="src">src/utils/strategy.ts · timeframeMultipliers</span>
         </div>
       </div>
@@ -476,7 +476,7 @@
         <div class="rid">BR-5.4</div>
         <div class="body">
           <span class="tag py">Python</span>
-          <p>Per-horizon predicted prices are persisted in four columns: <code>predicted_price_1w</code>, <code>predicted_price_1m</code>, <code>predicted_price_6m</code>, <code>predicted_price_1y</code>. Only <code>predicted_price_1m</code> is NOT NULL; the others may be missing for short-history symbols.</p>
+          <p>Per-horizon predicted prices are persisted in four columns: <code>predicted_price_1w</code>, <code>predicted_price_1m</code>, <code>predicted_price_3m</code>, <code>predicted_price_6m</code>. Only <code>predicted_price_1m</code> is NOT NULL; the others may be missing for short-history symbols. The <code>_1y</code> column still exists in the DB but is no longer written (retired August 2026).</p>
           <span class="src">scripts/update_predictions.py · save_prediction</span>
         </div>
       </div>
@@ -1107,7 +1107,7 @@
         <div class="rid">BR-11.7</div>
         <div class="body">
           <span class="tag db">Database</span>
-          <p><code>prediction_records</code> gained 11 nullable columns on 2026-07-11 to catch up with what <code>prediction_recorder.py</code> was already trying to INSERT: <code>accuracy_metrics</code> (JSON), <code>data_quality</code> (JSON), <code>model_status</code> (VARCHAR), <code>at_model_ceiling_6m</code>/<code>_1y</code> (TINYINT), <code>ceiling_direction</code> (VARCHAR), <code>confidence_breakdown</code> (JSON), <code>confidence_reason_1w</code>/<code>_1m</code>/<code>_6m</code>/<code>_1y</code> (TEXT). Before the migration, every live-API and portfolio-sync insert hit <code>Unknown column 'accuracy_metrics' in 'field list'</code> silently.</p>
+          <p><code>prediction_records</code> gained 11 nullable columns on 2026-07-11 (<code>accuracy_metrics</code>, <code>data_quality</code>, <code>model_status</code>, <code>at_model_ceiling_6m</code>/<code>_1y</code>, <code>ceiling_direction</code>, <code>confidence_breakdown</code>, <code>confidence_reason_1w</code>/<code>_1m</code>/<code>_6m</code>/<code>_1y</code>). Before the migration, every live-API and portfolio-sync insert hit <code>Unknown column 'accuracy_metrics' in 'field list'</code> silently. August 2026: 3-month horizon columns added (<code>predicted_price_3m</code>, <code>confidence_score_3m</code>, <code>at_model_ceiling_3m</code>, <code>actual_price_3m</code>, <code>direction_correct_3m</code>, <code>resolved_3m</code>, etc.); 1-year columns remain in DB but are no longer written or resolved.</p>
           <span class="src">scripts/migrations/2026_07_11_add_missing_prediction_records_columns.sql</span>
         </div>
       </div>
@@ -1446,7 +1446,7 @@
         <div class="body">
           <span class="tag app">Web App</span>
           <span class="tag new">new — 2026-07-22</span>
-          <p><strong>"Why This Range" rationale — on-demand regeneration.</strong> <code>POST /api/prediction/[ticker]/rationale</code> re-runs narration for a ticker's latest prediction record without triggering a full MLP re-prediction. It reads <code>predicted_change_pct_6m</code>, <code>predicted_change_pct_1y</code>, <code>confidence_reason_6m</code>, and <code>confidence_reason_1y</code> from <code>prediction_records</code>, writes a temp JSON file, and runs <code>generate_rationale.py</code> as a waited (not detached) subprocess with a 40 s timeout. On success it reads the updated <code>llm_rationale</code> back and returns <code>{rationale: "..."}</code>. Returns 404 if no recent prediction exists, 503 if <code>OLLAMA_ENABLED ≠ true</code>. The component shows a spinner and swaps the paragraph text to "Regenerating rationale…" while the call is in flight.</p>
+          <p><strong>"Why This Range" rationale — on-demand regeneration.</strong> <code>POST /api/prediction/[ticker]/rationale</code> re-runs narration for a ticker's latest prediction record without triggering a full MLP re-prediction. It reads <code>predicted_change_pct_3m</code>, <code>predicted_change_pct_6m</code>, <code>confidence_reason_3m</code>, and <code>confidence_reason_6m</code> from <code>prediction_records</code>, writes a temp JSON file, and runs <code>generate_rationale.py</code> as a waited (not detached) subprocess with a 40 s timeout. On success it reads the updated <code>llm_rationale</code> back and returns <code>{rationale: "..."}</code>. Returns 404 if no recent prediction exists, 503 if <code>OLLAMA_ENABLED ≠ true</code>. The component shows a spinner and swaps the paragraph text to "Regenerating rationale…" while the call is in flight.</p>
           <p>Narration parameters (in <code>scripts/prediction_narrator.py</code>): model = <code>OLLAMA_MODEL_RATIONALE</code> env var (falls back to <code>OLLAMA_MODEL</code>), timeout = <code>OLLAMA_TIMEOUT_MS_RATIONALE</code> (default 30 s), tokens = 160 (<code>RATIONALE_NUM_PREDICT</code>), temperature 0.2. Hard length cap: 600 characters truncated at the last period.</p>
           <span class="src">src/app/api/prediction/[ticker]/rationale/route.ts · scripts/prediction_narrator.py · src/app/components/StockPrediction.tsx (refreshRationale)</span>
         </div>

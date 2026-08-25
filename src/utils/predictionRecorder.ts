@@ -9,38 +9,38 @@ export interface PredictionInput {
   modelVersion?: string;
   predictedPrice1w?: number;
   predictedPrice1m?: number;
+  predictedPrice3m?: number;
   predictedPrice6m?: number;
-  predictedPrice1y?: number;
   predictedChangePct1w?: number;
   predictedChangePct1m?: number;
+  predictedChangePct3m?: number;
   predictedChangePct6m?: number;
-  predictedChangePct1y?: number;
   confidenceScore1w?: number;
   confidenceScore1m?: number;
+  confidenceScore3m?: number;
   confidenceScore6m?: number;
-  confidenceScore1y?: number;
   signalConfidence1w?: number | null;
   signalConfidence1m?: number | null;
+  signalConfidence3m?: number | null;
   signalConfidence6m?: number | null;
-  signalConfidence1y?: number | null;
   precedentConfidence1w?: number | null;
   precedentConfidence1m?: number | null;
+  precedentConfidence3m?: number | null;
   precedentConfidence6m?: number | null;
-  precedentConfidence1y?: number | null;
   blendedConfidence1m?: number | null;
   gpsScore?: number;
   gpsBreakdown?: unknown;
   accuracyMetrics?: unknown;
   dataQuality?: unknown;
   modelStatus?: string | null;
+  atModelCeiling3m?: boolean | null;
   atModelCeiling6m?: boolean | null;
-  atModelCeiling1y?: boolean | null;
   ceilingDirection?: 'up' | 'down' | null;
   confidenceBreakdown?: unknown;
   confidenceReason1w?: string | null;
   confidenceReason1m?: string | null;
+  confidenceReason3m?: string | null;
   confidenceReason6m?: string | null;
-  confidenceReason1y?: string | null;
   /** Optional LLM-written narrative that sits alongside the rule-based
    *  confidence_reason_{h} strings. NULL when Ollama is disabled/down;
    *  the UI falls back to confidence_reason_{h} in that case. */
@@ -56,17 +56,17 @@ export async function recordPrediction(input: PredictionInput): Promise<boolean>
       const query = `
         INSERT INTO prediction_records (
           symbol, predicted_at, model_version, price_at_prediction,
-          predicted_price_1w, predicted_price_1m, predicted_price_6m, predicted_price_1y,
-          predicted_change_pct_1w, predicted_change_pct_1m, predicted_change_pct_6m, predicted_change_pct_1y,
-          confidence_score_1w, confidence_score_1m, confidence_score_6m, confidence_score_1y,
-          signal_confidence_1w, signal_confidence_1m, signal_confidence_6m, signal_confidence_1y,
-          precedent_confidence_1w, precedent_confidence_1m, precedent_confidence_6m, precedent_confidence_1y,
+          predicted_price_1w, predicted_price_1m, predicted_price_3m, predicted_price_6m,
+          predicted_change_pct_1w, predicted_change_pct_1m, predicted_change_pct_3m, predicted_change_pct_6m,
+          confidence_score_1w, confidence_score_1m, confidence_score_3m, confidence_score_6m,
+          signal_confidence_1w, signal_confidence_1m, signal_confidence_3m, signal_confidence_6m,
+          precedent_confidence_1w, precedent_confidence_1m, precedent_confidence_3m, precedent_confidence_6m,
           blended_confidence_1m,
           gps_score, gps_breakdown,
           accuracy_metrics, data_quality, model_status,
-          at_model_ceiling_6m, at_model_ceiling_1y, ceiling_direction,
+          at_model_ceiling_3m, at_model_ceiling_6m, ceiling_direction,
           confidence_breakdown,
-          confidence_reason_1w, confidence_reason_1m, confidence_reason_6m, confidence_reason_1y,
+          confidence_reason_1w, confidence_reason_1m, confidence_reason_3m, confidence_reason_6m,
           llm_rationale
         ) VALUES (?, NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
@@ -86,38 +86,38 @@ export async function recordPrediction(input: PredictionInput): Promise<boolean>
         input.priceAtPrediction,
         input.predictedPrice1w ?? null,
         input.predictedPrice1m ?? null,
+        input.predictedPrice3m ?? null,
         input.predictedPrice6m ?? null,
-        input.predictedPrice1y ?? null,
         input.predictedChangePct1w ?? null,
         input.predictedChangePct1m ?? null,
+        input.predictedChangePct3m ?? null,
         input.predictedChangePct6m ?? null,
-        input.predictedChangePct1y ?? null,
         input.confidenceScore1w ?? null,
         input.confidenceScore1m ?? null,
+        input.confidenceScore3m ?? null,
         input.confidenceScore6m ?? null,
-        input.confidenceScore1y ?? null,
         input.signalConfidence1w ?? null,
         input.signalConfidence1m ?? null,
+        input.signalConfidence3m ?? null,
         input.signalConfidence6m ?? null,
-        input.signalConfidence1y ?? null,
         input.precedentConfidence1w ?? null,
         input.precedentConfidence1m ?? null,
+        input.precedentConfidence3m ?? null,
         input.precedentConfidence6m ?? null,
-        input.precedentConfidence1y ?? null,
         input.blendedConfidence1m ?? null,
         input.gpsScore ?? null,
         gpsBreakdownJson,
         accuracyMetricsJson,
         dataQualityJson,
         input.modelStatus ?? null,
+        input.atModelCeiling3m == null ? null : (input.atModelCeiling3m ? 1 : 0),
         input.atModelCeiling6m == null ? null : (input.atModelCeiling6m ? 1 : 0),
-        input.atModelCeiling1y == null ? null : (input.atModelCeiling1y ? 1 : 0),
         input.ceilingDirection ?? null,
         confidenceBreakdownJson,
         input.confidenceReason1w ?? null,
         input.confidenceReason1m ?? null,
+        input.confidenceReason3m ?? null,
         input.confidenceReason6m ?? null,
-        input.confidenceReason1y ?? null,
         input.llmRationale ?? null,
       ]);
 
