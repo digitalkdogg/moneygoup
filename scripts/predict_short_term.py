@@ -122,7 +122,7 @@ def _predict_with_st_cs_model(
     per-ticker path.  No .fit() call occurs at inference time.
     """
     payload = _ST_CS_MODEL
-    model = payload['model']
+    model_type = payload.get('model_type', 'mlp')
     scaler_cs = payload['scaler']
     cs_feature_cols = payload['feature_columns']
 
@@ -136,9 +136,31 @@ def _predict_with_st_cs_model(
     x_current = np.nan_to_num(x_current, nan=0.0, posinf=0.0, neginf=0.0)
     x_current_s = scaler_cs.transform(x_current)
 
-    pred_returns = model.predict(x_current_s)[0]   # [return_5d, return_21d]
-    _mlp_1w_base = current_price * (1.0 + float(pred_returns[0]))
-    _mlp_1m_base = current_price * (1.0 + float(pred_returns[1]))
+    # Route inference by model type — lgbm and blend store separate 5d/21d
+    # boosters under model_5d / model_21d rather than a single model key.
+    if model_type == 'lgbm':
+        ret_5d  = float(payload['model_5d'].predict(x_current_s)[0])
+        ret_21d = float(payload['model_21d'].predict(x_current_s)[0])
+    elif model_type == 'blend':
+        lgbm_5d  = float(payload['model_5d'].predict(x_current_s)[0])
+        lgbm_21d = float(payload['model_21d'].predict(x_current_s)[0])
+        mlp_pred = payload['model'].predict(x_current_s)[0]
+        ret_5d  = 0.5 * lgbm_5d  + 0.5 * float(mlp_pred[0])
+        ret_21d = 0.5 * lgbm_21d + 0.5 * float(mlp_pred[1])
+    else:  # mlp (default)
+        mlp_pred = payload['model'].predict(x_current_s)[0]
+        ret_5d, ret_21d = float(mlp_pred[0]), float(mlp_pred[1])
+
+    _mlp_1w_base = current_price * (1.0 + ret_5d)
+    _mlp_1m_base = current_price * (1.0 + ret_21d)
+
+    # Raw MLP output before the trajectory anchor blend — surfaced for
+    # instrumentation so Phase 2 can compare blended vs raw direction accuracy.
+    predicted_price_1w_raw = float(np.clip(
+        _mlp_1w_base * mult_1w,
+        current_price * 0.5, current_price * 2.0,
+    ))
+    pct_1w_raw = round((predicted_price_1w_raw - current_price) / (current_price + 1e-9) * 100, 2)
 
     # 1w: 50/50 blend with trajectory anchor (same logic as per-ticker path).
     _traj_anchor_1w_base = current_price + (predicted_price_3m_base - current_price) * (T5 / T3M)
@@ -172,13 +194,33 @@ def _predict_with_st_cs_model(
     cs1w = min(100, cs1m + 3)
     # signal_confidence resolved in outer predict_short_term after this returns.
 
+    # Directional classifier — separate head trained to predict p(up) for 1w horizon.
+    # Conviction gate: only surface directional signal when p_up is outside [0.4, 0.6].
+    direction_confidence_1w = None
+    direction_signal_1w = None
+    clf_5d = payload.get('classifier_5d')
+    if clf_5d is not None:
+        try:
+            direction_confidence_1w = round(float(clf_5d.predict_proba(x_current_s)[0, 1]), 4)
+            if direction_confidence_1w > 0.55:
+                direction_signal_1w = 'up'
+            elif direction_confidence_1w < 0.45:
+                direction_signal_1w = 'down'
+            # else: low-conviction — leave as None
+        except Exception:
+            pass
+
     return {
-        'predicted_price_1w': predicted_price_1w,
-        'predicted_change_pct_1w': pct_1w,
+        'predicted_price_1w':     predicted_price_1w,
+        'predicted_price_1w_raw': predicted_price_1w_raw,
+        'predicted_change_pct_1w':     pct_1w,
+        'predicted_change_pct_1w_raw': pct_1w_raw,
         'confidence_score_1w': cs1w,
         'predicted_price_1m': predicted_price_1m,
         'predicted_change_pct_1m': pct_1m,
         'confidence_score_1m': cs1m,
+        'direction_confidence_1w': direction_confidence_1w,
+        'direction_signal_1w':     direction_signal_1w,
     }
 
 
@@ -293,6 +335,15 @@ def predict_short_term(
     # analyst boost (1.67×) from leaking into 1w via the anchor — 1w gets its
     # own 0.25× boost via mult_1w applied at the end.
     _mlp_1w_base = inverse_close(pred_scaled[1])
+
+    # Raw MLP output before the trajectory anchor blend — surfaced for
+    # instrumentation so Phase 2 can compare blended vs raw direction accuracy.
+    predicted_price_1w_raw = float(np.clip(
+        _mlp_1w_base * mult_1w,
+        current_price * 0.5, current_price * 2.0,
+    ))
+    pct_1w_raw = round((predicted_price_1w_raw - current_price) / (current_price + 1e-9) * 100, 2)
+
     _traj_anchor_1w_base = current_price + (predicted_price_3m_base - current_price) * (T5 / T3M)
     _blended_1w_base = 0.50 * _mlp_1w_base + 0.50 * _traj_anchor_1w_base
     _blended_1w = _blended_1w_base * mult_1w
@@ -337,8 +388,10 @@ def predict_short_term(
     sig_1w = min(100, sig_1m + 3)
 
     return {
-        'predicted_price_1w': predicted_price_1w,
-        'predicted_change_pct_1w': pct_1w,
+        'predicted_price_1w':          predicted_price_1w,
+        'predicted_price_1w_raw':      predicted_price_1w_raw,
+        'predicted_change_pct_1w':     pct_1w,
+        'predicted_change_pct_1w_raw': pct_1w_raw,
         'confidence_score_1w': cs1w,
         'predicted_price_1m': predicted_price_1m,
         'predicted_change_pct_1m': pct_1m,

@@ -3,6 +3,7 @@ import os
 import sys
 import time
 import requests
+from pathlib import Path
 import mysql.connector
 from datetime import datetime
 from dotenv import load_dotenv

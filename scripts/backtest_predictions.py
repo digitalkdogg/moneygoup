@@ -490,39 +490,45 @@ DIRECTION_DEADBAND_PCT = {
 _DEFAULT_DEADBAND = 0.02
 
 
+def _direction_correct_for(predicted_price: float, actual_price: float,
+                            price_at_prediction: float, deadband: float) -> int | None:
+    """Shared direction logic: returns 1/0/None (None = deadband neutral)."""
+    if price_at_prediction > 0:
+        if abs((predicted_price - price_at_prediction) / price_at_prediction) < deadband:
+            return None
+    pred_dir = 1 if predicted_price > price_at_prediction else (0 if predicted_price < price_at_prediction else -1)
+    act_dir  = 1 if actual_price  > price_at_prediction else (0 if actual_price  < price_at_prediction else -1)
+    if pred_dir == -1 or act_dir == -1:
+        return 0
+    return 1 if pred_dir == act_dir else 0
+
+
 def compute_accuracy_metrics(actual_price: float, predicted_price: float, price_at_prediction: float,
-                              horizon: str = ''):
+                              horizon: str = '', predicted_price_raw: float | None = None):
     """Mirrors resolve_predictions.compute_accuracy_metrics exactly, so
     backtested and naturally-resolved rows are scored identically.
 
-    Returns (accuracy_pct, direction_correct) where direction_correct is:
-      1   — predicted and actual moved same direction
-      0   — predicted and actual moved opposite directions
+    Returns (accuracy_pct, direction_correct, direction_correct_raw) where
+    direction_correct / direction_correct_raw are:
+      1    — predicted and actual moved same direction
+      0    — predicted and actual moved opposite directions
       None — predicted move was inside the deadband (‘neutral’ call); the
              row is resolved for proximity but excluded from the direction
-             metric downstream."""
+             metric downstream.
+    direction_correct_raw is None when predicted_price_raw is not supplied."""
     if predicted_price == 0:
         accuracy_pct = 0.0
     else:
         accuracy_pct = max(0, (1 - abs(actual_price - predicted_price) / predicted_price) * 100)
 
-    # Deadband: if the model's predicted move is small enough to be called
-    # "neutral", direction_correct is NULL — not counted against the model.
     deadband = DIRECTION_DEADBAND_PCT.get(horizon, _DEFAULT_DEADBAND)
-    if price_at_prediction > 0:
-        pred_change_pct = (predicted_price - price_at_prediction) / price_at_prediction
-        if abs(pred_change_pct) < deadband:
-            return round(accuracy_pct, 2), None
+    direction_correct     = _direction_correct_for(predicted_price, actual_price, price_at_prediction, deadband)
+    direction_correct_raw = (
+        _direction_correct_for(predicted_price_raw, actual_price, price_at_prediction, deadband)
+        if predicted_price_raw is not None else None
+    )
 
-    predicted_direction = 1 if predicted_price > price_at_prediction else (0 if predicted_price < price_at_prediction else -1)
-    actual_direction = 1 if actual_price > price_at_prediction else (0 if actual_price < price_at_prediction else -1)
-
-    if predicted_direction == -1 or actual_direction == -1:
-        direction_correct = 0
-    else:
-        direction_correct = 1 if predicted_direction == actual_direction else 0
-
-    return round(accuracy_pct, 2), direction_correct
+    return round(accuracy_pct, 2), direction_correct, direction_correct_raw
 
 
 def upsert_backtest_row(conn, row: dict, overwrite: bool):
@@ -542,11 +548,13 @@ def upsert_backtest_row(conn, row: dict, overwrite: bool):
 
         columns = [
             'price_at_prediction',
-            'predicted_price_1w', 'predicted_price_1m', 'predicted_price_3m', 'predicted_price_6m',
+            'predicted_price_1w', 'predicted_price_1w_raw',
+            'predicted_price_1m', 'predicted_price_3m', 'predicted_price_6m',
             'predicted_change_pct_1w', 'predicted_change_pct_1m', 'predicted_change_pct_3m', 'predicted_change_pct_6m',
             'actual_price_1w', 'actual_price_1m', 'actual_price_3m', 'actual_price_6m',
             'accuracy_pct_1w', 'accuracy_pct_1m', 'accuracy_pct_3m', 'accuracy_pct_6m',
-            'direction_correct_1w', 'direction_correct_1m', 'direction_correct_3m', 'direction_correct_6m',
+            'direction_correct_1w', 'direction_confidence_1w', 'direction_correct_raw_1w',
+            'direction_correct_1m', 'direction_correct_3m', 'direction_correct_6m',
             'resolved_1w', 'resolved_1m', 'resolved_3m', 'resolved_6m',
             'confidence_score_1w', 'confidence_score_1m', 'confidence_score_3m', 'confidence_score_6m',
             'signal_confidence_1w', 'signal_confidence_1m', 'signal_confidence_3m', 'signal_confidence_6m',
@@ -649,6 +657,11 @@ def backtest_one(ticker: str, as_of: str, full_hist: list, macro_full: dict, con
         row[f'precedent_confidence_{h}'] = result.get(f'precedent_confidence_{h}')
     row['blended_confidence_1m'] = result.get('blended_confidence_1m')
 
+    # Raw 1w pre-blend and classifier fields — None when model doesn't emit them.
+    row['predicted_price_1w_raw']    = result.get('predicted_price_1w_raw')
+    row['direction_confidence_1w']   = result.get('direction_confidence_1w')
+    row['direction_correct_raw_1w']  = None  # filled in the 1w iteration below
+
     for h, days_offset in HORIZONS:
         predicted_price = result.get(f'predicted_price_{h}')
         row[f'predicted_price_{h}'] = predicted_price
@@ -656,13 +669,24 @@ def backtest_one(ticker: str, as_of: str, full_hist: list, macro_full: dict, con
         target_date = as_of_date + timedelta(days=days_offset)
         actual_price = find_actual_price(full_hist, target_date)
 
+        # Pass the raw price only for 1w so we get direction_correct_raw.
+        raw_price = row['predicted_price_1w_raw'] if h == '1w' else None
+
         if actual_price is not None and predicted_price is not None:
-            accuracy_pct, direction_correct = compute_accuracy_metrics(actual_price, predicted_price, price_at_prediction, horizon=h)
+            accuracy_pct, direction_correct, direction_correct_raw = compute_accuracy_metrics(
+                actual_price, predicted_price, price_at_prediction, horizon=h,
+                predicted_price_raw=raw_price,
+            )
             row[f'actual_price_{h}']       = actual_price
             row[f'accuracy_pct_{h}']       = accuracy_pct
             row[f'direction_correct_{h}']  = direction_correct
             row[f'resolved_{h}']           = 1
-            summary_bits.append(f"{h}: pred={predicted_price:.2f} actual={actual_price:.2f} acc={accuracy_pct:.1f}%")
+            if h == '1w':
+                row['direction_correct_raw_1w'] = direction_correct_raw
+            raw_tag = ''
+            if h == '1w' and raw_price is not None:
+                raw_tag = f' raw_dir={direction_correct_raw}'
+            summary_bits.append(f"{h}: pred={predicted_price:.2f} actual={actual_price:.2f} acc={accuracy_pct:.1f}%{raw_tag}")
         else:
             row[f'actual_price_{h}']       = None
             row[f'accuracy_pct_{h}']       = None
@@ -728,9 +752,32 @@ def print_summary(results: list):
             avg_dir = sum(r[f'direction_correct_{h}'] for r in dir_rows) / len(dir_rows) * 100
             neutral = len(resolved) - len(dir_rows)
             neutral_tag = f" ({neutral} neutral)" if neutral else ""
-            print(f"  {h}: {len(resolved)}/{len(results)} resolved | avg accuracy {avg_acc:.1f}% | direction correct {avg_dir:.1f}%{neutral_tag}")
+            blended_str = f"direction correct {avg_dir:.1f}%{neutral_tag}"
         else:
-            print(f"  {h}: {len(resolved)}/{len(results)} resolved | avg accuracy {avg_acc:.1f}% | all neutral")
+            blended_str = "all neutral"
+
+        # 1w only: raw direction accuracy + conviction-gated accuracy.
+        raw_str = ''
+        if h == '1w':
+            raw_dir_rows = [r for r in resolved if r.get('direction_correct_raw_1w') is not None]
+            if raw_dir_rows:
+                avg_raw = sum(r['direction_correct_raw_1w'] for r in raw_dir_rows) / len(raw_dir_rows) * 100
+                n_raw_neutral = len(resolved) - len(raw_dir_rows)
+                raw_str = f" | raw dir {avg_raw:.1f}% ({n_raw_neutral} neutral)"
+
+            # Conviction gate: rows where p_up is outside [0.4, 0.6]
+            conv_rows = [
+                r for r in resolved
+                if r.get('direction_confidence_1w') is not None
+                and (r['direction_confidence_1w'] < 0.45 or r['direction_confidence_1w'] > 0.55)
+                and r.get('direction_correct_1w') is not None
+            ]
+            if conv_rows:
+                avg_conv = sum(r['direction_correct_1w'] for r in conv_rows) / len(conv_rows) * 100
+                raw_str += (f" | conviction dir {avg_conv:.1f}% ({len(conv_rows)} calls, "
+                            f"{len(resolved)-len(conv_rows)} suppressed)")
+
+        print(f"  {h}: {len(resolved)}/{len(results)} resolved | avg accuracy {avg_acc:.1f}% | {blended_str}{raw_str}")
 
 
 def print_per_ticker_summary(results: list):
@@ -748,14 +795,15 @@ def print_per_ticker_summary(results: list):
     col_res     = 8   # "resolved"
     col_acc     = 9   # "price acc"
     col_dir     = 8   # "dir acc"
+    col_raw     = 8   # "raw dir" (1w only)
     col_chg     = 10  # "avg %chg"
     col_conf    = 7   # "avg conf"
 
     sep = (f"{'─'*col_ticker}  {'─'*col_horizon}  {'─'*col_res}  "
-           f"{'─'*col_acc}  {'─'*col_dir}  {'─'*col_chg}  {'─'*col_conf}")
+           f"{'─'*col_acc}  {'─'*col_dir}  {'─'*col_raw}  {'─'*col_chg}  {'─'*col_conf}")
     hdr = (f"{'Ticker':<{col_ticker}}  {'Hrz':<{col_horizon}}  "
            f"{'Resolved':>{col_res}}  {'Price Acc':>{col_acc}}  "
-           f"{'Dir Acc':>{col_dir}}  {'Avg %Chg':>{col_chg}}  "
+           f"{'Dir Acc':>{col_dir}}  {'Raw Dir':>{col_raw}}  {'Avg %Chg':>{col_chg}}  "
            f"{'Avg Conf':>{col_conf}}")
 
     print("\n=== Per-ticker summary (all horizons) ===")
@@ -772,6 +820,7 @@ def print_per_ticker_summary(results: list):
 
             acc_str  = '--'
             dir_str  = '--'
+            raw_str  = '--'
             if resolved:
                 avg_acc = sum(r[f'accuracy_pct_{h}'] for r in resolved) / n_res
                 acc_str = f"{avg_acc:.1f}%"
@@ -785,6 +834,18 @@ def print_per_ticker_summary(results: list):
                 else:
                     dir_str = 'all neut'
 
+                # Raw direction for 1w only
+                if h == '1w':
+                    raw_dir_rows = [r for r in resolved if r.get('direction_correct_raw_1w') is not None]
+                    if raw_dir_rows:
+                        avg_raw = sum(r['direction_correct_raw_1w'] for r in raw_dir_rows) / len(raw_dir_rows) * 100
+                        n_raw_n = n_res - len(raw_dir_rows)
+                        raw_str = f"{avg_raw:.0f}%"
+                        if n_raw_n:
+                            raw_str += f" ({n_raw_n}n)"
+                    elif resolved:
+                        raw_str = 'no raw'
+
             # Predicted %change — use all rows (not just resolved) for full coverage
             chg_vals = [r.get(f'predicted_change_pct_{h}') for r in ticker_rows if r.get(f'predicted_change_pct_{h}') is not None]
             chg_str  = f"{sum(chg_vals)/len(chg_vals):+.1f}%" if chg_vals else '--'
@@ -797,8 +858,8 @@ def print_per_ticker_summary(results: list):
             first = False
             print(f"{ticker_label:<{col_ticker}}  {h:<{col_horizon}}  "
                   f"{res_str:>{col_res}}  {acc_str:>{col_acc}}  "
-                  f"{dir_str:>{col_dir}}  {chg_str:>{col_chg}}  "
-                  f"{conf_str:>{col_conf}}")
+                  f"{dir_str:>{col_dir}}  {raw_str:>{col_raw}}  "
+                  f"{chg_str:>{col_chg}}  {conf_str:>{col_conf}}")
         print(sep)
 
 

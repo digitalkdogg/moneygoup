@@ -708,10 +708,14 @@ def predict(ticker, input_data):
         "ticker":                str(ticker).upper().strip(),
         "regularMarketPrice":    round(current_price, 2),
         # 1-week short-term
-        "predicted_price_1w":      round(predicted_price_1w, 2),
-        "predicted_change_pct_1w": short_out['predicted_change_pct_1w'],
-        "confidence_score_1w":     short_out['confidence_score_1w'],
-        "predicted_range_1w":      [round(predicted_price_1w - spread_1w / 2, 2), round(predicted_price_1w + spread_1w / 2, 2)],
+        "predicted_price_1w":          round(predicted_price_1w, 2),
+        "predicted_price_1w_raw":      short_out.get('predicted_price_1w_raw'),
+        "predicted_change_pct_1w":     short_out['predicted_change_pct_1w'],
+        "predicted_change_pct_1w_raw": short_out.get('predicted_change_pct_1w_raw'),
+        "confidence_score_1w":         short_out['confidence_score_1w'],
+        "direction_confidence_1w":     short_out.get('direction_confidence_1w'),
+        "direction_signal_1w":         short_out.get('direction_signal_1w'),
+        "predicted_range_1w":          [round(predicted_price_1w - spread_1w / 2, 2), round(predicted_price_1w + spread_1w / 2, 2)],
         # Dual-horizon (long-term)
         "predicted_price_3m":   round(predicted_price_3m, 2),
         "predicted_price_6m":   round(predicted_price_6m, 2),
