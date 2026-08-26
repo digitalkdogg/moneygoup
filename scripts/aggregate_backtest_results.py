@@ -48,14 +48,10 @@ def wilson_ci(successes: int, n: int, z: float = 1.96):
     return (max(0.0, center - half), min(1.0, center + half))
 
 
-def market_cap_bucket(market_cap):
-    if market_cap is None:
-        return 'unknown'
-    if market_cap > 200_000_000_000:
-        return 'large_cap'
-    if market_cap < 2_000_000_000:
-        return 'small_cap'
-    return 'mid_cap'
+def market_cap_bucket(market_cap_bucket_value):
+    # Already bucketed at snapshot time in prediction_details.market_cap_bucket
+    # (see backtest_predictions.py:_bucket_market_cap) — just normalize None.
+    return market_cap_bucket_value or 'unknown'
 
 
 def valuation_bucket(pe_ratio):
@@ -72,12 +68,12 @@ def fetch_rows(conn, model_version: str | None):
     cols = ['pr.symbol', 'pr.model_version']
     for h in HORIZONS:
         cols += [f'pr.direction_correct_{h}', f'pr.resolved_{h}', f'pr.confidence_score_{h}']
-    cols += ['s.market_cap', 's.pe_ratio']
+    cols += ['pd.pe_ratio', 'pd.market_cap_bucket']
 
     query = f"""
         SELECT {', '.join(cols)}
         FROM prediction_records pr
-        LEFT JOIN stocks s ON s.symbol = pr.symbol
+        LEFT JOIN prediction_details pd ON pd.prediction_record_id = pr.id
     """
     params = []
     if model_version:
@@ -159,7 +155,7 @@ def main():
                 continue
             if not r[f'resolved_{h}'] or r[f'direction_correct_{h}'] is None:
                 continue
-            bucket = market_cap_bucket(r['market_cap'])
+            bucket = market_cap_bucket(r['market_cap_bucket'])
             segs.setdefault(bucket, []).append(r[f'direction_correct_{h}'])
         results = [
             s for b, vals in sorted(segs.items())
