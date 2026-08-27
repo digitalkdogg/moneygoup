@@ -117,6 +117,11 @@ def main():
     parser.add_argument('--model-version', default=None, help='Filter to one model_version (default: all)')
     parser.add_argument('--min-runs', type=int, default=20, help='Minimum n to report a segment')
     parser.add_argument('--conf-bins', type=int, default=5, help='Number of confidence-calibration bins')
+    parser.add_argument('--outlier-horizon', default='1w', choices=HORIZONS,
+                         help='Horizon to run the per-symbol outlier scan on (default: 1w)')
+    parser.add_argument('--market-cap-bucket', default=None,
+                         help="Restrict the per-symbol outlier scan to one market_cap_bucket "
+                              "(e.g. mega, large, mid, small, unknown). Default: no filter.")
     args = parser.parse_args()
 
     conn = get_db()
@@ -180,14 +185,20 @@ def main():
         print_table(f"[{h}] Direction accuracy by valuation bucket", results)
 
     # ── 4. Per-symbol outlier scan (flag symbols far from 50% at real n) ─────
-    print(f"\n=== Per-symbol outliers (1w, |z| > 2.5 under H0: p=0.5) — model_version={target_mv} ===")
+    oh = args.outlier_horizon
+    bucket_filter = args.market_cap_bucket
+    bucket_label = f" market_cap_bucket={bucket_filter}" if bucket_filter else ""
+    print(f"\n=== Per-symbol outliers ({oh}, |z| > 2.5 under H0: p=0.5) — "
+          f"model_version={target_mv}{bucket_label} ===")
     sym_rows = {}
     for r in rows:
         if r['model_version'] != target_mv:
             continue
-        if not r['resolved_1w'] or r['direction_correct_1w'] is None:
+        if not r[f'resolved_{oh}'] or r[f'direction_correct_{oh}'] is None:
             continue
-        sym_rows.setdefault(r['symbol'], []).append(r['direction_correct_1w'])
+        if bucket_filter and market_cap_bucket(r['market_cap_bucket']) != bucket_filter:
+            continue
+        sym_rows.setdefault(r['symbol'], []).append(r[f'direction_correct_{oh}'])
 
     outliers = []
     for sym, vals in sym_rows.items():
