@@ -1552,14 +1552,14 @@ def predict(ticker, input_data):
         dummy[0, close_col_idx] = float(scaled_val)
         return float(scaler.inverse_transform(dummy)[0, close_col_idx])
 
-    predicted_price_6m = inverse_close(pred_scaled[2]) * impact_multiplier
-    predicted_price_1y = inverse_close(pred_scaled[3]) * impact_multiplier
+    predicted_price_6m = current_price + (inverse_close(pred_scaled[2]) - current_price) * impact_multiplier
+    predicted_price_1y = current_price + (inverse_close(pred_scaled[3]) - current_price) * impact_multiplier
 
     # ---- 1-week prediction: blend MLP T+5 output with trajectory anchor ----
     # The T+5 MLP head is noisy (5-day returns are ~90% noise; joint training with
     # 6m/1y targets leaves the T+5 head under-trained). We blend it 30/70 with the
     # trajectory interpolation and hard-cap at ±2×ATR to prevent extreme swings.
-    _mlp_1w_raw = inverse_close(pred_scaled[1]) * impact_multiplier
+    _mlp_1w_raw = current_price + (inverse_close(pred_scaled[1]) - current_price) * impact_multiplier
     _traj_anchor_1w = current_price + (predicted_price_6m - current_price) * (T5 / T6)
     _blended_1w = 0.30 * _mlp_1w_raw + 0.70 * _traj_anchor_1w
 
@@ -1590,10 +1590,12 @@ def predict(ticker, input_data):
     # Batch inverse transform
     dummy_mc = np.zeros((MC_RUNS, n_features), dtype=np.float32)
     dummy_mc[:, close_col_idx] = mc_preds[:, 2]
-    mc_6m = scaler.inverse_transform(dummy_mc)[:, close_col_idx] * impact_multiplier
+    mc_6m_bases = scaler.inverse_transform(dummy_mc)[:, close_col_idx]
+    mc_6m = current_price + (mc_6m_bases - current_price) * impact_multiplier
 
     dummy_mc[:, close_col_idx] = mc_preds[:, 3]
-    mc_12m = scaler.inverse_transform(dummy_mc)[:, close_col_idx] * impact_multiplier
+    mc_12m_bases = scaler.inverse_transform(dummy_mc)[:, close_col_idx]
+    mc_12m = current_price + (mc_12m_bases - current_price) * impact_multiplier
 
     # Spread from MC (uncertainty bands only — midpoints use deterministic predictions)
     spread_6m  = float(np.percentile(mc_6m,  90) - np.percentile(mc_6m,  10))

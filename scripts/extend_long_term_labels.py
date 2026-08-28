@@ -53,6 +53,7 @@ DB_PORT     = int(os.getenv('DB_PORT', 3306))
 HORIZON_DAYS = [
     ('forward_return_63d',  63),
     ('forward_return_126d', 126),
+    ('forward_return_252d', 252),
 ]
 
 
@@ -120,7 +121,7 @@ def compute_forward_return(prices: pd.DataFrame, anchor: date, horizon: int) -> 
 def process_ticker(conn, ticker: str, recompute: bool) -> tuple[int, int]:
     """Update all snapshots for this ticker. Returns (updated, skipped)."""
     cur = conn.cursor()
-    # Pull the snapshot dates for this ticker
+    null_check = ' OR '.join(f'{col} IS NULL' for col, _ in HORIZON_DAYS)
     if recompute:
         cur.execute(
             "SELECT id, snapshot_date FROM ranking_training_snapshots WHERE ticker = %s",
@@ -128,8 +129,8 @@ def process_ticker(conn, ticker: str, recompute: bool) -> tuple[int, int]:
         )
     else:
         cur.execute(
-            "SELECT id, snapshot_date FROM ranking_training_snapshots "
-            "WHERE ticker = %s AND (forward_return_63d IS NULL OR forward_return_126d IS NULL)",
+            f"SELECT id, snapshot_date FROM ranking_training_snapshots "
+            f"WHERE ticker = %s AND ({null_check})",
             (ticker,),
         )
     rows = cur.fetchall()
@@ -140,21 +141,19 @@ def process_ticker(conn, ticker: str, recompute: bool) -> tuple[int, int]:
     if prices is None:
         return (0, len(rows))
 
+    set_clause = ', '.join(f'{col} = %s' for col, _ in HORIZON_DAYS)
     updated = 0
     skipped = 0
     for record_id, snapshot_date in rows:
         if hasattr(snapshot_date, 'date'):
             snapshot_date = snapshot_date.date()
-        r63  = compute_forward_return(prices, snapshot_date, 63)
-        r126 = compute_forward_return(prices, snapshot_date, 126)
-        if r63 is None and r126 is None:
+        returns = [compute_forward_return(prices, snapshot_date, h) for _, h in HORIZON_DAYS]
+        if all(r is None for r in returns):
             skipped += 1
             continue
         cur.execute(
-            "UPDATE ranking_training_snapshots "
-            "SET forward_return_63d = %s, forward_return_126d = %s "
-            "WHERE id = %s",
-            (r63, r126, record_id),
+            f"UPDATE ranking_training_snapshots SET {set_clause} WHERE id = %s",
+            (*returns, record_id),
         )
         updated += 1
     conn.commit()
