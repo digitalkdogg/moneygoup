@@ -533,8 +533,8 @@ def predict(ticker, input_data):
         if abs(_ret90d) > 0.15 and current_price > 0:
             _drift_3m = _ret90d * 0.50
             _drift_6m = _ret90d * 0.75
-            predicted_price_3m = predicted_price_3m * (1.0 + _drift_3m)
-            predicted_price_6m = predicted_price_6m * (1.0 + _drift_6m)
+            predicted_price_3m = current_price + (predicted_price_3m - current_price) * (1.0 + _drift_3m)
+            predicted_price_6m = current_price + (predicted_price_6m - current_price) * (1.0 + _drift_6m)
             v_telemetry['v4_drift_3m'] = round(_drift_3m, 4)
             v_telemetry['v4_drift_6m'] = round(_drift_6m, 4)
 
@@ -546,8 +546,8 @@ def predict(ticker, input_data):
         if _MODEL_VARIANT == 'v5' and _beta > 0.8 and _ret30d < -0.05 and _ret90d < -0.10:
             _severity = min(1.0, (-_ret90d - 0.10) / 0.25)
             _cap = 1.0 - (_severity * 0.08 * min(_beta, 2.0) / 2.0)
-            predicted_price_3m = min(predicted_price_3m, current_price * _cap)
-            predicted_price_6m = min(predicted_price_6m, current_price * (_cap - 0.03))
+            predicted_price_3m = current_price + (predicted_price_3m - current_price) * _cap
+            predicted_price_6m = current_price + (predicted_price_6m - current_price) * (_cap - 0.03)
             v_telemetry['fixA_severity'] = round(_severity, 3)
             v_telemetry['fixA_cap']      = round(_cap, 4)
             print(f"[v5] {ticker} Fix A fired: beta={_beta:.2f} ret30d={_ret30d:.2%} "
@@ -564,8 +564,8 @@ def predict(ticker, input_data):
                 _decline_sev = min(1.0, (-_pct_from_52w - 0.20) / 0.30)
                 _f3m = 1.0 - (0.03 + _decline_sev * 0.04)
                 _f6m = 1.0 - (0.05 + _decline_sev * 0.05)
-                predicted_price_3m = min(predicted_price_3m, current_price * _f3m)
-                predicted_price_6m = min(predicted_price_6m, current_price * _f6m)
+                predicted_price_3m = current_price + (predicted_price_3m - current_price) * _f3m
+                predicted_price_6m = current_price + (predicted_price_6m - current_price) * _f6m
                 v_telemetry['fixC_pct_from_52w'] = round(_pct_from_52w, 3)
                 v_telemetry['fixC_severity']     = round(_decline_sev, 3)
                 print(f"[v5] {ticker} Fix C fired: pct_from_52w={_pct_from_52w:.2%} "
@@ -577,15 +577,32 @@ def predict(ticker, input_data):
         # move delta (not the absolute price) so we amplify the direction of
         # the model's call rather than pushing the price toward an arbitrary
         # level. Mutually exclusive with Fix A/C by sign of ret90d.
+        #
+        # Guardrail: suppress in structural downtrends. A 30%+ 90d bounce in a
+        # stock down 20%+ over the year (or 35%+ below its 52w high) is a
+        # counter-trend move — amplifying it pushes predictions bullish while
+        # the underlying trend remains firmly down (observed concretely: CELH
+        # held bounces of this magnitude multiple times during a sustained
+        # multi-year collapse, producing 0% 1w direction accuracy under Fix D).
         if _MODEL_VARIANT == 'v5' and _ret90d > 0.30 and current_price > 0:
-            _excess  = _ret90d - 0.30
-            _extra   = min(0.50, _excess * 2.0)
-            _xtscale = 1.0 + _extra
-            predicted_price_3m = current_price + (predicted_price_3m - current_price) * _xtscale
-            predicted_price_6m = current_price + (predicted_price_6m - current_price) * _xtscale
-            v_telemetry['fixD_xtscale'] = round(_xtscale, 4)
-            print(f"[v5] {ticker} Fix D fired: ret90d={_ret90d:.2%} → xtscale={_xtscale:.3f}",
-                  file=sys.stderr)
+            _ret1y = (float(close_arr[-1] / close_arr[-252] - 1.0)
+                      if len(close_arr) >= 252 else 0.0)
+            _fixD_suppressed = (_ret1y < -0.20) or (_pct_from_52w < -0.35)
+            if _fixD_suppressed:
+                v_telemetry['fixD_suppressed'] = True
+                v_telemetry['fixD_ret1y']      = round(_ret1y, 4)
+                print(f"[v5] {ticker} Fix D SUPPRESSED (structural downtrend): "
+                      f"ret90d={_ret90d:.2%} ret1y={_ret1y:.2%} "
+                      f"pct_from_52w={_pct_from_52w:.2%}", file=sys.stderr)
+            else:
+                _excess  = _ret90d - 0.30
+                _extra   = min(0.50, _excess * 2.0)
+                _xtscale = 1.0 + _extra
+                predicted_price_3m = current_price + (predicted_price_3m - current_price) * _xtscale
+                predicted_price_6m = current_price + (predicted_price_6m - current_price) * _xtscale
+                v_telemetry['fixD_xtscale'] = round(_xtscale, 4)
+                print(f"[v5] {ticker} Fix D fired: ret90d={_ret90d:.2%} → xtscale={_xtscale:.3f}",
+                      file=sys.stderr)
 
         # Sync predicted_change_pct fields so the result dict stays consistent
         if current_price > 0:
@@ -715,6 +732,9 @@ def predict(ticker, input_data):
         "confidence_score_1w":         short_out['confidence_score_1w'],
         "direction_confidence_1w":     short_out.get('direction_confidence_1w'),
         "direction_signal_1w":         short_out.get('direction_signal_1w'),
+        "mlp_1w_base_raw":             short_out.get('mlp_1w_base_raw'),
+        "traj_anchor_1w_base":         short_out.get('traj_anchor_1w_base'),
+        "short_term_path":             short_out.get('short_term_path'),
         "predicted_range_1w":          [round(predicted_price_1w - spread_1w / 2, 2), round(predicted_price_1w + spread_1w / 2, 2)],
         # Dual-horizon (long-term)
         "predicted_price_3m":   round(predicted_price_3m, 2),
@@ -792,6 +812,57 @@ def predict(ticker, input_data):
     # Blended confidence (0.7 signal + 0.3 precedent) — single value for sort/filter.
     _sc_1m = result.get('signal_confidence_1m') or result.get('confidence_score_1m', 65)
     result['blended_confidence_1m'] = int(round(0.7 * _sc_1m + 0.3 * _prec_1m))
+
+    # ── Sector / industry conviction gate (#3) ────────────────────────────────
+    # Scale confidence scores based on sector/industry historical direction
+    # accuracy. Does not affect predicted prices — only how confident we say we
+    # are. Tune multipliers after running the industry-segmented backtest.
+    #
+    # Industry overrides take precedence over sector fallbacks.
+    # Weak  industries → multiplier < 1 (chronically near 50% direction acc)
+    # Strong industries → multiplier > 1 (historically outperform coin flip)
+    _INDUSTRY_CONFIDENCE_SCALE = {
+        # Weak — growth/binary-event names, hard to predict short-medium term
+        'Software Infrastructure':              0.88,
+        'Internet Content & Information':       0.88,
+        'Drug Manufacturers—General':           0.88,
+        'Drug Manufacturers—Specialty & Generic': 0.88,
+        'Biotechnology':                        0.88,
+        # Strong — rate-driven / stable-demand, model features naturally suited
+        'Banks—Regional':                       1.08,
+        'Banks—Diversified':                    1.08,
+        'Beverages—Non-Alcoholic':              1.08,
+        'Beverages—Brewers':                    1.06,
+        'Healthcare Plans':                     1.08,
+        'Insurance—Life':                       1.05,
+        'Insurance—Property & Casualty':        1.05,
+        'Utilities—Regulated Electric':         1.06,
+        'Utilities—Regulated Gas':              1.06,
+    }
+    _SECTOR_CONFIDENCE_SCALE = {
+        'Technology':             0.93,
+        'Communication Services': 0.93,
+        'Financial Services':     1.05,
+        'Consumer Defensive':     1.05,
+        'Utilities':              1.05,
+        # All other sectors: 1.0 (no adjustment)
+    }
+    _s_industry = stock_metrics.get('industry', '') or ''
+    _s_sector   = stock_metrics.get('sector', '')   or ''
+    _conf_scale = _INDUSTRY_CONFIDENCE_SCALE.get(
+        _s_industry, _SECTOR_CONFIDENCE_SCALE.get(_s_sector, 1.0)
+    )
+    if _conf_scale != 1.0:
+        for _hk in ('confidence_score_1w', 'confidence_score_1m',
+                    'confidence_score_3m', 'confidence_score_6m'):
+            _v = result.get(_hk)
+            if _v is not None:
+                result[_hk] = int(round(max(1, min(100, _v * _conf_scale))))
+        result['blended_confidence_1m'] = int(round(
+            max(1, min(100, result['blended_confidence_1m'] * _conf_scale))
+        ))
+        result['sector_confidence_scale'] = round(_conf_scale, 3)
+    # ─────────────────────────────────────────────────────────────────────────
 
     # Note: LLM rationale is generated in the CLI main block (not here) so it
     # runs on every prediction — even cache hits — and can be regenerated

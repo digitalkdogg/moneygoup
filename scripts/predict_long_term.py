@@ -129,8 +129,8 @@ def _predict_with_cs_model(
     pred_returns = model.predict(x_current_s)[0]  # [return_63d, return_126d]
     base_3m = current_price * (1.0 + float(pred_returns[0]))
     base_6m = current_price * (1.0 + float(pred_returns[1]))
-    predicted_price_3m = base_3m * long_term_multiplier
-    predicted_price_6m = base_6m * long_term_multiplier
+    predicted_price_3m = current_price + (base_3m - current_price) * long_term_multiplier
+    predicted_price_6m = current_price + (base_6m - current_price) * long_term_multiplier
 
     # ── Monte Carlo: perturb the feature vector + re-predict ─────────────────
     # Noise scale: per-feature std from the last 20 days of feat_df, scaled
@@ -148,8 +148,8 @@ def _predict_with_cs_model(
     mc_inputs_s = scaler_cs.transform(mc_inputs)
     mc_returns  = model.predict(mc_inputs_s)  # (MC_RUNS, 2)
 
-    mc_3m_prices = current_price * (1.0 + mc_returns[:, 0]) * long_term_multiplier
-    mc_6m_prices = current_price * (1.0 + mc_returns[:, 1]) * long_term_multiplier
+    mc_3m_prices = current_price * (1.0 + mc_returns[:, 0] * long_term_multiplier)
+    mc_6m_prices = current_price * (1.0 + mc_returns[:, 1] * long_term_multiplier)
 
     spread_3m = float(np.percentile(mc_3m_prices, 90) - np.percentile(mc_3m_prices, 10)) * LONG_TERM_SPREAD_WIDENER
     spread_6m = float(np.percentile(mc_6m_prices, 90) - np.percentile(mc_6m_prices, 10)) * LONG_TERM_SPREAD_WIDENER
@@ -397,8 +397,8 @@ def predict_long_term(
 
     base_3m = inverse_close(pred_scaled[0])
     base_6m = inverse_close(pred_scaled[1])
-    predicted_price_3m = base_3m * long_term_multiplier
-    predicted_price_6m = base_6m * long_term_multiplier
+    predicted_price_3m = current_price + (base_3m - current_price) * long_term_multiplier
+    predicted_price_6m = current_price + (base_6m - current_price) * long_term_multiplier
 
     # ── Monte Carlo Dropout — spread bands ───────────────────────────────────
     # Noise stds taken from the masked feature subset, tiled across SEQ_LEN
@@ -415,10 +415,12 @@ def predict_long_term(
 
     dummy_mc = np.zeros((MC_RUNS, n_features), dtype=np.float32)
     dummy_mc[:, close_col_idx] = mc_preds[:, 0]
-    mc_3m = scaler.inverse_transform(dummy_mc)[:, close_col_idx] * long_term_multiplier
+    mc_3m_bases = scaler.inverse_transform(dummy_mc)[:, close_col_idx]
+    mc_3m = current_price + (mc_3m_bases - current_price) * long_term_multiplier
 
     dummy_mc[:, close_col_idx] = mc_preds[:, 1]
-    mc_6m = scaler.inverse_transform(dummy_mc)[:, close_col_idx] * long_term_multiplier
+    mc_6m_bases = scaler.inverse_transform(dummy_mc)[:, close_col_idx]
+    mc_6m = current_price + (mc_6m_bases - current_price) * long_term_multiplier
 
     # Spreads — widened to better cover observed actuals on long horizons.
     # Floor matches the CS-model path above so neither code branch emits a

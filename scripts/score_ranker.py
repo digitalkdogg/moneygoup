@@ -86,6 +86,7 @@ from ranker_features import (
     FEATURE_SET_VERSION,
     MIN_HISTORY_ROWS,
     compute_features,
+    ETF_TO_SECTOR,
 )
 
 
@@ -232,8 +233,10 @@ def score_candidates(
 
         macro, sector_etf_close = _build_macro_dict(cand.get("macroData", {}) or {})
         wb_year = _wb_year_dict(cand.get("macroData", {}) or {})
+        _etf_ticker = ((cand.get("macroData") or {}).get("sectorEtf") or {}).get("ticker")
+        _sector = ETF_TO_SECTOR.get(_etf_ticker)
 
-        feats = compute_features(snap, ohlcv, sector_etf_close, macro, wb_year)
+        feats = compute_features(snap, ohlcv, sector_etf_close, macro, wb_year, sector=_sector)
         if feats is None:
             # insufficient history — typically < 260 bars
             skipped.append(ticker)

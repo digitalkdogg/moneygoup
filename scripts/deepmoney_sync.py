@@ -63,7 +63,8 @@ OFF_MARKET_MIN_CHANGE_PCT = 3.0
 
 
 def upsert_stock_with_search_fields(cursor, ticker, company_name, price,
-                                    market_cap, sector, industry):
+                                    market_cap, sector, industry,
+                                    pe_ratio=None, pb_ratio=None):
     """Ensure `stocks` has a row for `ticker` with search-index fields populated.
 
     Returns the row's `stock_id`. Newly-inserted rows get sector/industry/
@@ -88,10 +89,13 @@ def upsert_stock_with_search_fields(cursor, ticker, company_name, price,
                    sector       = COALESCE(%s, sector),
                    industry     = COALESCE(%s, industry),
                    size_bucket  = COALESCE(%s, size_bucket),
-                   search_tsv   = %s
+                   search_tsv   = %s,
+                   pe_ratio     = COALESCE(%s, pe_ratio),
+                   pb_ratio     = COALESCE(%s, pb_ratio)
              WHERE id = %s
             """,
-            (company_name, price, market_cap, sector, industry, bucket, tsv, stock_id),
+            (company_name, price, market_cap, sector, industry, bucket, tsv,
+             pe_ratio, pb_ratio, stock_id),
         )
         return stock_id
 
@@ -99,10 +103,12 @@ def upsert_stock_with_search_fields(cursor, ticker, company_name, price,
         """
         INSERT INTO stocks
             (symbol, company_name, price, market_cap,
-             sector, industry, size_bucket, search_tsv)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+             sector, industry, size_bucket, search_tsv,
+             pe_ratio, pb_ratio)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """,
-        (ticker, company_name, price, market_cap, sector, industry, bucket, tsv),
+        (ticker, company_name, price, market_cap, sector, industry, bucket, tsv,
+         pe_ratio, pb_ratio),
     )
     return cursor.lastrowid
 
@@ -868,6 +874,8 @@ def sync_deepmoney():
                     s.get('marketCap'),
                     s.get('sector'),
                     s.get('industry'),
+                    pe_ratio=s.get('pe'),
+                    pb_ratio=s.get('pb'),
                 )
                 cursor.execute("""
                     INSERT INTO stock_gps_scores (stock_id, as_of, gps_score, gps_breakdown, source)
@@ -952,6 +960,8 @@ def sync_deepmoney():
                 s.get('marketCap'),
                 s.get('sector'),
                 s.get('industry'),
+                pe_ratio=trailing_pe,
+                pb_ratio=pb_ratio,
             )
 
             # GPS score upsert — always, not gated on dashboard threshold

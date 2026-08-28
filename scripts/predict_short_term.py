@@ -157,7 +157,7 @@ def _predict_with_st_cs_model(
     # Raw MLP output before the trajectory anchor blend — surfaced for
     # instrumentation so Phase 2 can compare blended vs raw direction accuracy.
     predicted_price_1w_raw = float(np.clip(
-        _mlp_1w_base * mult_1w,
+        current_price + (_mlp_1w_base - current_price) * mult_1w,
         current_price * 0.5, current_price * 2.0,
     ))
     pct_1w_raw = round((predicted_price_1w_raw - current_price) / (current_price + 1e-9) * 100, 2)
@@ -165,7 +165,7 @@ def _predict_with_st_cs_model(
     # 1w: 50/50 blend with trajectory anchor (same logic as per-ticker path).
     _traj_anchor_1w_base = current_price + (predicted_price_3m_base - current_price) * (T5 / T3M)
     _blended_1w_base = 0.50 * _mlp_1w_base + 0.50 * _traj_anchor_1w_base
-    _blended_1w = _blended_1w_base * mult_1w
+    _blended_1w = current_price + (_blended_1w_base - current_price) * mult_1w
 
     _atr_1w = float(feat_df['ATR_14'].iloc[-1]) if 'ATR_14' in feat_df.columns else current_price * 0.02
     _max_move_1w = 2.0 * _atr_1w * np.sqrt(5)
@@ -176,7 +176,7 @@ def _predict_with_st_cs_model(
     t_norm = (T21 - T5) / (T3M - T5)
     _blended_1m_base = _blended_1w_base + (predicted_price_3m_base - _blended_1w_base) * t_norm
     _cs_1m_base = 0.50 * _mlp_1m_base + 0.50 * _blended_1m_base
-    predicted_price_1m = _cs_1m_base * mult_1m
+    predicted_price_1m = current_price + (_cs_1m_base - current_price) * mult_1m
     pct_1m = round((predicted_price_1m - current_price) / (current_price + 1e-9) * 100, 2)
 
     # Confidence: same earnings-window logic as per-ticker path.
@@ -221,6 +221,9 @@ def _predict_with_st_cs_model(
         'confidence_score_1m': cs1m,
         'direction_confidence_1w': direction_confidence_1w,
         'direction_signal_1w':     direction_signal_1w,
+        'mlp_1w_base_raw':         _mlp_1w_base,
+        'traj_anchor_1w_base':     _traj_anchor_1w_base,
+        'short_term_path':         'cs',
     }
 
 
@@ -339,14 +342,14 @@ def predict_short_term(
     # Raw MLP output before the trajectory anchor blend — surfaced for
     # instrumentation so Phase 2 can compare blended vs raw direction accuracy.
     predicted_price_1w_raw = float(np.clip(
-        _mlp_1w_base * mult_1w,
+        current_price + (_mlp_1w_base - current_price) * mult_1w,
         current_price * 0.5, current_price * 2.0,
     ))
     pct_1w_raw = round((predicted_price_1w_raw - current_price) / (current_price + 1e-9) * 100, 2)
 
     _traj_anchor_1w_base = current_price + (predicted_price_3m_base - current_price) * (T5 / T3M)
     _blended_1w_base = 0.50 * _mlp_1w_base + 0.50 * _traj_anchor_1w_base
-    _blended_1w = _blended_1w_base * mult_1w
+    _blended_1w = current_price + (_blended_1w_base - current_price) * mult_1w
 
     _atr_1w = float(feat_df['ATR_14'].iloc[-1]) if 'ATR_14' in feat_df.columns else current_price * 0.02
     _max_move_1w = 2.0 * _atr_1w * np.sqrt(5)
@@ -364,7 +367,7 @@ def predict_short_term(
     # independent.
     t_norm = (T21 - T5) / (T3M - T5)
     predicted_price_1m_base = _blended_1w_base + (predicted_price_3m_base - _blended_1w_base) * t_norm
-    predicted_price_1m = predicted_price_1m_base * mult_1m
+    predicted_price_1m = current_price + (predicted_price_1m_base - current_price) * mult_1m
     pct_1m = round((predicted_price_1m - current_price) / (current_price + 1e-9) * 100, 2)
 
     # ── 1m confidence: earnings-window aware ─────────────────────────────────
@@ -398,4 +401,7 @@ def predict_short_term(
         'confidence_score_1m': cs1m,
         'signal_confidence_1w': sig_1w,
         'signal_confidence_1m': sig_1m,
+        'mlp_1w_base_raw':      _mlp_1w_base,
+        'traj_anchor_1w_base':  _traj_anchor_1w_base,
+        'short_term_path':      'per_ticker',
     }

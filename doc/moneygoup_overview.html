@@ -232,7 +232,7 @@
     <a href="gps_score.html">GPS Score</a>
     <a href="strategy_system.html">Strategy System</a>
     <a href="style_guide.html">Style Guide</a>
-    <a href="SEO.html">SEO</a>
+    <a href="model_training.html">Model Training</a>
   </nav>
   <div class="nav-scroll-controls">
     <button class="nav-scroll-btn nav-scroll-right" aria-label="Scroll nav right">›</button>
@@ -262,6 +262,7 @@
     <a href="#env-vars-prediction">— Prediction / GPS</a>
     <a href="#env-vars-ollama-ai">— Ollama / AI Take</a>
     <a href="#env-vars-dashboard-tenure">— Dashboard Rotation</a>
+    <a href="#seo">SEO &amp; Public Access</a>
     <a href="#read-next">Where to Read Next</a>
     <div class="section-divider"></div>
     <a href="authentication_flow.html">Auth Flow</a>
@@ -270,6 +271,7 @@
     <a href="technical_indicators_guide.html">Technical Indicators</a>
     <a href="admin_user_management.html">Admin User Mgmt</a>
     <a href="style_guide.html">Style Guide</a>
+    <a href="model_training.html">Model Training</a>
     <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
   </nav>
 
@@ -1061,8 +1063,55 @@ AI_TAKE_TIMEOUT_MS=45000        # tighter — warm-only, fail fast on cold miss<
             </div>
         </section>
 
+        <section id="seo">
+            <h2>9. SEO &amp; Public Access</h2>
+            <p>GrowMyStocks is a gated application. Only three pages are intentionally open to search engines. The global default in <code>src/app/layout.tsx</code> sets <code>robots: index: false</code> — new pages are safe until explicitly opted in.</p>
+
+            <h3 style="background:none;padding:0;margin-top:1.5rem;color:#334155;font-size:1rem;">Page Access Map</h3>
+            <table class="stack-table" style="font-size:.85rem;margin:.75rem 0;">
+                <thead>
+                    <tr><th>Path</th><th>Requires Login</th><th>Google Indexed</th><th>In Sitemap</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>/</code></td><td>No</td><td>Yes</td><td>Yes</td></tr>
+                    <tr><td><code>/login</code></td><td>No</td><td>Yes</td><td>Yes</td></tr>
+                    <tr><td><code>/register</code></td><td>No</td><td>Yes</td><td>Yes</td></tr>
+                    <tr><td><code>/legal/*</code>, <code>/contact</code>, <code>/forgot-password</code>, <code>/reset-password</code></td><td>No</td><td>No</td><td>No</td></tr>
+                    <tr><td><code>/dashboard</code>, <code>/portfolio</code>, <code>/admin</code></td><td>Yes</td><td>No</td><td>No</td></tr>
+                    <tr><td><code>/api/*</code></td><td>Yes</td><td>No</td><td>No</td></tr>
+                </tbody>
+            </table>
+
+            <h3 style="background:none;padding:0;margin-top:1.5rem;color:#334155;font-size:1rem;">Key Files</h3>
+            <table class="stack-table" style="font-size:.85rem;margin:.75rem 0;">
+                <thead><tr><th>File</th><th>Role</th></tr></thead>
+                <tbody>
+                    <tr><td><code>src/proxy.ts</code></td><td><code>PUBLIC_PATHS</code> array — any path not listed here redirects unauthenticated visitors (incl. crawlers) to <code>/login</code>. Also includes opengraph-image paths and <code>/sitemap.xml</code>, <code>/robots.txt</code>.</td></tr>
+                    <tr><td><code>src/app/sitemap.ts</code></td><td>TypeScript sitemap — served at <code>/sitemap.xml</code>. Current entries: <code>/</code> (priority 1.0), <code>/login</code>, <code>/register</code> (0.8). Always use a <strong>static date</strong> for <code>lastModified</code>, never <code>new Date()</code>.</td></tr>
+                    <tr><td><code>src/app/robots.ts</code></td><td>TypeScript robots.txt — served at <code>/robots.txt</code>. Search bots: allow <code>/</code>, <code>/login</code>, <code>/register</code>, <code>/legal/*</code>. Block <code>/dashboard</code>, <code>/admin</code>, <code>/api/*</code>.</td></tr>
+                    <tr><td><code>src/app/page.tsx</code><br><code>src/app/login/layout.tsx</code><br><code>src/app/register/layout.tsx</code></td><td>Per-page metadata (<code>title</code>, <code>description</code>, <code>alternates.canonical</code>, <code>robots: index: true</code>). Login/register use layout files because their page.tsx files are client components.</td></tr>
+                    <tr><td><code>src/app/opengraph-image.tsx</code> (+ login/, register/)</td><td>Dynamic 1200×630 PNG social cards via <code>next/og</code>. Must be in <code>PUBLIC_PATHS</code> or social crawlers get blocked.</td></tr>
+                </tbody>
+            </table>
+
+            <h3 style="background:none;padding:0;margin-top:1.5rem;color:#334155;font-size:1rem;">Adding a New Public Page</h3>
+            <p style="font-size:.9rem;margin:.5rem 0 .75rem;"><strong>For indexed pages</strong> — do all six steps; <strong>for public-but-not-indexed</strong> — only step 1.</p>
+            <ol class="flow-list">
+                <li>Add the path (and its <code>/opengraph-image</code> path) to <code>PUBLIC_PATHS</code> in <code>src/proxy.ts</code>.</li>
+                <li>Export <code>metadata</code> with <code>robots: &#123; index: true &#125;</code>, unique <code>title</code> (&lt;60 chars), <code>description</code> (&lt;160 chars), and <code>alternates.canonical</code>.</li>
+                <li>Create <code>opengraph-image.tsx</code> in the route directory (copy an existing one, update subtitle text).</li>
+                <li>Add the OG image path to <code>PUBLIC_PATHS</code> (e.g. <code>/your-page/opengraph-image</code>).</li>
+                <li>Add an entry to <code>src/app/sitemap.ts</code> with a static <code>lastModified</code> date.</li>
+                <li>Optionally add a <code>&lt;script type="application/ld+json"&gt;</code> WebPage schema in the server component.</li>
+            </ol>
+
+            <div class="highlight-box" style="margin-top:1rem;">
+                <strong>Production:</strong> Set <code>NEXT_PUBLIC_SITE_URL=https://growmystocks.com</code> in Bluehost env vars. Submit <code>/sitemap.xml</code> to Google Search Console and Bing Webmaster Tools. Verify all OG image URLs return PNG (not redirects). All critical SEO issues from the May 2026 audit have been resolved.
+            </div>
+        </section>
+
         <section id="read-next">
-            <h2>9. Where to Read Next</h2>
+            <h2>10. Where to Read Next</h2>
             <p>The overview deliberately stays shallow. Pick the door that matches what you need to know:</p>
             <div class="read-next-grid">
                 <a class="read-next-card" href="architecture_documentation.html">
@@ -1112,10 +1161,6 @@ AI_TAKE_TIMEOUT_MS=45000        # tighter — warm-only, fail fast on cold miss<
                 <a class="read-next-card" href="admin_user_management.html">
                     <span class="title">Admin User Mgmt</span>
                     <span class="desc">Registration approval, role tiers, and quotas.</span>
-                </a>
-                <a class="read-next-card" href="SEO.html">
-                    <span class="title">SEO</span>
-                    <span class="desc">Metadata, sitemap, and crawl strategy.</span>
                 </a>
             </div>
         </section>

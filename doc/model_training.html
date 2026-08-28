@@ -1,0 +1,1396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GrowMyStocks — Model Training</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; color: #1e293b; display: flex; flex-direction: column; min-height: 100vh; }
+
+    /* ── Top Bar ── */
+    .top-bar { background: #017e3b; color: #fff; padding: 0 2rem; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.25); position: relative; }
+    .top-bar-header { display: flex; align-items: center; justify-content: space-between; height: 56px; }
+    .top-bar .brand { font-size: 1.2rem; font-weight: 700; letter-spacing: .02em; }
+    .top-bar .brand span { color: #bbf7d0; }
+    .top-bar .subtitle { font-size: .8rem; opacity: .8; }
+    .top-bar-nav { display: flex; gap: 1.75rem; overflow-x: auto; scrollbar-width: none; padding: 6px 0 8px; border-top: 1px solid rgba(255,255,255,0.15); }
+    .top-bar-nav::-webkit-scrollbar { display: none; }
+    .top-bar-nav a { white-space: nowrap; color: rgba(255,255,255,0.72); text-decoration: none; font-size: .8rem; font-weight: 600; padding-bottom: 3px; border-bottom: 2px solid transparent; transition: color .15s, border-color .15s; flex-shrink: 0; }
+    .top-bar-nav a:hover { color: #fff; }
+    .top-bar-nav a.active { color: #fff; border-bottom-color: #86efac; }
+    .nav-scroll-controls { position: absolute; top: 50%; transform: translateY(-50%); z-index: 50; padding: 0 4px; display: flex; align-items: center; }
+    .nav-scroll-controls:first-of-type { left: 0; }
+    .nav-scroll-controls:last-of-type { right: 0; }
+    .nav-scroll-btn { background: rgba(0,0,0,0.1); border: none; color: #475569; cursor: pointer; font-size: 1.5rem; padding: 0.5rem 0.25rem; border-radius: 4px; transition: background .15s, color .15s; line-height: 1; }
+    .nav-scroll-btn:hover { background: rgba(0,0,0,0.15); color: #1e293b; }
+
+    /* ── Layout ── */
+    .layout { display: flex; flex: 1; }
+    .sidebar { width: 260px; min-width: 260px; background: #fff; border-right: 1px solid #e2e8f0; padding: 1.5rem 0; position: sticky; top: 92px; height: calc(100vh - 92px); overflow-y: auto; }
+    .sidebar h3 { font-size: .65rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #94a3b8; padding: .25rem 1.25rem .5rem; margin-top: .5rem; }
+    .sidebar a { display: block; padding: .45rem 1.25rem; font-size: .85rem; color: #475569; text-decoration: none; border-left: 3px solid transparent; transition: all .15s; line-height: 1.4; }
+    .sidebar a:hover { background: #f0fdf4; color: #017e3b; border-left-color: #86efac; }
+    .sidebar a.active { background: #f0fdf4; color: #017e3b; font-weight: 600; border-left-color: #017e3b; }
+    .sidebar .section-divider { border-top: 1px solid #f1f5f9; margin: .5rem 0; }
+
+    main { flex: 1; padding: 2rem 2.5rem; max-width: 1100px; }
+    .page-title { font-size: 2rem; font-weight: 800; color: #0f172a; margin-bottom: .25rem; }
+    .page-meta { font-size: .8rem; color: #64748b; margin-bottom: 2rem; display: flex; gap: 1rem; flex-wrap: wrap; }
+    .page-meta span { background: #f1f5f9; border-radius: 4px; padding: 2px 8px; }
+
+    .section { margin-bottom: 3.5rem; }
+    .section-title { font-size: 1.35rem; font-weight: 700; color: #017e3b; border-bottom: 2px solid #bbf7d0; padding-bottom: .4rem; margin-bottom: 1.5rem; scroll-margin-top: 100px; }
+    .subsection-title { font-size: 1.05rem; font-weight: 700; color: #0f172a; margin: 1.5rem 0 .6rem; scroll-margin-top: 100px; }
+
+    p { font-size: .9rem; color: #374151; line-height: 1.7; margin-bottom: .75rem; }
+    code { background: #f1f5f9; padding: 1px 5px; border-radius: 3px; font-size: .82rem; font-family: 'Menlo','Courier New',monospace; color: #0f172a; }
+    pre { background: #0f172a; color: #e2e8f0; padding: 1rem 1.25rem; border-radius: 8px; overflow-x: auto; font-size: .8rem; font-family: 'Menlo','Courier New',monospace; line-height: 1.6; margin: .75rem 0; }
+
+    .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.25rem 1.5rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+    .card h4 { font-size: .95rem; font-weight: 700; color: #0f172a; margin-bottom: .5rem; }
+    .card p, .card li { color: #374151; font-size: .88rem; line-height: 1.65; }
+    .card ul, .card ol { padding-left: 1.3rem; margin: .4rem 0; }
+    .card li { margin-bottom: .2rem; }
+
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin: 1rem 0; }
+    .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin: 1rem 0; }
+
+    .badge { display: inline-block; font-size: .68rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; letter-spacing: .04em; text-transform: uppercase; margin-right: 4px; }
+    .badge-green  { background: #dcfce7; color: #166534; }
+    .badge-blue   { background: #dbeafe; color: #1e40af; }
+    .badge-yellow { background: #fef3c7; color: #92400e; }
+    .badge-red    { background: #fee2e2; color: #991b1b; }
+    .badge-purple { background: #ede9fe; color: #5b21b6; }
+    .badge-gray   { background: #f3f4f6; color: #374151; }
+
+    .note    { background: #fffbeb; border-left: 4px solid #fbbf24; padding: .75rem 1rem; border-radius: 0 6px 6px 0; font-size: .85rem; color: #78350f; margin: .75rem 0; line-height: 1.6; }
+    .info    { background: #eff6ff; border-left: 4px solid #3b82f6; padding: .75rem 1rem; border-radius: 0 6px 6px 0; font-size: .85rem; color: #1e3a8a; margin: .75rem 0; line-height: 1.6; }
+    .success { background: #f0fdf4; border-left: 4px solid #22c55e; padding: .75rem 1rem; border-radius: 0 6px 6px 0; font-size: .85rem; color: #14532d; margin: .75rem 0; line-height: 1.6; }
+
+    /* ═══════════════════════════════════════════════
+       ANIMATED PIPELINE FLOWCHART
+    ═══════════════════════════════════════════════ */
+    .pipeline-wrapper { background: #0f172a; border-radius: 12px; padding: 2rem 1.5rem; margin: 1.5rem 0; overflow-x: auto; }
+    .pipeline { display: flex; align-items: center; gap: 0; min-width: 700px; }
+    .pipe-step {
+      display: flex; flex-direction: column; align-items: center; gap: .5rem;
+      background: #1e293b; border: 1px solid #334155; border-radius: 10px;
+      padding: .85rem .75rem; min-width: 110px; text-align: center;
+      position: relative; cursor: default;
+      transition: transform .2s, box-shadow .2s;
+    }
+    .pipe-step:hover { transform: translateY(-3px); box-shadow: 0 6px 20px rgba(0,0,0,.4); }
+    .pipe-step .icon { font-size: 1.6rem; line-height: 1; }
+    .pipe-step .label { font-size: .72rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .06em; }
+    .pipe-step .sublabel { font-size: .65rem; color: #475569; line-height: 1.3; margin-top: .15rem; }
+    .pipe-step.active { border-color: #22c55e; background: #14532d; }
+    .pipe-step.active .label { color: #86efac; }
+    .pipe-arrow { flex-shrink: 0; display: flex; align-items: center; padding: 0 .25rem; }
+    .pipe-arrow svg { width: 32px; height: 16px; }
+    /* Animated arrow */
+    .animated-arrow { position: relative; width: 40px; height: 16px; flex-shrink: 0; }
+    .animated-arrow::before {
+      content: ''; position: absolute; top: 50%; left: 0;
+      width: 0; height: 2px; background: #22c55e;
+      transform: translateY(-50%);
+      animation: arrowGrow 1s ease-out forwards;
+    }
+    .animated-arrow::after {
+      content: '▶'; position: absolute; right: 0; top: 50%;
+      transform: translateY(-50%); font-size: .6rem; color: #22c55e;
+      animation: arrowFade 1s ease-out forwards;
+    }
+    @keyframes arrowGrow { from { width: 0; } to { width: 34px; } }
+    @keyframes arrowFade { from { opacity: 0; } to { opacity: 1; } }
+
+    /* Pulse ring on pipe steps */
+    .pipe-step.active::after {
+      content: ''; position: absolute; inset: -4px; border-radius: 12px;
+      border: 2px solid #22c55e; opacity: 0;
+      animation: pulseRing 2s ease-out infinite;
+    }
+    @keyframes pulseRing {
+      0%   { opacity: .6; transform: scale(1); }
+      100% { opacity: 0;  transform: scale(1.06); }
+    }
+
+    /* ═══════════════════════════════════════════════
+       MLP ARCHITECTURE DIAGRAM
+    ═══════════════════════════════════════════════ */
+    .mlp-wrapper { background: #0f172a; border-radius: 12px; padding: 1.75rem 2rem; margin: 1.5rem 0; }
+    .mlp-title { font-size: .75rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 1.25rem; text-align: center; }
+    .mlp-diagram { display: flex; align-items: center; justify-content: center; gap: 1.5rem; flex-wrap: wrap; }
+    .mlp-layer { display: flex; flex-direction: column; align-items: center; gap: .3rem; }
+    .mlp-layer-label { font-size: .65rem; color: #64748b; text-transform: uppercase; letter-spacing: .07em; margin-bottom: .25rem; }
+    .mlp-nodes { display: flex; flex-direction: column; gap: .35rem; align-items: center; }
+    .mlp-node {
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: .6rem; font-weight: 700; color: #fff;
+      animation: nodeAppear .4s ease-out both;
+    }
+    @keyframes nodeAppear { from { opacity: 0; transform: scale(0.5); } to { opacity: 1; transform: scale(1); } }
+    .mlp-node.input  { width: 26px; height: 26px; background: #1d4ed8; border: 1px solid #3b82f6; }
+    .mlp-node.hidden { background: #166534; border: 1px solid #22c55e; }
+    .mlp-node.output { background: #92400e; border: 1px solid #fbbf24; }
+    .mlp-node.h1 { width: 34px; height: 34px; }
+    .mlp-node.h2 { width: 30px; height: 30px; }
+    .mlp-node.h3 { width: 26px; height: 26px; }
+    .mlp-node.small { width: 22px; height: 22px; }
+    .mlp-connector { display: flex; align-items: center; color: #334155; font-size: 1.4rem; }
+    .mlp-count { font-size: .68rem; font-weight: 600; color: #64748b; margin-top: .35rem; }
+
+    /* ═══════════════════════════════════════════════
+       CHAMPION / CHALLENGER GATE
+    ═══════════════════════════════════════════════ */
+    .gate-wrapper { background: #0f172a; border-radius: 12px; padding: 1.75rem 2rem; margin: 1.5rem 0; }
+    .gate-row { display: flex; align-items: center; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+    .gate-box {
+      background: #1e293b; border: 1px solid #334155; border-radius: 10px;
+      padding: 1rem 1.25rem; text-align: center; min-width: 120px;
+    }
+    .gate-box.champion { border-color: #22c55e; background: #14532d; }
+    .gate-box.challenger { border-color: #3b82f6; background: #1e3a8a; }
+    .gate-box.promoted { border-color: #fbbf24; background: #451a03; }
+    .gate-box.rejected { border-color: #ef4444; background: #450a0a; }
+    .gate-box .g-icon { font-size: 1.8rem; }
+    .gate-box .g-label { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin-top: .35rem; }
+    .gate-box.champion .g-label { color: #86efac; }
+    .gate-box.challenger .g-label { color: #93c5fd; }
+    .gate-box.promoted .g-label { color: #fcd34d; }
+    .gate-box.rejected .g-label { color: #fca5a5; }
+    .gate-box .g-sub { font-size: .65rem; color: #64748b; margin-top: .2rem; line-height: 1.4; }
+    .gate-arrow { color: #475569; font-size: 1.5rem; }
+    .gate-decision {
+      background: #1e293b; border: 2px solid #475569; border-radius: 8px;
+      padding: .75rem 1rem; text-align: center; min-width: 110px;
+      animation: decisionPulse 2s ease-in-out infinite;
+    }
+    @keyframes decisionPulse {
+      0%, 100% { border-color: #475569; }
+      50% { border-color: #fbbf24; }
+    }
+    .gate-decision .g-label { color: #fcd34d; font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+    .gate-decision .g-sub { font-size: .65rem; color: #94a3b8; margin-top: .3rem; line-height: 1.4; }
+    .gate-below { display: flex; gap: 1.5rem; justify-content: center; margin-top: .75rem; flex-wrap: wrap; }
+
+    /* ═══════════════════════════════════════════════
+       FEATURE CATEGORY CARDS
+    ═══════════════════════════════════════════════ */
+    .feature-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; margin: 1rem 0; }
+    .feature-cat {
+      border-radius: 10px; padding: 1rem 1.1rem; border: 1px solid;
+      position: relative; overflow: hidden;
+    }
+    .feature-cat::before { content: ''; position: absolute; top: 0; right: 0; width: 40px; height: 40px; border-radius: 0 10px 0 100%; opacity: .15; }
+    .feature-cat.green  { border-color: #bbf7d0; background: #f0fdf4; }
+    .feature-cat.green::before  { background: #22c55e; }
+    .feature-cat.red    { border-color: #fecaca; background: #fef2f2; }
+    .feature-cat.red::before    { background: #ef4444; }
+    .feature-cat.yellow { border-color: #fde68a; background: #fffbeb; }
+    .feature-cat.yellow::before { background: #fbbf24; }
+    .feature-cat .cat-header { display: flex; align-items: center; gap: .5rem; margin-bottom: .5rem; }
+    .feature-cat .cat-icon { font-size: 1.3rem; }
+    .feature-cat .cat-title { font-size: .82rem; font-weight: 700; }
+    .feature-cat.green .cat-title  { color: #14532d; }
+    .feature-cat.red .cat-title    { color: #7f1d1d; }
+    .feature-cat.yellow .cat-title { color: #78350f; }
+    .feature-cat ul { list-style: none; padding: 0; }
+    .feature-cat li { font-size: .75rem; color: #374151; padding: .2rem 0; border-bottom: 1px solid rgba(0,0,0,.05); line-height: 1.4; }
+    .feature-cat li:last-child { border-bottom: none; }
+    .feature-cat .cat-badge { display: inline-block; font-size: .6rem; font-weight: 700; padding: 1px 5px; border-radius: 999px; text-transform: uppercase; letter-spacing: .04em; margin-top: .35rem; }
+    .feature-cat.green .cat-badge  { background: #dcfce7; color: #166534; }
+    .feature-cat.red .cat-badge    { background: #fee2e2; color: #991b1b; }
+    .feature-cat.yellow .cat-badge { background: #fef3c7; color: #92400e; }
+
+    /* ═══════════════════════════════════════════════
+       HORIZON TABLE
+    ═══════════════════════════════════════════════ */
+    .horizon-table { width: 100%; border-collapse: collapse; font-size: .875rem; margin: 1rem 0; }
+    .horizon-table th { background: #f8fafc; color: #64748b; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: .6rem 1rem; text-align: left; border-bottom: 2px solid #e2e8f0; }
+    .horizon-table td { padding: .65rem 1rem; border-bottom: 1px solid #f1f5f9; vertical-align: middle; color: #374151; }
+    .horizon-table tr:last-child td { border-bottom: none; }
+    .horizon-table tr:hover td { background: #f8fafc; }
+
+    /* ═══════════════════════════════════════════════
+       REGIME DETECTOR
+    ═══════════════════════════════════════════════ */
+    .regime-wrapper { background: #0f172a; border-radius: 12px; padding: 1.5rem; margin: 1.5rem 0; }
+    .regime-row { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+    .regime-cell {
+      border-radius: 10px; padding: 1rem; min-width: 130px; text-align: center;
+      border: 1px solid; animation: fadeUp .5s ease-out both;
+    }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .regime-cell:nth-child(2) { animation-delay: .1s; }
+    .regime-cell:nth-child(3) { animation-delay: .2s; }
+    .regime-cell:nth-child(4) { animation-delay: .3s; }
+    .regime-bull  { background: #14532d; border-color: #22c55e; }
+    .regime-neutral { background: #1e293b; border-color: #475569; }
+    .regime-bear  { background: #450a0a; border-color: #ef4444; }
+    .regime-cell .r-icon { font-size: 1.6rem; }
+    .regime-cell .r-label { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin-top: .35rem; }
+    .regime-bull .r-label  { color: #86efac; }
+    .regime-neutral .r-label { color: #94a3b8; }
+    .regime-bear .r-label  { color: #fca5a5; }
+    .regime-cell .r-k { font-size: .65rem; color: #64748b; margin-top: .2rem; }
+    .regime-cell .r-prob { font-size: .78rem; font-weight: 700; margin-top: .5rem; }
+    .regime-bull .r-prob  { color: #4ade80; }
+    .regime-neutral .r-prob { color: #94a3b8; }
+    .regime-bear .r-prob  { color: #f87171; }
+
+    /* ═══════════════════════════════════════════════
+       INFERENCE FLOW DIAGRAM
+    ═══════════════════════════════════════════════ */
+    .infer-flow { display: grid; grid-template-columns: 1fr auto 1fr; gap: 1rem; align-items: start; margin: 1.5rem 0; }
+    .infer-path { background: #0f172a; border-radius: 10px; padding: 1.25rem; }
+    .infer-path .path-title { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 1rem; }
+    .infer-path.cs-path .path-title { color: #86efac; }
+    .infer-path.ticker-path .path-title { color: #93c5fd; }
+    .infer-step { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: .65rem .85rem; margin-bottom: .5rem; font-size: .75rem; color: #94a3b8; position: relative; padding-left: 2rem; }
+    .infer-step::before { content: attr(data-n); position: absolute; left: .6rem; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; border-radius: 50%; background: #334155; color: #94a3b8; font-size: .6rem; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+    .infer-path.cs-path .infer-step::before { background: #14532d; color: #86efac; }
+    .infer-path.ticker-path .infer-step::before { background: #1e3a8a; color: #93c5fd; }
+    .infer-or { display: flex; align-items: center; justify-content: center; }
+    .infer-or-badge { background: #1e293b; border: 2px solid #475569; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-size: .72rem; font-weight: 700; color: #94a3b8; }
+    .infer-merge { background: #1e293b; border: 2px solid #22c55e; border-radius: 10px; padding: 1rem 1.25rem; margin-top: 1rem; text-align: center; grid-column: 1 / -1; }
+    .infer-merge .m-title { font-size: .8rem; font-weight: 700; color: #86efac; margin-bottom: .4rem; }
+    .infer-merge .m-sub { font-size: .75rem; color: #64748b; }
+
+    /* ═══════════════════════════════════════════════
+       BACKTEST METRICS
+    ═══════════════════════════════════════════════ */
+    .metric-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1rem; margin: 1.25rem 0; }
+    .metric-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.1rem; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+    .metric-card .m-val { font-size: 1.8rem; font-weight: 800; color: #017e3b; line-height: 1; }
+    .metric-card .m-label { font-size: .75rem; color: #64748b; margin-top: .35rem; line-height: 1.4; }
+    .metric-card .m-note { font-size: .68rem; color: #94a3b8; margin-top: .2rem; }
+
+    /* ═══════════════════════════════════════════════
+       VERSION TIMELINE
+    ═══════════════════════════════════════════════ */
+    .timeline { position: relative; padding-left: 2rem; margin: 1.25rem 0; }
+    .timeline::before { content: ''; position: absolute; left: .6rem; top: 0; bottom: 0; width: 2px; background: linear-gradient(180deg, #22c55e, #86efac); border-radius: 2px; }
+    .tl-item { position: relative; margin-bottom: 1.25rem; }
+    .tl-dot { position: absolute; left: -1.65rem; top: .35rem; width: 14px; height: 14px; border-radius: 50%; background: #22c55e; border: 2px solid #f0fdf4; box-shadow: 0 0 0 2px #22c55e; }
+    .tl-item h4 { font-size: .9rem; font-weight: 700; color: #0f172a; margin-bottom: .25rem; }
+    .tl-item .tl-date { font-size: .7rem; color: #94a3b8; margin-bottom: .35rem; display: block; }
+    .tl-item p { font-size: .82rem; color: #475569; line-height: 1.6; margin: 0; }
+
+    @media (max-width: 900px) {
+      .two-col, .three-col, .infer-flow { grid-template-columns: 1fr; }
+      .infer-or { display: none; }
+      .infer-merge { grid-column: 1; }
+      .sidebar { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div class="top-bar-header">
+    <div>
+      <div class="brand">Grow<span>MY</span>Stocks</div>
+      <div class="subtitle">Model Training Reference</div>
+    </div>
+    <div style="font-size:.78rem;opacity:.75;">Updated 2026-08-27</div>
+  </div>
+  <div class="nav-scroll-controls">
+    <button class="nav-scroll-btn nav-scroll-left" aria-label="Scroll nav left">‹</button>
+  </div>
+  <nav class="top-bar-nav">
+    <a href="moneygoup_overview.html">Overview</a>
+    <a href="business_rules.html">Business Rules</a>
+    <a href="api_documentation.html">API Docs</a>
+    <a href="architecture_documentation.html">Architecture</a>
+    <a href="authentication_flow.html">Auth Flow</a>
+    <a href="admin_user_management.html">Admin User Mgmt</a>
+    <a href="components_documentation.html">Components</a>
+    <a href="database_documentation.html">Database</a>
+    <a href="prediction_workflow.html">Prediction Flow</a>
+    <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
+    <a href="technical_indicators_guide.html">Technical Guide</a>
+    <a href="gps_score.html">GPS Score</a>
+    <a href="strategy_system.html">Strategy System</a>
+    <a href="style_guide.html">Style Guide</a>
+    <a href="model_training.html" class="active">Model Training</a>
+  </nav>
+  <div class="nav-scroll-controls">
+    <button class="nav-scroll-btn nav-scroll-right" aria-label="Scroll nav right">›</button>
+  </div>
+</div>
+
+<div class="layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <h3>On This Page</h3>
+    <a href="#overview">Overview</a>
+    <a href="#horizons">Prediction Horizons</a>
+    <a href="#features">Feature Engineering</a>
+    <a href="#pipeline">Training Pipeline</a>
+    <a href="#mlp-arch">MLP Architecture</a>
+    <a href="#cs-model">Cross-Sectional Model</a>
+    <a href="#regime">Regime Detector</a>
+    <a href="#inference">Inference Flow</a>
+    <a href="#retrain">Retrain Pipeline</a>
+    <a href="#ranker">Ranker Model</a>
+    <a href="#backtest">Backtesting</a>
+    <a href="#reports">Generating Reports</a>
+    <a href="#versions">Version History</a>
+    <div class="section-divider"></div>
+    <h3>Related Docs</h3>
+    <a href="prediction_workflow.html">Prediction Workflow</a>
+    <a href="deepmoney_sync_workflow.html">DeepMoney Sync</a>
+    <a href="technical_indicators_guide.html">Technical Indicators</a>
+    <a href="database_documentation.html">Database</a>
+  </aside>
+
+  <!-- Main -->
+  <main>
+    <h1 class="page-title">Model Training</h1>
+    <div class="page-meta">
+      <span>Updated: 2026-08-27</span>
+      <span>scikit-learn MLPRegressor</span>
+      <span>LightGBM Ranker</span>
+      <span>4 horizons</span>
+      <span>CS v2 active</span>
+    </div>
+
+    <!-- ──────────────────── OVERVIEW ──────────────────── -->
+    <div class="section" id="overview">
+      <h2 class="section-title">Overview</h2>
+      <p>GrowMyStocks runs two parallel prediction paths for every ticker. The <strong>per-ticker MLP path</strong> fits a fresh model on each stock's own history — flexible but slow. The <strong>cross-sectional (CS) path</strong> trains one model across the entire universe, enabling transfer learning where tickers with sparse history still get informed predictions.</p>
+      <p>The CS model is the primary path today; the per-ticker MLP is the fallback when the CS artifact is missing or fails to load. A third model — the <strong>LightGBM ranker</strong> — scores relative attractiveness across the universe and powers the Discovery feed.</p>
+      <div class="two-col">
+        <div class="card">
+          <h4>Cross-Sectional (CS) — Primary Path</h4>
+          <ul>
+            <li>Trained once on all stocks simultaneously</li>
+            <li>Stored in <code>models/long_term_cs_v2.pkl</code></li>
+            <li>Loaded once at Python process start</li>
+            <li>~292 survivor tickers + 120 sector leaders in training set</li>
+            <li>Direction accuracy is the headline quality metric</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>Per-Ticker MLP — Fallback Path</h4>
+          <ul>
+            <li>Fit on each stock's own historical sequence</li>
+            <li>No stored artifact — trained live per prediction request</li>
+            <li>45-day lookback window (<code>SEQ_LEN = 45</code>)</li>
+            <li>50 epochs (<code>N_EPOCHS = 50</code>), seed 42</li>
+            <li>Used when CS model artifact is absent or corrupt</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- ──────────────────── HORIZONS ──────────────────── -->
+    <div class="section" id="horizons">
+      <h2 class="section-title">Prediction Horizons</h2>
+      <p>The pipeline is split into two horizon groups, each with its own model file and feature mask. Splitting avoids the short-horizon noise contaminating the long-horizon model and vice versa.</p>
+      <table class="horizon-table">
+        <thead>
+          <tr>
+            <th>Horizon</th>
+            <th>Trading Days</th>
+            <th>Model File</th>
+            <th>Architecture</th>
+            <th>Feature Mask</th>
+            <th>Label Source</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge badge-blue">1w</span></td>
+            <td>T+5</td>
+            <td><code>predict_short_term.py</code></td>
+            <td>MLP 96/48/24</td>
+            <td>SHORT_TERM (momentum, technical, microstructure)</td>
+            <td>Per-ticker sequence</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-blue">1m</span></td>
+            <td>T+21</td>
+            <td><code>predict_short_term.py</code></td>
+            <td>MLP 96/48/24</td>
+            <td>SHORT_TERM</td>
+            <td>Interpolated 1w → 3m waypoint</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-green">3m</span></td>
+            <td>T+63</td>
+            <td><code>predict_long_term.py</code></td>
+            <td>MLP 192/96/48</td>
+            <td>LONG_TERM (macro, fundamental, long-horizon momentum)</td>
+            <td><code>forward_return_63d</code> label</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-green">6m</span></td>
+            <td>T+126</td>
+            <td><code>predict_long_term.py</code></td>
+            <td>MLP 192/96/48</td>
+            <td>LONG_TERM</td>
+            <td><code>forward_return_126d</code> label</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-purple">1y</span></td>
+            <td>T+252</td>
+            <td>Trajectory extrapolation</td>
+            <td>—</td>
+            <td>—</td>
+            <td>Extended from 6m trajectory (not a trained head)</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="note">The 1y output is not a trained model head — it is extrapolated from the 6m prediction using the trajectory builder in <code>predict_core.py</code>. This avoids requiring 252+ days of forward data for training labels.</div>
+    </div>
+
+    <!-- ──────────────────── FEATURE ENGINEERING ──────────────────── -->
+    <div class="section" id="features">
+      <h2 class="section-title">Feature Engineering</h2>
+      <p>Features are classified into three tiers. <strong>GREEN</strong> features can be computed as-of any historical date without lookahead (they're safe for training). <strong>RED</strong> features require live data that can't be reconstructed historically without leakage. <strong>YELLOW</strong> features are live-only but low-signal.</p>
+
+      <div class="feature-grid">
+        <div class="feature-cat green">
+          <div class="cat-header"><span class="cat-icon">📈</span><span class="cat-title">Price / OHLCV</span></div>
+          <ul>
+            <li>Returns: 5d, 10d, 20d, 30d, 60d, 90d, 180d</li>
+            <li>ATR(14) normalized</li>
+            <li>Volume ratio vs 20d avg</li>
+            <li>52-week high/low position</li>
+            <li>Price vs EMA(20), EMA(50)</li>
+          </ul>
+          <span class="cat-badge">GREEN — training safe</span>
+        </div>
+        <div class="feature-cat green">
+          <div class="cat-header"><span class="cat-icon">⚡</span><span class="cat-title">Technical Indicators</span></div>
+          <ul>
+            <li>RSI(14)</li>
+            <li>MACD line &amp; histogram</li>
+            <li>Bollinger Band position</li>
+            <li>OBV momentum</li>
+            <li>Rate of change (5d, 20d)</li>
+          </ul>
+          <span class="cat-badge">GREEN — training safe</span>
+        </div>
+        <div class="feature-cat green">
+          <div class="cat-header"><span class="cat-icon">🌍</span><span class="cat-title">Macro Time-Series</span></div>
+          <ul>
+            <li>VIX level + 30d trend</li>
+            <li>10Y treasury yield</li>
+            <li>3M treasury yield (spread)</li>
+            <li>HYG / LQD credit spreads</li>
+            <li>DXY, WTI, Copper, Wheat</li>
+            <li>SPY relative strength</li>
+            <li>Sector ETF relative strength</li>
+          </ul>
+          <span class="cat-badge">GREEN — training safe</span>
+        </div>
+        <div class="feature-cat green">
+          <div class="cat-header"><span class="cat-icon">🌐</span><span class="cat-title">World Bank / Calendar</span></div>
+          <ul>
+            <li>GDP growth rate</li>
+            <li>Inflation rate</li>
+            <li>Consumption growth</li>
+            <li>Day of week encoding</li>
+            <li>Month / quarter encoding</li>
+          </ul>
+          <span class="cat-badge">GREEN — training safe</span>
+        </div>
+        <div class="feature-cat green">
+          <div class="cat-header"><span class="cat-icon">🏭</span><span class="cat-title">Sector One-Hot</span></div>
+          <ul>
+            <li>11 GICS sectors encoded</li>
+            <li>Unknown = reference category (all zeros)</li>
+            <li>Powers cross-sector transfer learning in CS model</li>
+          </ul>
+          <span class="cat-badge">GREEN — training safe</span>
+        </div>
+        <div class="feature-cat red">
+          <div class="cat-header"><span class="cat-icon">🔴</span><span class="cat-title">RED Features (live only)</span></div>
+          <ul>
+            <li>Analyst revisions &amp; ratings</li>
+            <li>News sentiment scores</li>
+            <li>Pre/post-market moves</li>
+            <li>Peer relative strength</li>
+            <li>Institution ownership %</li>
+            <li>Earnings window flags</li>
+            <li>Free cash flow, EBITDA, EPS (live Yahoo)</li>
+          </ul>
+          <span class="cat-badge">RED — inference only</span>
+        </div>
+        <div class="feature-cat yellow">
+          <div class="cat-header"><span class="cat-icon">🟡</span><span class="cat-title">YELLOW Features</span></div>
+          <ul>
+            <li>Short interest ratio</li>
+            <li>Options implied volatility</li>
+            <li>Insider transaction signals</li>
+          </ul>
+          <span class="cat-badge">YELLOW — live, low-signal</span>
+        </div>
+      </div>
+
+      <div class="info">
+        <strong>Train/inference drift risk:</strong> <code>ranker_features.py</code> is the single source of truth for the GREEN feature formula. Both <code>build_ranking_dataset.py</code> (offline) and <code>score_ranker.py</code> (online) import from it. If you add a feature, add it in <code>ranker_features.py</code> — never duplicate the formula.
+      </div>
+    </div>
+
+    <!-- ──────────────────── TRAINING PIPELINE ──────────────────── -->
+    <div class="section" id="pipeline">
+      <h2 class="section-title">Training Pipeline</h2>
+      <p>The full training cycle has five stages. Each stage produces an artifact consumed by the next.</p>
+
+      <div class="pipeline-wrapper">
+        <div class="pipeline">
+          <div class="pipe-step">
+            <span class="icon">📡</span>
+            <span class="label">Raw Data</span>
+            <span class="sublabel">yfinance OHLCV + macro ETFs</span>
+          </div>
+          <div class="animated-arrow"></div>
+          <div class="pipe-step active">
+            <span class="icon">🏗️</span>
+            <span class="label">Build Dataset</span>
+            <span class="sublabel">build_ranking_dataset.py</span>
+          </div>
+          <div class="animated-arrow"></div>
+          <div class="pipe-step">
+            <span class="icon">🏷️</span>
+            <span class="label">Extend Labels</span>
+            <span class="sublabel">extend_long_term_labels.py</span>
+          </div>
+          <div class="animated-arrow"></div>
+          <div class="pipe-step active">
+            <span class="icon">🧠</span>
+            <span class="label">Train CS Model</span>
+            <span class="sublabel">train_long_term_cs.py</span>
+          </div>
+          <div class="animated-arrow"></div>
+          <div class="pipe-step">
+            <span class="icon">🏆</span>
+            <span class="label">Gate &amp; Promote</span>
+            <span class="sublabel">retrain_pipeline.py</span>
+          </div>
+          <div class="animated-arrow"></div>
+          <div class="pipe-step active">
+            <span class="icon">🚀</span>
+            <span class="label">Inference</span>
+            <span class="sublabel">predict_weighted_analysis.py</span>
+          </div>
+        </div>
+      </div>
+
+      <h3 class="subsection-title">Stage Details</h3>
+      <div class="card">
+        <h4>Stage 1 — Build Ranking Dataset (<code>build_ranking_dataset.py</code>)</h4>
+        <p>Pulls historical OHLCV + macro data via yfinance for all tickers over a trailing window. For each snapshot date D and each ticker, computes the GREEN feature vector using only data available as-of D. Writes rows to <code>ranking_training_snapshots</code> table. Also computes the 20-day forward return label for the ranker.</p>
+        <ul>
+          <li>Snapshot cadence: weekly or monthly (<code>--cadence</code>)</li>
+          <li>Default window: configurable via <code>--start</code> / <code>--end</code></li>
+          <li>Idempotent: skips dates already in the table</li>
+          <li>No-leakage constraint: only data at or before date D is used</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>Stage 2 — Extend Long-Term Labels (<code>extend_long_term_labels.py</code>)</h4>
+        <p>Adds <code>forward_return_63d</code> and <code>forward_return_126d</code> columns to <code>ranking_training_snapshots</code>. Computes them from per-ticker price history (one yfinance pull per ticker, cached). Recent rows can't have labels yet (the future hasn't happened) — those stay NULL and are excluded from training.</p>
+      </div>
+      <div class="card">
+        <h4>Stage 3 — Train CS Model (<code>train_long_term_cs.py</code>)</h4>
+        <p>Reads resolved-label rows from <code>ranking_training_snapshots</code>, time-splits 80/20 by date (not random split — avoids future leakage), trains a 2-output MLPRegressor on <code>[return_63d, return_126d]</code>, fits a StandardScaler, and persists <code>models/long_term_cs_v2.pkl</code> + <code>models/long_term_cs_v2_manifest.json</code>.</p>
+        <pre>Time split: train on dates &lt; 80th percentile date
+            val   on dates ≥ 80th percentile date
+This is critical: random split would leak future patterns into training.</pre>
+      </div>
+    </div>
+
+    <!-- ──────────────────── MLP ARCHITECTURE ──────────────────── -->
+    <div class="section" id="mlp-arch">
+      <h2 class="section-title">MLP Architecture</h2>
+      <p>Both horizon-specific models use scikit-learn <code>MLPRegressor</code>. The long-term model has wider hidden layers because 3m/6m predictions need to integrate more disparate signals (macro + fundamentals + long-horizon momentum). The short-term model is intentionally smaller — its feature mask is roughly half the column count, so the same effective capacity-per-feature is maintained at lower compute cost.</p>
+
+      <div class="two-col">
+        <!-- Short-term MLP -->
+        <div>
+          <h3 class="subsection-title">Short-Term MLP (1w / 1m)</h3>
+          <div class="mlp-wrapper">
+            <div class="mlp-title">MLP 96 → 48 → 24 — 2 outputs</div>
+            <div class="mlp-diagram">
+              <div class="mlp-layer">
+                <div class="mlp-layer-label">Input</div>
+                <div class="mlp-nodes">
+                  <div class="mlp-node input" style="animation-delay:.0s">…</div>
+                  <div class="mlp-node input" style="animation-delay:.05s"></div>
+                  <div class="mlp-node input" style="animation-delay:.1s"></div>
+                  <div class="mlp-node input" style="animation-delay:.15s"></div>
+                  <div class="mlp-node input" style="animation-delay:.2s"></div>
+                </div>
+                <div class="mlp-count">SHORT_TERM<br>features</div>
+              </div>
+              <div class="mlp-connector">→</div>
+              <div class="mlp-layer">
+                <div class="mlp-layer-label">Hidden 1</div>
+                <div class="mlp-nodes">
+                  <div class="mlp-node hidden h1" style="animation-delay:.25s">96</div>
+                  <div class="mlp-node hidden h1" style="animation-delay:.3s"></div>
+                  <div class="mlp-node hidden h1" style="animation-delay:.35s"></div>
+                </div>
+                <div class="mlp-count">96 units<br>ReLU</div>
+              </div>
+              <div class="mlp-connector">→</div>
+              <div class="mlp-layer">
+                <div class="mlp-layer-label">Hidden 2</div>
+                <div class="mlp-nodes">
+                  <div class="mlp-node hidden h2" style="animation-delay:.4s">48</div>
+                  <div class="mlp-node hidden h2" style="animation-delay:.45s"></div>
+                </div>
+                <div class="mlp-count">48 units<br>ReLU</div>
+              </div>
+              <div class="mlp-connector">→</div>
+              <div class="mlp-layer">
+                <div class="mlp-layer-label">Hidden 3</div>
+                <div class="mlp-nodes">
+                  <div class="mlp-node hidden h3" style="animation-delay:.5s">24</div>
+                </div>
+                <div class="mlp-count">24 units<br>ReLU</div>
+              </div>
+              <div class="mlp-connector">→</div>
+              <div class="mlp-layer">
+                <div class="mlp-layer-label">Output</div>
+                <div class="mlp-nodes">
+                  <div class="mlp-node output small" style="animation-delay:.55s" title="1w price">1w</div>
+                  <div class="mlp-node output small" style="animation-delay:.6s" title="1m price">1m</div>
+                </div>
+                <div class="mlp-count">2 outputs<br>price targets</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Long-term MLP -->
+        <div>
+          <h3 class="subsection-title">Long-Term MLP (3m / 6m)</h3>
+          <div class="mlp-wrapper">
+            <div class="mlp-title">MLP 192 → 96 → 48 — 2 outputs</div>
+            <div class="mlp-diagram">
+              <div class="mlp-layer">
+                <div class="mlp-layer-label">Input</div>
+                <div class="mlp-nodes">
+                  <div class="mlp-node input" style="animation-delay:.0s">…</div>
+                  <div class="mlp-node input" style="animation-delay:.05s"></div>
+                  <div class="mlp-node input" style="animation-delay:.1s"></div>
+                  <div class="mlp-node input" style="animation-delay:.15s"></div>
+                  <div class="mlp-node input" style="animation-delay:.2s"></div>
+                  <div class="mlp-node input" style="animation-delay:.25s"></div>
+                </div>
+                <div class="mlp-count">LONG_TERM<br>features</div>
+              </div>
+              <div class="mlp-connector">→</div>
+              <div class="mlp-layer">
+                <div class="mlp-layer-label">Hidden 1</div>
+                <div class="mlp-nodes">
+                  <div class="mlp-node hidden h1" style="animation-delay:.3s">192</div>
+                  <div class="mlp-node hidden h1" style="animation-delay:.35s"></div>
+                  <div class="mlp-node hidden h1" style="animation-delay:.4s"></div>
+                  <div class="mlp-node hidden h1" style="animation-delay:.45s"></div>
+                </div>
+                <div class="mlp-count">192 units<br>ReLU</div>
+              </div>
+              <div class="mlp-connector">→</div>
+              <div class="mlp-layer">
+                <div class="mlp-layer-label">Hidden 2</div>
+                <div class="mlp-nodes">
+                  <div class="mlp-node hidden h2" style="animation-delay:.5s">96</div>
+                  <div class="mlp-node hidden h2" style="animation-delay:.55s"></div>
+                  <div class="mlp-node hidden h2" style="animation-delay:.6s"></div>
+                </div>
+                <div class="mlp-count">96 units<br>ReLU</div>
+              </div>
+              <div class="mlp-connector">→</div>
+              <div class="mlp-layer">
+                <div class="mlp-layer-label">Hidden 3</div>
+                <div class="mlp-nodes">
+                  <div class="mlp-node hidden h3" style="animation-delay:.65s">48</div>
+                  <div class="mlp-node hidden h3" style="animation-delay:.7s"></div>
+                </div>
+                <div class="mlp-count">48 units<br>ReLU</div>
+              </div>
+              <div class="mlp-connector">→</div>
+              <div class="mlp-layer">
+                <div class="mlp-layer-label">Output</div>
+                <div class="mlp-nodes">
+                  <div class="mlp-node output small" style="animation-delay:.75s" title="3m return">3m</div>
+                  <div class="mlp-node output small" style="animation-delay:.8s" title="6m return">6m</div>
+                </div>
+                <div class="mlp-count">2 outputs<br>return %</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:1rem;">
+        <h4>Shared Training Config</h4>
+        <table class="horizon-table">
+          <thead><tr><th>Parameter</th><th>Value</th><th>Why</th></tr></thead>
+          <tbody>
+            <tr><td><code>solver</code></td><td>adam</td><td>Standard adaptive optimizer</td></tr>
+            <tr><td><code>learning_rate_init</code></td><td>0.001</td><td>Default adam LR; stable across stock data</td></tr>
+            <tr><td><code>max_iter</code> (N_EPOCHS)</td><td>50</td><td>Capped for speed on per-ticker path; CS model uses convergence</td></tr>
+            <tr><td><code>random_state</code> (SEED)</td><td>42</td><td>Reproducibility</td></tr>
+            <tr><td>Scaler</td><td>StandardScaler</td><td>Normalizes feature scale; critical for MLP convergence</td></tr>
+            <tr><td>MC_RUNS</td><td>30</td><td>Monte Carlo dropout samples for uncertainty bands</td></tr>
+            <tr><td>SEQ_LEN</td><td>45 trading days</td><td>~9 calendar weeks lookback window per sequence</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ──────────────────── CS MODEL ──────────────────── -->
+    <div class="section" id="cs-model">
+      <h2 class="section-title">Cross-Sectional (CS) Model</h2>
+      <p>The CS model is the key architectural innovation over the per-ticker approach. By training across all tickers simultaneously, the model learns cross-stock patterns (sector rotation, macro sensitivity clusters) that a per-ticker model can never see.</p>
+
+      <h3 class="subsection-title">How it differs from per-ticker training</h3>
+      <div class="two-col">
+        <div class="card">
+          <h4>Per-Ticker MLP (legacy)</h4>
+          <ul>
+            <li>Trains on one stock's 45-day window sequences</li>
+            <li>Only sees that stock's own history</li>
+            <li>Data-sparse tickers (IPOs, thin history) get poor fits</li>
+            <li>No transfer learning across sectors</li>
+            <li>~13 min for full universe backtest</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>Cross-Sectional CS v2 (current)</h4>
+          <ul>
+            <li>Trained on all tickers' snapshots together</li>
+            <li>Sector one-hot encoding enables cross-sector learning</li>
+            <li>Sparse-history tickers benefit from universe patterns</li>
+            <li>Single model artifact loaded once — faster inference</li>
+            <li>Time-split validation guards against future leakage</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3 class="subsection-title">CS Model Artifact Structure</h3>
+      <pre>{
+  "model":           MLPRegressor (fitted),
+  "scaler":          StandardScaler (fitted),
+  "feature_columns": [...],           # 60+ GREEN columns, exact order matters
+  "trained_at":      "2026-07-17T...",
+  "feature_set_version": "green_v4",
+  "train_rows":      12540,
+  "val_rows":        3135,
+  "val_mae_63d":     0.042,
+  "val_mae_126d":    0.071,
+  "val_r2_63d":      0.31,
+  "val_r2_126d":     0.28
+}</pre>
+
+      <h3 class="subsection-title">Direction Classifier Head (CS v2)</h3>
+      <p>CS v2 added a <code>LogisticRegression</code> classifier head trained on non-neutral rows (rows where the 63d forward return is outside ±2% deadband). It outputs <code>direction_confidence_1w</code> (probability of up move) and <code>direction_signal_1w</code> ('up'/'down'/null). A conviction gate at 0.55/0.45 threshold filters weak signals to null.</p>
+
+      <div class="success">The direction classifier is the primary driver of the <strong>direction accuracy</strong> metric — the headline number tracked in backtests and displayed on the dashboard.</div>
+    </div>
+
+    <!-- ──────────────────── REGIME DETECTOR ──────────────────── -->
+    <div class="section" id="regime">
+      <h2 class="section-title">Regime Detector</h2>
+      <p>Before predictions are made, a Gaussian Mixture Model (GMM) classifies the current market regime. The regime then modulates how aggressively the model extrapolates trends. A bull regime boosts confidence; a bear regime dampens long-term price targets.</p>
+
+      <div class="regime-wrapper">
+        <div class="regime-row">
+          <div class="regime-cell regime-bull">
+            <div class="r-icon">🐂</div>
+            <div class="r-label">Bull</div>
+            <div class="r-k">K=1 of 3–4</div>
+            <div class="r-prob">p = 0.72</div>
+          </div>
+          <div class="regime-cell regime-neutral">
+            <div class="r-icon">⚖️</div>
+            <div class="r-label">Neutral</div>
+            <div class="r-k">K=2 of 3–4</div>
+            <div class="r-prob">p = 0.21</div>
+          </div>
+          <div class="regime-cell regime-bear">
+            <div class="r-icon">🐻</div>
+            <div class="r-label">Bear</div>
+            <div class="r-k">K=3 of 3–4</div>
+            <div class="r-prob">p = 0.07</div>
+          </div>
+          <div class="regime-cell regime-neutral" style="border-color:#7c3aed;background:#2e1065;">
+            <div class="r-icon">🔄</div>
+            <div class="r-label" style="color:#c4b5fd;">Transitional</div>
+            <div class="r-k">K=4 (optional)</div>
+            <div class="r-prob" style="color:#a78bfa;">p = —</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="card">
+          <h4>GMM Configuration</h4>
+          <ul>
+            <li>K = 3 or 4 components (selected by BIC)</li>
+            <li>Features: VIX level, SPY 30d return, credit spread, yield curve slope</li>
+            <li>Dirichlet smoothing α=0.05 — prevents literal 100% probability claims</li>
+            <li>Rebuilt per-prediction from trailing macro window</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>How Regime Affects Predictions</h4>
+          <ul>
+            <li><strong>Bull:</strong> 1.0× long-term multiplier (neutral baseline)</li>
+            <li><strong>Bear:</strong> dampens 6m/1y price targets</li>
+            <li><strong>High VIX:</strong> Low-beta stocks get a flight-to-quality boost; high-beta get a floor at 0.55×</li>
+            <li>Regime columns are appended to feature vectors via <code>extend_with_regime_cols()</code></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- ──────────────────── INFERENCE FLOW ──────────────────── -->
+    <div class="section" id="inference">
+      <h2 class="section-title">Inference Flow</h2>
+      <p>For each prediction request, the orchestrator (<code>predict_weighted_analysis.py</code>) tries the CS model first. If the CS model artifact is missing or throws, it falls back to the per-ticker MLP. Both paths emit the same output JSON schema.</p>
+
+      <div style="background:#0f172a;border-radius:12px;padding:1.5rem;margin:1.5rem 0;">
+        <div class="infer-flow">
+          <div class="infer-path cs-path">
+            <div class="path-title">Path A — CS Model (Primary)</div>
+            <div class="infer-step" data-n="1">Load <code>long_term_cs_v2.pkl</code> (once at process start)</div>
+            <div class="infer-step" data-n="2">Compute GREEN feature vector from input JSON</div>
+            <div class="infer-step" data-n="3">Scale via pre-fit StandardScaler</div>
+            <div class="infer-step" data-n="4">CS model → [return_63d, return_126d] → prices</div>
+            <div class="infer-step" data-n="5">Direction classifier → <code>direction_confidence_1w</code></div>
+            <div class="infer-step" data-n="6">Apply Fix A/B/C/D post-hoc adjustments (v5)</div>
+          </div>
+          <div class="infer-or">
+            <div class="infer-or-badge">OR</div>
+          </div>
+          <div class="infer-path ticker-path">
+            <div class="path-title">Path B — Per-Ticker MLP (Fallback)</div>
+            <div class="infer-step" data-n="1">Build 45-day sequences from historical data</div>
+            <div class="infer-step" data-n="2">Fit fresh MLP (50 epochs) on this ticker's sequences</div>
+            <div class="infer-step" data-n="3">Monte Carlo (30 runs) for uncertainty bands</div>
+            <div class="infer-step" data-n="4">Short-term head → p1w, p1m</div>
+            <div class="infer-step" data-n="5">Long-term head → p3m, p6m</div>
+            <div class="infer-step" data-n="6">Trajectory builder → 1y extrapolation</div>
+          </div>
+          <div class="infer-merge">
+            <div class="m-title">Merge → Output JSON</div>
+            <div class="m-sub">predicted_price_1w, predicted_price_1m, predicted_price_3m, predicted_price_6m, predicted_price_1y<br>confidence_score_*, direction_signal_*, direction_confidence_1w, GPS score</div>
+          </div>
+        </div>
+      </div>
+
+      <h3 class="subsection-title">Post-Hoc Fix Stack (Model v5)</h3>
+      <table class="horizon-table">
+        <thead><tr><th>Fix</th><th>Condition</th><th>Effect</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Fix B</strong></td><td>Beta-signed VIX modifier</td><td>Low-β names (β&lt;0.5) get boost in high VIX; high-β get dampener starting at VIX=25</td></tr>
+          <tr><td><strong>#4</strong></td><td>|90d return| &gt; 15%</td><td>90-day momentum drift applied to long-term multiplier</td></tr>
+          <tr><td><strong>Fix A</strong></td><td>β&gt;0.8, 30d&lt;−5%, 90d&lt;−10%</td><td>Downtrend trap ceiling — caps upside for high-beta names in confirmed downtrend</td></tr>
+          <tr><td><strong>Fix C</strong></td><td>&gt;20% below 52w high AND 90d&lt;−15%</td><td>Structural decline path: 5-10% down at 6m, 8-15% at 1y</td></tr>
+          <tr><td><strong>Fix D</strong></td><td>90d &gt; 30%</td><td>Extreme momentum: scale predicted delta by up to 1.5× to counter mean-reversion bias</td></tr>
+          <tr><td><strong>Deadband</strong></td><td>|predicted move| &lt; 2%</td><td>Sets predicted_direction to 'neutral' (avoids noisy marginal calls)</td></tr>
+          <tr><td><strong>RSI-beta gate</strong></td><td>RSI(14) &gt; 70</td><td>Overbought RSI boosts/dampens 1w/1m confidence by beta factor</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ──────────────────── RETRAIN PIPELINE ──────────────────── -->
+    <div class="section" id="retrain">
+      <h2 class="section-title">Retrain Pipeline</h2>
+      <p><code>retrain_pipeline.py</code> orchestrates the full retrain cycle and enforces a <strong>champion/challenger gate</strong> — new artifacts are only promoted if they beat the currently deployed model by a required margin. This prevents a bad retrain from silently degrading production.</p>
+
+      <div class="gate-wrapper">
+        <div class="gate-row">
+          <div class="gate-box champion">
+            <div class="g-icon">🏆</div>
+            <div class="g-label">Champion</div>
+            <div class="g-sub">Deployed model<br>(currently serving)</div>
+          </div>
+          <div class="gate-arrow">⚔️</div>
+          <div class="gate-box challenger">
+            <div class="g-icon">🥊</div>
+            <div class="g-label">Challenger</div>
+            <div class="g-sub">Newly trained<br>artifact</div>
+          </div>
+          <div class="gate-arrow">→</div>
+          <div class="gate-decision">
+            <div class="g-label">Gate Check</div>
+            <div class="g-sub">Δdir_acc ≥ 0.5 pp<br>OR<br>Δspearman ≥ 1.0 pp</div>
+          </div>
+        </div>
+        <div class="gate-below">
+          <div class="gate-box promoted">
+            <div class="g-icon">✅</div>
+            <div class="g-label">Promoted</div>
+            <div class="g-sub">Challenger becomes<br>new champion</div>
+          </div>
+          <div class="gate-box rejected">
+            <div class="g-icon">❌</div>
+            <div class="g-label">Rejected</div>
+            <div class="g-sub">Champion retained<br>exit code 1</div>
+          </div>
+        </div>
+      </div>
+
+      <h3 class="subsection-title">Gate Thresholds</h3>
+      <div class="two-col">
+        <div class="card">
+          <h4>Short-Term Gate (<code>ST_DIR_MIN_DELTA</code>)</h4>
+          <p>Challenger must improve 5d or 21d direction accuracy by at least <strong>0.5 percentage points</strong> over the champion's held-out validation set.</p>
+        </div>
+        <div class="card">
+          <h4>Ranker Gate (<code>RANKER_SPEARMAN_MIN</code>)</h4>
+          <p>Challenger ranker must improve Spearman rank correlation by at least <strong>1.0 percentage point</strong> on the held-out validation set.</p>
+        </div>
+      </div>
+
+      <h3 class="subsection-title">Exit Codes</h3>
+      <table class="horizon-table">
+        <thead><tr><th>Code</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><code>0</code></td><td>Success — new model promoted (or dry-run completed)</td></tr>
+          <tr><td><code>1</code></td><td>Challenger lost — champion retained, no artifact swapped</td></tr>
+          <tr><td><code>2</code></td><td>Error — build or training failure</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="subsection-title">Full Step-by-Step Retrain Commands</h3>
+      <p>Run these from the project root (<code>/var/www/html/moneygoup</code>) with the virtualenv active. Each step must succeed before the next.</p>
+
+      <div class="card" style="margin-bottom:.75rem;">
+        <h4>Step 1 — Build the ranking dataset (GREEN feature snapshots)</h4>
+        <p>Pulls OHLCV + macro history for the entire universe and writes snapshot rows to <code>ranking_training_snapshots</code>. Use <code>--incremental</code> for weekly maintenance; omit it for a full historical rebuild.</p>
+        <pre><span style="color:#94a3b8"># Incremental refresh — only snapshots since the last stored date</span>
+python3 scripts/build_ranking_dataset.py --cadence weekly --incremental
+
+<span style="color:#94a3b8"># Full rebuild over a specific window</span>
+python3 scripts/build_ranking_dataset.py \
+  --start 2023-01-01 --end 2026-08-01 \
+  --cadence weekly
+
+<span style="color:#94a3b8"># Smoke test — 5 tickers, dry-run (no DB writes)</span>
+python3 scripts/build_ranking_dataset.py \
+  --tickers AAPL,MSFT,NVDA,JPM,XOM \
+  --dry-run</pre>
+      </div>
+
+      <div class="card" style="margin-bottom:.75rem;">
+        <h4>Step 2 — Extend 63d / 126d labels</h4>
+        <p>Adds forward-return labels to the snapshot rows built in Step 1. Idempotent — skips rows that already have non-NULL labels. Recent rows stay NULL (the future hasn't happened yet).</p>
+        <pre><span style="color:#94a3b8"># Normal run — compute missing labels</span>
+python3 scripts/extend_long_term_labels.py
+
+<span style="color:#94a3b8"># Force-recompute all labels (e.g. after a data correction)</span>
+python3 scripts/extend_long_term_labels.py --recompute
+
+<span style="color:#94a3b8"># Subset — useful for debugging a specific ticker</span>
+python3 scripts/extend_long_term_labels.py --tickers AAPL,MSFT</pre>
+      </div>
+
+      <div class="card" style="margin-bottom:.75rem;">
+        <h4>Step 3 — Train the long-term CS model directly</h4>
+        <p>Trains the 2-output MLP on rows with non-NULL <code>forward_return_63d</code> / <code>forward_return_126d</code>. Writes <code>models/long_term_cs_v2.pkl</code> and <code>models/long_term_cs_v2_manifest.json</code>.</p>
+        <pre><span style="color:#94a3b8"># Standard training run (80/20 time-split, default hidden layers 256/128/64)</span>
+python3 scripts/train_long_term_cs.py
+
+<span style="color:#94a3b8"># Custom hidden layers and more iterations</span>
+python3 scripts/train_long_term_cs.py \
+  --hidden 256,128,64 \
+  --max-iter 300 \
+  --val-frac 0.2 \
+  --seed 42</pre>
+        <div class="note" style="margin-top:.75rem;">The hidden layer default in <code>train_long_term_cs.py</code> is <code>256,128,64</code> — wider than the per-ticker long-term MLP (192/96/48) because the CS model trains across the full universe and needs more capacity.</div>
+      </div>
+
+      <div class="card" style="margin-bottom:.75rem;">
+        <h4>Step 4 — Full orchestrated retrain via retrain_pipeline.py</h4>
+        <p>Runs all steps (build dataset → extend labels → train → gate check → promote) in one command. Use this for scheduled maintenance.</p>
+        <pre><span style="color:#94a3b8"># Full retrain — all models, incremental dataset refresh</span>
+python3 scripts/retrain_pipeline.py --target all --incremental
+
+<span style="color:#94a3b8"># Long-term CS model only</span>
+python3 scripts/retrain_pipeline.py --target long_term --incremental
+
+<span style="color:#94a3b8"># Short-term model + ranker only</span>
+python3 scripts/retrain_pipeline.py --target short_term
+python3 scripts/retrain_pipeline.py --target ranker
+
+<span style="color:#94a3b8"># Dry-run — full pipeline but don't overwrite any artifacts</span>
+python3 scripts/retrain_pipeline.py --target all --dry-run
+
+<span style="color:#94a3b8"># Skip freshness check (force retrain even if data looks stale)</span>
+python3 scripts/retrain_pipeline.py --target all --no-freshness-check</pre>
+      </div>
+
+      <div class="info">After a successful retrain, the new artifact is automatically promoted to <code>models/long_term_cs_v2.pkl</code>. Restart the prediction service (or let the next <code>deepmoney_sync</code> run spawn a fresh Python process) to pick up the new model — it loads once at process start.</div>
+    </div>
+
+    <!-- ──────────────────── RANKER ──────────────────── -->
+    <div class="section" id="ranker">
+      <h2 class="section-title">Ranker Model</h2>
+      <p>Alongside the price-prediction MLP, a <strong>LightGBM ranker</strong> scores relative attractiveness across the universe. It powers the Discovery feed — surfacing the most promising tickers regardless of whether you hold them.</p>
+
+      <div class="two-col">
+        <div class="card">
+          <h4>LambdaRank variant (<code>ranker_v1_lambdarank.txt</code>)</h4>
+          <ul>
+            <li>Optimizes for correct relative ordering (rank correlation), not absolute price level</li>
+            <li>Training label: 20-day forward return percentile within snapshot cohort</li>
+            <li>Feature set: identical GREEN set from <code>ranker_features.py</code></li>
+            <li>Produces <code>raw_score</code>, <code>rank_pct</code> (0–100)</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>Regression variant (<code>ranker_v1_regression.txt</code>)</h4>
+          <ul>
+            <li>Predicts the 20-day forward return directly</li>
+            <li>Used as a sanity check / ensemble blending signal</li>
+            <li>Less stable than LambdaRank for ranking tasks but easier to interpret</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3 class="subsection-title">Ranker Inference (<code>score_ranker.py</code>)</h3>
+      <p>Called once per <code>deepmoney_sync</code> run by <code>analyzer.ts</code>. Receives a batch of all candidate tickers in a single JSON payload (not one-per-ticker), computes GREEN features for each, scores them with LightGBM, percentile-ranks within the batch, and returns <code>{ticker, raw_score, rank_pct, hist_vol_30}</code> to stdout.</p>
+      <div class="info">The batch-per-run design is critical: ranking is inherently relative. Calling the ranker per-ticker would produce a score that can't be compared across tickers.</div>
+    </div>
+
+    <!-- ──────────────────── BACKTESTING ──────────────────── -->
+    <div class="section" id="backtest">
+      <h2 class="section-title">Backtesting &amp; Validation</h2>
+      <p>Backtesting runs the prediction pipeline against historical dates, then resolves the outcomes when those horizon dates arrive. The database stores every prediction and every resolved actual so you can measure accuracy over any time window.</p>
+
+      <div class="metric-row">
+        <div class="metric-card">
+          <div class="m-val">72%</div>
+          <div class="m-label">Direction Accuracy</div>
+          <div class="m-note">CS v2 pre-isolation test</div>
+        </div>
+        <div class="metric-card">
+          <div class="m-val">96.6%</div>
+          <div class="m-label">1w Price Accuracy</div>
+          <div class="m-note">WMT Apr–Jul 2026 backtest</div>
+        </div>
+        <div class="metric-card">
+          <div class="m-val">92.8%</div>
+          <div class="m-label">1m Price Accuracy</div>
+          <div class="m-note">same backtest window</div>
+        </div>
+        <div class="metric-card">
+          <div class="m-val">±10pp</div>
+          <div class="m-label">Band Coverage Target</div>
+          <div class="m-note">80% of actuals within 6m band</div>
+        </div>
+      </div>
+
+      <div class="note">
+        <strong>Key metric:</strong> Direction accuracy (did the model predict up/down correctly?) is the headline number. A model that's consistently 5% off in magnitude but correct on direction is far more useful than one that nails magnitude but gets direction wrong.
+      </div>
+
+      <h3 class="subsection-title">How It Works</h3>
+
+      <!-- Backtest flow diagram -->
+      <div style="background:#0f172a;border-radius:12px;padding:1.5rem 2rem;margin:1rem 0;">
+        <div class="pipeline" style="flex-wrap:wrap;gap:.5rem;justify-content:center;">
+          <div class="pipe-step" style="min-width:120px;">
+            <span class="icon">📅</span>
+            <span class="label">Historical Date</span>
+            <span class="sublabel">as-of snapshot</span>
+          </div>
+          <div class="animated-arrow"></div>
+          <div class="pipe-step active" style="min-width:120px;">
+            <span class="icon">🔬</span>
+            <span class="label">Simulate Prediction</span>
+            <span class="sublabel">backtest_predictions.py</span>
+          </div>
+          <div class="animated-arrow"></div>
+          <div class="pipe-step" style="min-width:120px;">
+            <span class="icon">💾</span>
+            <span class="label">Log to DB</span>
+            <span class="sublabel">prediction_tracking</span>
+          </div>
+          <div class="animated-arrow"></div>
+          <div class="pipe-step active" style="min-width:120px;">
+            <span class="icon">⏱️</span>
+            <span class="label">Wait for Horizon</span>
+            <span class="sublabel">T+5 / T+21 / T+63 / T+126</span>
+          </div>
+          <div class="animated-arrow"></div>
+          <div class="pipe-step" style="min-width:120px;">
+            <span class="icon">✅</span>
+            <span class="label">Resolve</span>
+            <span class="sublabel">resolve_predictions.py</span>
+          </div>
+          <div class="animated-arrow"></div>
+          <div class="pipe-step active" style="min-width:120px;">
+            <span class="icon">📊</span>
+            <span class="label">Measure Accuracy</span>
+            <span class="sublabel">backtest_results.py</span>
+          </div>
+        </div>
+      </div>
+
+      <h3 class="subsection-title">Step 1 — Run the backtest</h3>
+      <p><code>backtest_predictions.py</code> time-travels to a historical date, fetches data as-of that date, runs the full prediction pipeline, and writes results to <code>prediction_tracking</code> (or prints them if <code>--dry-run</code> is set).</p>
+      <div class="card" style="margin-bottom:.75rem;">
+        <h4>Single date snapshot</h4>
+        <pre><span style="color:#94a3b8"># Simulate what the model would have predicted for AAPL on a specific date</span>
+python3 scripts/backtest_predictions.py AAPL --as-of-date 2026-01-15
+
+<span style="color:#94a3b8"># Multiple tickers, single date, dry-run (no DB writes)</span>
+python3 scripts/backtest_predictions.py AAPL MSFT NVDA \
+  --as-of-date 2026-03-01 --dry-run</pre>
+      </div>
+      <div class="card" style="margin-bottom:.75rem;">
+        <h4>Rolling window — one prediction per trading day</h4>
+        <pre><span style="color:#94a3b8"># Run weekly predictions from a start date forward (up to --max-days)</span>
+python3 scripts/backtest_predictions.py WMT \
+  --from-date 2026-04-01 --max-days 90
+
+<span style="color:#94a3b8"># Step through a date range at 30-day intervals (default step)</span>
+python3 scripts/backtest_predictions.py AAPL TSLA \
+  --start-date 2025-06-01 --end-date 2026-06-01 \
+  --step-days 30
+
+<span style="color:#94a3b8"># Weekly steps — denser coverage, more DB rows</span>
+python3 scripts/backtest_predictions.py MSFT \
+  --start-date 2025-01-01 --end-date 2026-01-01 \
+  --step-days 7
+
+<span style="color:#94a3b8"># Overwrite existing rows for a re-run after a model change</span>
+python3 scripts/backtest_predictions.py AAPL \
+  --from-date 2026-01-01 --max-days 180 --overwrite</pre>
+      </div>
+
+      <h3 class="subsection-title">Step 2 — Resolve predictions</h3>
+      <p><code>resolve_predictions.py</code> fetches actual closing prices for matured horizon dates and stamps <code>actual_price</code>, <code>actual_direction</code>, and <code>was_correct</code> on the <code>prediction_tracking</code> rows. Run it daily in production; run it manually after a backtest to immediately score results.</p>
+      <pre><span style="color:#94a3b8"># Resolve all unresolved predictions across all horizons (1w, 1m, 3m, 6m)</span>
+python3 scripts/resolve_predictions.py</pre>
+      <div class="note">Rows with a horizon date in the future are skipped — they'll be resolved automatically once the date arrives. Run this again after each horizon matures.</div>
+
+      <h3 class="subsection-title">Step 3 — Measure accuracy</h3>
+
+      <div class="card" style="margin-bottom:.75rem;">
+        <h4>Per-ticker accuracy (<code>backtest_results.py</code>)</h4>
+        <p>Queries <code>prediction_tracking</code> and computes direction accuracy, price MAE, and confidence calibration broken down by horizon and ticker. Prints a console report.</p>
+        <pre><span style="color:#94a3b8"># All resolved predictions, all model versions</span>
+python3 scripts/backtest_results.py
+
+<span style="color:#94a3b8"># Filter to a specific model version</span>
+python3 scripts/backtest_results.py --model-version v3split
+
+<span style="color:#94a3b8"># Require at least 30 resolved rows to report a segment (raise bar for signal)</span>
+python3 scripts/backtest_results.py --min-runs 30
+
+<span style="color:#94a3b8"># 10 confidence calibration bins instead of default 5</span>
+python3 scripts/backtest_results.py --conf-bins 10</pre>
+      </div>
+
+      <div class="card" style="margin-bottom:.75rem;">
+        <h4>Universe-wide aggregation (<code>aggregated_backtest_results.py</code>)</h4>
+        <p>Same metrics as <code>backtest_results.py</code> but aggregated across all tickers — direction accuracy by sector, market-cap bucket, and per-symbol outlier scan. Best used after a full-universe backtest run.</p>
+        <pre><span style="color:#94a3b8"># Default run — all tickers, all horizons</span>
+python3 scripts/aggregated_backtest_results.py
+
+<span style="color:#94a3b8"># Filter to a model version</span>
+python3 scripts/aggregated_backtest_results.py --model-version v3split
+
+<span style="color:#94a3b8"># Per-symbol outlier scan on 1m horizon (finds tickers the model gets wrong most)</span>
+python3 scripts/aggregated_backtest_results.py --outlier-horizon 1m
+
+<span style="color:#94a3b8"># Limit outlier scan to large-cap tickers only</span>
+python3 scripts/aggregated_backtest_results.py \
+  --outlier-horizon 1w --market-cap-bucket large</pre>
+      </div>
+    </div>
+
+    <!-- ──────────────────── REPORTS ──────────────────── -->
+    <div class="section" id="reports">
+      <h2 class="section-title">Generating Reports</h2>
+      <p>Two scripts generate HTML reports that can be opened in a browser. Both write to the <code>doc/</code> directory.</p>
+
+      <h3 class="subsection-title">Per-Ticker Accuracy Report (<code>report_backtest.py</code>)</h3>
+      <p>Generates a self-contained HTML file showing predicted vs. actual prices, direction accuracy, and confidence calibration for one or more specific tickers. Output goes to <code>stdout</code> or a file you specify.</p>
+
+      <div class="card" style="margin-bottom:.75rem;">
+        <pre><span style="color:#94a3b8"># Report for a single ticker — print to terminal</span>
+python3 scripts/report_backtest.py AAPL
+
+<span style="color:#94a3b8"># Write to a file in doc/</span>
+python3 scripts/report_backtest.py AAPL \
+  -o doc/backtest_aapl.html
+
+<span style="color:#94a3b8"># Multi-ticker report</span>
+python3 scripts/report_backtest.py AAPL MSFT NVDA TSLA \
+  -o doc/backtest_faang.html
+
+<span style="color:#94a3b8"># Filter by model version</span>
+python3 scripts/report_backtest.py WMT \
+  --model-version v3split \
+  -o doc/backtest_wmt_v3split.html
+
+<span style="color:#94a3b8"># Filter to a specific date range</span>
+python3 scripts/report_backtest.py AAPL \
+  --from-date 2026-01-01 --to-date 2026-06-30 \
+  -o doc/backtest_aapl_h1_2026.html</pre>
+      </div>
+
+      <h3 class="subsection-title">Multi-Ticker Comparison Report (<code>backtest_comparison.py</code>)</h3>
+      <p>The richest report. Picks a random (or specified) set of tickers, runs backtests for each over a date range, and generates an interactive HTML report with Chart.js price charts, accuracy tables, and side-by-side horizon comparisons. Always writes to <code>doc/backtest_comparison.html</code>.</p>
+
+      <div class="card" style="margin-bottom:.75rem;">
+        <pre><span style="color:#94a3b8"># Random tickers, default date range (last ~3 months, weekly steps)</span>
+python3 scripts/backtest_comparison.py
+
+<span style="color:#94a3b8"># Specific tickers</span>
+python3 scripts/backtest_comparison.py \
+  --tickers AAPL MSFT NVDA TSLA JPM XOM
+
+<span style="color:#94a3b8"># Diverse market-cap mix — auto-picks small/mid/large tickers</span>
+python3 scripts/backtest_comparison.py \
+  --diverse-caps --diverse-count 12
+
+<span style="color:#94a3b8"># Custom date range with 7-day step (denser backtest)</span>
+python3 scripts/backtest_comparison.py \
+  --tickers AAPL MSFT NVDA \
+  --start-date 2026-01-01 --end-date 2026-08-01 \
+  --step-days 7
+
+<span style="color:#94a3b8"># Last 90 days (--days shorthand, overrides --start-date)</span>
+python3 scripts/backtest_comparison.py \
+  --days 90 --tickers AAPL NVDA TSLA
+
+<span style="color:#94a3b8"># Skip running new predictions — regenerate report from existing DB data only</span>
+python3 scripts/backtest_comparison.py \
+  --tickers AAPL MSFT --skip-backtest</pre>
+      </div>
+
+      <div class="success">
+        Output is always at <code>doc/backtest_comparison.html</code>. Open it in a browser: <code>file:///var/www/html/moneygoup/doc/backtest_comparison.html</code>
+      </div>
+
+      <h3 class="subsection-title">Typical End-to-End Workflow</h3>
+      <p>Here's the full sequence to run a fresh backtest and generate a comparison report for a specific set of tickers:</p>
+      <div class="card">
+        <pre><span style="color:#94a3b8"># 1. Run the backtest (writes predictions to DB)</span>
+python3 scripts/backtest_predictions.py AAPL MSFT NVDA TSLA \
+  --start-date 2026-01-01 --end-date 2026-08-01 \
+  --step-days 7 --overwrite
+
+<span style="color:#94a3b8"># 2. Resolve all matured horizons (stamps actual_price + was_correct)</span>
+python3 scripts/resolve_predictions.py
+
+<span style="color:#94a3b8"># 3. Check per-ticker accuracy in the terminal</span>
+python3 scripts/backtest_results.py --model-version v3split
+
+<span style="color:#94a3b8"># 4. Generate the comparison HTML report</span>
+python3 scripts/backtest_comparison.py \
+  --tickers AAPL MSFT NVDA TSLA \
+  --start-date 2026-01-01 --end-date 2026-08-01 \
+  --step-days 7 --skip-backtest
+
+<span style="color:#94a3b8"># 5. Generate individual per-ticker reports if needed</span>
+python3 scripts/report_backtest.py AAPL MSFT NVDA TSLA \
+  --from-date 2026-01-01 --to-date 2026-08-01 \
+  -o doc/backtest_tech4_2026.html
+
+<span style="color:#94a3b8"># 6. Universe-wide aggregation (if you ran many tickers)</span>
+python3 scripts/aggregated_backtest_results.py \
+  --outlier-horizon 1w</pre>
+      </div>
+    </div>
+
+    <!-- ──────────────────── VERSION HISTORY ──────────────────── -->
+    <div class="section" id="versions">
+      <h2 class="section-title">Version History</h2>
+
+      <div class="timeline">
+        <div class="tl-item">
+          <div class="tl-dot"></div>
+          <h4>CS v2 — Direction Classifier + Conviction Gate</h4>
+          <span class="tl-date">2026-07-17 (current)</span>
+          <p>Added LogisticRegression classifier head (C=5.0) trained on non-neutral rows. Exposes <code>direction_confidence_1w</code> and <code>direction_signal_1w</code>. Conviction gate at 0.55/0.45 threshold. DB migrations: <code>predicted_price_1w_raw</code> + <code>direction_confidence_1w</code> columns. Naive retrain on new universe showed 72% → 53% regression — traced to universe drift, not the model itself.</p>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot" style="background:#3b82f6;box-shadow:0 0 0 2px #3b82f6;"></div>
+          <h4>ETF Ceiling Fix + Bellwether ETF Signal v3</h4>
+          <span class="tl-date">2026-07-09</span>
+          <p>Fixed ETF ceiling saturation in the short-term model. Introduced bellwether ETF signals (QQQ, XLK sector ETF) as additional macro features. Bearish 1y bias noted — due to training window skewing toward 2022 bear market data.</p>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot" style="background:#8b5cf6;box-shadow:0 0 0 2px #8b5cf6;"></div>
+          <h4>CS v1 — Initial Cross-Sectional Model</h4>
+          <span class="tl-date">2026-06 (retired)</span>
+          <p>First cross-sectional 2-output MLP trained on <code>ranking_training_snapshots</code> with 63d/126d labels. Replaced the 6-month training-from-scratch approach. Feature set: <code>green_v3</code>. No direction classifier head.</p>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot" style="background:#f59e0b;box-shadow:0 0 0 2px #f59e0b;"></div>
+          <h4>Model v5 (predict_weighted_analysis)</h4>
+          <span class="tl-date">2026-05 (current orchestrator)</span>
+          <p>v4 base minus VIX-conf multiplier, plus Fix A/B/C/D post-hoc adjustment stack. Fixes E/F/G were tested but showed no improvement and were reverted. v5 is the current default and the stable production fix stack.</p>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot" style="background:#64748b;box-shadow:0 0 0 2px #64748b;"></div>
+          <h4>Regime-Aware Model + 3m Horizon</h4>
+          <span class="tl-date">2026-04</span>
+          <p>Added GMM regime detector (K=3/4). Added 3-month horizon as separate long-term output head. Shifted long-term model from [6m, 1y] heads to [3m, 6m] heads — better label coverage since 3m data matures faster.</p>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot" style="background:#64748b;box-shadow:0 0 0 2px #64748b;"></div>
+          <h4>v3-Split Architecture</h4>
+          <span class="tl-date">2026-03</span>
+          <p>Separated monolithic 4-output MLP into short-term (1w/1m) and long-term (3m/6m) models with distinct feature masks. Eliminated cross-horizon noise contamination. Short-term hidden layers shrunk to 96/48/24; long-term widened to 192/96/48.</p>
+        </div>
+      </div>
+    </div>
+
+    <footer style="margin-top:4rem;padding-top:2rem;border-top:1px solid #e2e8f0;color:#94a3b8;font-size:.82rem;">
+      GrowMyStocks Model Training Reference &copy; 2026 &mdash; Last updated 2026-08-27
+    </footer>
+  </main>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const nav = document.querySelector('.top-bar-nav');
+  const leftBtns = document.querySelectorAll('.nav-scroll-left');
+  const rightBtns = document.querySelectorAll('.nav-scroll-right');
+  if (!nav || !leftBtns.length || !rightBtns.length) return;
+  const scrollAmount = 150;
+  function checkScroll() {
+    leftBtns.forEach(btn => btn.style.visibility = nav.scrollLeft > 0 ? 'visible' : 'hidden');
+    const hasRight = nav.scrollLeft < nav.scrollWidth - nav.clientWidth - 10;
+    rightBtns.forEach(btn => btn.style.visibility = hasRight ? 'visible' : 'hidden');
+  }
+  leftBtns.forEach(btn => btn.addEventListener('click', () => { nav.scrollBy({left: -scrollAmount, behavior:'smooth'}); setTimeout(checkScroll,100); }));
+  rightBtns.forEach(btn => btn.addEventListener('click', () => { nav.scrollBy({left: scrollAmount, behavior:'smooth'}); setTimeout(checkScroll,100); }));
+  nav.addEventListener('scroll', checkScroll);
+  window.addEventListener('resize', checkScroll);
+  setTimeout(checkScroll, 100);
+
+  // Sidebar active link on scroll
+  const sidebarLinks = document.querySelectorAll('.sidebar a[href^="#"]');
+  const sections = document.querySelectorAll('.section');
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        sidebarLinks.forEach(l => l.classList.toggle('active', l.getAttribute('href') === '#' + e.target.id));
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  sections.forEach(s => observer.observe(s));
+});
+</script>
+<script src="doc-ai-widget.js"></script>
+</body>
+</html>

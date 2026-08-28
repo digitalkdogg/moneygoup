@@ -457,7 +457,8 @@ def main() -> int:
                 fund_row = nearest_before(fundamentals_map.get(sym, []), snap)
                 sec_row  = nearest_before(sector_medians_map.get(sector, []), snap)
                 feats = compute_features(snap, ohlcv, sec_close, macro_series, wb_y,
-                                          fundamentals=fund_row, sector_medians=sec_row)
+                                          fundamentals=fund_row, sector_medians=sec_row,
+                                          sector=sector)
                 if feats is None:
                     continue
                 per_snap.setdefault(snap, []).append((stock_id, sym, snap, feats, fwd))

@@ -23,8 +23,29 @@ import numpy as np
 import pandas as pd
 
 
-FEATURE_SET_VERSION = "green_v3"
+FEATURE_SET_VERSION = "green_v4"
 MIN_HISTORY_ROWS = 260
+
+# ── Sector one-hot encoding ──────────────────────────────────────────────────
+# Canonical sector labels (yfinance strings). Unknown / _default = reference
+# category (all zeros). Column name = 'sector_' + label.lower().replace(' ', '_').
+SECTOR_LABELS: List[str] = [
+    'Basic Materials', 'Communication Services', 'Consumer Cyclical',
+    'Consumer Defensive', 'Energy', 'Financial Services', 'Healthcare',
+    'Industrials', 'Real Estate', 'Technology', 'Utilities',
+]
+SECTOR_COLUMNS: List[str] = [
+    'sector_' + s.lower().replace(' ', '_') for s in SECTOR_LABELS
+]
+# ETF ticker → canonical sector (used by score_ranker.py for reverse lookup)
+ETF_TO_SECTOR: Dict[str, str] = {
+    'XLK':  'Technology',            'XLV':  'Healthcare',
+    'XLF':  'Financial Services',    'XLY':  'Consumer Cyclical',
+    'XLP':  'Consumer Defensive',    'XLI':  'Industrials',
+    'XLE':  'Energy',                'XLU':  'Utilities',
+    'XLRE': 'Real Estate',           'XLB':  'Basic Materials',
+    'XLC':  'Communication Services',
+}
 
 # GREEN feature column order — must match training-time ordering exactly,
 # because LightGBM consumes positional feature arrays.
@@ -70,6 +91,8 @@ FEATURE_COLUMNS: List[str] = [
     "FCF_Yield", "PriceToSales", "EV_EBITDA", "EV_Revenue",
     "CashRunwayQuarters", "Unprofitable_Flag",
     "PE_LogRatio_vs_Sector", "PS_LogRatio_vs_Sector", "FCF_Yield_vs_Sector",
+    # ── green_v4: sector one-hot (reference = Unknown/_default = all zeros) ──
+    *SECTOR_COLUMNS,
 ]
 
 
@@ -141,6 +164,7 @@ def compute_features(
     wb_year: Dict[str, float],
     fundamentals: Optional[Dict[str, float]] = None,
     sector_medians: Optional[Dict[str, float]] = None,
+    sector: Optional[str] = None,
 ) -> Optional[Dict[str, Optional[float]]]:
     """Compute the GREEN feature vector as-of `snap`.
 
@@ -420,5 +444,9 @@ def compute_features(
             f["FCF_Yield_vs_Sector"] = None
     except (TypeError, ValueError):
         f["FCF_Yield_vs_Sector"] = None
+
+    # Sector one-hot (green_v4) — reference category Unknown/_default = all zeros
+    for label, col in zip(SECTOR_LABELS, SECTOR_COLUMNS):
+        f[col] = 1.0 if sector == label else 0.0
 
     return {col: f.get(col) for col in FEATURE_COLUMNS}

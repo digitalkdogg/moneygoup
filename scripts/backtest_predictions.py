@@ -122,6 +122,61 @@ MACRO_SYMBOLS = {
 
 _macro_cache = {}
 _info_cache = {}
+# Point-in-time PE snapshots keyed by ticker → list of (snapshot_date_str, log_ratio)
+# sorted ascending by date. Populated lazily on first query per ticker so a
+# multi-date backtest fires exactly one query per ticker, not one per as-of.
+_snapshot_pe_cache: dict[str, list[tuple[str, float | None]]] = {}
+_SNAPSHOT_FEATURE_SET = os.getenv('PIT_FEATURE_SET_VERSION', 'green_v3')
+
+
+def _load_snapshot_pe_history(conn, ticker: str) -> list[tuple[str, float | None]]:
+    """Pull all PE_LogRatio_vs_Sector snapshots for a ticker (once per run) and
+    cache the sorted list so subsequent as-of lookups are in-memory bisects.
+    Returns [] if the ticker has no snapshots — callers should fall back to None."""
+    if ticker in _snapshot_pe_cache:
+        return _snapshot_pe_cache[ticker]
+    rows: list[tuple[str, float | None]] = []
+    if conn is not None:
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT snapshot_date,
+                       JSON_EXTRACT(features_json, '$.PE_LogRatio_vs_Sector')
+                FROM ranking_training_snapshots
+                WHERE ticker = %s AND feature_set_version = %s
+                ORDER BY snapshot_date ASC
+                """,
+                (ticker, _SNAPSHOT_FEATURE_SET),
+            )
+            for snap_date, log_ratio in cur.fetchall():
+                # snap_date comes back as a date object; JSON_EXTRACT gives a
+                # string that may be 'null'.
+                try:
+                    val = float(log_ratio) if log_ratio not in (None, 'null') else None
+                except (TypeError, ValueError):
+                    val = None
+                rows.append((snap_date.isoformat() if hasattr(snap_date, 'isoformat') else str(snap_date), val))
+            cur.close()
+        except Exception as exc:
+            print(f"  [warn] snapshot PE lookup failed for {ticker}: {exc}")
+    _snapshot_pe_cache[ticker] = rows
+    return rows
+
+
+def get_pe_log_ratio_at(conn, ticker: str, as_of: str) -> float | None:
+    """Nearest snapshot on or before as_of. Uses bisect on the cached ascending
+    list. Weekly cadence means the returned value is up to ~7 days stale
+    (vastly better than 'today's live PE applied retroactively', though not
+    strictly point-in-time daily)."""
+    hist = _load_snapshot_pe_history(conn, ticker)
+    if not hist:
+        return None
+    import bisect
+    idx = bisect.bisect_right([d for d, _ in hist], as_of) - 1
+    if idx < 0:
+        return None
+    return hist[idx][1]
 
 
 def get_db_connection():
@@ -197,10 +252,13 @@ def _return_over_trailing(series, as_of_str, days):
 
 
 def compute_prediction_details(ticker: str, hist_trunc: list, macro_full: dict,
-                               as_of: str, sector: str) -> dict:
+                               as_of: str, sector: str, conn=None) -> dict:
     """Compute all Category 1-4 detail fields at the as-of date. Point-in-time
     for price/macro series; snapshot proxy for info dict fields (see docstring
-    on get_ticker_info)."""
+    on get_ticker_info). PE is pulled point-in-time from
+    ranking_training_snapshots (log-ratio vs sector) when conn is provided;
+    the raw pe_ratio + sector_median_pe columns are intentionally NULL for
+    backtests because yfinance only exposes today's snapshot."""
     info = get_ticker_info(ticker)
     closes = [r['close'] for r in hist_trunc]
     volumes = [r['volume'] for r in hist_trunc]
@@ -247,9 +305,15 @@ def compute_prediction_details(ticker: str, hist_trunc: list, macro_full: dict,
     treasury3m = _last_close_on_or_before(macro_full.get('treasury3m') or [], as_of)
     yield_curve_spread = (treasury10y - treasury3m) if (treasury10y is not None and treasury3m is not None) else None
 
-    # --- Category 4: fundamentals snapshot proxy ---
-    pe_ratio = info.get('trailingPE') or info.get('forwardPE')
-    sector_median_pe = SECTOR_MEDIANS.get(sector, SECTOR_MEDIANS['_default'])['peRatio']
+    # --- Category 4: fundamentals point-in-time ---
+    # pe_ratio + sector_median_pe are intentionally NULL for backtests — yfinance
+    # only exposes today's snapshot, so populating them retroactively would leak
+    # future data. The pe_log_ratio_vs_sector below is the point-in-time signal
+    # pulled from ranking_training_snapshots and is what valuation_bucket()
+    # thresholds against in backtest_results.py.
+    pe_ratio = None
+    sector_median_pe = None
+    pe_log_ratio_vs_sector = get_pe_log_ratio_at(conn, ticker, as_of)
     revenue_growth = info.get('revenueGrowth')
     profit_margin = info.get('profitMargins')
 
@@ -271,6 +335,7 @@ def compute_prediction_details(ticker: str, hist_trunc: list, macro_full: dict,
         'rsi_14d':               rsi_14d,
         'pe_ratio':              pe_ratio,
         'sector_median_pe':      sector_median_pe,
+        'pe_log_ratio_vs_sector': pe_log_ratio_vs_sector,
         'revenue_growth':        revenue_growth,
         'profit_margin':         profit_margin,
     }
@@ -281,7 +346,8 @@ DETAIL_COLUMNS = [
     'avg_daily_volume_30d', 'dividend_yield',
     'vix_at_prediction', 'spy_return_30d', 'yield_curve_spread', 'sector_etf_return_30d',
     'stock_return_30d', 'stock_return_90d', 'realized_vol_30d', 'pct_from_52w_high', 'rsi_14d',
-    'pe_ratio', 'sector_median_pe', 'revenue_growth', 'profit_margin',
+    'pe_ratio', 'sector_median_pe', 'pe_log_ratio_vs_sector', 'revenue_growth', 'profit_margin',
+    'mlp_1w_base_raw', 'traj_anchor_1w_base', 'short_term_path',
 ]
 
 
@@ -697,7 +763,10 @@ def backtest_one(ticker: str, as_of: str, full_hist: list, macro_full: dict, con
 
     print("  " + " | ".join(summary_bits))
 
-    details = compute_prediction_details(ticker, hist_trunc, macro_full, as_of, sector)
+    details = compute_prediction_details(ticker, hist_trunc, macro_full, as_of, sector, conn=conn)
+    details['mlp_1w_base_raw']      = result.get('mlp_1w_base_raw')
+    details['traj_anchor_1w_base']  = result.get('traj_anchor_1w_base')
+    details['short_term_path']      = result.get('short_term_path')
 
     if dry_run:
         print(f"  [dry-run] would upsert prediction_records + prediction_details for {ticker} {as_of}")
