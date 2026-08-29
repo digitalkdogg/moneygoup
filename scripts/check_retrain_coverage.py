@@ -149,7 +149,7 @@ def threshold_crossed(stats: dict) -> tuple[bool, str]:
 
 def fire_retrain(log: logging.Logger) -> bool:
     """Invoke retrain_pipeline.py --incremental. Return True on success."""
-    cmd = [PYTHON, str(SCRIPT_DIR / "retrain_pipeline.py"), "--incremental"]
+    cmd = [PYTHON, str(SCRIPT_DIR / "train" / "retrain_pipeline.py"), "--incremental"]
     log.info("Firing retrain: %s", " ".join(cmd))
     try:
         result = subprocess.run(cmd, cwd=str(SCRIPT_DIR), timeout=7200)

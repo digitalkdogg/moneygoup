@@ -33,7 +33,7 @@ from dotenv import load_dotenv
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
 SCRIPT_DIR   = Path(__file__).resolve().parent
-PROJECT_ROOT = SCRIPT_DIR.parent
+PROJECT_ROOT = SCRIPT_DIR.parent.parent
 MODELS_DIR   = PROJECT_ROOT / "models"
 LOGS_DIR     = PROJECT_ROOT / "logs"
 LOGS_DIR.mkdir(exist_ok=True)
@@ -421,7 +421,7 @@ def main() -> None:
 
     # ── Step 1: Build snapshots ────────────────────────────────────────────────
     if args.target in ("all", "short_term", "ranker"):
-        cmd = [PYTHON, "build_ranking_dataset.py"]
+        cmd = [PYTHON, str(SCRIPT_DIR.parent / "build_ranking_dataset.py")]
         if args.incremental:
             last_date = get_last_snapshot_date(log)
             if last_date:

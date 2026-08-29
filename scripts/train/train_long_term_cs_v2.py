@@ -101,7 +101,7 @@ def compute_regime_weights(df: pd.DataFrame, max_weight: float = 4.0) -> np.ndar
     return weights.astype(np.float32)
 
 SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+PROJECT_ROOT = os.path.dirname(os.path.dirname(SCRIPT_DIR))
 MODELS_DIR   = Path(PROJECT_ROOT) / 'models'
 MODELS_DIR.mkdir(exist_ok=True)
 load_dotenv(os.path.join(PROJECT_ROOT, '.env.local'))

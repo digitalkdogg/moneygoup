@@ -178,7 +178,7 @@ def load_model_and_manifest(model_path: Path, manifest_path: Path) -> Tuple[lgb.
     if not model_path.exists():
         raise FileNotFoundError(
             f"Model not found at {model_path}. "
-            f"Run scripts/train_ranker.py first."
+            f"Run scripts/train/train_ranker.py first."
         )
     booster = lgb.Booster(model_file=str(model_path))
 

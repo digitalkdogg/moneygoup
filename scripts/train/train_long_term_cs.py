@@ -43,7 +43,7 @@ import mysql.connector
 from ranker_features import FEATURE_COLUMNS as CS_FEATURE_COLUMNS, FEATURE_SET_VERSION
 
 SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+PROJECT_ROOT = os.path.dirname(os.path.dirname(SCRIPT_DIR))
 MODELS_DIR   = Path(PROJECT_ROOT) / 'models'
 MODELS_DIR.mkdir(exist_ok=True)
 load_dotenv(os.path.join(PROJECT_ROOT, '.env.local'))
