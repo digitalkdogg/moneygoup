@@ -688,6 +688,10 @@ body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgro
 .pr{{display:block;font-size:0.72rem;color:#64748b;margin-top:2px}}
 .drill-btn{{background:#166534;color:#bbf7d0;border:none;border-radius:6px;padding:4px 12px;font-size:0.72rem;font-weight:700;cursor:pointer;white-space:nowrap}}
 .drill-btn:hover{{background:#14532d}}
+/* ── Expand all ── */
+.table-toolbar{{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}}
+.expand-btn{{background:#1e293b;color:#94a3b8;border:1px solid #334155;border-radius:6px;padding:5px 14px;font-size:0.72rem;font-weight:700;cursor:pointer;transition:background .15s}}
+.expand-btn:hover{{background:#243347;color:#e2e8f0}}
 /* ── Detail panel ── */
 .detail-cell{{padding:0!important;background:#111827}}
 .detail-inner{{padding:16px 20px;overflow-x:auto}}
@@ -730,7 +734,10 @@ body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgro
   <div class="section-label">Average accuracy across all tickers</div>
   <div class="h-grid">{h_cards}</div>
 
-  <div class="section-label" style="margin-top:36px">Results by ticker</div>
+  <div class="table-toolbar" style="margin-top:36px">
+    <div class="section-label" style="margin:0">Results by ticker</div>
+    <button class="expand-btn" id="expand-all-btn" onclick="toggleAll()">Expand All</button>
+  </div>
   <table class="ticker-table">
     <thead>
       <tr>
@@ -766,6 +773,25 @@ function toggleDetail(ticker) {{
     row.style.display = 'none';
     cell.innerHTML = '';
   }}
+}}
+
+const TICKERS = Object.keys(DATA);
+let _allExpanded = false;
+function toggleAll() {{
+  _allExpanded = !_allExpanded;
+  for (const ticker of TICKERS) {{
+    const row  = document.getElementById('detail-' + ticker);
+    const cell = document.getElementById('detail-cell-' + ticker);
+    if (!row) continue;
+    if (_allExpanded) {{
+      row.style.display = '';
+      if (!cell.innerHTML) cell.innerHTML = buildDetail(ticker);
+    }} else {{
+      row.style.display = 'none';
+      cell.innerHTML = '';
+    }}
+  }}
+  document.getElementById('expand-all-btn').textContent = _allExpanded ? 'Collapse All' : 'Expand All';
 }}
 
 function fmt(v, suffix) {{
