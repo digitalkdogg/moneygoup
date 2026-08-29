@@ -445,8 +445,8 @@ def find_actual(ohlcv: list, target: date) -> Optional[float]:
 def dir_correct(pred: float, actual: float, price_at: float, deadband: float) -> Optional[bool]:
     pred_pct = (pred    - price_at) / price_at
     act_pct  = (actual  - price_at) / price_at
-    if abs(pred_pct) < deadband:
-        return None          # prediction in deadband — exclude from direction calc
+    if abs(pred_pct) < deadband and abs(act_pct) < deadband:
+        return None          # both moves flat — genuinely ambiguous, exclude
     pred_dir = 1 if pred_pct > 0 else -1
     act_dir  = 1 if act_pct  > 0 else -1
     return pred_dir == act_dir
