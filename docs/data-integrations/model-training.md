@@ -196,31 +196,24 @@ The **deadband** in v4/v5: `|Δ| < 2%` → `predicted_direction_{h} = 'neutral'`
 ## Backtesting
 
 ```bash
-python3 scripts/backtest_predictions.py
+# Specific tickers
+python3 scripts/backtest/run_backtest.py AAPL MSFT --period "6 months" --step 7
+
+# Random diverse batch (mix of sectors + large/mid/small cap)
+python3 scripts/backtest/run_backtest.py --random 20 --period "6 months" --step 7
+
+# Reproducible run with seed
+python3 scripts/backtest/run_backtest.py --random 15 --seed 42 --period "1 year" --step 14
 ```
 
-**Backtested horizons:** `[('1w',7), ('1m',30), ('3m',91), ('6m',180)]`
-
-The backtest script imports the chosen model module at runtime (controlled by `USE_LEGACY_PREDICTION_MODEL`). It tags the persisted `model_version` column as `'legacy'` or `'v3split'` (optional override via `MODEL_VERSION_TAG` env var for A/B testing different CS versions).
+**Backtested horizons:** 1w, 1m, 3m, 6m
 
 **Key accuracy metrics:**
-- **Direction accuracy** — did the model correctly predict up vs. down? (headline metric)
-- **Proximity accuracy** — how close was the price prediction?
-- **High accuracy count** — predictions that were within 5% of actual
+- **Direction accuracy** — did the model correctly predict up vs. down? (headline metric; deadband: ±0.5% for 1w, ±2% for 1m, ±5% for 3m/6m)
+- **Proximity accuracy** — `max(0, (1 - |actual - pred| / actual) * 100)%`
+- **MAPE** — mean absolute percentage error
 
----
-
-## Generating Reports
-
-```bash
-python3 scripts/generate_backtest_report.py
-```
-
-Produces HTML reports in `reports/` directory. Reports include:
-- Per-horizon accuracy curves
-- Confusion matrices for direction prediction
-- Feature importance from the ranker model
-- Residual analysis
+The backtest produces a self-contained HTML report in `reports/` with a 4-horizon summary and per-ticker drill-down detail table.
 
 ---
 
@@ -228,10 +221,10 @@ Produces HTML reports in `reports/` directory. Reports include:
 
 1. Regenerate training dataset: `python3 scripts/build_ranking_dataset.py`
 2. Verify dataset size and quality (check `ranking_training_snapshots` row count)
-3. Train the CS model: `python3 scripts/train_long_term_cs_v2.py`
+3. Train the CS model: `python3 scripts/train/train_long_term_cs_v2.py`
 4. Rename artifact: `mv models/long_term_cs_new.pkl models/long_term_cs_v6.pkl`
 5. Update `CS_MODEL_VERSION=v6` in `.env.local`
-6. Run backtest to verify no regression: `python3 scripts/backtest_predictions.py`
+6. Run backtest to verify no regression: `python3 scripts/backtest/run_backtest.py --random 20 --period "6 months" --step 7`
 7. Deploy and monitor direction accuracy in `ModelAccuracyWidget`
 
 !!! warning "Direction accuracy regression risk"

@@ -249,7 +249,7 @@ def main():
         print(f'[train_short_term_cs] Running purged walk-forward CV (n_folds=5, embargo=21d)...')
         folds = cv_utils.purged_walk_forward_cv(df, n_folds=5, embargo_days=21)
 
-        # Deadband mirrors backtest_predictions.DIRECTION_DEADBAND_PCT['1w'] = 2%.
+        # Deadband mirrors run_backtest.DIRECTION_DEADBAND['1w'] = 0.5%.
         # Predictions within ±2% return are 'neutral' — excluded from the metric
         # rather than counted wrong, matching how backtest scores live predictions.
         _DEADBAND_5D  = 0.02
@@ -505,7 +505,7 @@ def main():
         r2_21d  = float(r2_score(Y_val[:, 1], Y_pred[:, 1]))
 
         # Direction accuracy — both gross (plain sign-match) and deadbanded
-        # (matches backtest_predictions.DIRECTION_DEADBAND_PCT logic).
+        # (matches run_backtest.DIRECTION_DEADBAND logic).
         _DEADBAND_5D  = 0.02
         _DEADBAND_21D = 0.02
         gross_5d  = float(np.mean(np.sign(Y_pred[:, 0]) == np.sign(Y_val[:, 0])))

@@ -32,7 +32,7 @@ v5 adjustments (in order):
   reverted. The comments here reflect the stable v5 A/B/C/D-only stack.
 
 The CLI contract and output JSON schema are preserved (callers:
-scripts/update_predictions.py, scripts/backtest/backtest_predictions.py,
+scripts/update_predictions.py, scripts/backtest/run_backtest.py,
 src/utils/stockDataHelper.ts, src/app/api/prediction/[ticker]/route.ts).
 
 CONSTRAINT: no yfinance/requests/urllib/httpx — all data via --input_file.
