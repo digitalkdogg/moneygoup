@@ -9,7 +9,7 @@ Run:
     python3 scripts/test_analyst_sentiment.py
 """
 import os, sys
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from analyst_sentiment import (
     compute_analyst_sentiment,

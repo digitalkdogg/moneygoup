@@ -6,7 +6,7 @@
 //
 // Run: OLLAMA_ENABLED=true node --experimental-strip-types scripts/test_ticker_verifier.mjs
 
-import { verifyTickerMatch, isOllamaEnabled, checkOllamaReachable } from '../src/utils/ollamaTicker.ts';
+import { verifyTickerMatch, isOllamaEnabled, checkOllamaReachable } from '../../src/utils/ollamaTicker.ts';
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 

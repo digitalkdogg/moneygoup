@@ -26,7 +26,7 @@ from datetime import date, datetime, timedelta
 
 # ── Path setup ───────────────────────────────────────────────────────────────
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, SCRIPT_DIR)
+sys.path.insert(0, os.path.dirname(SCRIPT_DIR))
 
 try:
     from predict_weighted_analysis import (

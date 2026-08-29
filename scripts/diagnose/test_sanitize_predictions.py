@@ -13,7 +13,7 @@ import os
 import sys
 
 # Allow running from anywhere
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Bounds computed from _sanitize_predictions internals (Z_CAP=3.0, vol=0.30 default)
 _1W_BOUND = max(7.0,  3.0 * 0.30 * math.sqrt(5   / 252) * 100)  # ~12.68%

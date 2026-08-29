@@ -42,16 +42,16 @@ import mysql.connector
 import pandas as pd
 from dotenv import load_dotenv
 
+SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(SCRIPT_DIR))
+sys.path.insert(0, os.path.dirname(SCRIPT_DIR))
+
 from ollama_client import (
     is_ollama_enabled,
     check_ollama_reachable,
     generate_json,
     load_prompt,
 )
-
-
-SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 if os.path.exists(os.path.join(PROJECT_ROOT, '.env.production')):
     load_dotenv(os.path.join(PROJECT_ROOT, '.env.production'))
 load_dotenv(os.path.join(PROJECT_ROOT, '.env.local'), override=True)

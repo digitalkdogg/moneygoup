@@ -5,7 +5,7 @@
 //
 // Run: node scripts/test_ollama_pass.mjs
 
-import { resolveIndustryTickers } from '../src/utils/industryTickerMap.ts';
+import { resolveIndustryTickers } from '../../src/utils/industryTickerMap.ts';
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
 const OLLAMA_MODEL    = process.env.OLLAMA_MODEL    || 'llama3.2';
