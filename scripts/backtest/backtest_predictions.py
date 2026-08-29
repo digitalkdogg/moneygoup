@@ -50,7 +50,7 @@ import yfinance as yf
 from dotenv import load_dotenv
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+PROJECT_ROOT = os.path.dirname(os.path.dirname(SCRIPT_DIR))
 
 if os.path.exists(os.path.join(PROJECT_ROOT, '.env.production')):
     load_dotenv(os.path.join(PROJECT_ROOT, '.env.production'))
@@ -58,6 +58,10 @@ if os.path.exists(os.path.join(PROJECT_ROOT, '.env.production')):
 # does — otherwise .env.production's USE_LEGACY=true silently routes to the
 # legacy baseline model instead of v3-split.
 load_dotenv(os.path.join(PROJECT_ROOT, '.env.local'), override=True)
+
+# scripts/ is the parent of this file's directory (scripts/backtest/) — add it
+# so predict_weighted_analysis and predict_weighted_analysis_baseline are importable.
+sys.path.insert(0, os.path.dirname(SCRIPT_DIR))
 
 # Model toggle — honors the same env var the /api/prediction/[ticker] route
 # uses, so a single switch in .env.local controls both the UI prediction

@@ -42,7 +42,7 @@ from ollama_client import (
 )
 
 
-REPORTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'reports')
+REPORTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'reports')
 # Longer timeout than the shared default — narratives read a bigger prompt
 # (per-ticker table of horizons + optional prior-week block) and produce
 # a longer response than yes/no or extraction tasks. 60s is generous but

@@ -31,7 +31,7 @@ import mysql.connector
 from dotenv import load_dotenv
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+PROJECT_ROOT = os.path.dirname(os.path.dirname(SCRIPT_DIR))
 if os.path.exists(os.path.join(PROJECT_ROOT, '.env.production')):
     load_dotenv(os.path.join(PROJECT_ROOT, '.env.production'))
 load_dotenv(os.path.join(PROJECT_ROOT, '.env.local'), override=True)
