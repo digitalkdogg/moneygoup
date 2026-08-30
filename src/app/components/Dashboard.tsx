@@ -139,12 +139,11 @@ export default function Dashboard() {
   }, [fetchPortfolioData]);
 
   useEffect(() => {
-    fetchPortfolioData(); // Fetch portfolio data when component mounts
-    
-    // Update market status and date
+    fetchPortfolioData();
+
     const status = getMarketStatus();
     setMarketStatus(status.isOpen ? 'open' : 'closed');
-    
+
     const now = new Date();
     setTodayDate(new Intl.DateTimeFormat('en-US', {
       month: 'short',
@@ -152,6 +151,48 @@ export default function Dashboard() {
       year: 'numeric'
     }).format(now));
   }, [fetchPortfolioData]);
+
+  // Scroll restoration — two-part fix:
+  // Next.js scrolls the window to 0 before React unmounts, so cleanup-based
+  // saving always captures scrollY=0. Instead we save on every click (capture
+  // phase fires before router.push) and restore via two paths:
+  //   • popstate  — dashboard was cached/alive (never unmounted)
+  //   • loadingPortfolio false — dashboard was unmounted and remounted fresh
+  useEffect(() => {
+    const KEY = 'dashboard-scroll-y';
+
+    const saveScroll = () => {
+      if (window.scrollY > 0) {
+        sessionStorage.setItem(KEY, String(Math.round(window.scrollY)));
+      }
+    };
+    // Capture phase: fires before React onClick handlers so scrollY is still correct
+    document.addEventListener('click', saveScroll, true);
+
+    const restoreScroll = () => {
+      const saved = sessionStorage.getItem(KEY);
+      if (!saved) return;
+      sessionStorage.removeItem(KEY);
+      const y = parseInt(saved, 10);
+      requestAnimationFrame(() => window.scrollTo({ top: y, behavior: 'instant' }));
+    };
+    // popstate fires when user presses Back while Dashboard is still mounted
+    window.addEventListener('popstate', restoreScroll);
+
+    return () => {
+      document.removeEventListener('click', saveScroll, true);
+      window.removeEventListener('popstate', restoreScroll);
+    };
+  }, []);
+
+  // Restore after data loads when Dashboard was fully unmounted + remounted
+  useEffect(() => {
+    if (loadingPortfolio) return;
+    const saved = sessionStorage.getItem('dashboard-scroll-y');
+    if (!saved) return;
+    sessionStorage.removeItem('dashboard-scroll-y');
+    requestAnimationFrame(() => window.scrollTo({ top: parseInt(saved, 10), behavior: 'instant' }));
+  }, [loadingPortfolio]);
 
   // const handleRowClick = (symbol: string) => {
   //   router.push(`/search/${symbol}`);
