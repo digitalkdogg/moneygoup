@@ -8,9 +8,9 @@ export interface GpsMetrics {
   analystUpside?: number;       // fraction (0.30 = 30% upside), max 12 pts
   revenueGrowthPct?: number;    // fraction, max 12 pts
   earningsGrowthPct?: number;   // fraction, max 12 pts
-  technicalScore?: number;      // raw signal total, range -14..+14, max 20 pts
+  technicalScore?: number;      // raw signal total, range -14..+14, max 17 pts
   recommendationKey?: string;   // 'strongBuy' | 'buy' | 'hold' | 'underperform' | 'sell', max 9 pts
-  priceChange52w?: number;      // fraction, max 10 pts
+  priceChange52w?: number;      // fraction, max 8 pts
 }
 
 export interface GpsPredictionResult {
@@ -19,8 +19,8 @@ export interface GpsPredictionResult {
 }
 
 /** Inputs to GPS-Light — the tier-1 score computed before Monte Carlo runs.
- *  Replaces the 25-pt MLP block (mlpUpside + mlpConfidence) with a 20-pt
- *  ranker block and a 5-pt vol-based uncertainty proxy. The other 75 points
+ *  Replaces the 30-pt MLP block (mlpUpside + mlpConfidence) with a 25-pt
+ *  ranker block and a 5-pt vol-based uncertainty proxy. The other 70 points
  *  (rev/earn/tech/analyst/52w) are identical to GPS-Full. */
 export interface GpsLightInput {
   /** Ranker percentile within today's universe, 0..1. Higher = better. */
@@ -31,14 +31,14 @@ export interface GpsLightInput {
 }
 
 export interface GpsBreakdown {
-  mlpUpside: number;        // 20 pts — ML predicted change
+  mlpUpside: number;        // 25 pts — ML predicted change
   mlpConfidence: number;    // 5 pts  — AI model confidence
   revenueGrowth: number;    // 12 pts
   earningsGrowth: number;   // 12 pts
-  technicalSignal: number;  // 20 pts — normalized technical score
+  technicalSignal: number;  // 17 pts — normalized technical score
   analystUpside: number;    // 12 pts
   analystConsensus: number; // 9 pts
-  priceChange52w: number;   // 10 pts
+  priceChange52w: number;   // 8 pts
 }
 
 export interface GpsResult {
@@ -128,7 +128,7 @@ export function adjustGpsForHorizon(
   confidenceScoreForHorizon?: number,
 ): { breakdown: GpsBreakdown; score: number } {
   const predictionMax = process.env.GPS_PREDICTION_MAX ? parseFloat(process.env.GPS_PREDICTION_MAX) : 3
-  const newMlpUpside = Math.min(Math.max(predictedChangePctForHorizon / predictionMax, -1), 1) * 20
+  const newMlpUpside = Math.min(Math.max(predictedChangePctForHorizon / predictionMax, -1), 1) * 25
   const newMlpConfidence = confidenceScoreForHorizon != null
     ? (Math.min(Math.max(confidenceScoreForHorizon, 0), 100) / 100) * 5
     : breakdown.mlpConfidence
@@ -154,7 +154,7 @@ export function adjustGpsForHorizon(
  *
  * Structurally identical to calculateGpsScore (same 8-component, 100-pt
  * breakdown) except the top-25 MLP block is replaced:
- *   - mlpUpside (20 pts)     → rankerScorePct × 20
+ *   - mlpUpside (25 pts)     → rankerScorePct × 25
  *   - mlpConfidence (5 pts)  → low-vol proxy: 5 × (1 - HistVol_30 / volCeiling)
  *
  * Components 3-8 (revenue, earnings, technical, analyst×2, 52w) are unchanged
@@ -167,9 +167,9 @@ export function adjustGpsForHorizon(
  * gps_score_type='light' alongside the score to disambiguate semantics.
  */
 export function calculateGpsLight(metrics: GpsMetrics, light: GpsLightInput): GpsResult {
-  // 1. Ranker upside (20 pts) — model's percentile rank within today's universe.
+  // 1. Ranker upside (25 pts) — model's percentile rank within today's universe.
   const rankerPct = Math.min(Math.max(light.rankerScorePct ?? 0, 0), 1);
-  const m1 = rankerPct * 20;
+  const m1 = rankerPct * 25;
 
   // 2. Volatility-based confidence proxy (5 pts).
   // Low realized vol = high "confidence" that the cheap signals are stable.
@@ -184,10 +184,10 @@ export function calculateGpsLight(metrics: GpsMetrics, light: GpsLightInput): Gp
   const m3 = Math.min(Math.max((metrics.revenueGrowthPct || 0) / 0.3, 0), 1) * 12;
   const m4 = Math.min(Math.max((metrics.earningsGrowthPct || 0) / 0.25, 0), 1) * 12;
   const rawTech = metrics.technicalScore ?? 0;
-  const m5 = Math.min(Math.max((rawTech + 14) / 28, 0), 1) * 20;
+  const m5 = Math.min(Math.max((rawTech + 14) / 28, 0), 1) * 17;
   const m6 = Math.min(Math.max((metrics.analystUpside || 0) / 0.3, 0), 1) * 12;
   const m7 = CONSENSUS_POINTS[metrics.recommendationKey ?? ''] ?? CONSENSUS_POINTS.hold;
-  const m8 = Math.min(Math.max((metrics.priceChange52w || 0) / 0.2, 0), 1) * 10;
+  const m8 = Math.min(Math.max((metrics.priceChange52w || 0) / 0.2, 0), 1) * 8;
 
   const totalGps = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8;
 
@@ -211,8 +211,8 @@ export function calculateGpsLight(metrics: GpsMetrics, light: GpsLightInput): Gp
 export function calculateGpsScore(metrics: GpsMetrics, prediction: GpsPredictionResult): GpsResult {
   const predictionMax = process.env.GPS_PREDICTION_MAX ? parseFloat(process.env.GPS_PREDICTION_MAX) : 3
 
-  // 1. ML Predicted Change 1m (20 pts)
-  const m1 = Math.min(Math.max((prediction.predictedChangePct1m || 0) / predictionMax, -1), 1) * 20
+  // 1. ML Predicted Change 1m (25 pts)
+  const m1 = Math.min(Math.max((prediction.predictedChangePct1m || 0) / predictionMax, -1), 1) * 25
 
   // 2. AI Model Confidence (5 pts — linear, 100 = 5 pts)
   const m2 = ((prediction.confidenceScore || 0) / 100) * 5
@@ -223,9 +223,9 @@ export function calculateGpsScore(metrics: GpsMetrics, prediction: GpsPrediction
   // 4. Earnings Growth YoY (12 pts — full at 25%)
   const m4 = Math.min(Math.max((metrics.earningsGrowthPct || 0) / 0.25, 0), 1) * 12
 
-  // 5. Technical Signal (20 pts — raw -14..+14 mapped linearly to 0..20)
+  // 5. Technical Signal (17 pts — raw -14..+14 mapped linearly to 0..17)
   const rawTech = metrics.technicalScore ?? 0
-  const m5 = Math.min(Math.max((rawTech + 14) / 28, 0), 1) * 20
+  const m5 = Math.min(Math.max((rawTech + 14) / 28, 0), 1) * 17
 
   // 6. Analyst Price Target Upside (12 pts — full at 30%)
   const m6 = Math.min(Math.max((metrics.analystUpside || 0) / 0.3, 0), 1) * 12
@@ -233,8 +233,8 @@ export function calculateGpsScore(metrics: GpsMetrics, prediction: GpsPrediction
   // 7. Analyst Consensus Rating (9 pts)
   const m7 = CONSENSUS_POINTS[metrics.recommendationKey ?? ''] ?? CONSENSUS_POINTS.hold
 
-  // 8. 52-Week Momentum (10 pts — full at 20%)
-  const m8 = Math.min(Math.max((metrics.priceChange52w || 0) / 0.2, 0), 1) * 10
+  // 8. 52-Week Momentum (8 pts — full at 20%)
+  const m8 = Math.min(Math.max((metrics.priceChange52w || 0) / 0.2, 0), 1) * 8
 
   const totalGps = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8
 
