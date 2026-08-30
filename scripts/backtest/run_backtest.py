@@ -692,6 +692,9 @@ body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgro
 .table-toolbar{{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}}
 .expand-btn{{background:#1e293b;color:#94a3b8;border:1px solid #334155;border-radius:6px;padding:5px 14px;font-size:0.72rem;font-weight:700;cursor:pointer;transition:background .15s}}
 .expand-btn:hover{{background:#243347;color:#e2e8f0}}
+/* ── Export button ── */
+.export-btn{{background:transparent;color:#bbf7d0;border:1px solid #22c55e;border-radius:6px;padding:5px 14px;font-size:0.72rem;font-weight:700;cursor:pointer;transition:background .15s;white-space:nowrap}}
+.export-btn:hover{{background:#166534}}
 /* ── Detail panel ── */
 .detail-cell{{padding:0!important;background:#111827}}
 .detail-inner{{padding:16px 20px;overflow-x:auto}}
@@ -727,6 +730,7 @@ body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgro
     <span>🧮 {n_total} total predictions</span>
     <span>🗓 generated {today}</span>
   </div>
+  <button class="export-btn" onclick="exportJson()">⬇ Export JSON</button>
 </div>
 
 <div class="container">
@@ -815,6 +819,41 @@ function dirBadge(v) {{
 
 const HORIZONS = ['1w','1m','3m','6m'];
 const H_LABELS = {{'1w':'1W','1m':'1M','3m':'3M','6m':'6M'}};
+
+function exportJson() {{
+  const meta = {{
+    generated:            '{today}',
+    start_date:           '{start_date}',
+    end_date:             '{today}',
+    step_days:            {step_days},
+    tickers:              {json.dumps(list(results.keys()))},
+    n_tickers:            {n_tickers},
+    n_total_predictions:  {n_total},
+    model_variant:        '{os.getenv("MODEL_VARIANT","v5")}',
+    overall_summary:      {json.dumps(overall)},
+    horizons:             ['1w','1m','3m','6m'],
+    direction_deadbands:  {json.dumps(DIRECTION_DEADBAND)},
+    notes: [
+      'dir_acc: % of predictions where predicted direction matched actual direction (deadband-filtered)',
+      'avg_prox: average proximity accuracy — max(0, 1 - |predicted-actual|/actual) * 100',
+      'mape: mean absolute percentage error',
+      'conf_Xh: model confidence score 0-100 for that horizon',
+      'prox_Xh: proximity accuracy for that prediction point',
+      'err_Xh: (predicted-actual)/actual*100 signed error',
+      'dir_Xh: true=correct direction, false=wrong, null=deadband/no-data'
+    ]
+  }};
+  const payload = {{ meta, tickers: DATA }};
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {{type: 'application/json'}});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'backtest_{today}.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}}
 
 function buildDetail(ticker) {{
   const td = DATA[ticker];
