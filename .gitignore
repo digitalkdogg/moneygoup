@@ -34,3 +34,4 @@ tsconfig.tsbuildinfo
 .claude/scheduled_tasks.lock
 models/short_term_cs_v1.pkl
 models/short_term_cs_v2.pkl
+/venv312

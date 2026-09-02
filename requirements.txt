@@ -8,6 +8,11 @@ python-dotenv
 Pillow
 beautifulsoup4
 playwright
+# Used by scripts/prediction_service.py to serve the warm PM2 prediction
+# worker over HTTP (see ecosystem.config.js).
+fastapi
+pydantic
+uvicorn[standard]
 # Offline-only (used by scripts/build_ranking_dataset.py).
 # Do NOT import in scripts/predict_weighted_analysis.py — that script
 # is in the hot inference path and must remain network-free.

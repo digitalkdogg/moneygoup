@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "prestart": "[ -f .git-commit-info ] && cat .git-commit-info || echo \"Git commit: $(git rev-parse --short HEAD 2>/dev/null || echo unknown) - $(git log -1 --pretty=%s 2>/dev/null || echo unknown)\"",
-    "dev": "fuser -k 7861/tcp 2>/dev/null; fuser -k 8000/tcp 2>/dev/null; venv/bin/python3 scripts/prediction_service.py & mkdocs serve -q --dev-addr=127.0.0.1:8000 & next dev -p 3001",
+    "dev": "fuser -k 7861/tcp 2>/dev/null; fuser -k 8000/tcp 2>/dev/null; venv312/bin/python3 scripts/prediction_service.py & mkdocs serve -q --dev-addr=127.0.0.1:8000 & next dev -p 3001 --webpack",
     "build": "next build",
     "start": "next start -p 3001",
     "lint": "next lint",

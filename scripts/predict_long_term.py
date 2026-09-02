@@ -135,7 +135,10 @@ def _predict_with_cs_model(
     # ── Monte Carlo: perturb the feature vector + re-predict ─────────────────
     # Noise scale: per-feature std from the last 20 days of feat_df, scaled
     # down so the perturbation stays modest.
-    recent_window = feat_df[cs_feature_cols].tail(20).fillna(0.0).values.astype(np.float32)
+    # reindex (not plain __getitem__) so any cs_feature_cols entry missing
+    # from feat_df — e.g. an unrecognized sector string — defaults to 0
+    # instead of raising "not in index".
+    recent_window = feat_df.reindex(columns=cs_feature_cols, fill_value=0.0).tail(20).fillna(0.0).values.astype(np.float32)
     if recent_window.shape[0] >= 5:
         feature_stds = recent_window.std(axis=0)
     else:

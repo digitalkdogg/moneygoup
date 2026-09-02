@@ -46,6 +46,17 @@ import sys
 import json
 import argparse
 
+# long_term_cs_v2 was trained with 11 one-hot sector columns (see
+# models/long_term_cs_v2_manifest.json) that build_features()/extended_feature_cols
+# don't produce — that pipeline only serves the short/medium-term model.
+# Names match Yahoo Finance's 11 sector strings, lowercased with underscores.
+SECTOR_ONEHOT_COLS = [
+    'sector_basic_materials', 'sector_communication_services',
+    'sector_consumer_cyclical', 'sector_consumer_defensive', 'sector_energy',
+    'sector_financial_services', 'sector_healthcare', 'sector_industrials',
+    'sector_real_estate', 'sector_technology', 'sector_utilities',
+]
+
 # Variant gate for A/B testing the post-hoc fix stack.
 #   'v3'  — no post-hoc adjustments (bare model output; useful as a control)
 #   'v4'  — VIX-conf mult + direction deadband + RSI-beta gate + 90d drift
@@ -307,6 +318,13 @@ def predict(ticker, input_data):
     n_features = len(extended_feature_cols)
     raw = feat_df.values.astype(np.float32)
     raw = np.nan_to_num(raw, nan=0.0, posinf=0.0, neginf=0.0)
+
+    # Added after `raw`/n_features are finalized so it can't perturb the
+    # short/medium-term model's input shape — predict_long_term() looks these
+    # up by name via cs_feature_cols, not positionally against extended_feature_cols.
+    _sector_col = 'sector_' + str(stock_metrics.get('sector', '') or '').strip().lower().replace(' ', '_')
+    for _col in SECTOR_ONEHOT_COLS:
+        feat_df[_col] = 1.0 if _col == _sector_col else 0.0
 
     current_regime_idx = int(regime_labels[-1])
     current_regime_probs = regime_probs[-1].tolist() if regime_probs is not None else (regime_labels[-1:] == np.arange(k)).astype(float).tolist()

@@ -1,3 +1,13 @@
+const fs = require('fs');
+
+// venv312 (Python 3.12, via pyenv) if present — not venv/ — because
+// tensorflow-cpu has no 3.14 wheel yet and predict_long_term() needs it.
+// Falls back to venv/ so environments that haven't created venv312
+// (e.g. Bluehost) keep running unchanged.
+const pythonScript = fs.existsSync(`${__dirname}/venv312/bin/python3`)
+  ? 'venv312/bin/python3'
+  : 'venv/bin/python3';
+
 module.exports = {
   apps: [
     {
@@ -13,7 +23,7 @@ module.exports = {
       // Memory: one warm worker holds ~600-800 MB steady-state (TF + sklearn +
       // model artifacts). Raise max_memory_restart if OOM-killed.
       name: 'prediction-service',
-      script: 'venv/bin/python3',
+      script: pythonScript,
       args: 'scripts/prediction_service.py',
       cwd: '/var/www/html/moneygoup',
       interpreter: 'none',
