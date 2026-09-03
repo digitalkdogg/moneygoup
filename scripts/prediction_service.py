@@ -42,8 +42,14 @@ sys.path.insert(0, SCRIPT_DIR)
 
 from dotenv import load_dotenv
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+# Base config lives in .env; .env.production and .env.local (in that order)
+# layer on top as overrides, matching Next.js's own env-file precedence.
+# Previously this only loaded .env.production/.env.local, so on any machine
+# without those two files (e.g. local dev with just a plain .env) the
+# service silently ran with every model-version env var defaulted.
+load_dotenv(os.path.join(PROJECT_ROOT, '.env'))
 if os.path.exists(os.path.join(PROJECT_ROOT, '.env.production')):
-    load_dotenv(os.path.join(PROJECT_ROOT, '.env.production'))
+    load_dotenv(os.path.join(PROJECT_ROOT, '.env.production'), override=True)
 load_dotenv(os.path.join(PROJECT_ROOT, '.env.local'), override=True)
 
 import threading

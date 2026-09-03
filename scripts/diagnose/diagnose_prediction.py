@@ -36,8 +36,14 @@ PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 sys.path.insert(0, SCRIPT_DIR)
 
 from dotenv import load_dotenv
+# Base config lives in .env; .env.production and .env.local (in that order)
+# layer on top as overrides, matching Next.js's own env-file precedence.
+# Previously this only loaded .env.production/.env.local, so a machine with
+# just a plain .env (e.g. local dev) silently defaulted every model-version
+# env var (CS_MODEL_VERSION, ST_CS_MODEL_VERSION, ...).
+load_dotenv(os.path.join(PROJECT_ROOT, '.env'))
 if os.path.exists(os.path.join(PROJECT_ROOT, '.env.production')):
-    load_dotenv(os.path.join(PROJECT_ROOT, '.env.production'))
+    load_dotenv(os.path.join(PROJECT_ROOT, '.env.production'), override=True)
 load_dotenv(os.path.join(PROJECT_ROOT, '.env.local'), override=True)
 
 # ── Colour helpers ───────────────────────────────────────────────────────────
