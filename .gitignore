@@ -35,3 +35,4 @@ tsconfig.tsbuildinfo
 models/short_term_cs_v1.pkl
 models/short_term_cs_v2.pkl
 /venv312
+/logs
