@@ -1,10 +1,13 @@
 const fs = require('fs');
 
-// venv312 (Python 3.12, via pyenv) if present — not venv/ — because
+// Prefer, in order: venv313 (Python 3.13, matches Bluehost's venv/ exactly)
+// > venv312 (Python 3.12, the original workaround) > venv/ — because
 // tensorflow-cpu has no 3.14 wheel yet and predict_long_term() needs it.
-// Falls back to venv/ so environments that haven't created venv312
-// (e.g. Bluehost) keep running unchanged.
-const pythonScript = fs.existsSync(`${__dirname}/venv312/bin/python3`)
+// Falls back to venv/ so environments that haven't created either
+// workaround venv (e.g. a fresh clone) keep running unchanged.
+const pythonScript = fs.existsSync(`${__dirname}/venv313/bin/python3`)
+  ? 'venv313/bin/python3'
+  : fs.existsSync(`${__dirname}/venv312/bin/python3`)
   ? 'venv312/bin/python3'
   : 'venv/bin/python3';
 
