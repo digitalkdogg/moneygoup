@@ -1,17 +1,20 @@
 ---
 purpose: How the GPS Score is calculated, what each component means, and how to tune it via environment variables.
-sources: src/utils/gps.ts, scripts/update_predictions.py (calculate_gps_v3), stock_gps_scores table, user_stock_predictions table
-triggers: Runs every time a prediction is saved via POST /api/prediction/save or scripts/deepmoney_sync.py
+sources: src/utils/gps.ts, scripts/update_predictions.py (calculate_gps_v3), scripts/recalibrate_gps_scores.ts, src/utils/gpsCalibration.ts, stock_gps_scores table, user_stock_predictions table
+triggers: Raw score runs every time a prediction is saved via POST /api/prediction/save or scripts/deepmoney_sync.py. Calibration runs nightly via scripts/recalibrate_gps_scores.ts, after update_predictions.py and deepmoney_sync.py finish.
 related: [scoring-thresholds.md](scoring-thresholds.md), [system-flows/prediction-pipeline.md](../system-flows/prediction-pipeline.md), [data-integrations/model-training.md](../data-integrations/model-training.md)
-last_updated: 2026-08-28
+last_updated: 2026-09-03
 ---
 
 # GPS Score (v3.0)
 
-The **GPS Score** (GrowMyStocks Prediction Score) is a 0–100 composite metric that answers: *how compelling is this stock right now?* Version 3.0 expanded from 6 to **8 components**, adding a dedicated Technical Signal component (up to 20 pts) and an Analyst Consensus Rating (up to 9 pts).
+The **GPS Score** (GrowMyStocks Prediction Score) is a 0–100 composite metric that answers: *how compelling is this stock right now?* Version 3.0 expanded from 6 to **8 components**, adding a dedicated Technical Signal component (up to 17 pts) and an Analyst Consensus Rating (up to 9 pts).
 
 !!! note "GPS v3.0 at a glance"
-    8 components, 100 points total. ML prediction (25 pts), technical signals (20 pts), fundamentals (24 pts), analyst inputs (21 pts), 52-week momentum (10 pts). TypeScript and Python implementations are kept in exact parity.
+    8 components, 100 points total. ML prediction (25 pts + 5 pts confidence), technical signals (17 pts), fundamentals (24 pts), analyst inputs (21 pts), 52-week momentum (8 pts). TypeScript and Python implementations are kept in exact parity. The *raw* additive score is then percentile-calibrated nightly — see [Percentile Calibration](#percentile-calibration-scriptsrecalibrate_gps_scorests) below — so a fixed target fraction of the universe lands above 80, independent of how the raw thresholds happen to be tuned.
+
+!!! warning "This component table was out of date until 2026-09-03"
+    The table and weights below previously documented pre-`dd07eb0` values (mlpUpside 20, technicalSignal 20, priceChange52w 10). The current production weights are mlpUpside 25, mlpConfidence 5, revenueGrowth 12, earningsGrowth 12, technicalSignal 17, analystUpside 12, analystConsensus 9, priceChange52w 8 — see `src/utils/gps.ts:34-42`. Keep this file and `src/utils/gps.ts` in lockstep going forward.
 
 ---
 
@@ -47,13 +50,16 @@ Portfolio, watchlist, and trending cards use a tighter scheme via `getCardCallLa
 ## Score Components (v3.0 — 8 components)
 
 ### Component 1 — ML Predicted Change (horizon-dependent)
-**Max 20 pts**
+**Max 25 pts**
 
 ```
-min(max(predictedChangePct1m / GPS_PREDICTION_MAX, -1), 1) × 20
+min(max(predictedChangePct1m / GPS_PREDICTION_MAX, -1), 1) × 25
 ```
 
-1-month percentage price change predicted by the MLP model. Scaled against `GPS_PREDICTION_MAX` (default **3**, production **15**). A prediction at or beyond `GPS_PREDICTION_MAX`% earns the full 20 pts. A negative prediction pushes this component below zero and sets `bearishSignal = true`. **Patched by `adjustGpsForHorizon`** when displaying for a non-1m horizon.
+1-month percentage price change predicted by the MLP model. Scaled against `GPS_PREDICTION_MAX` (default **3**, production **15**). A prediction at or beyond `GPS_PREDICTION_MAX`% earns the full 25 pts. A negative prediction pushes this component below zero and sets `bearishSignal = true`. **Patched by `adjustGpsForHorizon`** when displaying for a non-1m horizon.
+
+!!! note "Why this component saturates rarely"
+    Realistic 1-month ML predictions are typically low single digits, so at `GPS_PREDICTION_MAX = 15` most stocks only earn ~2-8 of the 25 available points here — this is the single biggest contributor to the raw score clustering well below 80. See [Percentile Calibration](#percentile-calibration-scriptsrecalibrate_gps_scorests).
 
 ### Component 2 — AI Model Confidence (horizon-dependent)
 **Max 5 pts**
@@ -83,10 +89,10 @@ min(max(earningsGrowthPct / 0.25, 0), 1) × 12
 25% YoY EPS growth earns the full 12 pts. Horizon-independent.
 
 ### Component 5 — Technical Signal
-**Max 20 pts**
+**Max 17 pts**
 
 ```
-min(max((technicalScore + 14) / 28, 0), 1) × 20
+min(max((technicalScore + 14) / 28, 0), 1) × 17
 ```
 
 Raw technical score from `calculateTechnicalIndicators()`, ranging **-14 to +14**. Mapped linearly to 0–20 pts. Computed server-side in `/api/stock_data/[ticker]/data` and returned as `technicalScore` at the payload root.
@@ -114,15 +120,15 @@ Fixed-point lookup based on Yahoo Finance `financialData.recommendationKey`:
 | `sell` | 0 |
 
 ### Component 8 — 52-Week Momentum
-**Max 10 pts**
+**Max 8 pts**
 
 ```
-min(max(priceChange52w / 0.20, 0), 1) × 10
+min(max(priceChange52w / 0.20, 0), 1) × 8
 ```
 
-Trailing 52-week price return. 20% appreciation earns the full 10 pts.
+Trailing 52-week price return. 20% appreciation earns the full 8 pts.
 
-**Total maximum: 20 + 5 + 12 + 12 + 20 + 12 + 9 + 10 = 100 pts**
+**Total maximum: 25 + 5 + 12 + 12 + 17 + 12 + 9 + 8 = 100 pts**
 
 ---
 
@@ -131,15 +137,15 @@ Trailing 52-week price return. 20% appreciation earns the full 10 pts.
 ```typescript
 const predictionMax = parseFloat(process.env.GPS_PREDICTION_MAX ?? '3')
 
-const m1 = Math.min(Math.max((prediction.predictedChangePct1m || 0) / predictionMax, -1), 1) * 20
+const m1 = Math.min(Math.max((prediction.predictedChangePct1m || 0) / predictionMax, -1), 1) * 25
 const m2 = ((prediction.confidenceScore || 0) / 100) * 5
 const m3 = Math.min(Math.max((metrics.revenueGrowthPct || 0) / 0.3, 0), 1) * 12
 const m4 = Math.min(Math.max((metrics.earningsGrowthPct || 0) / 0.25, 0), 1) * 12
 const rawTech = metrics.technicalScore ?? 0
-const m5 = Math.min(Math.max((rawTech + 14) / 28, 0), 1) * 20
+const m5 = Math.min(Math.max((rawTech + 14) / 28, 0), 1) * 17
 const m6 = Math.min(Math.max((metrics.analystUpside || 0) / 0.3, 0), 1) * 12
 const m7 = CONSENSUS_POINTS[metrics.recommendationKey ?? ''] ?? CONSENSUS_POINTS.hold
-const m8 = Math.min(Math.max((metrics.priceChange52w || 0) / 0.2, 0), 1) * 10
+const m8 = Math.min(Math.max((metrics.priceChange52w || 0) / 0.2, 0), 1) * 8
 
 const totalGps = m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8
 return {
@@ -175,6 +181,24 @@ The helper patches **both** horizon-dependent components (`mlpUpside` and `mlpCo
 2. Dashboard routes select these columns directly.
 3. Each route loads the cached baseline breakdown from `stock_gps_scores` and calls `adjustGpsForHorizon(baselineBreakdown, storedChangePct, storedConfidence)`.
 4. For legacy rows where per-horizon columns are NULL, the route falls back to a price-derived delta.
+
+---
+
+## Percentile Calibration (`scripts/recalibrate_gps_scores.ts`)
+
+The additive formula above produces a **raw** score. Empirically (measured 2026-09-03 across 1,301 stocks via `scripts/gps_distribution.ts`) the raw distribution is: mean 41.3, median 40.1, stddev 13.5, max 81.5 — only ~0.2% of stocks cleared 80. Several components (notably the 25-pt ML prediction component at `GPS_PREDICTION_MAX=15`, and the symmetric technical-signal curve) are calibrated against fundamentals that rarely occur simultaneously, so the raw ceiling sits well below the nominal 100.
+
+Rather than re-tuning those absolute thresholds by hand — which drifts again as the market/universe shifts — `scripts/recalibrate_gps_scores.ts` runs nightly, **after** `update_predictions.py` and `deepmoney_sync.py` finish writing raw scores, and remaps every stock's raw score to a **percentile-calibrated score** against the current universe:
+
+1. Read every row in `stock_gps_scores`, using `gps_breakdown.rawScore` (cached from a prior run) or the current `gps_score` (first run) as the raw input.
+2. Compute each stock's percentile rank within the full universe (`percentileRank`, mid-rank tie handling) — `src/utils/gpsCalibration.ts`.
+3. Map percentile → calibrated score via a power curve solved so `GPS_CALIBRATION_TARGET_PERCENTILE` lands exactly at `GPS_CALIBRATION_TARGET_SCORE` (`calibrateFromPercentile`) — default: the 90th percentile maps to 80, so **the top ~10% of stocks score above 80 by construction**, self-adjusting every run regardless of how the raw universe shifts.
+4. Write the calibrated score back to `gps_score`, cache `rawScore` and `calibrationPercentile` in `gps_breakdown`, append to `stock_gps_score_history` (source `gps_calibration`) when the score changed at 1dp, and best-effort sync the latest `recommended_stocks` snapshot — mirroring the write pattern in `POST /api/prediction/save`.
+
+Idempotent: because `rawScore` is cached in the breakdown on first run, re-running the script (or running it twice) always recalibrates from the same raw input — it never calibrates an already-calibrated score.
+
+!!! warning "This changes what '80' means"
+    Post-calibration, a score of 80 means "better than ~90% of the tracked universe today," not an absolute fundamentals bar. If the whole universe's raw scores shift (e.g. a bull market lifts every stock's momentum component), calibrated scores stay pinned to the same percentile shape rather than drifting upward — that's the intended trade-off for guaranteeing a stable top-decile band.
 
 ---
 
@@ -220,6 +244,8 @@ Where it surfaces:
 | `GPS_BASELINE` | `65` | Anchor for dashboard BUY/SELL/DISCOVERY card rendering; multiplied by strategy `envFloorMultiplier`. |
 | `GPS_SELL_OFFSET` | `-20` | Added to `GPS_BASELINE` to compute the SELL threshold. |
 | `GPS_DISCOVERY_OFFSET` | `+5` | Added to `GPS_BASELINE` for the DISCOVERY card threshold. |
+| `GPS_CALIBRATION_TARGET_PERCENTILE` | `0.9` | Used by `scripts/recalibrate_gps_scores.ts`. Percentile rank that should land at `GPS_CALIBRATION_TARGET_SCORE`. `0.9` = top 10% of the universe. |
+| `GPS_CALIBRATION_TARGET_SCORE` | `80` | Used by `scripts/recalibrate_gps_scores.ts`. Score that `GPS_CALIBRATION_TARGET_PERCENTILE` should map to. |
 
 ---
 
