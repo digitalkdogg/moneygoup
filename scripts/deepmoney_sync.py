@@ -1510,8 +1510,15 @@ def _print_run_summary(
     try:
         print()
         print("  GPS SCORE DISTRIBUTION")
+        _env_file = next(
+            (
+                _f for _f in (".env.production", ".env.local", ".env")
+                if os.path.exists(os.path.join(PROJECT_ROOT, _f))
+            ),
+            ".env",
+        )
         _dist = subprocess.run(
-            ["node", "--env-file=.env", "--import", "jiti/register", "scripts/gps_distribution.ts"],
+            ["node", f"--env-file={_env_file}", "--import", "jiti/register", "scripts/gps_distribution.ts"],
             cwd=PROJECT_ROOT,
             capture_output=True,
             text=True,
