@@ -272,17 +272,17 @@ ETF_HOLDING_STALENESS_HOURS=24     # cheaper, daily-only refresh
 
 ### GPS_PREDICTION_MAX
 
-Saturation point for the `mlpUpside` GPS component. Formula: `mlpUpside = clamp(predicted_change_pct / GPS_PREDICTION_MAX, -1, 1) × 25`.
+!!! note "No longer used by the main GPS formula (2026-09-05)"
+    `calculateGpsScore`/`adjustGpsForHorizon` (and their Python mirrors in `scripts/update_predictions.py`) now use `HORIZON_ML_PREDICTION_CEILING_PCT` in `src/utils/horizons.ts` — a fixed ceiling per horizon, anchored to that horizon's own empirical p75 predicted change, instead of this single env-driven constant scaled by horizon length. See [GPS Score](../business-rules/gps-score.md) for why.
 
-Lower = component saturates faster (a +3% prediction pegs the full 25 pts); higher = more discriminating across a wider range. At the production default of `15`, most realistic 1-month predictions (low single digits) only earn 2-8 of the 25 pts — this is the biggest single driver of the raw GPS score clustering well below 80; see `scripts/recalibrate_gps_scores.ts` below for how the score is rescaled to compensate.
+Still read by `src/app/api/stock_data/[ticker]/holdings/route.ts`, a separate (older, 20-pt-weight) ETF-holdings scoring path not covered by the change above — that consumer's ceiling is now inconsistent with the rest of GPS scoring, worth reconciling separately.
 
-- **Where used:** `src/utils/gps.ts` (`calculateGpsScore` and `adjustGpsForHorizon`), `scripts/update_predictions.py` (`calculate_gps_v3` mirror), `src/app/api/stock_data/[ticker]/holdings/route.ts`
-- **User impact:** The GPS number on every card that shows a GPS score — portfolio cards, watchlist cards, BUY/SELL/DISCOVERY cards, the GPS panel on `/search/[ticker]`, and the GpsBreakdownModal.
-- **Default:** `3` (code default); `15` (current production)
+- **Where used:** `src/app/api/stock_data/[ticker]/holdings/route.ts` only
+- **Default:** `3` (code default); `15`/`25` (seen in production at various times)
 
 ```bash
 GPS_PREDICTION_MAX=3      # tight 3% saturation
-GPS_PREDICTION_MAX=15     # wider 15% saturation (current prod)
+GPS_PREDICTION_MAX=15     # wider 15% saturation
 ```
 
 ### GPS_BASELINE
@@ -334,19 +334,6 @@ Read-side GPS floor for the dashboard's DeepMoney Picks widget only. Filters whi
 - **Where used:** `src/app/api/dashboard/deepmoney-picks/route.ts`
 - **User impact:** The DeepMoney Picks widget on `/dashboard` only. Does not affect BUY/SELL/DISCOVERY classification elsewhere.
 - **Default:** `65`
-
-### GPS_CALIBRATION_TARGET_PERCENTILE / GPS_CALIBRATION_TARGET_SCORE
-
-Consumed only by the nightly `scripts/recalibrate_gps_scores.ts` job. After the raw additive GPS score is computed for every stock, this job rescales it based on each stock's percentile rank within the current universe, so `GPS_CALIBRATION_TARGET_PERCENTILE` always lands at `GPS_CALIBRATION_TARGET_SCORE` — e.g. the defaults mean the 90th-percentile stock always scores 80, so the top 10% of the universe scores above 80 regardless of how the raw thresholds (`GPS_PREDICTION_MAX` etc.) happen to be tuned.
-
-- **Where used:** `scripts/recalibrate_gps_scores.ts`, `src/utils/gpsCalibration.ts`
-- **User impact:** The GPS number shown everywhere (portfolio/watchlist/BUY-SELL-DISCOVERY cards, `/search/[ticker]` GPS panel) after the nightly calibration run. Raising `GPS_CALIBRATION_TARGET_PERCENTILE` (e.g. `0.95`) shrinks the fraction of stocks that can reach `GPS_CALIBRATION_TARGET_SCORE`; lowering it (e.g. `0.8`) widens that fraction.
-- **Default:** `0.9` / `80`
-
-```bash
-GPS_CALIBRATION_TARGET_PERCENTILE=0.9   # top 10% of universe
-GPS_CALIBRATION_TARGET_SCORE=80         # ...scores above 80
-```
 
 ```bash
 GPS_DEEPMONEY_MIN_SCORE=4    # effectively disable the widget filter

@@ -140,7 +140,7 @@ export async function GET(request: NextRequest) {
             changePct = ((horizonPrice - regularMarketPrice) / regularMarketPrice) * 100;
           }
           if (changePct != null) {
-            const adjusted = adjustGpsForHorizon(baselineBreakdown, changePct, storedConfidence);
+            const adjusted = adjustGpsForHorizon(baselineBreakdown, changePct, storedConfidence, userStrategy.investment_timeframe);
             perUserGpsScore = adjusted.score;
             perUserGpsBreakdown = adjusted.breakdown;
           }

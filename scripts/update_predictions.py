@@ -48,10 +48,17 @@ def calculate_gps_v3(
     price_change_52w: float,
 ) -> dict:
     """Mirrors src/utils/gps.ts calculateGpsScore exactly."""
-    prediction_max = float(os.getenv('GPS_PREDICTION_MAX', '3'))
+    # Ceiling anchored to the 1-month horizon's own empirical p75 predicted
+    # change (2.3%) — see HORIZON_ML_PREDICTION_CEILING_PCT in
+    # src/utils/horizons.ts for how this was derived and why (replaces the
+    # old GPS_PREDICTION_MAX env constant, which was ~10x too high relative
+    # to what this model actually predicts at 1 month).
+    prediction_max = 2.3
 
-    # 1. ML Predicted Change 1m (20 pts)
-    m1 = min(max(predicted_change_pct / prediction_max, -1), 1) * 20
+    # 1. ML Predicted Change 1m (20 pts). Floors at 0 for a negative
+    # prediction, same as every other component here — a decline gets no
+    # credit rather than actively subtracting points scaled by how bad it is.
+    m1 = min(max(predicted_change_pct / prediction_max, 0), 1) * 20
     # 2. AI Model Confidence (5 pts)
     m2 = (confidence_score / 100) * 5
     # 3. Revenue Growth YoY (12 pts — full at 30%)
@@ -1055,12 +1062,25 @@ _DASHBOARD_TIMEFRAME_CONFIG = {
 }
 
 
-def _adjust_gps_for_horizon(breakdown: dict, change_pct: float, confidence: float | None) -> float:
+# Mirrors HORIZON_ML_PREDICTION_CEILING_PCT in src/utils/horizons.ts — each
+# horizon's ML Prediction ceiling, anchored to that horizon's own empirical
+# p75 predicted change (measured 2026-09-05). Keep in sync with the TS table.
+_HORIZON_ML_PREDICTION_CEILING_PCT = {
+    '1_week':  5.5,
+    '1_month': 2.3,
+    '3_month': 24.1,
+    '6_month': 24.0,
+}
+
+
+def _adjust_gps_for_horizon(breakdown: dict, change_pct: float, confidence: float | None,
+                             timeframe: str = '1_month') -> float:
     """Mirror src/utils/gps.ts adjustGpsForHorizon. Patches the two
     horizon-dependent components (mlpUpside + mlpConfidence) using the
     user's per-horizon predicted change% + confidence, then sums."""
-    prediction_max = float(os.getenv('GPS_PREDICTION_MAX', '3'))
-    new_mlp_upside = max(-1.0, min(1.0, change_pct / prediction_max)) * 20.0
+    prediction_max = _HORIZON_ML_PREDICTION_CEILING_PCT.get(timeframe, _HORIZON_ML_PREDICTION_CEILING_PCT['1_month'])
+    # Floors at 0 for a negative prediction, same as calculate_gps_v3 above.
+    new_mlp_upside = max(0.0, min(1.0, change_pct / prediction_max)) * 20.0
     if confidence is not None:
         new_mlp_confidence = (max(0.0, min(100.0, confidence)) / 100.0) * 5.0
     else:
@@ -1217,7 +1237,7 @@ def _build_dashboard_card_preview(cursor, user_ids: list[int]) -> list[dict]:
         if sgs_breakdown is not None:
             try:
                 breakdown = json.loads(sgs_breakdown) if isinstance(sgs_breakdown, (str, bytes, bytearray)) else sgs_breakdown
-                adjusted_gps = _adjust_gps_for_horizon(breakdown, change_pct_for_adjust, confidence_f)
+                adjusted_gps = _adjust_gps_for_horizon(breakdown, change_pct_for_adjust, confidence_f, timeframe or '1_month')
             except Exception:
                 adjusted_gps = float(sgs_gps) if sgs_gps is not None else None
         else:

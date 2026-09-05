@@ -134,7 +134,7 @@ export async function POST(
       computedGps = calculateGpsScore(gpsMetrics, {
         predictedChangePct1m: horizonChange,
         confidenceScore:      horizonConfidence,
-      });
+      }, { horizon: gpsHorizon });
 
       // Persist the NEUTRAL 1m baseline globally (skip on cache hits).
       if (source === 'livedata') {

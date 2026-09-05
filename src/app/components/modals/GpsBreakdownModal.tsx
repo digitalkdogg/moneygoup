@@ -75,14 +75,14 @@ export const GpsBreakdownModal: React.FC<GpsBreakdownModalProps> = ({
   const getMetricsArray = () => {
     if (!breakdown) return []
     return [
-      { label: mlpLabel, score: breakdown.mlpUpside ?? 0, max: 20 },
+      { label: mlpLabel, score: breakdown.mlpUpside ?? 0, max: 25 },
       { label: 'AI Confidence', score: breakdown.mlpConfidence ?? 0, max: 5 },
       { label: 'Revenue Growth', score: breakdown.revenueGrowth ?? 0, max: 12 },
       { label: 'Earnings Growth', score: breakdown.earningsGrowth ?? 0, max: 12 },
-      { label: 'Technical Signal', score: breakdown.technicalSignal ?? 0, max: 20 },
+      { label: 'Technical Signal', score: breakdown.technicalSignal ?? 0, max: 17 },
       { label: 'Analyst Upside', score: breakdown.analystUpside ?? 0, max: 12 },
       { label: 'Analyst Consensus', score: breakdown.analystConsensus ?? 0, max: 9 },
-      { label: '52-Week Momentum', score: breakdown.priceChange52w ?? breakdown.fiftyTwoWeekChange ?? 0, max: 10 },
+      { label: '52-Week Momentum', score: breakdown.priceChange52w ?? breakdown.fiftyTwoWeekChange ?? 0, max: 8 },
     ]
   }
 

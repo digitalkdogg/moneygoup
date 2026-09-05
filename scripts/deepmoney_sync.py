@@ -1,5 +1,6 @@
 import json
 import os
+import subprocess
 import sys
 import time
 import requests
@@ -1502,6 +1503,29 @@ def _print_run_summary(
             _mod.print_coverage_summary(_stats, _state)
     except Exception as _cov_err:
         print(f"  [coverage check skipped: {_cov_err}]")
+
+    # ── GPS score distribution (post-sync snapshot) ─────────────────────────
+    # Non-blocking: same guard style as the coverage check above — a failed
+    # or missing node toolchain shouldn't abort the sync summary.
+    try:
+        print()
+        print("  GPS SCORE DISTRIBUTION")
+        _dist = subprocess.run(
+            ["node", "--env-file=.env", "--import", "jiti/register", "scripts/gps_distribution.ts"],
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        _dist_out = (_dist.stdout or "").strip()
+        if _dist_out:
+            for _line in _dist_out.splitlines():
+                print(f"  {_line}")
+        if _dist.returncode != 0:
+            _err_tail = (_dist.stderr or "").strip().splitlines()
+            print(f"  [gps_distribution.ts exited {_dist.returncode}: {_err_tail[-1] if _err_tail else 'no stderr'}]")
+    except Exception as _dist_err:
+        print(f"  [GPS distribution skipped: {_dist_err}]")
 
     print("=" * 70)
 

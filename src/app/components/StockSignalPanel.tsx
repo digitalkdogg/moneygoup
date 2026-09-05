@@ -3,12 +3,17 @@
 import { useState } from 'react'
 import { GpsBreakdownModal } from './modals/GpsBreakdownModal'
 import { getGpsLabel } from '@/utils/gps'
+import type { HorizonKey } from '@/utils/horizons'
 
 export interface GpsData {
   gpsScore: number | null
   gpsBreakdown: Record<string, number> | null
   source: 'stock_gps_scores' | 'user_stock_predictions' | 'recommended_stocks' | 'none'
   asOf: string | null
+  /** Which prediction horizon mlpUpside/mlpConfidence reflect. Defaults to
+   *  '1_month' server-side when absent, so this can be omitted by older
+   *  callers without breaking the modal's label. */
+  gpsHorizon?: HorizonKey | null
 }
 
 interface StockSignalPanelProps {
@@ -51,14 +56,14 @@ const DRIVER_LABELS: Record<string, string> = {
 }
 
 const DRIVER_MAX: Record<string, number> = {
-  mlpUpside:        20,
+  mlpUpside:        25,
   mlpConfidence:    5,
   revenueGrowth:    12,
   earningsGrowth:   12,
-  technicalSignal:  20,
+  technicalSignal:  17,
   analystUpside:    12,
   analystConsensus: 9,
-  priceChange52w:   10,
+  priceChange52w:   8,
 }
 
 function getChipColors(score: number) {
@@ -90,6 +95,7 @@ export default function StockSignalPanel({
   const score = gpsData?.gpsScore ?? null
   const breakdown = gpsData?.gpsBreakdown ?? null
   const source = gpsData?.source ?? 'none'
+  const horizon = gpsData?.gpsHorizon ?? undefined
   const isBearish = breakdown != null && typeof (breakdown as any).mlpUpside === 'number' && (breakdown as any).mlpUpside < 0
 
   const sourceLabel =
@@ -235,6 +241,7 @@ export default function StockSignalPanel({
           symbol={ticker}
           score={score ?? 0}
           breakdown={breakdown}
+          horizon={horizon}
         />
       )}
     </div>

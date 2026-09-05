@@ -19,8 +19,8 @@ const AGGRESSIVENESS_OPTIONS: Array<{ value: ProfileStrategy['aggressiveness']; 
 const TIMEFRAME_OPTIONS: Array<{ value: ProfileStrategy['investment_timeframe']; label: string; hint: string }> = [
   { value: '1_week',  label: '1 Week',  hint: 'Hair-trigger predictions, lower upside bar; ML gate ≥ 0.5%' },
   { value: '1_month', label: '1 Month', hint: 'Default horizon (baseline); ML gate ≥ 1.5%' },
-  { value: '6_month', label: '6 Month', hint: 'Holds through dips, requires larger upside; ML gate ≥ 5%' },
   { value: '3_month', label: '3 Month', hint: 'Medium horizon; holds through short-term noise; ML gate ≥ 3%' },
+  { value: '6_month', label: '6 Month', hint: 'Holds through dips, requires larger upside; ML gate ≥ 5%' },
 ];
 
 type FetchState =

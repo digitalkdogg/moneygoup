@@ -345,14 +345,21 @@ async function fetchOhlcv(ticker: string) {
 
   const sorted = [...rows].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  const historyDays = sorted.length;
+  // Yahoo returns a bar for the current trading day before it has closed,
+  // with close/adjclose both null. Coercing that to a $0 close (the old
+  // behavior here) fabricates a ~-100% single-day move that corrupts both
+  // this array (fed straight into the ML model) and the fiftyTwoWeekChange
+  // fallback below — drop any bar with no close instead of zero-filling it.
+  const complete = sorted.filter(r => (r.adjclose ?? r.close) != null);
+
+  const historyDays = complete.length;
   if (historyDays < 30) {
     throw new Error(
       `Insufficient history for ${ticker}: ${historyDays} days available, minimum 30 required.`
     );
   }
 
-  const historicalData = sorted.map(r => ({
+  const historicalData = complete.map(r => ({
     date:   new Date(r.date).toISOString().slice(0, 10),
     open:   r.open   ?? 0,
     high:   r.high   ?? 0,

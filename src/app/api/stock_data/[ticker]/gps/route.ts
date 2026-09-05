@@ -13,7 +13,7 @@ import { adjustGpsForHorizon, type GpsBreakdown } from '@/utils/gps'
 
 const logger = createLogger('api/stock_data/[ticker]/gps')
 
-const EMPTY = { gpsScore: null, gpsBreakdown: null, source: 'none' as const, asOf: null }
+const EMPTY = { gpsScore: null, gpsBreakdown: null, source: 'none' as const, asOf: null, gpsHorizon: null }
 
 const CONSENSUS_POINTS: Record<string, number> = {
   strongBuy: 9, strong_buy: 9, buy: 7, hold: 4, underperform: 2, sell: 0,
@@ -119,10 +119,15 @@ export async function GET(
   // and isn't watching).
   let gpsScore = dbResult.gpsScore
   let gpsBreakdown = enrichedBreakdown
+  // Resolved unconditionally (not just inside the try block below) so the
+  // response always reports which horizon the score reflects — including
+  // when adjustment is skipped or fails, in which case gpsScore/gpsBreakdown
+  // fall back to the 1-month baseline and the label should say so.
+  const userStrategy = await getUserStrategy(session.user.id).catch(() => DEFAULT_STRATEGY)
+  let gpsHorizon: typeof userStrategy.investment_timeframe = '1_month'
 
   if (enrichedBreakdown) {
     try {
-      const userStrategy = await getUserStrategy(session.user.id).catch(() => DEFAULT_STRATEGY)
       const sfx = resolveStrategy(userStrategy).timeframe.predictedPriceColumn.replace('predicted_price_', '')
       // Pull the per-horizon change%, the per-horizon confidence, AND the
       // per-horizon predicted_price (with a 1m fallback inside SQL). The
@@ -155,9 +160,10 @@ export async function GET(
       const changePct = storedChangePct != null ? storedChangePct : derivedChangePct
 
       if (changePct != null && Number.isFinite(changePct)) {
-        const adjusted = adjustGpsForHorizon(enrichedBreakdown as GpsBreakdown, changePct, confidence)
+        const adjusted = adjustGpsForHorizon(enrichedBreakdown as GpsBreakdown, changePct, confidence, userStrategy.investment_timeframe)
         gpsScore = adjusted.score
         gpsBreakdown = adjusted.breakdown
+        gpsHorizon = userStrategy.investment_timeframe
       }
     } catch (err) {
       logger.warn('Horizon adjustment failed, returning baseline score', { ticker, error: err instanceof Error ? err.message : String(err) })
@@ -168,5 +174,6 @@ export async function GET(
     ...dbResult,
     gpsScore,
     gpsBreakdown,
+    gpsHorizon,
   })
 }

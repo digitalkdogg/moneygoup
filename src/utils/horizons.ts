@@ -39,3 +39,26 @@ export const HORIZON_LABEL_SHORT: Record<HorizonKey, string> = {
   '3_month': '3m',
   '6_month': '6m',
 };
+
+/**
+ * ML Prediction ceiling (% predicted change) per horizon, used by
+ * calculateGpsScore/adjustGpsForHorizon: a prediction at or beyond this
+ * value earns the component's full 25 pts. Empirically anchored to each
+ * horizon's own 75th-percentile predicted_change_pct across the live
+ * universe (measured 2026-09-05, ~29-379 predictions per horizon depending
+ * on how many stocks have that horizon's columns populated) — replaces a
+ * naive "scale the 1-month ceiling by horizon length" approach, which
+ * didn't track how much predicted-move magnitude actually grows with
+ * horizon (e.g. 6-month predictions are far more than 6x a 1-month one).
+ *
+ * A prior fixed value of 25% (from GPS_PREDICTION_MAX) was itself far above
+ * the 1-month distribution's own p90 (~5%), which was the single biggest
+ * contributor to raw GPS scores clustering low. Revisit periodically as the
+ * model/universe shifts — these are a snapshot, not a law of physics.
+ */
+export const HORIZON_ML_PREDICTION_CEILING_PCT: Record<HorizonKey, number> = {
+  '1_week':  5.5,
+  '1_month': 2.3,
+  '3_month': 24.1,
+  '6_month': 24.0,
+};

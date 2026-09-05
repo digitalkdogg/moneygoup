@@ -116,9 +116,11 @@ Three Python scripts keep data fresh, followed by a TypeScript calibration pass:
 | `scripts/deepmoney_sync.py` | Nightly (cron) | DeepMoney discovery — finds stocks, validates with ML, writes `recommended_stocks` |
 | `scripts/update_predictions.py` | Nightly (cron) | Refreshes cached predictions + ETF holding scan |
 | `scripts/fred_macro_sync.py` | Nightly (cron) | Fetches 9 FRED macro series into `fred_macro_indicators` |
-| `scripts/recalibrate_gps_scores.ts` | Nightly (cron), **after** the two GPS-writing scripts above | Percentile-rescales every raw GPS score so the top 10% of the universe scores above 80 — see [GPS Score → Percentile Calibration](business-rules/gps-score.md#percentile-calibration-scriptsrecalibrate_gps_scorests) |
 
-The three Python scripts authenticate to the Next.js API via `x-api-key: DEEPMONEY_INTERNAL_SECRET` and call `http://localhost:3001` directly to bypass nginx proxy timeouts. The calibration script talks to the database directly (same as `scripts/gps_distribution.ts`) and has no HTTP dependency.
+The three Python scripts authenticate to the Next.js API via `x-api-key: DEEPMONEY_INTERNAL_SECRET` and call `http://localhost:3001` directly to bypass nginx proxy timeouts.
+
+!!! note "GPS percentile calibration removed 2026-09-05"
+    A nightly `scripts/recalibrate_gps_scores.ts` job used to percentile-rescale every GPS score. It was removed once the underlying scoring bugs it was papering over (a horizon/prediction-ceiling mismatch and a null-close data bug) were fixed — GPS scores are now the raw additive score with no rescaling. See [GPS Score](business-rules/gps-score.md).
 
 ---
 

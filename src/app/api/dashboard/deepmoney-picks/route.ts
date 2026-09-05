@@ -9,6 +9,7 @@ import { createLogger } from '@/utils/logger';
 import { createErrorResponse } from '@/utils/errorResponse';
 import { getGpsLabel, adjustGpsForHorizon, type GpsBreakdown } from '@/utils/gps';
 import { getUserStrategy, resolveStrategy, DEFAULT_STRATEGY } from '@/utils/strategy';
+import type { HorizonKey } from '@/utils/horizons';
 import { resolveEtfHoldingAlgorithm } from '@/utils/etfHoldingPreset';
 import YahooFinance from 'yahoo-finance2';
 
@@ -231,8 +232,8 @@ export async function GET(request: NextRequest) {
     ].filter(Boolean);
     const horizonByTicker = await fetchHorizonDataForTickers(userId, cardTickers, sfx);
 
-    const adjustedHotStocks = enrichedHotStocks.map(s => applyHorizonAdjustment(s, horizonByTicker));
-    const adjustedEtfHoldings = etfHoldings.map(h => applyHorizonAdjustment(h, horizonByTicker));
+    const adjustedHotStocks = enrichedHotStocks.map(s => applyHorizonAdjustment(s, horizonByTicker, timeframe));
+    const adjustedEtfHoldings = etfHoldings.map(h => applyHorizonAdjustment(h, horizonByTicker, timeframe));
 
     return NextResponse.json({
       hot_stocks: adjustedHotStocks,
@@ -285,6 +286,7 @@ async function fetchHorizonDataForTickers(
 function applyHorizonAdjustment<T extends { ticker?: string; gps_score?: number | string | null; gps_breakdown?: unknown }>(
   card: T,
   horizonByTicker: Map<string, HorizonRow>,
+  horizon: HorizonKey,
 ): T {
   const ticker = (card.ticker || '').toUpperCase();
   const row = horizonByTicker.get(ticker);
@@ -296,6 +298,7 @@ function applyHorizonAdjustment<T extends { ticker?: string; gps_score?: number 
       breakdown as GpsBreakdown,
       row.change_pct,
       row.confidence ?? undefined,
+      horizon,
     );
     return {
       ...card,

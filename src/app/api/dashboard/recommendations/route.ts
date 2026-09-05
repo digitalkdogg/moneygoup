@@ -261,7 +261,7 @@ export async function GET(request: NextRequest) {
       if (baselineBreakdown) {
         const changePct = storedChangePct != null ? storedChangePct : (Number.isFinite(deltaPct) ? deltaPct : null);
         if (changePct != null) {
-          const adjusted = adjustGpsForHorizon(baselineBreakdown, changePct, storedConfidence);
+          const adjusted = adjustGpsForHorizon(baselineBreakdown, changePct, storedConfidence, userStrategy.investment_timeframe);
           perUserBreakdown = adjusted.breakdown;
           perUserScore = adjusted.score;
         }
@@ -357,7 +357,7 @@ export async function GET(request: NextRequest) {
         // esr.predicted_change_pct value the sync persisted at scan time.
         const changePctForAdjust = holdingStoredChangePct != null ? holdingStoredChangePct : predChangePct;
         if (changePctForAdjust != null) {
-          const adjusted = adjustGpsForHorizon(baselineBreakdown, changePctForAdjust, holdingStoredConfidence);
+          const adjusted = adjustGpsForHorizon(baselineBreakdown, changePctForAdjust, holdingStoredConfidence, userStrategy.investment_timeframe);
           holdingGps = adjusted.score;
           holdingBreakdown = adjusted.breakdown;
         }
@@ -372,6 +372,7 @@ export async function GET(request: NextRequest) {
         deltaPct:        predChangePct,
         gpsScore:        holdingGps,
         gpsBreakdown:    holdingBreakdown,
+        gpsHorizon:      userStrategy.investment_timeframe,
         lastRequestedAt: rec.created_at as string,
         scope:           'etf_holding',
         etfTicker:       (rec.etf_ticker as string).toUpperCase(),

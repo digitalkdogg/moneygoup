@@ -623,6 +623,7 @@ export default function StockPrediction({
         gpsBreakdown: result.gps_breakdown ?? null,
         source: 'stock_gps_scores',
         asOf: new Date().toISOString(),
+        gpsHorizon: result.gps_horizon ?? null,
       } : null
 
       setPrediction(result)

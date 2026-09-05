@@ -3,6 +3,7 @@
  * 8-component, 100-point scoring system.
  * GPS score is the single source of truth for all buy/sell recommendations.
  */
+import { HORIZON_ML_PREDICTION_CEILING_PCT, type HorizonKey } from './horizons';
 
 export interface GpsMetrics {
   analystUpside?: number;       // fraction (0.30 = 30% upside), max 12 pts
@@ -126,9 +127,18 @@ export function adjustGpsForHorizon(
   breakdown: GpsBreakdown,
   predictedChangePctForHorizon: number,
   confidenceScoreForHorizon?: number,
+  horizon: HorizonKey = '1_month',
 ): { breakdown: GpsBreakdown; score: number } {
-  const predictionMax = process.env.GPS_PREDICTION_MAX ? parseFloat(process.env.GPS_PREDICTION_MAX) : 3
-  const newMlpUpside = Math.min(Math.max(predictedChangePctForHorizon / predictionMax, -1), 1) * 25
+  // See calculateGpsScore's matching comment: the ceiling is anchored to
+  // this horizon's own empirical p75 predicted change, not a scaled 1-month
+  // value — otherwise a longer-horizon prediction's larger cumulative % move
+  // gets judged against a ceiling that doesn't reflect how it actually
+  // scores relative to its own horizon's peers.
+  const predictionMax = HORIZON_ML_PREDICTION_CEILING_PCT[horizon]
+  // Floors at 0 for a negative prediction — see calculateGpsScore's matching
+  // comment: any decline gets 0 credit here, same as the other components,
+  // rather than scaling further negative the worse the predicted drop is.
+  const newMlpUpside = Math.min(Math.max(predictedChangePctForHorizon / predictionMax, 0), 1) * 25
   const newMlpConfidence = confidenceScoreForHorizon != null
     ? (Math.min(Math.max(confidenceScoreForHorizon, 0), 100) / 100) * 5
     : breakdown.mlpConfidence
@@ -208,11 +218,27 @@ export function calculateGpsLight(metrics: GpsMetrics, light: GpsLightInput): Gp
   };
 }
 
-export function calculateGpsScore(metrics: GpsMetrics, prediction: GpsPredictionResult): GpsResult {
-  const predictionMax = process.env.GPS_PREDICTION_MAX ? parseFloat(process.env.GPS_PREDICTION_MAX) : 3
+export function calculateGpsScore(
+  metrics: GpsMetrics,
+  prediction: GpsPredictionResult,
+  options: { horizon?: HorizonKey } = {},
+): GpsResult {
+  // The ML Prediction ceiling is anchored per-horizon to that horizon's own
+  // empirical p75 predicted change (HORIZON_ML_PREDICTION_CEILING_PCT) — see
+  // its doc comment in horizons.ts. `options.horizon` defaults to 1_month,
+  // which is also what every call that scores the persisted baseline uses
+  // (they don't pass `options`), so the baseline's ceiling is this table's
+  // 1_month value, not a separate env-driven constant.
+  const predictionMax = HORIZON_ML_PREDICTION_CEILING_PCT[options.horizon ?? '1_month']
 
-  // 1. ML Predicted Change 1m (25 pts)
-  const m1 = Math.min(Math.max((prediction.predictedChangePct1m || 0) / predictionMax, -1), 1) * 25
+  // 1. ML Predicted Change 1m (25 pts). Floors at 0 for any negative
+  // prediction — matching every other component here (revenue/earnings
+  // growth, analyst upside), which give 0 credit for a bad signal rather
+  // than actively subtracting points that scale with how bad it is. A -5%
+  // and a -99% prediction are both "don't buy this"; there's no reason a
+  // near-total-wipeout prediction should drag the score lower than a mild
+  // dip would. bearishSignal (below) still separately flags any decline.
+  const m1 = Math.min(Math.max((prediction.predictedChangePct1m || 0) / predictionMax, 0), 1) * 25
 
   // 2. AI Model Confidence (5 pts — linear, 100 = 5 pts)
   const m2 = ((prediction.confidenceScore || 0) / 100) * 5
