@@ -1515,10 +1515,17 @@ def _print_run_summary(
                 _f for _f in (".env.production", ".env.local", ".env")
                 if os.path.exists(os.path.join(PROJECT_ROOT, _f))
             ),
-            ".env",
+            None,
         )
+        # No .env file on disk (e.g. inside a container that gets DB creds
+        # from real environment variables) — skip --env-file and just let
+        # the child inherit this process's already-populated os.environ.
+        _node_cmd = ["node"]
+        if _env_file:
+            _node_cmd.append(f"--env-file={_env_file}")
+        _node_cmd += ["--import", "jiti/register", "scripts/gps_distribution.ts"]
         _dist = subprocess.run(
-            ["node", f"--env-file={_env_file}", "--import", "jiti/register", "scripts/gps_distribution.ts"],
+            _node_cmd,
             cwd=PROJECT_ROOT,
             capture_output=True,
             text=True,
